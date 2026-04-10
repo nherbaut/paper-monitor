@@ -257,6 +257,15 @@
                     <h3>{logicalFeed.name}</h3>
                     <p class="meta">{logicalFeed.description ?: 'No description'}</p>
                     <p class="meta">{logicalFeed.feeds.size} feed(s) attached</p>
+                    <div class="meta">
+                        <strong>Git mirrors</strong><br>
+                        {#if logicalFeed.gitSyncError}
+                        {logicalFeed.gitSyncError}<br>
+                        {/if}
+                        {#for gitRemote in logicalFeed.gitRemotes}
+                        {gitRemote.state}: <a href="{gitRemote.url}">{gitRemote.url}</a><br>
+                        {/for}
+                    </div>
                     <form action="/logical-feeds/{logicalFeed.id}/update" method="post">
                         <input type="text" name="name" value="{logicalFeed.name}" required>
                         <textarea name="description">{logicalFeed.description}</textarea>

@@ -38,6 +38,7 @@ import top.nextnet.paper.monitor.repo.PaperRepository;
 import top.nextnet.paper.monitor.service.BackupService;
 import top.nextnet.paper.monitor.service.FeedPollingService;
 import top.nextnet.paper.monitor.service.PaperEventService;
+import top.nextnet.paper.monitor.service.PaperGitSyncService;
 import top.nextnet.paper.monitor.service.PaperStorageService;
 
 @Path("/")
@@ -53,6 +54,7 @@ public class HomeResource {
     private final PaperEventRepository paperEventRepository;
     private final FeedPollingService feedPollingService;
     private final PaperEventService paperEventService;
+    private final PaperGitSyncService paperGitSyncService;
     private final PaperStorageService paperStorageService;
     private final BackupService backupService;
 
@@ -66,6 +68,7 @@ public class HomeResource {
             PaperEventRepository paperEventRepository,
             FeedPollingService feedPollingService,
             PaperEventService paperEventService,
+            PaperGitSyncService paperGitSyncService,
             PaperStorageService paperStorageService,
             BackupService backupService
     ) {
@@ -78,6 +81,7 @@ public class HomeResource {
         this.paperEventRepository = paperEventRepository;
         this.feedPollingService = feedPollingService;
         this.paperEventService = paperEventService;
+        this.paperGitSyncService = paperGitSyncService;
         this.paperStorageService = paperStorageService;
         this.backupService = backupService;
     }
@@ -85,11 +89,12 @@ public class HomeResource {
     @GET
     @Transactional
     public TemplateInstance index(@jakarta.ws.rs.QueryParam("paperId") Long paperId) {
+        List<LogicalFeed> logicalFeeds = logicalFeedRepository.findAll().list();
+        paperGitSyncService.syncLogicalFeeds(logicalFeeds);
         List<Paper> papers = new ArrayList<>(paperRepository.findAllForReader());
         if (paperId != null && papers.stream().noneMatch((paper) -> paper.id.equals(paperId))) {
             paperRepository.findForReader(paperId).ifPresent((paper) -> papers.add(0, paper));
         }
-        List<LogicalFeed> logicalFeeds = logicalFeedRepository.findAll().list();
         populatePaperCounts(logicalFeeds);
         return home.data("recentPapers", papers)
                 .data("initialPaperId", paperId)
@@ -101,6 +106,7 @@ public class HomeResource {
     @Transactional
     public TemplateInstance admin() {
         List<LogicalFeed> logicalFeeds = logicalFeedRepository.findAll().list();
+        paperGitSyncService.syncLogicalFeeds(logicalFeeds);
         List<Feed> feeds = feedRepository.findAll().list();
         return admin.data("logicalFeeds", logicalFeeds)
                 .data("feeds", feeds)
@@ -212,6 +218,7 @@ public class HomeResource {
         feed.logicalFeed = logicalFeed;
         feed.defaultPaperStatus = normalizeFeedDefaultStatus(logicalFeed, defaultPaperStatus);
         feedRepository.persist(feed);
+        paperGitSyncService.syncLogicalFeed(logicalFeed);
         return seeOther("/admin");
     }
 
@@ -235,8 +242,13 @@ public class HomeResource {
         feed.name = name == null ? null : name.trim();
         feed.url = url == null ? null : url.trim();
         feed.pollIntervalMinutes = pollIntervalMinutes == null ? 60 : pollIntervalMinutes;
+        LogicalFeed previousLogicalFeed = feed.logicalFeed;
         feed.logicalFeed = logicalFeed;
         feed.defaultPaperStatus = normalizeFeedDefaultStatus(logicalFeed, defaultPaperStatus);
+        if (previousLogicalFeed != null) {
+            paperGitSyncService.syncLogicalFeed(previousLogicalFeed);
+        }
+        paperGitSyncService.syncLogicalFeed(logicalFeed);
         return seeOther("/admin");
     }
 
@@ -244,6 +256,10 @@ public class HomeResource {
     @Path("/feeds/{id}/poll")
     public Response pollFeed(@jakarta.ws.rs.PathParam("id") Long id) {
         feedPollingService.pollFeedById(id);
+        Feed feed = feedRepository.findById(id);
+        if (feed != null) {
+            paperGitSyncService.syncLogicalFeed(feed.logicalFeed);
+        }
         return seeOther("/admin");
     }
 
@@ -303,6 +319,7 @@ public class HomeResource {
         paper.uploadedPdfFileName = storedPdf.originalFileName();
         paperRepository.persist(paper);
         paperEventService.log(paper, "PDF_UPLOADED", "Uploaded from admin");
+        paperGitSyncService.syncLogicalFeed(logicalFeed);
         return seeOther("/admin");
     }
 
@@ -361,6 +378,7 @@ public class HomeResource {
         paper.uploadedPdfPath = storedPdf.storedPath();
         paper.uploadedPdfFileName = storedPdf.originalFileName();
         paperEventService.log(paper, "PDF_UPLOADED", "Attached PDF " + storedPdf.originalFileName());
+        paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
         return Response.noContent().build();
     }
 
@@ -403,6 +421,7 @@ public class HomeResource {
             }
             paper.status = normalizedStatus;
             paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
+            paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
         } catch (Exception e) {
             throw new WebApplicationException("Invalid paper status", Response.Status.BAD_REQUEST);
         }

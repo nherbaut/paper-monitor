@@ -45,6 +45,25 @@ public class PaperStorageService {
         return new StoredPdf(storedFileName, originalFileName);
     }
 
+    public StoredPdf storePdf(Path source, String originalFileName) throws IOException {
+        if (source == null || !Files.exists(source)) {
+            throw new IllegalArgumentException("PDF source file is required");
+        }
+        if (originalFileName == null || originalFileName.isBlank()) {
+            throw new IllegalArgumentException("PDF filename is required");
+        }
+        if (!originalFileName.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+            throw new IllegalArgumentException("Only PDF files are supported");
+        }
+
+        Files.createDirectories(storageRoot);
+
+        String storedFileName = UUID.randomUUID() + ".pdf";
+        Path target = storageRoot.resolve(storedFileName);
+        Files.copy(source, target, StandardCopyOption.REPLACE_EXISTING);
+        return new StoredPdf(storedFileName, originalFileName);
+    }
+
     public StoredAsset storeImage(FileUpload upload) throws IOException {
         if (upload == null) {
             throw new IllegalArgumentException("Image upload is required");

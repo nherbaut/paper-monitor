@@ -53,6 +53,16 @@ public class PaperRepository implements PanacheRepository<Paper> {
                 .firstResultOptional();
     }
 
+    public List<Paper> findByLogicalFeedAndStatus(LogicalFeed logicalFeed, String status) {
+        return find("select p from Paper p "
+                        + "join fetch p.logicalFeed "
+                        + "join fetch p.feed "
+                        + "where p.logicalFeed = ?1 and p.status = ?2 "
+                        + "order by p.discoveredAt desc",
+                logicalFeed, status)
+                .list();
+    }
+
     public Map<Long, Map<String, Long>> countByLogicalFeedAndStatus() {
         List<Object[]> rows = getEntityManager().createQuery(
                         "select p.logicalFeed.id, p.status, count(p) "

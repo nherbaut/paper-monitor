@@ -33,11 +33,20 @@ public class LogicalFeed extends PanacheEntityBase {
     @Column(length = 2000)
     public String workflowStates;
 
+    @Column(length = 4000)
+    public String stateGitLinks;
+
     @OneToMany(mappedBy = "logicalFeed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     public List<Feed> feeds = new ArrayList<>();
 
     @Transient
     public Map<String, Long> paperCountsByState = new LinkedHashMap<>();
+
+    @Transient
+    public List<StateGitRemote> gitRemotes = new ArrayList<>();
+
+    @Transient
+    public String gitSyncError;
 
     public List<String> workflowStateList() {
         if (workflowStates == null || workflowStates.isBlank()) {
@@ -68,6 +77,31 @@ public class LogicalFeed extends PanacheEntityBase {
         return workflowStateList().get(0);
     }
 
+    public Map<String, String> stateGitLinkMap() {
+        Map<String, String> values = new LinkedHashMap<>();
+        if (stateGitLinks == null || stateGitLinks.isBlank()) {
+            return values;
+        }
+        for (String line : stateGitLinks.split("\\R")) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            int separator = trimmed.indexOf('=');
+            if (separator <= 0 || separator == trimmed.length() - 1) {
+                continue;
+            }
+            values.put(trimmed.substring(0, separator).trim(), trimmed.substring(separator + 1).trim());
+        }
+        return values;
+    }
+
+    public void setStateGitLinkMap(Map<String, String> values) {
+        this.stateGitLinks = values.entrySet().stream()
+                .map((entry) -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining("\n"));
+    }
+
     public String paperCountsToken() {
         return workflowStateList().stream()
                 .map((state) -> state + ":" + paperCountsByState.getOrDefault(state, 0L))
@@ -86,5 +120,15 @@ public class LogicalFeed extends PanacheEntityBase {
             return name;
         }
         return name + " (" + summary + ")";
+    }
+
+    public static class StateGitRemote {
+        public final String state;
+        public final String url;
+
+        public StateGitRemote(String state, String url) {
+            this.state = state;
+            this.url = url;
+        }
     }
 }

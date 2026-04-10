@@ -109,6 +109,7 @@ public class BackupService {
             item.put("name", logicalFeed.name);
             item.put("description", logicalFeed.description);
             item.put("workflowStates", logicalFeed.workflowStates);
+            item.put("stateGitLinks", logicalFeed.stateGitLinks);
             logicalFeeds.add(item);
         }
         return logicalFeeds;
@@ -188,6 +189,7 @@ public class BackupService {
             logicalFeed.name = stringValue(item.get("name"));
             logicalFeed.description = stringValue(item.get("description"));
             logicalFeed.workflowStates = stringValue(item.get("workflowStates"));
+            logicalFeed.stateGitLinks = stringValue(item.get("stateGitLinks"));
             logicalFeedRepository.persist(logicalFeed);
             logicalFeedsByOldId.put(longValue(item.get("id")), logicalFeed);
         }
