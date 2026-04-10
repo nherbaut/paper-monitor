@@ -1,37 +1,59 @@
 # paper-monitor
 
-Quarkus application that polls RSS feeds containing scientific papers, stores discovered items in a JDBC database, and exposes a homepage to manage:
+Repository layout:
 
-- physical RSS feeds
-- logical feeds aggregating multiple RSS feeds
-- recently discovered papers
+- `app/`: Quarkus application
+- `data/`: local runtime data for the app
+- `piper-api/`: HTTP sidecar for Piper TTS
 
-## Main behavior
-
-- Each RSS feed belongs to exactly one logical feed.
-- A scheduler periodically polls due feeds.
-- New items are parsed and stored once, keyed by source link.
-- The homepage at `/` lets you create, update, delete, and manually poll feeds.
-
-## Database
-
-The app defaults to SQLite and expects the JDBC driver to be available at runtime.
-
-Default configuration in [`application.properties`](./src/main/resources/application.properties):
-
-```properties
-quarkus.datasource.db-kind=sqlite
-quarkus.datasource.jdbc.url=jdbc:sqlite:paper-monitor.db
-quarkus.hibernate-orm.schema-management.strategy=update
-paper-monitor.poller.every=60s
-```
-
-You can override these settings from `application.properties`, environment variables, or JVM system properties to target another JDBC database.
-
-## Run
+## Run the app
 
 ```bash
+cd app
 ./mvnw quarkus:dev
 ```
 
-The admin homepage is available at <http://localhost:8080/>.
+The app uses the shared top-level `data/` directory for:
+
+- SQLite database: `data/paper-monitor.db`
+- uploaded PDFs and note images: `data/uploads/`
+- Git paper mirrors: `data/git-remotes/`
+- Piper models: `data/tts-models/`
+
+## Piper sidecar
+
+The repository now includes a separate `piper-api/` project plus a top-level `docker-compose.yml`.
+
+The sidecar exposes:
+
+- `GET /healthz`
+- `GET /voices`
+- `POST /v1/speak`
+
+Compose assumes you provide:
+
+- a host `piper` binary at `/usr/local/bin/piper`
+- voice models under `data/tts-models/`
+
+That keeps the sidecar isolated without coupling Piper installation details into the Quarkus app.
+
+## Build and push container images
+
+The repository root includes a `Makefile` that discovers every immediate subfolder containing a `Dockerfile` or `Containerfile`.
+The `app/` subfolder is also included and built through Quarkus container-image support instead of a plain `docker build`.
+
+Examples:
+
+```bash
+make list
+make build DOCKERHUB_NAMESPACE=mydockerhubuser IMAGE_TAG=latest
+make push DOCKERHUB_NAMESPACE=mydockerhubuser IMAGE_TAG=latest
+```
+
+Image names follow this pattern:
+
+- `<DOCKERHUB_NAMESPACE>/paper-monitor-<folder>:<IMAGE_TAG>`
+
+For the Quarkus app specifically, the image name is:
+
+- `<DOCKERHUB_NAMESPACE>/paper-monitor-app:<IMAGE_TAG>`

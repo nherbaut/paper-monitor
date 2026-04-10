@@ -1,0 +1,33 @@
+FROM eclipse-temurin:21-jre-jammy
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        pandoc \
+        texlive-fonts-recommended \
+        texlive-latex-extra \
+        texlive-xetex \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /work/
+
+RUN groupadd -r quarkus \
+    && useradd -r -g quarkus -d /work -s /usr/sbin/nologin quarkus \
+    && chown -R quarkus:quarkus /work
+
+COPY --chown=quarkus:quarkus target/quarkus-app/lib/ /work/lib/
+COPY --chown=quarkus:quarkus target/quarkus-app/*.jar /work/
+COPY --chown=quarkus:quarkus target/quarkus-app/app/ /work/app/
+COPY --chown=quarkus:quarkus target/quarkus-app/quarkus/ /work/quarkus/
+
+EXPOSE 8080
+USER quarkus
+
+ENV JAVA_OPTS_APPEND="-Dquarkus.http.host=0.0.0.0"
+ENV JAVA_APP_JAR="/work/quarkus-run.jar"
+
+ENTRYPOINT ["java","-jar","/work/quarkus-run.jar"]

@@ -1,0 +1,22 @@
+services:
+  app:
+    image: eclipse-temurin:21-jdk
+    working_dir: /workspace/app
+    command: ["./mvnw", "quarkus:dev", "-Dquarkus.http.host=0.0.0.0"]
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./app:/workspace/app
+      - ./data:/workspace/data
+
+  piper-api:
+    build:
+      context: ./piper-api
+    ports:
+      - "8090:8090"
+    environment:
+      PIPER_BIN: /usr/bin/piper
+      PIPER_MODELS_DIR: /models
+      PIPER_DEFAULT_VOICE: ""
+    volumes:
+      - ./data/tts-models:/models
