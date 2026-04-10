@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paper Monitor Logs</title>
+    <style>
+        :root {
+            --bg: #f5f0e8;
+            --panel: #fffaf3;
+            --ink: #1f1d1a;
+            --muted: #6c655d;
+            --accent: #b34f2e;
+            --accent-soft: #e8b49f;
+            --line: #d8c6b5;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Georgia, "Times New Roman", serif;
+            background:
+                radial-gradient(circle at top left, rgba(179, 79, 46, 0.16), transparent 28%),
+                linear-gradient(180deg, #f9f4ed 0%, var(--bg) 100%);
+            color: var(--ink);
+        }
+
+        main {
+            width: min(1200px, calc(100% - 2rem));
+            margin: 0 auto;
+            padding: 2rem 0 4rem;
+        }
+
+        .panel {
+            background: color-mix(in srgb, var(--panel) 88%, white);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 1.25rem;
+            box-shadow: 0 18px 40px rgba(77, 56, 38, 0.08);
+        }
+
+        .stack {
+            display: grid;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .card {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.7);
+        }
+
+        .pill {
+            display: inline-block;
+            padding: 0.18rem 0.55rem;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: #602714;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .meta {
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        a {
+            color: var(--accent);
+        }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <div class="pill">Paper Activity</div>
+        <h1>Event log</h1>
+        <p class="meta">Recent paper fetches, state transitions, and PDF uploads.</p>
+        <p><a href="/">Back to reader</a> | <a href="/admin">Admin</a></p>
+    </header>
+
+    <section class="panel">
+        <div class="stack">
+            {#for event in events}
+            <article class="card">
+                <div class="pill">{event.type}</div>
+                <h3>{event.paper.title}</h3>
+                <p class="meta">
+                    {event.happenedAt}<br>
+                    Logical feed: {event.paper.logicalFeed.name}<br>
+                    Current state: {event.paper.status}
+                </p>
+                {#if event.details}
+                <p>{event.details}</p>
+                {/if}
+                <p><a href="/?paperId={event.paper.id}">Open in reader</a></p>
+            </article>
+            {/for}
+            {#if events.isEmpty}
+            <p class="meta">No paper events yet.</p>
+            {/if}
+        </div>
+    </section>
+</main>
+</body>
+</html>
