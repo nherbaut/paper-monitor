@@ -925,7 +925,11 @@
                         <div class="pill" id="content-panel-label">Paper view</div>
                     </div>
                     <div class="toolbar-actions">
+                        <button class="icon-button secondary" id="paper-zoom-out" type="button" title="Zoom out">-</button>
+                        <button class="icon-button secondary" id="paper-zoom-in" type="button" title="Zoom in">+</button>
                         <button class="icon-button secondary" id="paper-speak" type="button" title="Speak content">Speak</button>
+                        <button class="icon-button secondary" id="paper-download" type="button" title="Download paper">Download</button>
+                        <button class="icon-button secondary" id="paper-share" type="button" title="Copy link to this paper">Share</button>
                     </div>
                 </div>
                 <audio class="tts-player hidden" id="tts-player" controls preload="none"></audio>
@@ -987,7 +991,11 @@
     const pdfPanelTitle = document.getElementById("pdf-panel-title");
     const pdfPanelMeta = document.getElementById("pdf-panel-meta");
     const pdfClose = document.getElementById("pdf-close");
+    const paperZoomOutButton = document.getElementById("paper-zoom-out");
+    const paperZoomInButton = document.getElementById("paper-zoom-in");
     const paperSpeakButton = document.getElementById("paper-speak");
+    const paperDownloadButton = document.getElementById("paper-download");
+    const paperShareButton = document.getElementById("paper-share");
     const ttsPlayer = document.getElementById("tts-player");
     const notesPanel = document.getElementById("notes-panel");
     const notesPreview = document.getElementById("notes-preview");
@@ -1000,6 +1008,7 @@
     let notesSaveTimer = null;
     let currentZoom = 1;
     let selectedPdfUrl = null;
+    let selectedDownloadUrl = null;
     let selectedContentKind = null;
     let currentPdfPageTexts = [];
     let currentTtsUrl = null;
@@ -1086,6 +1095,10 @@
         notesPanel.classList.toggle("visible", hasReaderContent);
         paperSpeakButton.textContent = hasPdf ? "Speak selection" : "Speak abstract";
         paperSpeakButton.disabled = !hasSelectedPaper;
+        paperZoomOutButton.disabled = !hasPdf;
+        paperZoomInButton.disabled = !hasPdf;
+        paperDownloadButton.disabled = !selectedDownloadUrl;
+        paperShareButton.disabled = !hasSelectedPaper;
     };
 
     const normalizeStatus = (status) => status || "NEW";
@@ -1352,6 +1365,7 @@
         clearKeyboardStatePicker();
         selectedPaperId = null;
         selectedPdfUrl = null;
+        selectedDownloadUrl = null;
         selectedContentKind = null;
         currentPdfPageTexts = [];
         currentZoom = 1;
@@ -1413,6 +1427,7 @@
         card.classList.add("active");
         selectedPaperId = card.dataset.paperId;
         selectedPdfUrl = null;
+        selectedDownloadUrl = card.dataset.pdfUrl || "";
         selectedContentKind = "card";
         currentZoom = 1;
         currentRenderToken += 1;
@@ -1666,6 +1681,7 @@
         }
 
         selectedPdfUrl = pdfUrl;
+        selectedDownloadUrl = pdfUrl + "?disposition=attachment";
         selectedContentKind = "pdf";
         currentZoom = 1;
 
@@ -1897,6 +1913,21 @@
         return Number.isFinite(bestPage) ? bestPage : 1;
     };
 
+    const currentPaperLink = () => {
+        if (!selectedPaperId) {
+            return "";
+        }
+        const url = new URL(window.location.href);
+        url.searchParams.set("paperId", selectedPaperId);
+        return url.toString();
+    };
+
+    const rerenderSelectedPdf = () => {
+        if (selectedContentKind === "pdf" && selectedPdfUrl) {
+            renderPdf(selectedPdfUrl);
+        }
+    };
+
     paperCards.forEach((card) => {
         const paperId = card.dataset.paperId;
 
@@ -2105,6 +2136,52 @@
         await speakText(activeCard?.dataset.paperSummary || "", paperSpeakButton);
     });
 
+    paperZoomOutButton.addEventListener("click", () => {
+        if (!selectedPdfUrl) {
+            return;
+        }
+        currentZoom = Math.max(0.5, Math.round((currentZoom - 0.1) * 10) / 10);
+        rerenderSelectedPdf();
+    });
+
+    paperZoomInButton.addEventListener("click", () => {
+        if (!selectedPdfUrl) {
+            return;
+        }
+        currentZoom = Math.min(3, Math.round((currentZoom + 0.1) * 10) / 10);
+        rerenderSelectedPdf();
+    });
+
+    paperDownloadButton.addEventListener("click", () => {
+        if (!selectedPaperId) {
+            return;
+        }
+        const activeCard = findCardByPaperId(selectedPaperId);
+        const downloadUrl = selectedDownloadUrl || activeCard?.dataset.pdfUrl || activeCard?.dataset.openAccessLink || activeCard?.dataset.sourceLink;
+        if (!downloadUrl) {
+            window.alert("No downloadable paper file is available.");
+            return;
+        }
+        window.open(downloadUrl, "_blank", "noopener,noreferrer");
+    });
+
+    paperShareButton.addEventListener("click", async () => {
+        const link = currentPaperLink();
+        if (!link) {
+            return;
+        }
+        try {
+            if (navigator.share) {
+                await navigator.share({ url: link });
+                return;
+            }
+            await navigator.clipboard.writeText(link);
+            notesStatus.textContent = "Paper link copied";
+        } catch {
+            window.prompt("Copy this paper link:", link);
+        }
+    });
+
     pdfClose.addEventListener("click", closeViewer);
 
     pdfFrame.addEventListener("copy", (event) => {
@@ -2282,6 +2359,11 @@
     fullscreenToggle.addEventListener("click", () => {
         const fullBleed = document.body.classList.toggle("full-bleed");
         fullscreenToggleLabel.textContent = fullBleed ? "Centered width" : "Full width";
+        rerenderSelectedPdf();
+    });
+
+    window.addEventListener("resize", () => {
+        rerenderSelectedPdf();
     });
 
     themeToggle.addEventListener("click", () => {
