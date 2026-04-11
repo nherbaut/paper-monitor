@@ -1,22 +1,21 @@
 services:
-  app:
-    image: eclipse-temurin:21-jdk
-    working_dir: /workspace/app
-    command: ["./mvnw", "quarkus:dev", "-Dquarkus.http.host=0.0.0.0"]
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./app:/workspace/app
-      - ./data:/workspace/data
-
-  piper-api:
-    build:
-      context: ./piper-api
-    ports:
-      - "8090:8090"
-    environment:
-      PIPER_BIN: /usr/bin/piper
-      PIPER_MODELS_DIR: /models
-      PIPER_DEFAULT_VOICE: ""
-    volumes:
-      - ./data/tts-models:/models
+    paper-monitor:
+        environment:
+            - PAPER_MONITOR_STORAGE_ROOT=/data/uploads
+            - PAPER_MONITOR_GIT_ROOT=/data/git-remotes
+            - PAPER_MONITOR_BASE_URL=http://localhost:8080
+            - PAPER_MONITOR_TTS_BASE_URL=http://paper-monitor-piper-api:8090
+            - QUARKUS_DATASOURCE_JDBC_URL=jdbc:sqlite:/data/paper-monitor.db?busy_timeout=5000
+        ports:
+            - 8080:8080
+        volumes:
+            - ./app/data:/data:rw
+        image: docker.io/nherbaut/paper-monitor:1.0.0-SNAPSHOT
+    paper-monitor-piper-api:
+        ports:
+            - 8090:8090
+        environment:
+            - PIPER_BIN=/usr/local/bin/piper
+        volumes:
+            - /home/nherbaut/.local/piper/models/:/models:ro
+        image: docker.io/nherbaut/paper-monitor-piper-api:latest

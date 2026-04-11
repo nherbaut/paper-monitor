@@ -4,6 +4,9 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV LANG=C.UTF-8
 ENV LC_ALL=C.UTF-8
 
+ARG QUARKUS_UID=1001
+ARG QUARKUS_GID=1001
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
@@ -11,13 +14,15 @@ RUN apt-get update \
         texlive-fonts-recommended \
         texlive-latex-extra \
         texlive-xetex \
+        git \
     && rm -rf /var/lib/apt/lists/*
 
+RUN mkdir /data
 WORKDIR /work/
 
-RUN groupadd -r quarkus \
-    && useradd -r -g quarkus -d /work -s /usr/sbin/nologin quarkus \
-    && chown -R quarkus:quarkus /work
+RUN groupadd --gid ${QUARKUS_GID} quarkus \
+    && useradd --uid ${QUARKUS_UID} --gid ${QUARKUS_GID} -d /work -s /usr/sbin/nologin quarkus \
+    && chown -R quarkus:quarkus /work /data
 
 COPY --chown=quarkus:quarkus target/quarkus-app/lib/ /work/lib/
 COPY --chown=quarkus:quarkus target/quarkus-app/*.jar /work/
