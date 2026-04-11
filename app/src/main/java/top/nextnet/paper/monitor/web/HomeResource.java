@@ -18,7 +18,6 @@ import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.HttpHeaders;
-import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.io.IOException;
@@ -591,7 +590,9 @@ public class HomeResource {
     }
 
     private Response seeOther(String location) {
-        return Response.seeOther(URI.create(location)).build();
+        return Response.status(Response.Status.SEE_OTHER)
+                .header(HttpHeaders.LOCATION, location)
+                .build();
     }
 
     private Response rethrowOrPlainText(WebApplicationException exception) {
