@@ -139,6 +139,9 @@ public class PaperGitSyncService {
         List<GitChange> pdfChanges = changes.stream()
                 .filter((change) -> change.involvesPdf())
                 .toList();
+        List<GitChange> noteChanges = changes.stream()
+                .filter((change) -> change.involvesNotes())
+                .toList();
 
         if (pdfChanges.size() == 1 && pdfChanges.get(0).isSingleNewUnmanagedPdf()) {
             String doi = extractDoi(message);
@@ -150,6 +153,9 @@ public class PaperGitSyncService {
 
         for (GitChange change : pdfChanges) {
             applyPdfChange(logicalFeed, repoPath, commit, change);
+        }
+        for (GitChange change : noteChanges) {
+            applyNotesChange(logicalFeed, repoPath, commit, change);
         }
     }
 
@@ -182,6 +188,38 @@ public class PaperGitSyncService {
 
         if (change.newPath != null) {
             importPdfBlob(repoPath, commit, change.newPath, paper, "Imported PDF from git commit " + commit);
+        }
+    }
+
+    private void applyNotesChange(LogicalFeed logicalFeed, Path repoPath, String commit, GitChange change) throws IOException {
+        String targetPath = change.newPath != null ? change.newPath : change.oldPath;
+        if (targetPath == null) {
+            return;
+        }
+
+        String targetState = stateFromPath(logicalFeed, targetPath);
+        if (targetState == null) {
+            return;
+        }
+
+        Long paperId = parsePaperId(fileName(targetPath));
+        if (paperId == null) {
+            return;
+        }
+
+        Paper paper = paperRepository.findById(paperId);
+        if (paper == null || paper.logicalFeed == null || !logicalFeed.id.equals(paper.logicalFeed.id)) {
+            return;
+        }
+
+        if (!targetState.equals(paper.status)) {
+            String previousStatus = paper.status;
+            paper.status = targetState;
+            paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + targetState + " (git)");
+        }
+
+        if (change.newPath != null) {
+            importNotesBlob(repoPath, commit, change.newPath, paper);
         }
     }
 
@@ -235,6 +273,11 @@ public class PaperGitSyncService {
         }
     }
 
+    private void importNotesBlob(Path repoPath, String commit, String repoFilePath, Paper paper) throws IOException {
+        byte[] data = gitShowBytes(repoPath, commit + ":" + repoFilePath);
+        paper.notes = new String(data);
+    }
+
     private void exportWorkingTree(LogicalFeed logicalFeed, Path repoPath) throws IOException {
         ensureStateDirectories(repoPath, logicalFeed);
         clearManagedPdfFiles(repoPath, logicalFeed);
@@ -242,6 +285,7 @@ public class PaperGitSyncService {
         for (String state : logicalFeed.workflowStateList()) {
             Path stateDirectory = repoPath.resolve(pathForState(state));
             for (Paper paper : paperRepository.findByLogicalFeedAndStatus(logicalFeed, state)) {
+                Files.writeString(stateDirectory.resolve(repoNotesFileName(paper)), nonBlank(paper.notes, ""));
                 if (paper.uploadedPdfPath == null) {
                     continue;
                 }
@@ -270,7 +314,8 @@ public class PaperGitSyncService {
             try (var stream = Files.list(stateDirectory)) {
                 for (Path file : stream.filter(Files::isRegularFile).toList()) {
                     if (file.getFileName().toString().startsWith("paper-")
-                            && file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+                            && (file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".pdf")
+                            || file.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".md"))) {
                         Files.deleteIfExists(file);
                     }
                 }
@@ -283,7 +328,10 @@ public class PaperGitSyncService {
                 + "Logical feed: " + logicalFeed.name + "\n\n"
                 + "Each workflow leaf state is represented by a directory path in the repository.\n"
                 + "Managed PDF files use the pattern `paper-<id>--<name>.pdf`.\n"
+                + "Managed notes files use the pattern `paper-<id>--<name>.md`.\n"
+                + "Editing a managed notes file updates the paper notes in the application.\n"
                 + "Moving a managed PDF between state directories changes the paper state.\n"
+                + "Moving a managed notes file between state directories changes the paper state.\n"
                 + "Committing a single new PDF with a DOI in the commit message creates a new paper.\n";
         Files.writeString(repoPath.resolve("README.md"), content);
     }
@@ -394,6 +442,20 @@ public class PaperGitSyncService {
         return "paper-" + paper.id + "--" + sanitized;
     }
 
+    private String repoNotesFileName(Paper paper) {
+        String baseName = paper.uploadedPdfFileName == null || paper.uploadedPdfFileName.isBlank()
+                ? paper.title
+                : stripPdfSuffix(paper.uploadedPdfFileName);
+        String sanitized = sanitizeFileName(baseName);
+        if (sanitized.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
+            sanitized = stripPdfSuffix(sanitized);
+        }
+        if (!sanitized.toLowerCase(Locale.ROOT).endsWith(".md")) {
+            sanitized = sanitized + ".md";
+        }
+        return "paper-" + paper.id + "--" + sanitized;
+    }
+
     private String sanitizeFileName(String value) {
         if (value == null || value.isBlank()) {
             return "paper.pdf";
@@ -488,6 +550,11 @@ public class PaperGitSyncService {
         boolean involvesPdf() {
             return (oldPath != null && oldPath.toLowerCase(Locale.ROOT).endsWith(".pdf"))
                     || (newPath != null && newPath.toLowerCase(Locale.ROOT).endsWith(".pdf"));
+        }
+
+        boolean involvesNotes() {
+            return (oldPath != null && oldPath.toLowerCase(Locale.ROOT).endsWith(".md"))
+                    || (newPath != null && newPath.toLowerCase(Locale.ROOT).endsWith(".md"));
         }
 
         boolean isSingleNewUnmanagedPdf() {
