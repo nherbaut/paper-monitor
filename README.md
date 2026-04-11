@@ -15,10 +15,19 @@ cd app
 
 The app uses the shared top-level `data/` directory for:
 
-- SQLite database: `data/paper-monitor.db`
+- PostgreSQL data volume: `data/postgres/`
 - uploaded PDFs and note images: `data/uploads/`
 - Git paper mirrors: `data/git-remotes/`
 - Piper models: `data/tts-models/`
+
+When you run the app in dev mode, Quarkus Dev Services will automatically start a disposable PostgreSQL container for you.
+
+```bash
+cd app
+./mvnw quarkus:dev
+```
+
+For the containerized stack, the repository `docker-compose.yml` uses a regular PostgreSQL service instead.
 
 ## Piper sidecar
 

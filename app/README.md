@@ -1,6 +1,6 @@
 # Paper Monitor App
 
-Quarkus application that polls RSS feeds containing scientific papers, stores discovered items in SQLite, and exposes the reader/admin/log pages.
+Quarkus application that polls RSS feeds containing scientific papers, stores discovered items in PostgreSQL, and exposes the reader/admin/log pages.
 
 ## Run
 
@@ -8,7 +8,15 @@ Quarkus application that polls RSS feeds containing scientific papers, stores di
 ./mvnw quarkus:dev
 ```
 
-When run from `app/`, the default runtime paths point to the shared repository-level `../data/` directory.
+When run from `app/`, Quarkus Dev Services will automatically start a PostgreSQL container for development and tests.
+
+Production-style runs should provide:
+
+```bash
+QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://host:5432/paper_monitor
+QUARKUS_DATASOURCE_USERNAME=paper_monitor
+QUARKUS_DATASOURCE_PASSWORD=paper_monitor
+```
 
 ## Container image
 
