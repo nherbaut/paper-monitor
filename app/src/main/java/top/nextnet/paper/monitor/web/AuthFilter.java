@@ -17,7 +17,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 import top.nextnet.paper.monitor.model.AppUser;
+import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.UserSession;
+import top.nextnet.paper.monitor.repo.LogicalFeedRepository;
+import top.nextnet.paper.monitor.repo.PaperRepository;
 import top.nextnet.paper.monitor.service.AuthService;
 import top.nextnet.paper.monitor.service.CurrentUserContext;
 
@@ -38,6 +41,12 @@ public class AuthFilter implements ContainerRequestFilter {
     @Inject
     CurrentUserContext currentUserContext;
 
+    @Inject
+    LogicalFeedRepository logicalFeedRepository;
+
+    @Inject
+    PaperRepository paperRepository;
+
     @Override
     @Transactional
     public void filter(ContainerRequestContext requestContext) {
@@ -49,6 +58,9 @@ public class AuthFilter implements ContainerRequestFilter {
         Cookie cookie = requestContext.getCookies().get(authService.sessionCookieName());
         Optional<UserSession> session = authService.findActiveSession(cookie == null ? null : cookie.getValue());
         if (session.isEmpty()) {
+            if (allowsAnonymousRead(path, requestContext.getMethod())) {
+                return;
+            }
             abortUnauthenticated(requestContext);
             return;
         }
@@ -125,5 +137,24 @@ public class AuthFilter implements ContainerRequestFilter {
             normalized = normalized.substring(0, normalized.length() - 1);
         }
         return normalized;
+    }
+
+    private boolean allowsAnonymousRead(String path, String method) {
+        if (!"GET".equalsIgnoreCase(method) && !"HEAD".equalsIgnoreCase(method)) {
+            return false;
+        }
+        if (path.isEmpty()) {
+            return logicalFeedRepository.existsPublicReadable();
+        }
+        if (path.startsWith("assets/")) {
+            return true;
+        }
+        if (path.matches("papers/\\d+/pdf")) {
+            String[] parts = path.split("/");
+            Long paperId = Long.parseLong(parts[1]);
+            Paper paper = paperRepository.findById(paperId);
+            return paper != null && paper.logicalFeed != null && paper.logicalFeed.publicReadable;
+        }
+        return false;
     }
 }

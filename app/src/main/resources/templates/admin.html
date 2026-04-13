@@ -195,19 +195,19 @@
 
     <section>
         <h2>My Review Setup</h2>
-        <p class="meta">A logical feed is your review workspace. It groups papers, notes, workflow states, and one or more RSS feeds.</p>
+        <p class="meta">A paper feed is your review workspace. It groups papers, notes, workflow states, and one or more RSS feeds.</p>
         <p class="meta">Workflow states describe where a paper is in your review process. Recommended defaults:</p>
         <pre>- Discarded
 - New
 - Todo
 - Done</pre>
-        <p class="meta">Papers are ingested from RSS feeds. The setup below creates both the logical feed and its first RSS source.</p>
+        <p class="meta">Papers are ingested from RSS feeds. The setup below creates both the paper feed and its first RSS source.</p>
         <form action="/admin/setup" method="post">
             <div class="two-columns">
-                <input type="text" name="logicalFeedName" placeholder="Logical feed name" required>
+                <input type="text" name="logicalFeedName" placeholder="Paper feed name" required>
                 <input type="text" name="rssFeedName" placeholder="RSS feed name" value="Default paper feed">
             </div>
-            <textarea name="logicalFeedDescription" placeholder="Optional logical feed description"></textarea>
+            <textarea name="logicalFeedDescription" placeholder="Optional paper feed description"></textarea>
             <textarea name="workflowStates" required>- Discarded
 - New
 - Todo
@@ -216,7 +216,8 @@
                 <input type="url" name="rssFeedUrl" value="https://scholar.miage.dev/feed/4.rss" required>
                 <input type="number" name="pollIntervalMinutes" min="1" value="60" required>
             </div>
-            <button type="submit">Create logical feed and RSS feed</button>
+            <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
+            <button type="submit">Create paper feed and RSS feed</button>
         </form>
     </section>
 
@@ -224,21 +225,22 @@
         <h2>Paper Feed Management</h2>
         <div class="two-columns">
             <form action="/logical-feeds" method="post">
-                <h3>Create logical feed</h3>
-                <input type="text" name="name" placeholder="Logical feed name" required>
+                <h3>Create paper feed</h3>
+                <input type="text" name="name" placeholder="Paper feed name" required>
                 <textarea name="description" placeholder="Optional description"></textarea>
                 <textarea name="workflowStates" required></textarea>
-                <button type="submit">Create logical feed</button>
+                <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
+                <button type="submit">Create paper feed</button>
             </form>
             <div>
-                <p class="meta">You can rename logical feeds, update their YAML workflow, and delegate read or admin access to other users.</p>
-                <p class="meta">Backups exported from this page are scoped to the logical feeds you can read or administer.</p>
+                <p class="meta">You can rename paper feeds, update their YAML workflow, and delegate read or admin access to other users.</p>
+                <p class="meta">Backups exported from this page are scoped to the paper feeds you can read or administer.</p>
             </div>
         </div>
         <table>
             <thead>
                 <tr>
-                    <th>Logical feed</th>
+                    <th>Paper feed</th>
                     <th>Owner</th>
                     <th>Workflow</th>
                     <th>Access</th>
@@ -271,7 +273,8 @@
                                 <input type="text" name="name" value="{logicalFeed.name}" required>
                                 <textarea name="description">{logicalFeed.description}</textarea>
                                 <textarea name="workflowStates" required>{logicalFeed.workflowStatesText}</textarea>
-                                <button type="submit">Save logical feed</button>
+                                <label><input type="checkbox" name="publicReadable" {#if logicalFeed.publicReadable}checked{/if}> Public read-only feed</label>
+                                <button type="submit">Save paper feed</button>
                             </form>
                             <form action="/logical-feeds/{logicalFeed.id}/share" method="post">
                                 <select name="userId" required>
@@ -294,7 +297,7 @@
                             </form>
                             {/for}
                             <form action="/logical-feeds/{logicalFeed.id}/delete" method="post">
-                                <button class="secondary" type="submit">Delete logical feed</button>
+                                <button class="secondary" type="submit">Delete paper feed</button>
                             </form>
                         </details>
                         {#else}
@@ -317,7 +320,7 @@
                 <input type="number" name="pollIntervalMinutes" min="1" value="60" required>
                 <input type="text" name="defaultPaperStatus" placeholder="Optional default imported state">
                 <select name="logicalFeedId" required>
-                    <option value="">Attach to logical feed</option>
+                    <option value="">Attach to paper feed</option>
                     {#for logicalFeed in adminLogicalFeeds}
                     <option value="{logicalFeed.id}">{logicalFeed.name}</option>
                     {/for}
@@ -325,14 +328,14 @@
                 <button type="submit">Create RSS feed</button>
             </form>
             <div class="meta">
-                Only logical feeds where you have admin access are available for RSS creation and editing.
+                Only paper feeds where you have admin access are available for RSS creation and editing.
             </div>
         </div>
         <table>
             <thead>
                 <tr>
                     <th>Name</th>
-                    <th>Logical feed</th>
+                    <th>Paper feed</th>
                     <th>Polling</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -456,7 +459,7 @@
 
     <section>
         <h2>Backup</h2>
-        <p class="meta">Export includes only the logical feeds you can read or administer, with their feeds, papers, notes, and stored files.</p>
+        <p class="meta">Export includes only the paper feeds you can read or administer, with their feeds, papers, notes, and stored files.</p>
         <div class="toolbar">
             <form action="/admin/export" method="get">
                 <button type="submit">Export my accessible data</button>

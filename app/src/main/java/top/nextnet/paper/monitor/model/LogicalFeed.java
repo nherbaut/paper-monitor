@@ -41,6 +41,9 @@ public class LogicalFeed extends PanacheEntityBase {
     @Column(length = 64)
     public String lastProcessedGitCommit;
 
+    @Column(nullable = false)
+    public boolean publicReadable;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn
     public AppUser owner;

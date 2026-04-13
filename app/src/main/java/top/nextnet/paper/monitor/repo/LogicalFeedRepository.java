@@ -20,4 +20,8 @@ public class LogicalFeedRepository implements PanacheRepository<LogicalFeed> {
                         """, LogicalFeed.class)
                 .getResultList();
     }
+
+    public boolean existsPublicReadable() {
+        return count("publicReadable", true) > 0;
+    }
 }

@@ -124,7 +124,16 @@
             position: relative;
         }
 
+        .inline-menu {
+            position: relative;
+        }
+
         .export-menu[open] summary {
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .inline-menu[open] summary {
             border-bottom-left-radius: 0;
             border-bottom-right-radius: 0;
         }
@@ -133,7 +142,15 @@
             list-style: none;
         }
 
+        .inline-menu summary {
+            list-style: none;
+        }
+
         .export-menu summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .inline-menu summary::-webkit-details-marker {
             display: none;
         }
 
@@ -152,7 +169,28 @@
             box-shadow: 0 12px 30px rgba(77, 56, 38, 0.1);
         }
 
+        .inline-menu-panel {
+            position: absolute;
+            right: 0;
+            top: calc(100% - 1px);
+            z-index: 6;
+            min-width: 14rem;
+            display: grid;
+            gap: 0.35rem;
+            padding: 0.55rem;
+            border: 1px solid var(--line);
+            border-radius: 0 0 14px 14px;
+            background: color-mix(in srgb, var(--panel) 92%, white);
+            box-shadow: 0 12px 30px rgba(77, 56, 38, 0.1);
+        }
+
         .export-menu-panel button {
+            width: 100%;
+            text-align: left;
+        }
+
+        .inline-menu-panel button,
+        .inline-menu-panel a {
             width: 100%;
             text-align: left;
         }
@@ -493,6 +531,10 @@
             line-height: 1.75;
         }
 
+        .paper-link-row {
+            margin-top: 0.8rem;
+        }
+
         .paper-preview-card {
             cursor: default;
             box-shadow: 0 10px 28px rgba(77, 56, 38, 0.08);
@@ -792,7 +834,6 @@
 <body>
 <div class="topbar">
     <div class="topbar-title">
-        <div class="pill">Reader</div>
         <h1>Paper Monitor</h1>
     </div>
     <nav class="topbar-actions" aria-label="Primary">
@@ -804,6 +845,7 @@
             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.5 6V1.5H6v1H3.2l3.3 3.3-.7.7-3.3-3.3V6h-1Zm9.3-4.5h4.7V6h-1V3.2l-3.3 3.3-.7-.7 3.3-3.3h-2.8v-1Zm3.7 9.3h1v4.7h-4.7v-1h2.8l-3.3-3.3.7-.7 3.3 3.3v-2.8Zm-12 0v2.8l3.3-3.3.7.7-3.3 3.3H6v1H1.5v-4.7h1Z"/></svg>
             <span class="nav-action-label" id="fullscreen-toggle-label">Full width</span>
         </button>
+        {#if authenticated}
         <a class="secondary nav-action" href="/admin">
             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.67 1.5 10 3.1c.3.12.59.28.86.47l1.47-.5 1 1.73-1.15 1.03c.04.31.04.63 0 .94l1.15 1.03-1 1.73-1.47-.5c-.27.2-.56.35-.86.47L9.67 14.5H7.33L7 12.9a4.9 4.9 0 0 1-.86-.47l-1.47.5-1-1.73 1.15-1.03a3.7 3.7 0 0 1 0-.94L3.67 8.2l1-1.73 1.47.5c.27-.19.56-.35.86-.47l.33-1.6h2.34ZM8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z"/></svg>
             <span class="nav-action-label">Admin</span>
@@ -816,23 +858,34 @@
             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9 2.5h-5v11h5v-1H5v-9h4v-1Zm1.85 2.15-.7.7L12.29 7.5H7v1h5.29l-2.14 2.15.7.7L14.21 8l-3.36-3.35Z"/></svg>
             <span class="nav-action-label">Logout</span>
         </a>
+        {#else}
+        <a class="secondary nav-action" href="/login">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9 2.5h-5v11h5v-1H5v-9h4v-1Zm1.85 2.15-.7.7L12.29 7.5H7v1h5.29l-2.14 2.15.7.7L14.21 8l-3.36-3.35Z"/></svg>
+            <span class="nav-action-label">Login</span>
+        </a>
+        {/if}
     </nav>
 </div>
 <main>
     <header>
-        <div class="topbar-title-text">Reader workspace</div>
-        <div class="meta">Signed in as <strong>{currentUser.displayLabel}</strong>{#if currentUser.admin} · admin{/if}</div>
+        <div class="meta">
+            {#if authenticated}
+            Signed in as <strong>{currentUser.displayLabel}</strong>{#if currentUser.admin} · admin{/if}
+            {#else}
+            Public read-only view
+            {/if}
+        </div>
     </header>
 
     <section class="panel panel-wide status">
         <div>
-            <div class="pill">Last seen logical feed</div>
-            <p class="meta" id="last-seen-logical-feed">No logical feed seen yet.</p>
+            <div class="pill">Last seen paper feed</div>
+            <p class="meta" id="last-seen-logical-feed">No paper feed seen yet.</p>
         </div>
         <div class="status-controls">
-            <label class="meta" for="logical-feed-filter">Logical feed</label>
+            <label class="meta" for="logical-feed-filter">Paper feed</label>
             <select id="logical-feed-filter">
-                <option value="">All logical feeds</option>
+                <option value="">All paper feeds</option>
                 {#for logicalFeed in logicalFeeds}
                 <option value="{logicalFeed.id}"
                         data-feed-name="{logicalFeed.name}"
@@ -849,12 +902,13 @@
                     <button class="secondary export-format-button" data-format="docx" type="button">DOCX</button>
                 </div>
             </details>
+            {#if authenticated}
             <details class="export-menu">
                 <summary class="secondary">Import DOI</summary>
                 <div class="export-menu-panel" style="min-width: 24rem;">
                     <form action="/papers/import-doi" method="post">
                         <select name="logicalFeedId" id="doi-import-logical-feed" required>
-                            <option value="">Select logical feed</option>
+                            <option value="">Select paper feed</option>
                             {#for logicalFeed in adminLogicalFeeds}
                             <option value="{logicalFeed.id}">{logicalFeed.name}</option>
                             {/for}
@@ -864,11 +918,12 @@
                     </form>
                 </div>
             </details>
+            {/if}
         </div>
     </section>
 
     <section class="panel panel-wide">
-        <h2>Paper workflow</h2>
+        <h2 id="paper-feed-heading">Paper feed</h2>
         <div class="reader-tabs" id="reader-tabs"></div>
         <div class="reader-layout">
             <div class="stack paper-list" id="paper-list">
@@ -885,6 +940,8 @@
                          data-paper-published-on="{paper.publishedOn ?: 'unknown'}"
                          data-paper-venue="{paper.publisher ?: 'Unknown venue'}"
                          data-paper-summary="{paper.summary ?: ''}"
+                         data-paper-source-link="{paper.sourceLink ?: ''}"
+                         data-paper-open-access-link="{paper.openAccessLink ?: ''}"
                          data-paper-notes="{paper.notes ?: ''}">
                     <div class="pill">{paper.logicalFeed.name}</div>
                     <div class="card-header">
@@ -941,15 +998,19 @@
             <aside class="panel pdf-panel" id="pdf-panel">
                 <button class="icon-button secondary pdf-close-button" id="pdf-close" type="button" title="Close viewer">×</button>
                 <div class="pdf-toolbar">
-                    <div>
-                        <div class="pill" id="content-panel-label">Paper view</div>
-                    </div>
+                    <div id="content-panel-label" class="meta"></div>
                     <div class="toolbar-actions">
-                        <button class="icon-button secondary" id="paper-zoom-out" type="button" title="Zoom out">-</button>
-                        <button class="icon-button secondary" id="paper-zoom-in" type="button" title="Zoom in">+</button>
-                        <button class="icon-button secondary" id="paper-speak" type="button" title="Speak content">Speak</button>
-                        <button class="icon-button secondary" id="paper-download" type="button" title="Download paper">Download</button>
-                        <button class="icon-button secondary" id="paper-share" type="button" title="Copy link to this paper">Share</button>
+                        <details class="inline-menu" id="paper-actions-menu">
+                            <summary class="icon-button secondary" title="Paper actions">⋯</summary>
+                            <div class="inline-menu-panel">
+                                <button class="secondary" id="paper-zoom-out" type="button">Zoom out</button>
+                                <button class="secondary" id="paper-zoom-in" type="button">Zoom in</button>
+                                <button class="secondary" id="paper-speak" type="button">Speak</button>
+                                <button class="secondary" id="paper-download" type="button">Download paper</button>
+                                <button class="secondary" id="paper-remove-pdf" type="button">Remove PDF</button>
+                                <button class="secondary" id="paper-share" type="button">Share URL</button>
+                            </div>
+                        </details>
                     </div>
                 </div>
                 <audio class="tts-player hidden" id="tts-player" controls preload="none"></audio>
@@ -965,7 +1026,6 @@
             </aside>
 
             <aside class="panel notes-panel" id="notes-panel">
-                <div class="pill">Notes</div>
                 <p class="meta">Markdown notes for the selected paper.</p>
                 <div class="notes-preview" id="notes-preview"></div>
                 <div class="notes-editor notes-editor-shell hidden" id="notes-editor-shell">
@@ -977,7 +1037,7 @@
         </div>
     </section>
 </main>
-<div id="reader-bootstrap" data-initial-paper-id="{initialPaperId ?: ''}"></div>
+<div id="reader-bootstrap" data-initial-paper-id="{initialPaperId ?: ''}" data-authenticated="{#if authenticated}true{#else}false{/if}"></div>
 <script type="module">
     import { marked } from "https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.esm.js";
     import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.min.mjs";
@@ -995,6 +1055,7 @@
     const exportTabButton = document.getElementById("export-tab-button");
     const exportTabMenu = document.getElementById("export-tab-menu");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
+    const paperFeedHeading = document.getElementById("paper-feed-heading");
     const themeToggle = document.getElementById("theme-toggle");
     const themeToggleLabel = document.getElementById("theme-toggle-label");
     const fullscreenToggle = document.getElementById("fullscreen-toggle");
@@ -1012,10 +1073,12 @@
     const pdfPanelTitle = document.getElementById("pdf-panel-title");
     const pdfPanelMeta = document.getElementById("pdf-panel-meta");
     const pdfClose = document.getElementById("pdf-close");
+    const paperActionsMenu = document.getElementById("paper-actions-menu");
     const paperZoomOutButton = document.getElementById("paper-zoom-out");
     const paperZoomInButton = document.getElementById("paper-zoom-in");
     const paperSpeakButton = document.getElementById("paper-speak");
     const paperDownloadButton = document.getElementById("paper-download");
+    const paperRemovePdfButton = document.getElementById("paper-remove-pdf");
     const paperShareButton = document.getElementById("paper-share");
     const ttsPlayer = document.getElementById("tts-player");
     const notesPanel = document.getElementById("notes-panel");
@@ -1040,9 +1103,19 @@
     let suppressCardClick = false;
     const themeStorageKey = "paper-monitor.theme";
     const initialPaperId = readerBootstrap?.dataset.initialPaperId || "";
+    const authenticated = readerBootstrap?.dataset.authenticated === "true";
 
     const renderLastSeenLogicalFeed = (logicalFeedName) => {
-        lastSeenElement.textContent = logicalFeedName || "No logical feed seen yet.";
+        lastSeenElement.textContent = logicalFeedName || "No paper feed seen yet.";
+    };
+
+    const updatePaperFeedHeading = () => {
+        const selectedOption = logicalFeedFilter?.selectedOptions?.[0];
+        if (selectedOption && selectedOption.value) {
+            paperFeedHeading.textContent = "Paper feed: " + selectedOption.dataset.feedName;
+            return;
+        }
+        paperFeedHeading.textContent = "Paper feed";
     };
 
     const applyTheme = (theme) => {
@@ -1119,7 +1192,37 @@
         paperZoomOutButton.disabled = !hasPdf;
         paperZoomInButton.disabled = !hasPdf;
         paperDownloadButton.disabled = !selectedDownloadUrl;
+        paperRemovePdfButton.disabled = !hasPdf || !authenticated;
         paperShareButton.disabled = !hasSelectedPaper;
+    };
+
+    const selectedPaperCard = () => {
+        if (!selectedPaperId) {
+            return null;
+        }
+        return findCardByPaperId(selectedPaperId);
+    };
+
+    const paperLinksHtml = (card, insideAbstractView = false) => {
+        if (!card || card.dataset.pdfUrl) {
+            return "";
+        }
+        const links = [];
+        const sourceLink = (card.dataset.paperSourceLink || "").trim();
+        const openAccessLink = (card.dataset.paperOpenAccessLink || "").trim();
+        if (sourceLink && !sourceLink.startsWith("upload:")) {
+            links.push("<a href=\"" + escapeHtml(sourceLink) + "\" target=\"_blank\" rel=\"noreferrer\">Source</a>");
+        }
+        if (openAccessLink) {
+            links.push("<a href=\"" + escapeHtml(openAccessLink) + "\" target=\"_blank\" rel=\"noreferrer\">Open access</a>");
+        }
+        if (!links.length) {
+            return "";
+        }
+        if (insideAbstractView) {
+            return "<p class=\"paper-link-row meta\">" + links.join(" | ") + "</p>";
+        }
+        return "Source links: " + links.join(" | ");
     };
 
     const normalizeStatus = (status) => status || "NEW";
@@ -1269,13 +1372,6 @@
         rightStateOptions.innerHTML = "";
     };
 
-    const selectedPaperCard = () => {
-        if (!selectedPaperId) {
-            return null;
-        }
-        return findCardByPaperId(selectedPaperId);
-    };
-
     const renderKeyboardStatePicker = () => {
         hideStateWheels();
         if (!keyboardStatePicker || !keyboardStatePicker.options.length) {
@@ -1380,6 +1476,7 @@
         exportFormatButtons.forEach((button) => {
             button.disabled = exportDisabled;
         });
+        updatePaperFeedHeading();
     };
 
     const closeViewer = () => {
@@ -1393,7 +1490,7 @@
         currentRenderToken += 1;
         paperCards.forEach((item) => item.classList.remove("active"));
         pdfFrame.innerHTML = "";
-        contentPanelLabel.textContent = "Paper view";
+        contentPanelLabel.textContent = "";
         pdfPanelTitle.textContent = "Select a paper";
         pdfPanelMeta.textContent = "The paper view will open here when you click a paper.";
         notesEditor.value = "";
@@ -1453,7 +1550,7 @@
         currentZoom = 1;
         currentRenderToken += 1;
         pdfFrame.innerHTML = "";
-        contentPanelLabel.textContent = "Paper view";
+        contentPanelLabel.textContent = "";
         populatePaperViewMeta(card);
         currentPdfPageTexts = [];
         notesEditor.value = card.dataset.paperNotes || "";
@@ -1665,9 +1762,10 @@
 
     const renderPaperCardPreview = (card) => {
         const summary = (card.dataset.paperSummary || "").trim();
-        pdfFrame.innerHTML = summary
+        const abstractHtml = summary
             ? "<div class=\"paper-view-abstract\"><p>" + escapeHtml(summary).replace(/\n+/g, "</p><p>") + "</p></div>"
             : "<p class=\"meta\">No abstract available for this paper.</p>";
+        pdfFrame.innerHTML = abstractHtml + paperLinksHtml(card, true);
     };
 
     const populatePaperViewMeta = (card) => {
@@ -1706,7 +1804,7 @@
         selectedContentKind = "pdf";
         currentZoom = 1;
 
-        contentPanelLabel.textContent = "Paper view";
+        contentPanelLabel.textContent = "";
         notesEditor.value = card.dataset.paperNotes || "";
         notesStatus.textContent = "Saved";
         updateNotesEditorView();
@@ -1943,10 +2041,46 @@
         return url.toString();
     };
 
+    const closePaperActionsMenu = () => {
+        if (paperActionsMenu) {
+            paperActionsMenu.open = false;
+        }
+    };
+
     const rerenderSelectedPdf = () => {
         if (selectedContentKind === "pdf" && selectedPdfUrl) {
             renderPdf(selectedPdfUrl);
         }
+    };
+
+    const removeSelectedPaperPdf = async () => {
+        const card = selectedPaperCard();
+        if (!card || !card.dataset.pdfUrl || !authenticated) {
+            return;
+        }
+        const response = await fetch("/papers/" + card.dataset.paperId + "/pdf/delete", {
+            method: "POST"
+        });
+        if (!response.ok) {
+            const message = await response.text();
+            throw new Error(message || "Failed to remove PDF");
+        }
+        card.dataset.pdfUrl = "";
+        const pdfPresence = card.querySelector(".pdf-presence");
+        if (pdfPresence) {
+            pdfPresence.classList.remove("has-pdf");
+            pdfPresence.title = "No PDF attached";
+            pdfPresence.innerHTML = "<span aria-hidden=\"true\">○</span>";
+        }
+        selectedPdfUrl = null;
+        selectedDownloadUrl = "";
+        selectedContentKind = "card";
+        currentZoom = 1;
+        currentPdfPageTexts = [];
+        contentPanelLabel.textContent = "";
+        renderPaperCardPreview(card);
+        populatePaperViewMeta(card);
+        applyLayoutState();
     };
 
     paperCards.forEach((card) => {
@@ -2143,6 +2277,7 @@
         if (!selectedPaperId) {
             return;
         }
+        closePaperActionsMenu();
         if (selectedPdfUrl) {
             const text = selectedPdfText();
             if (!text) {
@@ -2161,6 +2296,7 @@
         if (!selectedPdfUrl) {
             return;
         }
+        closePaperActionsMenu();
         currentZoom = Math.max(0.5, Math.round((currentZoom - 0.1) * 10) / 10);
         rerenderSelectedPdf();
     });
@@ -2169,6 +2305,7 @@
         if (!selectedPdfUrl) {
             return;
         }
+        closePaperActionsMenu();
         currentZoom = Math.min(3, Math.round((currentZoom + 0.1) * 10) / 10);
         rerenderSelectedPdf();
     });
@@ -2177,8 +2314,9 @@
         if (!selectedPaperId) {
             return;
         }
+        closePaperActionsMenu();
         const activeCard = findCardByPaperId(selectedPaperId);
-        const downloadUrl = selectedDownloadUrl || activeCard?.dataset.pdfUrl || activeCard?.dataset.openAccessLink || activeCard?.dataset.sourceLink;
+        const downloadUrl = selectedDownloadUrl || activeCard?.dataset.pdfUrl || activeCard?.dataset.paperOpenAccessLink || activeCard?.dataset.paperSourceLink;
         if (!downloadUrl) {
             window.alert("No downloadable paper file is available.");
             return;
@@ -2186,7 +2324,20 @@
         window.open(downloadUrl, "_blank", "noopener,noreferrer");
     });
 
+    paperRemovePdfButton.addEventListener("click", async () => {
+        closePaperActionsMenu();
+        if (!selectedPdfUrl || !selectedPaperId || !authenticated) {
+            return;
+        }
+        try {
+            await removeSelectedPaperPdf();
+        } catch (error) {
+            pdfPanelMeta.textContent = error.message || "Failed to remove PDF";
+        }
+    });
+
     paperShareButton.addEventListener("click", async () => {
+        closePaperActionsMenu();
         const link = currentPaperLink();
         if (!link) {
             return;
@@ -2412,7 +2563,7 @@
     const triggerTabExport = (format) => {
         const logicalFeedId = logicalFeedFilter.value;
         if (!logicalFeedId) {
-            window.alert("Select a logical feed before exporting a tab.");
+            window.alert("Select a paper feed before exporting a tab.");
             return;
         }
         if (!activeStatusTab) {

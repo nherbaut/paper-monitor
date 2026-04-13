@@ -214,7 +214,7 @@ public class HomeResource {
     @GET
     @Transactional
     public TemplateInstance index(@jakarta.ws.rs.QueryParam("paperId") Long paperId) {
-        AppUser currentUser = requireCurrentUser();
+        AppUser currentUser = currentUserContext.get().user();
         List<LogicalFeed> logicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser);
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
         paperGitSyncService.syncLogicalFeeds(logicalFeeds);
@@ -232,7 +232,8 @@ public class HomeResource {
                 .data("logicalFeeds", logicalFeeds)
                 .data("adminLogicalFeeds", adminLogicalFeeds)
                 .data("currentUser", currentUser)
-                .data("canAdmin", currentUserContext.get().isAdmin());
+                .data("canAdmin", currentUserContext.get().isAdmin())
+                .data("authenticated", currentUser != null);
     }
 
     @GET
@@ -295,7 +296,8 @@ public class HomeResource {
             @RestForm("workflowStates") String workflowStates,
             @RestForm("rssFeedName") String rssFeedName,
             @RestForm("rssFeedUrl") String rssFeedUrl,
-            @RestForm("pollIntervalMinutes") Integer pollIntervalMinutes
+            @RestForm("pollIntervalMinutes") Integer pollIntervalMinutes,
+            @RestForm("publicReadable") String publicReadable
     ) {
         AppUser currentUser = requireCurrentUser();
 
@@ -319,6 +321,7 @@ public class HomeResource {
         logicalFeed.description = normalize(logicalFeedDescription);
         logicalFeed.workflowStates = normalizedWorkflowStates;
         logicalFeed.owner = currentUser;
+        logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
         logicalFeedRepository.persist(logicalFeed);
 
         Feed feed = new Feed();
@@ -606,7 +609,8 @@ public class HomeResource {
     public Response createLogicalFeed(
             @RestForm("name") String name,
             @RestForm("description") String description,
-            @RestForm("workflowStates") String workflowStates
+            @RestForm("workflowStates") String workflowStates,
+            @RestForm("publicReadable") String publicReadable
     ) {
         try {
             LogicalFeed logicalFeed = new LogicalFeed();
@@ -614,6 +618,7 @@ public class HomeResource {
             logicalFeed.description = normalize(description);
             logicalFeed.workflowStates = normalizeWorkflowStates(workflowStates);
             logicalFeed.owner = requireCurrentUser();
+            logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
             logicalFeedRepository.persist(logicalFeed);
             return seeOther("/admin");
         } catch (WebApplicationException e) {
@@ -629,13 +634,15 @@ public class HomeResource {
             @jakarta.ws.rs.PathParam("id") Long id,
             @RestForm("name") String name,
             @RestForm("description") String description,
-            @RestForm("workflowStates") String workflowStates
+            @RestForm("workflowStates") String workflowStates,
+            @RestForm("publicReadable") String publicReadable
     ) {
         try {
             LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
             logicalFeed.name = name == null ? null : name.trim();
             logicalFeed.description = normalize(description);
             logicalFeed.workflowStates = normalizeWorkflowStates(workflowStates);
+            logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
             return seeOther("/admin");
         } catch (WebApplicationException e) {
             return rethrowOrPlainText(e);
@@ -836,6 +843,29 @@ public class HomeResource {
         paper.uploadedPdfPath = storedPdf.storedPath();
         paper.uploadedPdfFileName = storedPdf.originalFileName();
         paperEventService.log(paper, "PDF_UPLOADED", "Attached PDF " + storedPdf.originalFileName());
+        paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/papers/{id}/pdf/delete")
+    @Transactional
+    public Response deletePaperPdf(@jakarta.ws.rs.PathParam("id") Long id) {
+        Paper paper = paperRepository.findById(id);
+        if (paper == null) {
+            throw new NotFoundException();
+        }
+        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
+        }
+        try {
+            paperStorageService.deleteIfExists(paper.uploadedPdfPath);
+        } catch (IOException e) {
+            throw new WebApplicationException("Failed to delete PDF", Response.Status.INTERNAL_SERVER_ERROR);
+        }
+        paper.uploadedPdfPath = null;
+        paper.uploadedPdfFileName = null;
+        paperEventService.log(paper, "PDF_UPLOADED", "Removed attached PDF");
         paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
         return Response.noContent().build();
     }
