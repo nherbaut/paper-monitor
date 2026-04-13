@@ -29,6 +29,32 @@ cd app
 
 For the containerized stack, the repository `docker-compose.yml` uses a regular PostgreSQL service instead.
 
+## Quick setup
+
+Once you are signed in, you can bootstrap a paper feed from a single URL:
+
+```text
+/admin/quick-setup?paperFeedName=My%20Review&rssUrl=https%3A%2F%2Fscholar.miage.dev%2Ffeed%2F4.rss
+```
+
+This flow:
+
+- shows a confirmation recap first
+- creates a paper feed with the default workflow
+  - `DISCARDED`
+  - `NEW`
+  - `TODO`
+  - `DONE`
+- creates one RSS feed attached to that paper feed
+- forces imported papers from that RSS feed into the `NEW` state
+- polls the RSS feed immediately
+- redirects to the reader filtered on the newly created paper feed
+
+Required query params:
+
+- `paperFeedName`
+- `rssUrl`
+
 ## Piper sidecar
 
 The repository now includes a separate `piper-api/` project plus a top-level `docker-compose.yml`.

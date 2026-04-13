@@ -15,6 +15,13 @@ import top.nextnet.paper.monitor.rss.RssParser;
 @ApplicationScoped
 public class FeedPollingService {
 
+    private static final int TITLE_MAX = 1000;
+    private static final int LINK_MAX = 1000;
+    private static final int SUMMARY_MAX = 4000;
+    private static final int AUTHORS_MAX = 1000;
+    private static final int PUBLISHER_MAX = 255;
+    private static final int STATUS_MAX = 64;
+
     private final FeedRepository feedRepository;
     private final PaperRepository paperRepository;
     private final FeedFetcher feedFetcher;
@@ -83,14 +90,14 @@ public class FeedPollingService {
                     continue;
                 }
                 Paper paper = new Paper();
-                paper.title = item.title();
-                paper.sourceLink = item.link();
-                paper.openAccessLink = item.openAccessLink();
-                paper.summary = item.summary();
-                paper.authors = item.authors();
-                paper.publisher = item.publisher();
+                paper.title = truncate(item.title(), TITLE_MAX);
+                paper.sourceLink = truncate(item.link(), LINK_MAX);
+                paper.openAccessLink = truncate(item.openAccessLink(), LINK_MAX);
+                paper.summary = truncate(item.summary(), SUMMARY_MAX);
+                paper.authors = truncate(item.authors(), AUTHORS_MAX);
+                paper.publisher = truncate(item.publisher(), PUBLISHER_MAX);
                 paper.publishedOn = item.publishedOn();
-                paper.status = feed.initialPaperStatus();
+                paper.status = truncate(feed.initialPaperStatus(), STATUS_MAX);
                 paper.discoveredAt = now;
                 paper.feed = feed;
                 paper.logicalFeed = feed.logicalFeed;
@@ -104,5 +111,12 @@ public class FeedPollingService {
             feed.lastError = e.getMessage();
             Log.errorf(e, "Failed to poll feed %s", feed.url);
         }
+    }
+
+    private String truncate(String value, int maxLength) {
+        if (value == null) {
+            return null;
+        }
+        return value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 }
