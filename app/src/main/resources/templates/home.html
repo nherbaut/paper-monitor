@@ -662,6 +662,16 @@
             display: block;
         }
 
+        @media (min-width: 721px) {
+            .notes-panel.visible {
+                position: sticky;
+                top: 1rem;
+                align-self: start;
+                max-height: calc(100vh - 2rem);
+                overflow: auto;
+            }
+        }
+
         .notes-panel.drop-target {
             border-style: dashed;
         }
@@ -1220,6 +1230,7 @@
     let selectedContentKind = null;
     let currentPdfPageTexts = [];
     let currentTtsUrl = null;
+    let lastPdfSelectionText = "";
     let handToolState = null;
     let activeStatusTab = "NEW";
     let activePrimaryTab = "state";
@@ -2393,12 +2404,15 @@
     const selectedPdfText = () => {
         const selection = window.getSelection();
         if (!selection) {
-            return "";
+            return lastPdfSelectionText;
         }
         const text = selection.toString().trim();
         const anchorInViewer = selection.anchorNode && pdfFrame.contains(selection.anchorNode);
         const focusInViewer = selection.focusNode && pdfFrame.contains(selection.focusNode);
-        return text && (anchorInViewer || focusInViewer) ? text : "";
+        if (text && (anchorInViewer || focusInViewer)) {
+            return text;
+        }
+        return lastPdfSelectionText;
     };
 
     const visiblePdfPageNumber = () => {
@@ -2789,6 +2803,12 @@
         await speakText(activeCard?.dataset.paperSummary || "", paperSpeakButton);
     });
 
+    paperSpeakButton.addEventListener("mousedown", (event) => {
+        if (selectedPdfUrl) {
+            event.preventDefault();
+        }
+    });
+
     paperZoomOutButton.addEventListener("click", () => {
         if (!selectedPdfUrl) {
             return;
@@ -2881,6 +2901,19 @@
 
         event.preventDefault();
         event.clipboardData.setData("text/plain", markdownQuote);
+    });
+
+    document.addEventListener("selectionchange", () => {
+        const selection = window.getSelection();
+        if (!selection) {
+            return;
+        }
+        const text = selection.toString().trim();
+        const anchorInViewer = selection.anchorNode && pdfFrame.contains(selection.anchorNode);
+        const focusInViewer = selection.focusNode && pdfFrame.contains(selection.focusNode);
+        if (text && (anchorInViewer || focusInViewer)) {
+            lastPdfSelectionText = text;
+        }
     });
 
     pdfScroll.addEventListener("mousedown", (event) => {
