@@ -2,6 +2,7 @@ package top.nextnet.paper.monitor.service;
 
 import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -11,8 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import top.nextnet.paper.monitor.model.TtsSettings;
-import top.nextnet.paper.monitor.repo.TtsSettingsRepository;
+import top.nextnet.paper.monitor.model.UserSettings;
+import top.nextnet.paper.monitor.repo.UserSettingsRepository;
 
 @ApplicationScoped
 public class TtsService {
@@ -21,12 +22,14 @@ public class TtsService {
     private final String speakUrl;
     private final String voicesUrl;
     private final String defaultVoice;
-    private final TtsSettingsRepository ttsSettingsRepository;
+    private final UserSettingsRepository userSettingsRepository;
+    private final Instance<CurrentUserContext> currentUserContext;
 
     public TtsService(
             @ConfigProperty(name = "paper-monitor.tts.base-url", defaultValue = "http://localhost:8090") String baseUrl,
             @ConfigProperty(name = "paper-monitor.tts.default-voice", defaultValue = "") String defaultVoice,
-            TtsSettingsRepository ttsSettingsRepository
+            UserSettingsRepository userSettingsRepository,
+            Instance<CurrentUserContext> currentUserContext
     ) {
         this.httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
@@ -34,7 +37,8 @@ public class TtsService {
         this.speakUrl = normalizeBaseUrl(baseUrl) + "/v1/speak";
         this.voicesUrl = normalizeBaseUrl(baseUrl) + "/voices";
         this.defaultVoice = defaultVoice == null ? "" : defaultVoice.trim();
-        this.ttsSettingsRepository = ttsSettingsRepository;
+        this.userSettingsRepository = userSettingsRepository;
+        this.currentUserContext = currentUserContext;
     }
 
     public java.util.List<String> availableVoices() throws IOException {
@@ -86,7 +90,7 @@ public class TtsService {
             throw new IllegalArgumentException("Text is required");
         }
 
-        TtsSettings settings = ttsSettingsRepository.first();
+        UserSettings settings = currentSettings();
         String configuredVoice = settings == null || settings.voice == null ? "" : settings.voice.trim();
         String selectedVoice = voice == null || voice.isBlank()
                 ? (configuredVoice.isBlank() ? defaultVoice : configuredVoice)
@@ -153,5 +157,12 @@ public class TtsService {
 
     private double round(double value) {
         return Math.round(value * 1000d) / 1000d;
+    }
+
+    private UserSettings currentSettings() {
+        if (currentUserContext.isResolvable() && currentUserContext.get().user() != null) {
+            return userSettingsRepository.findByUser(currentUserContext.get().user()).orElse(null);
+        }
+        return null;
     }
 }

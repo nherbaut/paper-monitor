@@ -812,11 +812,16 @@
             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5h12v11H2v-11Zm1 1v9h10v-9H3Zm1.5 1.5H8v1H4.5V5Zm0 2.5h7v1h-7v-1Zm0 2.5h7v1h-7v-1Z"/></svg>
             <span class="nav-action-label">Logs</span>
         </a>
+        <a class="secondary nav-action" href="/logout">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9 2.5h-5v11h5v-1H5v-9h4v-1Zm1.85 2.15-.7.7L12.29 7.5H7v1h5.29l-2.14 2.15.7.7L14.21 8l-3.36-3.35Z"/></svg>
+            <span class="nav-action-label">Logout</span>
+        </a>
     </nav>
 </div>
 <main>
     <header>
         <div class="topbar-title-text">Reader workspace</div>
+        <div class="meta">Signed in as <strong>{currentUser.displayLabel}</strong>{#if currentUser.admin} · admin{/if}</div>
     </header>
 
     <section class="panel panel-wide status">
@@ -841,7 +846,22 @@
                 <div class="export-menu-panel">
                     <button class="secondary export-format-button" data-format="md" type="button">Markdown</button>
                     <button class="secondary export-format-button" data-format="pdf" type="button">PDF</button>
-                    <button class="secondary export-format-button" data-format="rtf" type="button">RTF</button>
+                    <button class="secondary export-format-button" data-format="docx" type="button">DOCX</button>
+                </div>
+            </details>
+            <details class="export-menu">
+                <summary class="secondary">Import DOI</summary>
+                <div class="export-menu-panel" style="min-width: 24rem;">
+                    <form action="/papers/import-doi" method="post">
+                        <select name="logicalFeedId" id="doi-import-logical-feed" required>
+                            <option value="">Select logical feed</option>
+                            {#for logicalFeed in adminLogicalFeeds}
+                            <option value="{logicalFeed.id}">{logicalFeed.name}</option>
+                            {/for}
+                        </select>
+                        <input type="text" name="doi" placeholder="10.1007/978-981-95-5015-9_14" required>
+                        <button class="secondary" type="submit">Import from DOI</button>
+                    </form>
                 </div>
             </details>
         </div>
@@ -971,6 +991,7 @@
     const latestPaperCard = document.querySelector("[data-logical-feed-name]");
     const paperCards = document.querySelectorAll("[data-paper-id]");
     const logicalFeedFilter = document.getElementById("logical-feed-filter");
+    const doiImportLogicalFeed = document.getElementById("doi-import-logical-feed");
     const exportTabButton = document.getElementById("export-tab-button");
     const exportTabMenu = document.getElementById("export-tab-menu");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
@@ -2374,6 +2395,19 @@
 
     Array.from(logicalFeedFilter.options).forEach(refreshLogicalFeedOptionLabel);
     logicalFeedFilter.addEventListener("change", applyLogicalFeedFilter);
+    logicalFeedFilter.addEventListener("change", () => {
+        if (!doiImportLogicalFeed) {
+            return;
+        }
+        const selectedFeedId = logicalFeedFilter.value;
+        if (selectedFeedId && Array.from(doiImportLogicalFeed.options).some((option) => option.value === selectedFeedId)) {
+            doiImportLogicalFeed.value = selectedFeedId;
+        }
+    });
+    if (doiImportLogicalFeed && logicalFeedFilter.value
+            && Array.from(doiImportLogicalFeed.options).some((option) => option.value === logicalFeedFilter.value)) {
+        doiImportLogicalFeed.value = logicalFeedFilter.value;
+    }
 
     const triggerTabExport = (format) => {
         const logicalFeedId = logicalFeedFilter.value;

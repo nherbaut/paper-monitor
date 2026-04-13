@@ -8,6 +8,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Transient;
 import java.util.ArrayList;
@@ -39,8 +41,15 @@ public class LogicalFeed extends PanacheEntityBase {
     @Column(length = 64)
     public String lastProcessedGitCommit;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn
+    public AppUser owner;
+
     @OneToMany(mappedBy = "logicalFeed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     public List<Feed> feeds = new ArrayList<>();
+
+    @OneToMany(mappedBy = "logicalFeed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    public List<LogicalFeedAccessGrant> accessGrants = new ArrayList<>();
 
     @Transient
     public Map<String, Long> paperCountsByState = new LinkedHashMap<>();
@@ -50,6 +59,9 @@ public class LogicalFeed extends PanacheEntityBase {
 
     @Transient
     public String gitSyncError;
+
+    @Transient
+    public boolean viewerCanAdmin;
 
     public List<String> workflowStateList() {
         return workflowConfig().leafStates();
@@ -100,5 +112,9 @@ public class LogicalFeed extends PanacheEntityBase {
             return name;
         }
         return name + " (" + summary + ")";
+    }
+
+    public boolean isOwnedBy(AppUser user) {
+        return user != null && owner != null && owner.id != null && owner.id.equals(user.id);
     }
 }

@@ -81,7 +81,12 @@
         <div class="pill">Paper Activity</div>
         <h1>Event log</h1>
         <p class="meta">Recent paper fetches, state transitions, and PDF uploads.</p>
-        <p><a href="/">Back to reader</a> | <a href="/admin">Admin</a></p>
+        <p>
+            Signed in as <strong>{currentUser.displayLabel}</strong>
+            {#if canAdmin}| <a href="/admin">Admin</a>{/if}
+            | <a href="/">Back to reader</a>
+            | <a href="/logout">Logout</a>
+        </p>
     </header>
 
     <section class="panel">

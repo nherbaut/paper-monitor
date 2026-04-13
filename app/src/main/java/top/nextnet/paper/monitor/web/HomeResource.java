@@ -5,6 +5,7 @@ import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
 import io.quarkus.logging.Log;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
@@ -15,9 +16,11 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.NewCookie;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.io.IOException;
@@ -31,22 +34,30 @@ import java.util.Map;
 import java.util.UUID;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
+import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.Feed;
 import top.nextnet.paper.monitor.model.LogicalFeed;
+import top.nextnet.paper.monitor.model.LogicalFeedAccessGrant;
 import top.nextnet.paper.monitor.model.Paper;
+import top.nextnet.paper.monitor.model.UserSettings;
+import top.nextnet.paper.monitor.repo.AppUserRepository;
 import top.nextnet.paper.monitor.repo.PaperEventRepository;
 import top.nextnet.paper.monitor.repo.FeedRepository;
 import top.nextnet.paper.monitor.repo.LogicalFeedRepository;
 import top.nextnet.paper.monitor.repo.PaperRepository;
-import top.nextnet.paper.monitor.repo.TtsSettingsRepository;
+import top.nextnet.paper.monitor.service.AuthService;
 import top.nextnet.paper.monitor.service.BackupService;
+import top.nextnet.paper.monitor.service.CurrentUserContext;
+import top.nextnet.paper.monitor.service.DoiMetadataService;
 import top.nextnet.paper.monitor.service.FeedPollingService;
+import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
+import top.nextnet.paper.monitor.service.NotificationService;
+import top.nextnet.paper.monitor.service.OidcService;
 import top.nextnet.paper.monitor.service.PaperEventService;
 import top.nextnet.paper.monitor.service.PaperGitSyncService;
 import top.nextnet.paper.monitor.service.PaperStorageService;
 import top.nextnet.paper.monitor.service.TtsService;
 import top.nextnet.paper.monitor.service.WorkflowStateConfig;
-import top.nextnet.paper.monitor.model.TtsSettings;
 
 @Path("/")
 @ApplicationScoped
@@ -55,75 +66,191 @@ public class HomeResource {
     private final Template home;
     private final Template admin;
     private final Template logs;
+    private final Template login;
     private final LogicalFeedRepository logicalFeedRepository;
     private final FeedRepository feedRepository;
     private final PaperRepository paperRepository;
     private final PaperEventRepository paperEventRepository;
+    private final AppUserRepository appUserRepository;
     private final FeedPollingService feedPollingService;
+    private final DoiMetadataService doiMetadataService;
     private final PaperEventService paperEventService;
     private final PaperGitSyncService paperGitSyncService;
     private final PaperStorageService paperStorageService;
     private final TtsService ttsService;
     private final BackupService backupService;
-    private final TtsSettingsRepository ttsSettingsRepository;
+    private final AuthService authService;
+    private final OidcService oidcService;
+    private final LogicalFeedAccessService logicalFeedAccessService;
+    private final NotificationService notificationService;
+    private final Instance<CurrentUserContext> currentUserContext;
     private final String baseUrl;
 
     public HomeResource(
             @Location("home") Template home,
             @Location("admin") Template admin,
             @Location("logs") Template logs,
+            @Location("login") Template login,
             LogicalFeedRepository logicalFeedRepository,
             FeedRepository feedRepository,
             PaperRepository paperRepository,
             PaperEventRepository paperEventRepository,
+            AppUserRepository appUserRepository,
             FeedPollingService feedPollingService,
+            DoiMetadataService doiMetadataService,
             PaperEventService paperEventService,
             PaperGitSyncService paperGitSyncService,
             PaperStorageService paperStorageService,
             TtsService ttsService,
             BackupService backupService,
-            TtsSettingsRepository ttsSettingsRepository,
+            AuthService authService,
+            OidcService oidcService,
+            LogicalFeedAccessService logicalFeedAccessService,
+            NotificationService notificationService,
+            Instance<CurrentUserContext> currentUserContext,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl
     ) {
         this.home = home;
         this.admin = admin;
         this.logs = logs;
+        this.login = login;
         this.logicalFeedRepository = logicalFeedRepository;
         this.feedRepository = feedRepository;
         this.paperRepository = paperRepository;
         this.paperEventRepository = paperEventRepository;
+        this.appUserRepository = appUserRepository;
         this.feedPollingService = feedPollingService;
+        this.doiMetadataService = doiMetadataService;
         this.paperEventService = paperEventService;
         this.paperGitSyncService = paperGitSyncService;
         this.paperStorageService = paperStorageService;
         this.ttsService = ttsService;
         this.backupService = backupService;
-        this.ttsSettingsRepository = ttsSettingsRepository;
+        this.authService = authService;
+        this.oidcService = oidcService;
+        this.logicalFeedAccessService = logicalFeedAccessService;
+        this.notificationService = notificationService;
+        this.currentUserContext = currentUserContext;
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.trim();
+    }
+
+    @GET
+    @Path("/login")
+    @Transactional
+    public TemplateInstance login(@QueryParam("returnTo") String returnTo) {
+        return login.data("returnTo", safeReturnTo(returnTo))
+                .data("oidcEnabled", oidcService.isEnabled())
+                .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0);
+    }
+
+    @POST
+    @Path("/login/local")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response loginLocal(
+            @RestForm("username") String username,
+            @RestForm("password") String password,
+            @RestForm("returnTo") String returnTo
+    ) {
+        try {
+            AppUser user = authService.loginLocal(username, password);
+            return loginResponse(user, safeReturnTo(returnTo));
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .type(MediaType.TEXT_PLAIN)
+                    .entity(e.getMessage())
+                    .build();
+        }
+    }
+
+    @GET
+    @Path("/auth/oidc/start")
+    @Transactional
+    public Response startOidcLogin(@QueryParam("returnTo") String returnTo) {
+        try {
+            return Response.status(Response.Status.SEE_OTHER)
+                    .header(HttpHeaders.LOCATION, oidcService.startLogin(returnTo).toString())
+                    .build();
+        } catch (IOException e) {
+            return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                    .type(MediaType.TEXT_PLAIN)
+                    .entity(e.getMessage())
+                    .build();
+        }
+    }
+
+    @GET
+    @Path("/auth/oidc/callback")
+    @Transactional
+    public Response finishOidcLogin(
+            @QueryParam("state") String state,
+            @QueryParam("code") String code
+    ) {
+        try {
+            OidcService.OidcLoginResult loginResult = oidcService.finishLogin(state, code);
+            return loginResponse(loginResult.user(), loginResult.returnTo());
+        } catch (IOException e) {
+            return Response.status(Response.Status.BAD_GATEWAY)
+                    .type(MediaType.TEXT_PLAIN)
+                    .entity(e.getMessage())
+                    .build();
+        }
+    }
+
+    @GET
+    @Path("/logout")
+    @Transactional
+    public Response logout() {
+        CurrentUserContext context = currentUserContext.get();
+        if (context.session() != null) {
+            authService.logout(context.session().token);
+        }
+        return Response.status(Response.Status.SEE_OTHER)
+                .header(HttpHeaders.LOCATION, "/login")
+                .cookie(authService.clearCookie())
+                .build();
     }
 
     @GET
     @Transactional
     public TemplateInstance index(@jakarta.ws.rs.QueryParam("paperId") Long paperId) {
-        List<LogicalFeed> logicalFeeds = logicalFeedRepository.findAll().list();
+        AppUser currentUser = requireCurrentUser();
+        List<LogicalFeed> logicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser);
+        populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
         paperGitSyncService.syncLogicalFeeds(logicalFeeds);
+        List<LogicalFeed> adminLogicalFeeds = logicalFeeds.stream()
+                .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
+                .toList();
         List<Paper> papers = new ArrayList<>(paperRepository.findAllForReader());
         if (paperId != null && papers.stream().noneMatch((paper) -> paper.id.equals(paperId))) {
             paperRepository.findForReader(paperId).ifPresent((paper) -> papers.add(0, paper));
         }
+        papers.removeIf((paper) -> !logicalFeedAccessService.canRead(paper.logicalFeed, currentUser));
         populatePaperCounts(logicalFeeds);
         return home.data("recentPapers", papers)
                 .data("initialPaperId", paperId)
-                .data("logicalFeeds", logicalFeeds);
+                .data("logicalFeeds", logicalFeeds)
+                .data("adminLogicalFeeds", adminLogicalFeeds)
+                .data("currentUser", currentUser)
+                .data("canAdmin", currentUserContext.get().isAdmin());
     }
 
     @GET
     @Path("/admin")
     @Transactional
     public TemplateInstance admin() {
-        List<LogicalFeed> logicalFeeds = logicalFeedRepository.findAll().list();
+        AppUser currentUser = requireCurrentUser();
+        List<LogicalFeed> readableLogicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser);
+        List<Long> readableLogicalFeedIds = readableLogicalFeeds.stream().map((feed) -> feed.id).toList();
+        List<LogicalFeed> logicalFeeds = logicalFeedRepository.findAllForAdminView().stream()
+                .filter((feed) -> readableLogicalFeedIds.contains(feed.id))
+                .toList();
+        populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
         paperGitSyncService.syncLogicalFeeds(logicalFeeds);
-        List<Feed> feeds = feedRepository.findAll().list();
+        List<LogicalFeed> adminLogicalFeeds = logicalFeeds.stream()
+                .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
+                .toList();
+        List<Feed> feeds = logicalFeedAccessService.readableFeeds(currentUser);
         List<String> ttsVoices = List.of();
         String ttsVoicesError = null;
         try {
@@ -132,11 +259,16 @@ public class HomeResource {
             ttsVoicesError = e.getMessage();
         }
         return admin.data("logicalFeeds", logicalFeeds)
+                .data("adminLogicalFeeds", adminLogicalFeeds)
                 .data("feeds", feeds)
-                .data("ttsSettings", getOrCreateTtsSettings())
+                .data("ttsSettings", getOrCreateUserSettings())
                 .data("ttsVoices", ttsVoices)
                 .data("ttsVoicesError", ttsVoicesError)
-                .data("recentPapers", paperRepository.findRecent(30));
+                .data("recentPapers", paperRepository.findRecent(30))
+                .data("currentUser", currentUser)
+                .data("canAdmin", currentUserContext.get().isAdmin())
+                .data("allUsers", authService.allUsers())
+                .data("oidcEnabled", oidcService.isEnabled());
     }
 
     @POST
@@ -147,9 +279,150 @@ public class HomeResource {
             @RestForm("voice") String voice,
             @RestForm("speedMultiplier") Double speedMultiplier
     ) {
-        TtsSettings settings = getOrCreateTtsSettings();
+        UserSettings settings = getOrCreateUserSettings();
         settings.voice = normalize(voice);
         settings.speedMultiplier = normalizeSpeedMultiplier(speedMultiplier);
+        return seeOther("/admin");
+    }
+
+    @POST
+    @Path("/admin/setup")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response setupLogicalFeed(
+            @RestForm("logicalFeedName") String logicalFeedName,
+            @RestForm("logicalFeedDescription") String logicalFeedDescription,
+            @RestForm("workflowStates") String workflowStates,
+            @RestForm("rssFeedName") String rssFeedName,
+            @RestForm("rssFeedUrl") String rssFeedUrl,
+            @RestForm("pollIntervalMinutes") Integer pollIntervalMinutes
+    ) {
+        AppUser currentUser = requireCurrentUser();
+
+        String normalizedLogicalFeedName = normalize(logicalFeedName);
+        if (normalizedLogicalFeedName == null) {
+            throw new WebApplicationException("Logical feed name is required", Response.Status.BAD_REQUEST);
+        }
+
+        String normalizedWorkflowStates = normalizeWorkflowStates(
+                workflowStates == null || workflowStates.isBlank()
+                        ? """
+                        - Discarded
+                        - New
+                        - Todo
+                        - Done
+                        """
+                        : workflowStates);
+
+        LogicalFeed logicalFeed = new LogicalFeed();
+        logicalFeed.name = normalizedLogicalFeedName;
+        logicalFeed.description = normalize(logicalFeedDescription);
+        logicalFeed.workflowStates = normalizedWorkflowStates;
+        logicalFeed.owner = currentUser;
+        logicalFeedRepository.persist(logicalFeed);
+
+        Feed feed = new Feed();
+        feed.name = normalize(rssFeedName);
+        if (feed.name == null) {
+            feed.name = logicalFeed.name + " RSS";
+        }
+        feed.url = normalizeRequired(rssFeedUrl, "RSS feed URL is required");
+        feed.pollIntervalMinutes = pollIntervalMinutes == null ? 60 : pollIntervalMinutes;
+        feed.logicalFeed = logicalFeed;
+        feedRepository.persist(feed);
+
+        paperGitSyncService.syncLogicalFeed(logicalFeed);
+        return seeOther("/admin");
+    }
+
+    @POST
+    @Path("/admin/local-users")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response createLocalUser(
+            @RestForm("username") String username,
+            @RestForm("displayName") String displayName,
+            @RestForm("email") String email,
+            @RestForm("password") String password,
+            @RestForm("admin") String admin
+    ) {
+        try {
+            authService.createLocalUser(username, displayName, email, password, "on".equalsIgnoreCase(admin));
+            return seeOther("/admin");
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
+    }
+
+    @POST
+    @Path("/admin/users/{id}/update")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response updateUser(
+            @jakarta.ws.rs.PathParam("id") Long id,
+            @RestForm("displayName") String displayName,
+            @RestForm("email") String email,
+            @RestForm("password") String password,
+            @RestForm("admin") String admin
+    ) {
+        try {
+            authService.updateUser(id, displayName, email, "on".equalsIgnoreCase(admin), password);
+            return seeOther("/admin");
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
+    }
+
+    @POST
+    @Path("/admin/users/{id}/delete")
+    @Transactional
+    public Response deleteUser(@jakarta.ws.rs.PathParam("id") Long id) {
+        try {
+            authService.deleteUser(id);
+            return seeOther("/admin");
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
+    }
+
+    @POST
+    @Path("/logical-feeds/{id}/share")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response shareLogicalFeed(
+            @jakarta.ws.rs.PathParam("id") Long id,
+            @RestForm("userId") Long userId,
+            @RestForm("role") String role
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, currentUser);
+        if (userId == null) {
+            throw new WebApplicationException("User is required", Response.Status.BAD_REQUEST);
+        }
+        try {
+            AppUser target = appUserRepository.findByIdOptional(userId)
+                    .orElseThrow(() -> new WebApplicationException("Unknown user", Response.Status.BAD_REQUEST));
+            LogicalFeedAccessGrant grant = logicalFeedAccessService.grant(logicalFeed, target, role);
+            notificationService.sendFeedAccessNotification(target, logicalFeed, grant.role, currentUser);
+            return seeOther("/admin");
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
+    }
+
+    @POST
+    @Path("/logical-feeds/{id}/share/{userId}/delete")
+    @Transactional
+    public Response revokeLogicalFeedAccess(
+            @jakarta.ws.rs.PathParam("id") Long id,
+            @jakarta.ws.rs.PathParam("userId") Long userId
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, currentUser);
+        AppUser target = appUserRepository.findById(userId);
+        if (target != null) {
+            logicalFeedAccessService.revoke(logicalFeed, target);
+        }
         return seeOther("/admin");
     }
 
@@ -157,7 +430,16 @@ public class HomeResource {
     @Path("/logs")
     @Transactional
     public TemplateInstance logs() {
-        return logs.data("events", paperEventRepository.findRecent(300));
+        AppUser currentUser = requireCurrentUser();
+        List<?> readableFeedIds = logicalFeedAccessService.readableLogicalFeeds(currentUser).stream().map((feed) -> feed.id).toList();
+        List<?> events = paperEventRepository.findRecent(300).stream()
+                .filter((event) -> event.paper != null
+                        && event.paper.logicalFeed != null
+                        && readableFeedIds.contains(event.paper.logicalFeed.id))
+                .toList();
+        return logs.data("events", events)
+                .data("currentUser", currentUser)
+                .data("canAdmin", currentUserContext.get().isAdmin());
     }
 
     @POST
@@ -188,13 +470,66 @@ public class HomeResource {
     @Path("/admin/export")
     public Response exportBackup() {
         try {
-            byte[] zip = backupService.exportZip();
+            AppUser currentUser = requireCurrentUser();
+            byte[] zip = backupService.exportZip(logicalFeedAccessService.readableLogicalFeeds(currentUser), currentUser);
             return Response.ok(zip, "application/zip")
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"paper-monitor-backup.zip\"")
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"paper-monitor-" + slug(currentUser.displayLabel()) + "-backup.zip\"")
                     .build();
         } catch (IOException e) {
             throw new WebApplicationException("Failed to export backup", Response.Status.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @POST
+    @Path("/papers/import-doi")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response importPaperFromDoi(
+            @RestForm("logicalFeedId") Long logicalFeedId,
+            @RestForm("doi") String doi
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, currentUser);
+        String normalizedDoi = normalizeRequired(doi, "DOI is required");
+        String sourceLink = normalizedDoi.startsWith("http://") || normalizedDoi.startsWith("https://")
+                ? normalizedDoi
+                : "https://doi.org/" + normalizedDoi.replaceFirst("^(?i)doi:", "");
+
+        Paper existing = paperRepository.findBySourceLink(sourceLink).orElse(null);
+        if (existing != null) {
+            if (!logicalFeedAccessService.canRead(existing.logicalFeed, currentUser)) {
+                throw new WebApplicationException("A paper with this DOI already exists outside your accessible feeds",
+                        Response.Status.CONFLICT);
+            }
+            return seeOther("/?paperId=" + existing.id);
+        }
+
+        DoiMetadataService.DoiMetadata metadata;
+        try {
+            metadata = doiMetadataService.fetch(normalizedDoi.replaceFirst("^(?i)https?://doi.org/", "").replaceFirst("^(?i)doi:", ""));
+        } catch (IOException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_GATEWAY);
+        }
+
+        Paper paper = new Paper();
+        paper.title = normalize(metadata.title());
+        if (paper.title == null) {
+            throw new WebApplicationException("DOI metadata did not return a title", Response.Status.BAD_GATEWAY);
+        }
+        paper.sourceLink = metadata.doiUrl() == null ? sourceLink : metadata.doiUrl();
+        paper.openAccessLink = normalize(metadata.openAccessUrl());
+        paper.summary = normalize(metadata.summary());
+        paper.authors = normalize(metadata.authors());
+        paper.publisher = normalize(metadata.publisher());
+        paper.publishedOn = metadata.publishedOn();
+        paper.status = logicalFeed.initialPaperStatus();
+        paper.discoveredAt = Instant.now();
+        paper.feed = getOrCreateDoiImportFeed(logicalFeed);
+        paper.logicalFeed = logicalFeed;
+        paperRepository.persist(paper);
+        paperEventService.log(paper, "FETCH", "Imported from DOI " + normalizedDoi);
+        paperGitSyncService.syncLogicalFeed(logicalFeed);
+        return seeOther("/?paperId=" + paper.id);
     }
 
     @GET
@@ -206,7 +541,10 @@ public class HomeResource {
             @jakarta.ws.rs.QueryParam("status") String status,
             @DefaultValue("md") @jakarta.ws.rs.QueryParam("format") String format
     ) {
-        LogicalFeed logicalFeed = requireLogicalFeed(logicalFeedId);
+        if (logicalFeedId == null) {
+            throw new WebApplicationException("logicalFeedId is required", Response.Status.BAD_REQUEST);
+        }
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireReadableLogicalFeed(logicalFeedId, requireCurrentUser());
         String normalizedStatus = normalizePaperStatus(status);
         if (!logicalFeed.workflowStateList().contains(normalizedStatus)) {
             if (!logicalFeed.topLevelWorkflowStateList().contains(normalizedStatus)) {
@@ -275,6 +613,7 @@ public class HomeResource {
             logicalFeed.name = name == null ? null : name.trim();
             logicalFeed.description = normalize(description);
             logicalFeed.workflowStates = normalizeWorkflowStates(workflowStates);
+            logicalFeed.owner = requireCurrentUser();
             logicalFeedRepository.persist(logicalFeed);
             return seeOther("/admin");
         } catch (WebApplicationException e) {
@@ -293,10 +632,7 @@ public class HomeResource {
             @RestForm("workflowStates") String workflowStates
     ) {
         try {
-            LogicalFeed logicalFeed = logicalFeedRepository.findById(id);
-            if (logicalFeed == null) {
-                throw new NotFoundException();
-            }
+            LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
             logicalFeed.name = name == null ? null : name.trim();
             logicalFeed.description = normalize(description);
             logicalFeed.workflowStates = normalizeWorkflowStates(workflowStates);
@@ -310,7 +646,7 @@ public class HomeResource {
     @Path("/logical-feeds/{id}/delete")
     @Transactional
     public Response deleteLogicalFeed(@jakarta.ws.rs.PathParam("id") Long id) {
-        LogicalFeed logicalFeed = logicalFeedRepository.findById(id);
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
         if (logicalFeed != null && logicalFeed.feeds.isEmpty()) {
             logicalFeed.delete();
         }
@@ -352,10 +688,7 @@ public class HomeResource {
             @RestForm("logicalFeedId") Long logicalFeedId,
             @RestForm("defaultPaperStatus") String defaultPaperStatus
     ) {
-        Feed feed = feedRepository.findById(id);
-        if (feed == null) {
-            throw new NotFoundException();
-        }
+        Feed feed = logicalFeedAccessService.requireAdminFeed(id, requireCurrentUser());
         LogicalFeed logicalFeed = requireLogicalFeed(logicalFeedId);
         feed.name = name == null ? null : name.trim();
         feed.url = url == null ? null : url.trim();
@@ -373,6 +706,7 @@ public class HomeResource {
     @POST
     @Path("/feeds/{id}/poll")
     public Response pollFeed(@jakarta.ws.rs.PathParam("id") Long id) {
+        logicalFeedAccessService.requireAdminFeed(id, requireCurrentUser());
         feedPollingService.pollFeedById(id);
         Feed feed = feedRepository.findById(id);
         if (feed != null) {
@@ -385,7 +719,7 @@ public class HomeResource {
     @Path("/feeds/{id}/delete")
     @Transactional
     public Response deleteFeed(@jakarta.ws.rs.PathParam("id") Long id) {
-        Feed feed = feedRepository.findById(id);
+        Feed feed = logicalFeedAccessService.requireAdminFeed(id, requireCurrentUser());
         if (feed != null) {
             feed.delete();
         }
@@ -452,6 +786,9 @@ public class HomeResource {
         if (paper == null || paper.uploadedPdfPath == null) {
             throw new NotFoundException();
         }
+        if (!logicalFeedAccessService.canRead(paper.logicalFeed, requireCurrentUser())) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
+        }
 
         java.nio.file.Path pdfPath = paperStorageService.resolve(paper.uploadedPdfPath);
         if (!Files.exists(pdfPath)) {
@@ -481,6 +818,9 @@ public class HomeResource {
         Paper paper = paperRepository.findById(id);
         if (paper == null) {
             throw new NotFoundException();
+        }
+        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
 
         PaperStorageService.StoredPdf storedPdf;
@@ -512,6 +852,9 @@ public class HomeResource {
         if (paper == null) {
             throw new NotFoundException();
         }
+        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
+        }
         paper.notes = notes;
         return Response.noContent().build();
     }
@@ -527,6 +870,9 @@ public class HomeResource {
         Paper paper = paperRepository.findById(id);
         if (paper == null) {
             throw new NotFoundException();
+        }
+        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
         try {
             String normalizedStatus = normalizePaperStatus(status);
@@ -557,6 +903,9 @@ public class HomeResource {
         Paper paper = paperRepository.findById(id);
         if (paper == null) {
             throw new NotFoundException();
+        }
+        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
 
         try {
@@ -615,6 +964,14 @@ public class HomeResource {
         return normalized.isEmpty() ? null : normalized;
     }
 
+    private String normalizeRequired(String value, String message) {
+        String normalized = normalize(value);
+        if (normalized == null) {
+            throw new WebApplicationException(message, Response.Status.BAD_REQUEST);
+        }
+        return normalized;
+    }
+
     private Double normalizeSpeedMultiplier(Double speedMultiplier) {
         if (speedMultiplier == null) {
             return 1.1d;
@@ -628,19 +985,8 @@ public class HomeResource {
         return speedMultiplier;
     }
 
-    private TtsSettings getOrCreateTtsSettings() {
-        TtsSettings settings = ttsSettingsRepository.first();
-        if (settings != null) {
-            if (settings.speedMultiplier == null) {
-                settings.speedMultiplier = 1.1d;
-            }
-            return settings;
-        }
-
-        settings = new TtsSettings();
-        settings.speedMultiplier = 1.1d;
-        ttsSettingsRepository.persist(settings);
-        return settings;
+    private UserSettings getOrCreateUserSettings() {
+        return authService.ensureSettings(requireCurrentUser());
     }
 
     private String normalizeWorkflowStates(String value) {
@@ -681,12 +1027,15 @@ public class HomeResource {
         if (logicalFeedId == null) {
             throw new WebApplicationException("logicalFeedId is required", Response.Status.BAD_REQUEST);
         }
-        LogicalFeed logicalFeed = logicalFeedRepository.findById(logicalFeedId);
-        if (logicalFeed == null) {
+        try {
+            return logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, requireCurrentUser());
+        } catch (NotFoundException e) {
             throw new WebApplicationException("logicalFeedId does not reference an existing logical feed",
                     Response.Status.BAD_REQUEST);
+        } catch (jakarta.ws.rs.ForbiddenException e) {
+            throw new WebApplicationException("You do not have admin access to this logical feed",
+                    Response.Status.FORBIDDEN);
         }
-        return logicalFeed;
     }
 
     private Feed getOrCreateManualUploadFeed(LogicalFeed logicalFeed) {
@@ -694,6 +1043,19 @@ public class HomeResource {
         return feedRepository.findByUrl(syntheticUrl).orElseGet(() -> {
             Feed feed = new Feed();
             feed.name = "Manual upload: " + logicalFeed.name;
+            feed.url = syntheticUrl;
+            feed.pollIntervalMinutes = 525600;
+            feed.logicalFeed = logicalFeed;
+            feedRepository.persist(feed);
+            return feed;
+        });
+    }
+
+    private Feed getOrCreateDoiImportFeed(LogicalFeed logicalFeed) {
+        String syntheticUrl = "doi://logical-feed/" + logicalFeed.id;
+        return feedRepository.findByUrl(syntheticUrl).orElseGet(() -> {
+            Feed feed = new Feed();
+            feed.name = "DOI import: " + logicalFeed.name;
             feed.url = syntheticUrl;
             feed.pollIntervalMinutes = 525600;
             feed.logicalFeed = logicalFeed;
@@ -780,7 +1142,7 @@ public class HomeResource {
 
     private String normalizeExportFormat(String format) {
         String normalized = format == null ? "md" : format.trim().toLowerCase();
-        if (!List.of("md", "pdf", "rtf").contains(normalized)) {
+        if (!List.of("md", "pdf", "docx").contains(normalized)) {
             throw new WebApplicationException("Unsupported export format", Response.Status.BAD_REQUEST);
         }
         return normalized;
@@ -789,7 +1151,7 @@ public class HomeResource {
     private String exportContentType(String format) {
         return switch (format) {
             case "pdf" -> "application/pdf";
-            case "rtf" -> "application/rtf";
+            case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
             default -> "text/markdown; charset=UTF-8";
         };
     }
@@ -853,6 +1215,30 @@ public class HomeResource {
         return value == null ? fallback : String.valueOf(value);
     }
 
+    private AppUser requireCurrentUser() {
+        AppUser user = currentUserContext.get().user();
+        if (user == null) {
+            throw new WebApplicationException(Response.Status.UNAUTHORIZED);
+        }
+        return user;
+    }
+
+    private Response loginResponse(AppUser user, String returnTo) {
+        var session = authService.createSession(user);
+        NewCookie cookie = authService.loginCookie(session.token);
+        return Response.status(Response.Status.SEE_OTHER)
+                .header(HttpHeaders.LOCATION, safeReturnTo(returnTo))
+                .cookie(cookie)
+                .build();
+    }
+
+    private String safeReturnTo(String returnTo) {
+        if (returnTo == null || returnTo.isBlank() || !returnTo.startsWith("/")) {
+            return "/";
+        }
+        return returnTo;
+    }
+
     private void populatePaperCounts(List<LogicalFeed> logicalFeeds) {
         Map<Long, Map<String, Long>> countsByLogicalFeed = paperRepository.countByLogicalFeedAndStatus();
         for (LogicalFeed logicalFeed : logicalFeeds) {
@@ -865,6 +1251,12 @@ public class HomeResource {
                         .sum();
                 logicalFeed.paperCountsByState.put(state, count);
             }
+        }
+    }
+
+    private void populateLogicalFeedAccessFlags(List<LogicalFeed> logicalFeeds, AppUser currentUser) {
+        for (LogicalFeed logicalFeed : logicalFeeds) {
+            logicalFeed.viewerCanAdmin = logicalFeedAccessService.canAdmin(logicalFeed, currentUser);
         }
     }
 }
