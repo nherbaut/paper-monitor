@@ -9,14 +9,20 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import top.nextnet.paper.monitor.model.UserSettings;
 import top.nextnet.paper.monitor.repo.UserSettingsRepository;
 
 @ApplicationScoped
 public class TtsService {
+
+    private static final Pattern BRACKET_REFERENCE_GROUP = Pattern.compile("(?:\\s*\\[(?:\\d+(?:\\s*,\\s*\\d+)*)])(,\\s*\\[(?:\\d+(?:\\s*,\\s*\\d+)*)])*(?=\\s|[.,;:)]|$)");
+    private static final Pattern AUTHOR_YEAR_PAREN = Pattern.compile("\\s*\\((?=[^)]*\\b(?:19|20)\\d{2}[a-z]?\\b)(?:[^()]{0,120})\\)");
+    private static final Pattern HYPHENATED_LINEBREAK = Pattern.compile("(?<=[A-Za-z])-(?=\\s+[a-z])");
 
     private final HttpClient httpClient;
     private final String speakUrl;
@@ -90,13 +96,18 @@ public class TtsService {
             throw new IllegalArgumentException("Text is required");
         }
 
+        String normalizedText = normalizeForSpeech(text);
+        if (normalizedText.isBlank()) {
+            throw new IllegalArgumentException("Text is empty after speech cleanup");
+        }
+
         UserSettings settings = currentSettings();
         String configuredVoice = settings == null || settings.voice == null ? "" : settings.voice.trim();
         String selectedVoice = voice == null || voice.isBlank()
                 ? (configuredVoice.isBlank() ? defaultVoice : configuredVoice)
                 : voice.trim();
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("text", text.trim());
+        payload.put("text", normalizedText);
         if (!selectedVoice.isBlank()) {
             payload.put("voice", selectedVoice);
         }
@@ -164,5 +175,27 @@ public class TtsService {
             return userSettingsRepository.findByUser(currentUserContext.get().user()).orElse(null);
         }
         return null;
+    }
+
+    private String normalizeForSpeech(String text) {
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        normalized = HYPHENATED_LINEBREAK.matcher(normalized).replaceAll("");
+        normalized = BRACKET_REFERENCE_GROUP.matcher(normalized).replaceAll("");
+        normalized = AUTHOR_YEAR_PAREN.matcher(normalized).replaceAll("");
+        normalized = normalized.replaceAll("\\s+([,.;:])", "$1");
+        normalized = normalized.replaceAll("([,;:])\\s*([,;:])", "$2");
+        normalized = normalized.replaceAll("\\s{2,}", " ");
+        normalized = normalized.replaceAll("\\(\\s*\\)", "");
+        normalized = normalized.replaceAll("\\s+\\.", ".");
+        normalized = normalized.replaceAll("\\s+,", ",");
+        normalized = normalized.replaceAll("\\s+\\)", ")");
+        normalized = normalized.replaceAll("\\(\\s+", "(");
+        normalized = normalized.trim();
+
+        if (normalized.endsWith(",") || normalized.endsWith(";") || normalized.endsWith(":")) {
+            normalized = normalized.substring(0, normalized.length() - 1).trim();
+        }
+
+        return normalized;
     }
 }
