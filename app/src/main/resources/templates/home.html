@@ -2364,6 +2364,7 @@
         const formData = new FormData();
         formData.append("pdf", file);
         card.classList.add("dragover");
+        const shouldReturnToNoteView = selectedPaperId === String(paperId);
 
         try {
             const response = await fetch("/papers/" + paperId + "/pdf", {
@@ -2373,6 +2374,13 @@
             if (!response.ok) {
                 const message = await response.text();
                 throw new Error(message || "Upload failed");
+            }
+            if (shouldReturnToNoteView) {
+                const url = new URL(window.location.href);
+                url.searchParams.set("paperId", String(paperId));
+                url.searchParams.set("logicalFeedId", card.dataset.logicalFeedId || "");
+                window.location.href = url.toString();
+                return;
             }
             window.location.reload();
         } catch (error) {

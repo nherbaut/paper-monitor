@@ -31,7 +31,7 @@ public class PaperRepository implements PanacheRepository<Paper> {
         return find("select p from Paper p "
                         + "join fetch p.logicalFeed "
                         + "join fetch p.feed "
-                        + "order by p.discoveredAt desc")
+                        + "order by p.publishedOn desc nulls last, p.discoveredAt desc")
                 .page(0, limit)
                 .list();
     }
@@ -40,7 +40,7 @@ public class PaperRepository implements PanacheRepository<Paper> {
         return find("select p from Paper p "
                         + "join fetch p.logicalFeed "
                         + "join fetch p.feed "
-                        + "order by p.discoveredAt desc")
+                        + "order by p.publishedOn desc nulls last, p.discoveredAt desc")
                 .list();
     }
 
@@ -58,7 +58,7 @@ public class PaperRepository implements PanacheRepository<Paper> {
                         + "join fetch p.logicalFeed "
                         + "join fetch p.feed "
                         + "where p.logicalFeed = ?1 and p.status = ?2 "
-                        + "order by p.discoveredAt desc",
+                        + "order by p.publishedOn desc nulls last, p.discoveredAt desc",
                 logicalFeed, status)
                 .list();
     }
