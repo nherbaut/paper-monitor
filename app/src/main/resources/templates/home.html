@@ -590,6 +590,19 @@
             display: block;
         }
 
+        .notes-panel.drop-target {
+            border-style: dashed;
+        }
+
+        .notes-panel.dragover {
+            border-color: var(--accent);
+            background: color-mix(in srgb, var(--panel) 76%, var(--accent-soft));
+        }
+
+        .upload-cue {
+            margin-bottom: 0.9rem;
+        }
+
         .notes-editor {
             min-height: 70vh;
             font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
@@ -927,6 +940,9 @@
         <div class="reader-tabs" id="reader-tabs"></div>
         <div class="reader-layout">
             <div class="stack paper-list" id="paper-list">
+                {#if authenticated}
+                <p class="meta upload-cue">Drag a PDF onto a paper card or into the note view to attach it.</p>
+                {/if}
                 {#for paper in recentPapers}
                 <article class="card drop-target selectable"
                          data-logical-feed-name="{paper.logicalFeed.name}"
@@ -1026,6 +1042,9 @@
             </aside>
 
             <aside class="panel notes-panel" id="notes-panel">
+                {#if authenticated}
+                <p class="meta upload-cue" id="note-view-upload-cue">Drop a PDF here to attach it to the selected paper.</p>
+                {/if}
                 <p class="meta">Markdown notes for the selected paper.</p>
                 <div class="notes-preview" id="notes-preview"></div>
                 <div class="notes-editor notes-editor-shell hidden" id="notes-editor-shell">
@@ -1037,7 +1056,10 @@
         </div>
     </section>
 </main>
-<div id="reader-bootstrap" data-initial-paper-id="{initialPaperId ?: ''}" data-authenticated="{#if authenticated}true{#else}false{/if}"></div>
+<div id="reader-bootstrap"
+     data-initial-paper-id="{initialPaperId ?: ''}"
+     data-initial-logical-feed-id="{initialLogicalFeedId ?: ''}"
+     data-authenticated="{#if authenticated}true{#else}false{/if}"></div>
 <script type="module">
     import { marked } from "https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.esm.js";
     import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.min.mjs";
@@ -1082,6 +1104,7 @@
     const paperShareButton = document.getElementById("paper-share");
     const ttsPlayer = document.getElementById("tts-player");
     const notesPanel = document.getElementById("notes-panel");
+    const noteViewUploadCue = document.getElementById("note-view-upload-cue");
     const notesPreview = document.getElementById("notes-preview");
     const notesEditorShell = document.getElementById("notes-editor-shell");
     const notesHighlight = document.getElementById("notes-highlight");
@@ -1103,6 +1126,7 @@
     let suppressCardClick = false;
     const themeStorageKey = "paper-monitor.theme";
     const initialPaperId = readerBootstrap?.dataset.initialPaperId || "";
+    const initialLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || "";
     const authenticated = readerBootstrap?.dataset.authenticated === "true";
 
     const renderLastSeenLogicalFeed = (logicalFeedName) => {
@@ -1178,6 +1202,11 @@
         }
     }
 
+    if (initialLogicalFeedId
+            && Array.from(logicalFeedFilter.options).some((option) => option.value === initialLogicalFeedId)) {
+        logicalFeedFilter.value = initialLogicalFeedId;
+    }
+
     const applyLayoutState = () => {
         const hasSelectedPaper = Boolean(selectedPaperId);
         const hasReaderContent = hasSelectedPaper
@@ -1194,6 +1223,11 @@
         paperDownloadButton.disabled = !selectedDownloadUrl;
         paperRemovePdfButton.disabled = !hasPdf || !authenticated;
         paperShareButton.disabled = !hasSelectedPaper;
+        if (noteViewUploadCue) {
+            noteViewUploadCue.textContent = hasSelectedPaper
+                ? "Drop a PDF here to attach it to the selected paper."
+                : "Select a paper, then drop a PDF here to attach it.";
+        }
     };
 
     const selectedPaperCard = () => {
@@ -2271,6 +2305,41 @@
 
     notesPreview.addEventListener("click", () => {
         enterNotesEditMode();
+    });
+
+    ["dragenter", "dragover"].forEach((eventName) => {
+        notesPanel.addEventListener(eventName, (event) => {
+            if (!authenticated) {
+                return;
+            }
+            event.preventDefault();
+            notesPanel.classList.add("dragover");
+        });
+    });
+
+    ["dragleave", "dragend", "drop"].forEach((eventName) => {
+        notesPanel.addEventListener(eventName, (event) => {
+            if (!authenticated) {
+                return;
+            }
+            event.preventDefault();
+            notesPanel.classList.remove("dragover");
+        });
+    });
+
+    notesPanel.addEventListener("drop", (event) => {
+        if (!authenticated || !selectedPaperId) {
+            return;
+        }
+        const files = event.dataTransfer?.files;
+        if (!files || files.length === 0) {
+            return;
+        }
+        const card = findCardByPaperId(selectedPaperId);
+        if (!card) {
+            return;
+        }
+        uploadPdfForPaper(selectedPaperId, files[0], card);
     });
 
     paperSpeakButton.addEventListener("click", async () => {

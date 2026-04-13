@@ -253,6 +253,12 @@
                     <td>
                         <strong>{logicalFeed.name}</strong><br>
                         <span class="meta">{logicalFeed.description ?: 'No description'}</span>
+                        {#if logicalFeed.gitRepoUrl}
+                        <br><span class="meta">Git: <a href="{logicalFeed.gitRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.gitRepoUrl}</a></span>
+                        {/if}
+                        {#if logicalFeed.publicReadable && logicalFeed.publicUrl}
+                        <br><span class="meta">Public: <a href="{logicalFeed.publicUrl}" target="_blank" rel="noreferrer">{logicalFeed.publicUrl}</a></span>
+                        {/if}
                     </td>
                     <td>{logicalFeed.owner.displayLabel}</td>
                     <td><span class="meta">{logicalFeed.workflowStatesToken}</span></td>

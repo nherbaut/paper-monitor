@@ -213,7 +213,10 @@ public class HomeResource {
 
     @GET
     @Transactional
-    public TemplateInstance index(@jakarta.ws.rs.QueryParam("paperId") Long paperId) {
+    public TemplateInstance index(
+            @jakarta.ws.rs.QueryParam("paperId") Long paperId,
+            @jakarta.ws.rs.QueryParam("logicalFeedId") Long logicalFeedId
+    ) {
         AppUser currentUser = currentUserContext.get().user();
         List<LogicalFeed> logicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser);
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
@@ -229,6 +232,7 @@ public class HomeResource {
         populatePaperCounts(logicalFeeds);
         return home.data("recentPapers", papers)
                 .data("initialPaperId", paperId)
+                .data("initialLogicalFeedId", logicalFeedId)
                 .data("logicalFeeds", logicalFeeds)
                 .data("adminLogicalFeeds", adminLogicalFeeds)
                 .data("currentUser", currentUser)
@@ -1287,6 +1291,9 @@ public class HomeResource {
     private void populateLogicalFeedAccessFlags(List<LogicalFeed> logicalFeeds, AppUser currentUser) {
         for (LogicalFeed logicalFeed : logicalFeeds) {
             logicalFeed.viewerCanAdmin = logicalFeedAccessService.canAdmin(logicalFeed, currentUser);
+            logicalFeed.publicUrl = logicalFeed.publicReadable
+                    ? normalizeBaseUrl() + "/?logicalFeedId=" + logicalFeed.id
+                    : null;
         }
     }
 }
