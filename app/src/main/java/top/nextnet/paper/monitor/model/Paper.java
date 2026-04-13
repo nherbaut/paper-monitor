@@ -9,6 +9,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Transient;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -18,6 +20,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Entity
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"logicalFeed_id", "sourceLink"}))
 public class Paper extends PanacheEntityBase {
 
     @Id
@@ -27,7 +30,7 @@ public class Paper extends PanacheEntityBase {
     @Column(nullable = false, length = 1000)
     public String title;
 
-    @Column(nullable = false, unique = true, length = 1000)
+    @Column(nullable = false, length = 1000)
     public String sourceLink;
 
     @Column(length = 1000)

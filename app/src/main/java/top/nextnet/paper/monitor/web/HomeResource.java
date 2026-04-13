@@ -580,12 +580,8 @@ public class HomeResource {
                 ? normalizedDoi
                 : "https://doi.org/" + normalizedDoi.replaceFirst("^(?i)doi:", "");
 
-        Paper existing = paperRepository.findBySourceLink(sourceLink).orElse(null);
+        Paper existing = paperRepository.findByLogicalFeedAndSourceLink(logicalFeed, sourceLink).orElse(null);
         if (existing != null) {
-            if (!logicalFeedAccessService.canRead(existing.logicalFeed, currentUser)) {
-                throw new WebApplicationException("A paper with this DOI already exists outside your accessible feeds",
-                        Response.Status.CONFLICT);
-            }
             return seeOther("/?paperId=" + existing.id);
         }
 

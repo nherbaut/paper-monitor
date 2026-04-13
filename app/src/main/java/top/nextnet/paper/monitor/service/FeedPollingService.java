@@ -102,7 +102,7 @@ public class FeedPollingService {
                     Log.warnf("Skipping RSS item without link for feed id=%d title=%s", feed.id, item.title());
                     continue;
                 }
-                if (paperRepository.findBySourceLink(item.link()).isPresent()) {
+                if (paperRepository.findByLogicalFeedAndSourceLink(feed.logicalFeed, item.link()).isPresent()) {
                     skippedDuplicateCount++;
                     continue;
                 }

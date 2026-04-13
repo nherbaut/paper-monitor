@@ -12,8 +12,8 @@ import top.nextnet.paper.monitor.model.Paper;
 @ApplicationScoped
 public class PaperRepository implements PanacheRepository<Paper> {
 
-    public Optional<Paper> findBySourceLink(String sourceLink) {
-        return find("sourceLink", sourceLink).firstResultOptional();
+    public Optional<Paper> findByLogicalFeedAndSourceLink(LogicalFeed logicalFeed, String sourceLink) {
+        return find("logicalFeed = ?1 and sourceLink = ?2", logicalFeed, sourceLink).firstResultOptional();
     }
 
     public List<Paper> findRecentForLogicalFeed(LogicalFeed logicalFeed, int limit) {
