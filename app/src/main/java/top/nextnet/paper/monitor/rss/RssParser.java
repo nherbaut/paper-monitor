@@ -55,9 +55,11 @@ public class RssParser {
             return RssProvider.ARXIV;
         }
 
-        if ((link != null && link.toLowerCase().contains("scholar.miage.dev"))
+        if ((title != null && title.toLowerCase().contains("scholar"))
+                || (link != null && link.toLowerCase().contains("scholar.miage.dev"))
                 || (description != null && description.contains("OA link"))
-                || hasTag(document, "content:encoded")) {
+                || hasTag(document, "content:encoded")
+                || looksLikeMiageScholarItem(document)) {
             return RssProvider.MIAGE_SCHOLAR;
         }
 
@@ -66,6 +68,25 @@ public class RssParser {
 
     private boolean hasTag(Document document, String tagName) {
         return document.getElementsByTagName(tagName).getLength() > 0;
+    }
+
+    private boolean looksLikeMiageScholarItem(Document document) {
+        var items = document.getElementsByTagName("item");
+        for (int i = 0; i < items.getLength(); i++) {
+            Node item = items.item(i);
+            String description = firstNonBlank(childText(item, "content:encoded"), childText(item, "description"));
+            if (description == null || description.isBlank()) {
+                continue;
+            }
+            String normalized = Jsoup.parse(description).text().replaceAll("\\s+", " ").trim();
+            if (normalized.contains(" written by ")
+                    || normalized.contains("Published by ")
+                    || normalized.contains("We didn't find an OA link")
+                    || normalized.contains("We think we have found an OA link")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private RssPaperItem parseMiageScholarItem(Node item) {
