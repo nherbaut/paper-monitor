@@ -10,6 +10,7 @@ import java.util.List;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
+import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
 @ApplicationScoped
@@ -17,36 +18,95 @@ public class RssParser {
 
     public List<RssPaperItem> parse(byte[] xmlBytes) {
         try {
-            var factory = DocumentBuilderFactory.newInstance();
-            factory.setNamespaceAware(true);
-            var builder = factory.newDocumentBuilder();
-            var document = builder.parse(new ByteArrayInputStream(xmlBytes));
+            Document document = parseDocument(xmlBytes);
+            RssProvider provider = detectProvider(document);
             var items = document.getElementsByTagName("item");
             List<RssPaperItem> parsedItems = new ArrayList<>();
             for (int i = 0; i < items.getLength(); i++) {
                 Node item = items.item(i);
-                String title = childText(item, "title");
-                String link = childText(item, "link");
-                String description = firstNonBlank(childText(item, "content:encoded"), childText(item, "description"));
-                String author = childText(item, "author");
-                String pubDate = childText(item, "pubDate");
-                parsedItems.add(new RssPaperItem(
-                        normalize(title),
-                        normalize(link),
-                        extractOpenAccessLink(description),
-                        extractSummary(description),
-                        extractAuthors(author, description),
-                        extractPublisher(author, description),
-                        parsePublishedOn(pubDate)
-                ));
+                parsedItems.add(switch (provider) {
+                    case ARXIV -> parseArxivItem(item);
+                    case MIAGE_SCHOLAR -> parseMiageScholarItem(item);
+                });
             }
             return parsedItems;
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("Could not parse RSS feed", e);
         }
     }
 
+    private Document parseDocument(byte[] xmlBytes) throws Exception {
+        var factory = DocumentBuilderFactory.newInstance();
+        factory.setNamespaceAware(true);
+        var builder = factory.newDocumentBuilder();
+        return builder.parse(new ByteArrayInputStream(xmlBytes));
+    }
+
+    private RssProvider detectProvider(Document document) {
+        Node channel = document.getElementsByTagName("channel").item(0);
+        String title = normalize(childText(channel, "title"));
+        String link = normalize(childText(channel, "link"));
+        String description = normalize(childText(channel, "description"));
+
+        if ((title != null && title.toLowerCase().contains("arxiv.org"))
+                || (link != null && link.toLowerCase().contains("arxiv.org"))) {
+            return RssProvider.ARXIV;
+        }
+
+        if ((link != null && link.toLowerCase().contains("scholar.miage.dev"))
+                || (description != null && description.contains("OA link"))
+                || hasTag(document, "content:encoded")) {
+            return RssProvider.MIAGE_SCHOLAR;
+        }
+
+        throw new IllegalArgumentException("Unsupported RSS provider. Supported providers are arXiv and MIAGE Scholar.");
+    }
+
+    private boolean hasTag(Document document, String tagName) {
+        return document.getElementsByTagName(tagName).getLength() > 0;
+    }
+
+    private RssPaperItem parseMiageScholarItem(Node item) {
+        String title = childText(item, "title");
+        String link = childText(item, "link");
+        String description = firstNonBlank(childText(item, "content:encoded"), childText(item, "description"));
+        String author = childText(item, "author");
+        String pubDate = childText(item, "pubDate");
+        return new RssPaperItem(
+                normalize(title),
+                normalize(link),
+                extractMiageOpenAccessLink(description),
+                extractMiageSummary(description),
+                extractMiageAuthors(author, description),
+                extractMiagePublisher(author, description),
+                parsePublishedOn(pubDate)
+        );
+    }
+
+    private RssPaperItem parseArxivItem(Node item) {
+        String title = normalize(childText(item, "title"));
+        String link = normalize(childText(item, "link"));
+        String description = normalize(childText(item, "description"));
+        String pubDate = childText(item, "pubDate");
+        String authors = normalize(firstNonBlank(childText(item, "dc:creator"), childText(item, "author")));
+        String summary = extractArxivSummary(description);
+        return new RssPaperItem(
+                title,
+                link,
+                null,
+                summary,
+                authors,
+                "arXiv",
+                parsePublishedOn(pubDate)
+        );
+    }
+
     private String childText(Node node, String tagName) {
+        if (node == null) {
+            return null;
+        }
         var children = node.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
             Node child = children.item(i);
@@ -57,7 +117,7 @@ public class RssParser {
         return null;
     }
 
-    private String extractOpenAccessLink(String rawDescription) {
+    private String extractMiageOpenAccessLink(String rawDescription) {
         if (rawDescription == null || rawDescription.isBlank()) {
             return null;
         }
@@ -69,7 +129,7 @@ public class RssParser {
         return link == null ? null : normalize(link.attr("href"));
     }
 
-    private String extractSummary(String rawDescription) {
+    private String extractMiageSummary(String rawDescription) {
         if (rawDescription == null || rawDescription.isBlank()) {
             return null;
         }
@@ -83,7 +143,7 @@ public class RssParser {
         return plainText.isBlank() ? null : plainText;
     }
 
-    private String extractAuthors(String authorField, String description) {
+    private String extractMiageAuthors(String authorField, String description) {
         String parsed = extractFromDescription(description, "written by ", " Published by");
         if (parsed != null) {
             return parsed;
@@ -99,7 +159,7 @@ public class RssParser {
         return normalize(authorField);
     }
 
-    private String extractPublisher(String authorField, String description) {
+    private String extractMiagePublisher(String authorField, String description) {
         String parsed = extractPublisherFromDescription(description);
         if (parsed != null) {
             return parsed;
@@ -142,6 +202,18 @@ public class RssParser {
         return value.isBlank() ? null : value;
     }
 
+    private String extractArxivSummary(String description) {
+        if (description == null || description.isBlank()) {
+            return null;
+        }
+        String summary = description.replaceAll("\\s+", " ").trim();
+        int abstractIndex = summary.indexOf("Abstract:");
+        if (abstractIndex >= 0) {
+            summary = summary.substring(abstractIndex + "Abstract:".length()).trim();
+        }
+        return summary.isBlank() ? null : summary;
+    }
+
     private LocalDate parsePublishedOn(String pubDate) {
         if (pubDate == null || pubDate.isBlank()) {
             return null;
@@ -159,5 +231,10 @@ public class RssParser {
         }
         String normalized = value.replaceAll("\\s+", " ").trim();
         return normalized.isBlank() ? null : normalized;
+    }
+
+    private enum RssProvider {
+        ARXIV,
+        MIAGE_SCHOLAR
     }
 }

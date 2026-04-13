@@ -1104,6 +1104,7 @@
                                 <button class="secondary" id="paper-zoom-in" type="button">Zoom in</button>
                                 <button class="secondary" id="paper-speak" type="button">Speak</button>
                                 <button class="secondary" id="paper-download" type="button">Download paper</button>
+                                <button class="secondary" id="paper-import-pdf" type="button">Fetch source PDF</button>
                                 <button class="secondary" id="paper-remove-pdf" type="button">Remove PDF</button>
                                 <button class="secondary" id="paper-share" type="button">Share URL</button>
                             </div>
@@ -1193,6 +1194,7 @@
     const paperZoomInButton = document.getElementById("paper-zoom-in");
     const paperSpeakButton = document.getElementById("paper-speak");
     const paperDownloadButton = document.getElementById("paper-download");
+    const paperImportPdfButton = document.getElementById("paper-import-pdf");
     const paperRemovePdfButton = document.getElementById("paper-remove-pdf");
     const paperShareButton = document.getElementById("paper-share");
     const paperTagEditor = document.getElementById("paper-tag-editor");
@@ -1325,6 +1327,12 @@
         paperZoomOutButton.disabled = !hasPdf;
         paperZoomInButton.disabled = !hasPdf;
         paperDownloadButton.disabled = !selectedDownloadUrl;
+        const editableCard = selectedPaperCard();
+        const canImportPdf = Boolean(editableCard)
+            && authenticated
+            && editableCard.dataset.paperCanEditTags === "true"
+            && Boolean(supportedSourcePdfUrl(editableCard));
+        paperImportPdfButton.disabled = !canImportPdf;
         paperRemovePdfButton.disabled = !hasPdf || !authenticated;
         paperShareButton.disabled = !hasSelectedPaper;
         if (noteViewUploadCue) {
@@ -1365,6 +1373,32 @@
             return "<p class=\"paper-link-row meta\">" + links.join(" | ") + "</p>";
         }
         return "Source links: " + links.join(" | ");
+    };
+
+    const supportedSourcePdfUrl = (card) => {
+        if (!card) {
+            return null;
+        }
+        const candidates = [card.dataset.paperOpenAccessLink, card.dataset.paperSourceLink]
+            .map((value) => (value || "").trim())
+            .filter(Boolean);
+        for (const candidate of candidates) {
+            try {
+                const url = new URL(candidate);
+                if (!url.hostname.toLowerCase().endsWith("arxiv.org")) {
+                    continue;
+                }
+                if (url.pathname.startsWith("/abs/")) {
+                    return "https://arxiv.org/pdf/" + url.pathname.slice("/abs/".length) + ".pdf";
+                }
+                if (url.pathname.startsWith("/pdf/")) {
+                    return url.pathname.endsWith(".pdf") ? candidate : "https://arxiv.org" + url.pathname + ".pdf";
+                }
+            } catch {
+                // Ignore invalid URLs from metadata.
+            }
+        }
+        return null;
     };
 
     const normalizeStatus = (status) => status || "NEW";
@@ -2440,6 +2474,28 @@
         applyLayoutState();
     };
 
+    const importSupportedSourcePdf = async () => {
+        const card = selectedPaperCard();
+        if (!card || !authenticated || card.dataset.paperCanEditTags !== "true") {
+            return;
+        }
+        const response = await fetch("/papers/" + card.dataset.paperId + "/pdf/import-supported", {
+            method: "POST"
+        });
+        if (!response.ok) {
+            const message = await response.text();
+            throw new Error(message || "Failed to import remote PDF");
+        }
+        card.dataset.pdfUrl = "/papers/" + card.dataset.paperId + "/pdf";
+        const pdfPresence = card.querySelector(".pdf-presence");
+        if (pdfPresence) {
+            pdfPresence.classList.add("has-pdf");
+            pdfPresence.title = "PDF attached";
+            pdfPresence.innerHTML = "<span aria-hidden=\"true\">📄</span>";
+        }
+        showPdfForCard(card);
+    };
+
     paperCards.forEach((card) => {
         const paperId = card.dataset.paperId;
 
@@ -2763,6 +2819,15 @@
             return;
         }
         window.open(downloadUrl, "_blank", "noopener,noreferrer");
+    });
+
+    paperImportPdfButton.addEventListener("click", async () => {
+        closePaperActionsMenu();
+        try {
+            await importSupportedSourcePdf();
+        } catch (error) {
+            pdfPanelMeta.textContent = error.message || "Failed to import remote PDF";
+        }
     });
 
     paperRemovePdfButton.addEventListener("click", async () => {

@@ -55,6 +55,7 @@ import top.nextnet.paper.monitor.service.NotificationService;
 import top.nextnet.paper.monitor.service.OidcService;
 import top.nextnet.paper.monitor.service.PaperEventService;
 import top.nextnet.paper.monitor.service.PaperGitSyncService;
+import top.nextnet.paper.monitor.service.PaperPdfImportService;
 import top.nextnet.paper.monitor.service.PaperStorageService;
 import top.nextnet.paper.monitor.service.TtsService;
 import top.nextnet.paper.monitor.service.WorkflowStateConfig;
@@ -77,6 +78,7 @@ public class HomeResource {
     private final DoiMetadataService doiMetadataService;
     private final PaperEventService paperEventService;
     private final PaperGitSyncService paperGitSyncService;
+    private final PaperPdfImportService paperPdfImportService;
     private final PaperStorageService paperStorageService;
     private final TtsService ttsService;
     private final BackupService backupService;
@@ -102,6 +104,7 @@ public class HomeResource {
             DoiMetadataService doiMetadataService,
             PaperEventService paperEventService,
             PaperGitSyncService paperGitSyncService,
+            PaperPdfImportService paperPdfImportService,
             PaperStorageService paperStorageService,
             TtsService ttsService,
             BackupService backupService,
@@ -126,6 +129,7 @@ public class HomeResource {
         this.doiMetadataService = doiMetadataService;
         this.paperEventService = paperEventService;
         this.paperGitSyncService = paperGitSyncService;
+        this.paperPdfImportService = paperPdfImportService;
         this.paperStorageService = paperStorageService;
         this.ttsService = ttsService;
         this.backupService = backupService;
@@ -924,6 +928,35 @@ public class HomeResource {
         paperEventService.log(paper, "PDF_UPLOADED", "Attached PDF " + storedPdf.originalFileName());
         paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
         return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/papers/{id}/pdf/import-supported")
+    @Transactional
+    public Response importSupportedPaperPdf(@jakarta.ws.rs.PathParam("id") Long id) {
+        Paper paper = paperRepository.findById(id);
+        if (paper == null) {
+            throw new NotFoundException();
+        }
+        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
+        }
+        try {
+            PaperPdfImportService.ImportedPdf importedPdf = paperPdfImportService.importSupportedPdf(paper);
+            paperStorageService.deleteIfExists(paper.uploadedPdfPath);
+            paper.uploadedPdfPath = importedPdf.storedPdf().storedPath();
+            paper.uploadedPdfFileName = importedPdf.storedPdf().originalFileName();
+            paperEventService.log(paper, "PDF_UPLOADED", "Imported PDF from " + importedPdf.sourceUrl());
+            paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
+            return Response.noContent().build();
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new WebApplicationException("Failed to import remote PDF", Response.Status.BAD_GATEWAY);
+        }
     }
 
     @POST
