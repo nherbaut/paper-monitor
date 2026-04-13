@@ -431,6 +431,22 @@
             box-shadow: 0 0 0 2px rgba(139, 63, 47, 0.18);
         }
 
+        .pdf-panel.drag-armed {
+            transition: transform 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
+        }
+
+        .pdf-panel.drag-right {
+            transform: translateX(96px);
+            border-color: #3f7a43;
+            box-shadow: 0 0 0 2px rgba(63, 122, 67, 0.18);
+        }
+
+        .pdf-panel.drag-left {
+            transform: translateX(-96px);
+            border-color: #8b3f2f;
+            box-shadow: 0 0 0 2px rgba(139, 63, 47, 0.18);
+        }
+
         .state-wheel {
             display: none;
             position: fixed;
@@ -1221,6 +1237,8 @@
     const notesHighlight = document.getElementById("notes-highlight");
     const notesEditor = document.getElementById("notes-editor");
     const notesStatus = document.getElementById("notes-status");
+    const STATE_DRAG_TRIGGER_X = 150;
+    const STATE_WHEEL_ROW_HEIGHT = 56;
     let currentRenderToken = 0;
     let selectedPaperId = null;
     let notesSaveTimer = null;
@@ -1811,8 +1829,28 @@
         renderKeyboardStatePicker();
     };
 
-    const resetCardDragVisual = (card) => {
-        card.classList.remove("drag-armed", "drag-left", "drag-right");
+    const resetCardDragVisual = (element) => {
+        element?.classList.remove("drag-armed", "drag-left", "drag-right");
+    };
+
+    const beginPaperStatusDrag = (card, event, visualTarget = card) => {
+        clearKeyboardStatePicker();
+        const workflow = workflowStatesForLogicalFeed(card.dataset.logicalFeedId);
+        cardDragState = {
+            card,
+            paperId: card.dataset.paperId,
+            startX: event.clientX,
+            startY: event.clientY,
+            workflow,
+            currentStatus: normalizeStatus(card.dataset.paperStatus),
+            currentTopStatus: card.dataset.paperTopStatus || normalizeStatus(card.dataset.paperStatus),
+            side: null,
+            options: [],
+            activeIndex: 0,
+            visualTarget
+        };
+        visualTarget.classList.add("drag-armed");
+        hideStateWheels();
     };
 
     const applyLogicalFeedFilter = () => {
@@ -2536,22 +2574,7 @@
                 return;
             }
 
-            clearKeyboardStatePicker();
-            const workflow = workflowStatesForLogicalFeed(card.dataset.logicalFeedId);
-            cardDragState = {
-                card,
-                paperId,
-                startX: event.clientX,
-                startY: event.clientY,
-                workflow,
-                currentStatus: normalizeStatus(card.dataset.paperStatus),
-                currentTopStatus: card.dataset.paperTopStatus || normalizeStatus(card.dataset.paperStatus),
-                side: null,
-                options: [],
-                activeIndex: 0
-            };
-            card.classList.add("drag-armed");
-            hideStateWheels();
+            beginPaperStatusDrag(card, event, card);
         });
 
         ["dragenter", "dragover"].forEach((eventName) => {
@@ -2583,13 +2606,14 @@
         }
 
         const card = cardDragState.card;
+        const visualTarget = cardDragState.visualTarget || card;
         const deltaX = event.clientX - cardDragState.startX;
         const deltaY = event.clientY - cardDragState.startY;
         const currentIndex = cardDragState.workflow.indexOf(cardDragState.currentTopStatus);
-        resetCardDragVisual(card);
-        card.classList.add("drag-armed");
+        resetCardDragVisual(visualTarget);
+        visualTarget.classList.add("drag-armed");
 
-        if (deltaX > 90 && currentIndex >= 0 && currentIndex < cardDragState.workflow.length - 1) {
+        if (deltaX > STATE_DRAG_TRIGGER_X && currentIndex >= 0 && currentIndex < cardDragState.workflow.length - 1) {
             const options = cardDragState.workflow.slice(currentIndex + 1).flatMap((groupName) => {
                 const group = workflowTreeForLogicalFeed(card.dataset.logicalFeedId).find((item) => item.name === groupName);
                 const entries = [{ type: "group", label: groupName }];
@@ -2599,15 +2623,15 @@
                 return entries;
             });
             const selectableIndexes = options.map((entry, index) => entry.type === "state" ? index : -1).filter((index) => index >= 0);
-            const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(deltaY / 56)))] ?? 0;
+            const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(deltaY / STATE_WHEEL_ROW_HEIGHT)))] ?? 0;
             cardDragState.side = "right";
             cardDragState.options = options;
             cardDragState.activeIndex = activeIndex;
-            card.classList.add("drag-right");
+            visualTarget.classList.add("drag-right");
             leftStateWheel.classList.remove("visible");
             rightStateWheel.classList.add("visible");
             renderStateWheel(rightStateOptions, options, activeIndex);
-        } else if (deltaX < -90 && currentIndex > 0) {
+        } else if (deltaX < -STATE_DRAG_TRIGGER_X && currentIndex > 0) {
             const options = cardDragState.workflow.slice(0, currentIndex).reverse().flatMap((groupName) => {
                 const group = workflowTreeForLogicalFeed(card.dataset.logicalFeedId).find((item) => item.name === groupName);
                 const entries = [{ type: "group", label: groupName }];
@@ -2617,11 +2641,11 @@
                 return entries;
             });
             const selectableIndexes = options.map((entry, index) => entry.type === "state" ? index : -1).filter((index) => index >= 0);
-            const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(-deltaY / 56)))] ?? 0;
+            const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(-deltaY / STATE_WHEEL_ROW_HEIGHT)))] ?? 0;
             cardDragState.side = "left";
             cardDragState.options = options;
             cardDragState.activeIndex = activeIndex;
-            card.classList.add("drag-left");
+            visualTarget.classList.add("drag-left");
             rightStateWheel.classList.remove("visible");
             leftStateWheel.classList.add("visible");
             renderStateWheel(leftStateOptions, options, activeIndex);
@@ -2638,17 +2662,17 @@
             return;
         }
 
-        const { card, paperId, startX, side, options, activeIndex, currentStatus } = cardDragState;
+        const { card, startX, side, options, activeIndex, currentStatus, visualTarget } = cardDragState;
         cardDragState = null;
         const deltaX = event.clientX - startX;
         let nextStatus = null;
 
-        if ((side === "right" && deltaX > 90) || (side === "left" && deltaX < -90)) {
+        if ((side === "right" && deltaX > STATE_DRAG_TRIGGER_X) || (side === "left" && deltaX < -STATE_DRAG_TRIGGER_X)) {
             nextStatus = options[activeIndex]?.value || null;
         }
 
         hideStateWheels();
-        resetCardDragVisual(card);
+        resetCardDragVisual(visualTarget || card);
 
         if (!nextStatus || nextStatus === normalizeStatus(card.dataset.paperStatus)) {
             return;
@@ -2659,6 +2683,23 @@
         } catch (error) {
             window.alert(error.message || "Failed to update paper status");
         }
+    });
+
+    pdfPanel.addEventListener("mousedown", (event) => {
+        if (event.button !== 0 || !selectedPaperId) {
+            return;
+        }
+        if (event.target.closest("a, button, summary, input, textarea, select, audio, .paper-tag-editor, .inline-menu-panel")) {
+            return;
+        }
+        if (event.target.closest(".pdf-scroll") || event.target.closest(".pdf-close-button")) {
+            return;
+        }
+        const card = findCardByPaperId(selectedPaperId);
+        if (!card) {
+            return;
+        }
+        beginPaperStatusDrag(card, event, pdfPanel);
     });
 
     notesEditor.addEventListener("input", () => {
