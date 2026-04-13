@@ -58,9 +58,15 @@ public class FeedPollingService {
     @Transactional
     public void pollFeedById(Long feedId) {
         Feed feed = feedRepository.findById(feedId);
-        if (feed != null && isPollable(feed)) {
-            pollFeed(feed, Instant.now());
+        if (feed == null) {
+            Log.warnf("Manual feed poll requested for unknown feed id=%d", feedId);
+            return;
         }
+        if (!isPollable(feed)) {
+            Log.warnf("Manual feed poll skipped for non-pollable feed id=%d url=%s", feed.id, feed.url);
+            return;
+        }
+        pollFeed(feed, Instant.now());
     }
 
     private boolean isDue(Feed feed, Instant now) {
@@ -83,10 +89,21 @@ public class FeedPollingService {
 
     private void pollFeed(Feed feed, Instant now) {
         try {
+            Log.infof("Polling feed id=%d name=%s url=%s", feed.id, feed.name, feed.url);
             var body = feedFetcher.fetch(feed.url);
             var items = rssParser.parse(body);
+            Log.infof("Parsed %d RSS items for feed id=%d url=%s", items.size(), feed.id, feed.url);
+            int createdCount = 0;
+            int skippedDuplicateCount = 0;
+            int skippedMissingLinkCount = 0;
             for (var item : items) {
-                if (item.link() == null || paperRepository.findBySourceLink(item.link()).isPresent()) {
+                if (item.link() == null) {
+                    skippedMissingLinkCount++;
+                    Log.warnf("Skipping RSS item without link for feed id=%d title=%s", feed.id, item.title());
+                    continue;
+                }
+                if (paperRepository.findBySourceLink(item.link()).isPresent()) {
+                    skippedDuplicateCount++;
                     continue;
                 }
                 Paper paper = new Paper();
@@ -103,13 +120,17 @@ public class FeedPollingService {
                 paper.logicalFeed = feed.logicalFeed;
                 paperRepository.persist(paper);
                 paperEventService.log(paper, "FETCH", "Fetched from " + feed.name);
+                createdCount++;
             }
             feed.lastPolledAt = now;
             feed.lastError = null;
+            Log.infof(
+                    "Feed poll completed id=%d created=%d duplicates=%d missingLink=%d",
+                    feed.id, createdCount, skippedDuplicateCount, skippedMissingLinkCount);
         } catch (Exception e) {
             feed.lastPolledAt = now;
-            feed.lastError = e.getMessage();
-            Log.errorf(e, "Failed to poll feed %s", feed.url);
+            feed.lastError = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            Log.errorf(e, "Failed to poll feed id=%d name=%s url=%s", feed.id, feed.name, feed.url);
         }
     }
 
