@@ -391,10 +391,56 @@ public class PaperGitSyncService {
 
     private void commitIfNeeded(Path repoPath, String message) throws IOException {
         runGit(repoPath, "add", "-A");
-        String status = runGit(repoPath, "status", "--porcelain").trim();
+        String status = runGit(repoPath, "status", "--porcelain=1", "--find-renames").trim();
         if (!status.isEmpty()) {
-            runGit(repoPath, "commit", "-m", message);
+            runGit(repoPath, "commit", "-m", buildManagedCommitMessage(status, message));
         }
+    }
+
+    private String buildManagedCommitMessage(String statusOutput, String fallbackMessage) {
+        Map<Long, ManagedPaperChange> changesByPaper = new LinkedHashMap<>();
+        for (String line : statusOutput.split("\\R")) {
+            parseManagedStatusLine(line).ifPresent((status) -> {
+                Long paperId = firstNonNull(parsePaperId(fileName(status.newPath())), parsePaperId(fileName(status.oldPath())));
+                if (paperId == null) {
+                    return;
+                }
+                changesByPaper.computeIfAbsent(paperId, ManagedPaperChange::new).include(status);
+            });
+        }
+
+        if (changesByPaper.isEmpty()) {
+            return fallbackMessage;
+        }
+
+        StringBuilder message = new StringBuilder(fallbackMessage);
+        for (ManagedPaperChange change : changesByPaper.values()) {
+            List<String> details = change.describe();
+            if (details.isEmpty()) {
+                continue;
+            }
+            message.append("\n\n- ")
+                    .append(change.paperTitle())
+                    .append(": ")
+                    .append(String.join(", ", details));
+        }
+        return message.toString();
+    }
+
+    private java.util.Optional<ManagedStatusLine> parseManagedStatusLine(String line) {
+        if (line == null || line.isBlank() || line.length() < 4) {
+            return java.util.Optional.empty();
+        }
+        String statusCode = line.substring(0, 2);
+        String payload = line.substring(3);
+        if (statusCode.startsWith("R") || statusCode.startsWith("C")) {
+            String[] parts = payload.split("\\t");
+            if (parts.length >= 2) {
+                return java.util.Optional.of(new ManagedStatusLine(statusCode, parts[0], parts[1]));
+            }
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(new ManagedStatusLine(statusCode, null, payload));
     }
 
     private String runGit(Path directory, String... arguments) throws IOException {
@@ -505,8 +551,19 @@ public class PaperGitSyncService {
     }
 
     private String fileName(String path) {
+        if (path == null) {
+            return null;
+        }
         int separator = path.lastIndexOf('/');
         return separator < 0 ? path : path.substring(separator + 1);
+    }
+
+    private <T> T firstNonNull(T first, T second) {
+        return first != null ? first : second;
+    }
+
+    private String displayState(String state) {
+        return state == null ? "unknown" : state.replace('_', ' ');
     }
 
     private String originalFileName(String fileName, Paper paper) {
@@ -544,6 +601,89 @@ public class PaperGitSyncService {
 
     private String nonBlank(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private final class ManagedPaperChange {
+        private final Long paperId;
+        private final String paperTitle;
+        private boolean notesChanged;
+        private boolean pdfChanged;
+        private String fromState;
+        private String toState;
+
+        private ManagedPaperChange(Long paperId) {
+            this.paperId = paperId;
+            Paper paper = paperRepository.findById(paperId);
+            this.paperTitle = paper == null || paper.title == null || paper.title.isBlank()
+                    ? "Paper " + paperId
+                    : paper.title;
+        }
+
+        void include(ManagedStatusLine line) {
+            if (isNotesPath(line.oldPath()) || isNotesPath(line.newPath())) {
+                notesChanged = true;
+            }
+            if (isPdfPath(line.oldPath()) || isPdfPath(line.newPath())) {
+                pdfChanged = true;
+            }
+            String oldState = stateFromManagedPath(line.oldPath());
+            String newState = stateFromManagedPath(line.newPath());
+            if (oldState != null && newState != null && !oldState.equals(newState)) {
+                fromState = oldState;
+                toState = newState;
+            }
+        }
+
+        String paperTitle() {
+            return paperTitle;
+        }
+
+        List<String> describe() {
+            List<String> details = new ArrayList<>();
+            if (fromState != null && toState != null) {
+                details.add("state changed " + displayState(fromState) + " -> " + displayState(toState));
+            }
+            if (notesChanged) {
+                details.add("notes updated");
+            }
+            if (pdfChanged) {
+                details.add("PDF updated");
+            }
+            return details;
+        }
+
+        private boolean isNotesPath(String path) {
+            return path != null && path.toLowerCase(Locale.ROOT).endsWith(".md");
+        }
+
+        private boolean isPdfPath(String path) {
+            return path != null && path.toLowerCase(Locale.ROOT).endsWith(".pdf");
+        }
+
+        private String stateFromManagedPath(String path) {
+            if (path == null) {
+                return null;
+            }
+            String normalized = path.replace('\\', '/');
+            int separator = normalized.lastIndexOf('/');
+            if (separator < 0) {
+                return null;
+            }
+            String directoryPath = normalized.substring(0, separator);
+            Paper paper = paperRepository.findById(paperId);
+            if (paper == null || paper.logicalFeed == null) {
+                return null;
+            }
+            for (String state : paper.logicalFeed.workflowStateList()) {
+                if (pathForState(state).equals(directoryPath)) {
+                    return state;
+                }
+            }
+            return null;
+        }
+    }
+
+    private record ManagedStatusLine(String statusCode, String oldPath, String newPath) {
     }
 
     private record GitChange(String status, String oldPath, String newPath) {
