@@ -228,6 +228,38 @@
             box-shadow: none;
         }
 
+        .reader-search {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin: 0 0 1rem;
+        }
+
+        .reader-search.hidden {
+            display: none;
+        }
+
+        .reader-search input {
+            width: min(100%, 28rem);
+            margin: 0;
+            padding: 0.55rem 0.85rem;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: color-mix(in srgb, var(--panel) 92%, white);
+            font-size: 0.95rem;
+        }
+
+        .load-more-row {
+            display: flex;
+            justify-content: center;
+            margin-top: 0.8rem;
+        }
+
+        .load-more-row.hidden {
+            display: none;
+        }
+
         .tag-browser {
             display: none;
             gap: 0.9rem;
@@ -1036,6 +1068,10 @@
     <section class="panel panel-wide">
         <h2 id="paper-feed-heading">Paper feed</h2>
         <div class="reader-tabs" id="reader-tabs"></div>
+        <div class="reader-search" id="reader-search">
+            <input id="state-search-input" type="search" placeholder="Search this state in title, abstract, authors, or venue">
+            <p class="meta" id="state-search-meta"></p>
+        </div>
         <div class="tag-browser" id="tag-browser">
             <div class="tag-badge-list" id="tag-badge-list"></div>
             <div class="actions">
@@ -1106,6 +1142,9 @@
                 {#if recentPapers.isEmpty}
                 <p class="meta">No papers stored yet. Create a feed and poll it.</p>
                 {/if}
+                <div class="load-more-row hidden" id="search-load-more-row">
+                    <button class="secondary" id="search-load-more" type="button">Load 10 more</button>
+                </div>
             </div>
 
             <div class="state-wheel left" id="left-state-wheel">
@@ -1198,6 +1237,11 @@
     const tagBadgeList = document.getElementById("tag-badge-list");
     const clearTagFiltersButton = document.getElementById("clear-tag-filters");
     const tagBrowserMeta = document.getElementById("tag-browser-meta");
+    const readerSearch = document.getElementById("reader-search");
+    const stateSearchInput = document.getElementById("state-search-input");
+    const stateSearchMeta = document.getElementById("state-search-meta");
+    const searchLoadMoreRow = document.getElementById("search-load-more-row");
+    const searchLoadMoreButton = document.getElementById("search-load-more");
     const themeToggle = document.getElementById("theme-toggle");
     const themeToggleLabel = document.getElementById("theme-toggle-label");
     const fullscreenToggle = document.getElementById("fullscreen-toggle");
@@ -1255,6 +1299,8 @@
     let cardDragState = null;
     let keyboardStatePicker = null;
     let suppressCardClick = false;
+    let stateSearchQuery = "";
+    let stateSearchVisibleLimit = 10;
     let selectedTagFilters = [];
     const themeStorageKey = "paper-monitor.theme";
     const initialPaperId = readerBootstrap?.dataset.initialPaperId || "";
@@ -1562,6 +1608,22 @@
         return keys.every((key) => cardKeys.has(key));
     };
 
+    const normalizedSearchText = (value) => {
+        return (value || "").toLowerCase().replace(/\s+/g, " ").trim();
+    };
+
+    const stateSearchMatchesCard = (card, query) => {
+        if (!query) {
+            return true;
+        }
+        return [
+            card.dataset.paperTitle,
+            card.dataset.paperSummary,
+            card.dataset.paperAuthors,
+            card.dataset.paperVenue
+        ].some((value) => normalizedSearchText(value).includes(query));
+    };
+
     const currentFeedCards = () => {
         const selectedLogicalFeedId = logicalFeedFilter.value;
         if (!selectedLogicalFeedId) {
@@ -1858,6 +1920,9 @@
         let activeCardStillVisible = false;
         const availableTabs = selectedWorkflowStates();
         const availableCounts = selectedWorkflowCounts();
+        const normalizedQuery = normalizedSearchText(stateSearchQuery);
+        const isStateSearchActive = activePrimaryTab === "state" && normalizedQuery.length > 0;
+        let matchingSearchCards = [];
 
         if (availableTabs.length === 0) {
             activeStatusTab = null;
@@ -1869,14 +1934,31 @@
             const feedMatches = activePrimaryTab === "tags"
                 ? Boolean(selectedLogicalFeedId) && card.dataset.logicalFeedId === selectedLogicalFeedId
                 : (!selectedLogicalFeedId || card.dataset.logicalFeedId === selectedLogicalFeedId);
-            const visible = activePrimaryTab === "tags"
-                ? feedMatches && tagFilterMatchesCard(card, selectedTagFilters)
-                : feedMatches && (activeStatusTab == null || card.dataset.paperTopStatus === activeStatusTab);
+            const stateMatches = feedMatches && (activeStatusTab == null || card.dataset.paperTopStatus === activeStatusTab);
+            const tagMatches = feedMatches && tagFilterMatchesCard(card, selectedTagFilters);
+            const searchMatches = stateMatches && stateSearchMatchesCard(card, normalizedQuery);
+            if (isStateSearchActive && searchMatches) {
+                matchingSearchCards.push(card);
+            }
+        const visible = activePrimaryTab === "tags"
+                ? tagMatches
+                : stateMatches && !isStateSearchActive;
             card.hidden = !visible;
             if (visible && card.dataset.paperId === selectedPaperId) {
                 activeCardStillVisible = true;
             }
         });
+
+        if (isStateSearchActive) {
+            const visibleSearchCards = new Set(matchingSearchCards.slice(0, stateSearchVisibleLimit));
+            paperCards.forEach((card) => {
+                const visible = visibleSearchCards.has(card);
+                card.hidden = !visible;
+                if (visible && card.dataset.paperId === selectedPaperId) {
+                    activeCardStillVisible = true;
+                }
+            });
+        }
 
         if (selectedPaperId && !activeCardStillVisible) {
             closeViewer();
@@ -1891,6 +1973,7 @@
             tab.addEventListener("click", () => {
                 activePrimaryTab = "state";
                 activeStatusTab = status;
+                stateSearchVisibleLimit = 10;
                 applyLogicalFeedFilter();
             });
             statusTabsContainer.appendChild(tab);
@@ -1902,11 +1985,28 @@
         tagsTab.textContent = "Tags";
         tagsTab.addEventListener("click", () => {
             activePrimaryTab = "tags";
+            stateSearchVisibleLimit = 10;
             applyLogicalFeedFilter();
         });
         statusTabsContainer.appendChild(tagsTab);
 
         renderTagBrowser();
+
+        readerSearch.classList.toggle("hidden", activePrimaryTab !== "state");
+        if (activePrimaryTab === "state") {
+            if (isStateSearchActive) {
+                stateSearchMeta.textContent = matchingSearchCards.length + " matching paper"
+                    + (matchingSearchCards.length === 1 ? "" : "s");
+            } else {
+                stateSearchMeta.textContent = activeStatusTab
+                    ? "Search within " + statusLabel(activeStatusTab)
+                    : "";
+            }
+        } else {
+            stateSearchMeta.textContent = "";
+        }
+        searchLoadMoreRow.classList.toggle("hidden",
+            !isStateSearchActive || matchingSearchCards.length <= stateSearchVisibleLimit);
 
         const exportDisabled = activePrimaryTab !== "state" || !selectedLogicalFeedId || !activeStatusTab;
         exportTabButton.classList.toggle("disabled", exportDisabled);
@@ -2790,6 +2890,21 @@
         });
     }
 
+    if (stateSearchInput) {
+        stateSearchInput.addEventListener("input", () => {
+            stateSearchQuery = stateSearchInput.value || "";
+            stateSearchVisibleLimit = 10;
+            applyLogicalFeedFilter();
+        });
+    }
+
+    if (searchLoadMoreButton) {
+        searchLoadMoreButton.addEventListener("click", () => {
+            stateSearchVisibleLimit += 10;
+            applyLogicalFeedFilter();
+        });
+    }
+
     ["dragenter", "dragover"].forEach((eventName) => {
         notesPanel.addEventListener(eventName, (event) => {
             if (!authenticated) {
@@ -3128,6 +3243,7 @@
     logicalFeedFilter.addEventListener("change", applyLogicalFeedFilter);
     logicalFeedFilter.addEventListener("change", () => {
         selectedTagFilters = [];
+        stateSearchVisibleLimit = 10;
         if (!doiImportLogicalFeed) {
             return;
         }
