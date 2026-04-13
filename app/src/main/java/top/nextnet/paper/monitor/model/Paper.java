@@ -9,8 +9,13 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Transient;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 @Entity
 public class Paper extends PanacheEntityBase {
@@ -40,6 +45,9 @@ public class Paper extends PanacheEntityBase {
     @Column(length = 20000)
     public String notes;
 
+    @Column(length = 2000)
+    public String tags;
+
     @Column(length = 1000)
     public String authors;
 
@@ -62,11 +70,47 @@ public class Paper extends PanacheEntityBase {
     @JoinColumn(nullable = false)
     public LogicalFeed logicalFeed;
 
+    @Transient
+    public boolean viewerCanEdit;
+
     public String topLevelStatus() {
         if (status == null || status.isBlank()) {
             return "NEW";
         }
         int separator = status.indexOf('/');
         return separator < 0 ? status : status.substring(0, separator);
+    }
+
+    public List<String> tagList() {
+        if (tags == null || tags.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(tags.split("\\R"))
+                .map(String::trim)
+                .filter((value) -> !value.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    public String tagsToken() {
+        return tagList().stream().collect(Collectors.joining("|"));
+    }
+
+    public static String normalizeTags(String rawTags) {
+        if (rawTags == null || rawTags.isBlank()) {
+            return null;
+        }
+        List<String> orderedTags = Arrays.stream(rawTags.replace(",", "\n").split("\\R"))
+                .map(String::trim)
+                .filter((value) -> !value.isBlank())
+                .collect(Collectors.toMap(
+                        (value) -> value.toLowerCase(Locale.ROOT),
+                        (value) -> value,
+                        (left, right) -> left))
+                .values()
+                .stream()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+        return orderedTags.isEmpty() ? null : String.join("\n", orderedTags);
     }
 }

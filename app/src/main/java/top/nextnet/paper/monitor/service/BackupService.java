@@ -258,6 +258,7 @@ public class BackupService {
             item.put("uploadedPdfFileName", paper.uploadedPdfFileName);
             item.put("summary", paper.summary);
             item.put("notes", paper.notes);
+            item.put("tags", paper.tags);
             item.put("authors", paper.authors);
             item.put("publisher", paper.publisher);
             item.put("publishedOn", paper.publishedOn == null ? null : paper.publishedOn.toString());
@@ -402,6 +403,7 @@ public class BackupService {
             paper.uploadedPdfFileName = stringValue(item.get("uploadedPdfFileName"));
             paper.summary = stringValue(item.get("summary"));
             paper.notes = stringValue(item.get("notes"));
+            paper.tags = stringValue(item.get("tags"));
             paper.authors = stringValue(item.get("authors"));
             paper.publisher = stringValue(item.get("publisher"));
             paper.publishedOn = localDateValue(item.get("publishedOn"));

@@ -67,6 +67,7 @@ public class HomeResource {
     private final Template admin;
     private final Template logs;
     private final Template login;
+    private final Template quickSetup;
     private final LogicalFeedRepository logicalFeedRepository;
     private final FeedRepository feedRepository;
     private final PaperRepository paperRepository;
@@ -91,6 +92,7 @@ public class HomeResource {
             @Location("admin") Template admin,
             @Location("logs") Template logs,
             @Location("login") Template login,
+            @Location("quick-setup") Template quickSetup,
             LogicalFeedRepository logicalFeedRepository,
             FeedRepository feedRepository,
             PaperRepository paperRepository,
@@ -114,6 +116,7 @@ public class HomeResource {
         this.admin = admin;
         this.logs = logs;
         this.login = login;
+        this.quickSetup = quickSetup;
         this.logicalFeedRepository = logicalFeedRepository;
         this.feedRepository = feedRepository;
         this.paperRepository = paperRepository;
@@ -229,6 +232,9 @@ public class HomeResource {
             paperRepository.findForReader(paperId).ifPresent((paper) -> papers.add(0, paper));
         }
         papers.removeIf((paper) -> !logicalFeedAccessService.canRead(paper.logicalFeed, currentUser));
+        for (Paper paper : papers) {
+            paper.viewerCanEdit = logicalFeedAccessService.canAdmin(paper.logicalFeed, currentUser);
+        }
         populatePaperCounts(logicalFeeds);
         return home.data("recentPapers", papers)
                 .data("initialPaperId", paperId)
@@ -274,6 +280,74 @@ public class HomeResource {
                 .data("canAdmin", currentUserContext.get().isAdmin())
                 .data("allUsers", authService.allUsers())
                 .data("oidcEnabled", oidcService.isEnabled());
+    }
+
+    @GET
+    @Path("/admin/quick-setup")
+    @Transactional
+    public TemplateInstance quickSetupConfirm(
+            @QueryParam("paperFeedName") String paperFeedName,
+            @QueryParam("rssUrl") String rssUrl
+    ) {
+        requireCurrentUser();
+        String normalizedPaperFeedName = normalizeRequired(paperFeedName, "paperFeedName is required");
+        String normalizedRssUrl = normalizeRequired(rssUrl, "rssUrl is required");
+        return quickSetup.data("mode", "confirm")
+                .data("paperFeedName", normalizedPaperFeedName)
+                .data("rssUrl", normalizedRssUrl)
+                .data("workflowYaml", """
+                        - DISCARDED
+                        - NEW
+                        - TODO
+                        - DONE
+                        """)
+                .data("defaultPaperStatus", "NEW")
+                .data("confirmUrl", "/admin/quick-setup/run?paperFeedName=" + urlEncode(normalizedPaperFeedName)
+                        + "&rssUrl=" + urlEncode(normalizedRssUrl))
+                .data("cancelUrl", "/admin");
+    }
+
+    @GET
+    @Path("/admin/quick-setup/run")
+    @Transactional
+    public TemplateInstance quickSetupRun(
+            @QueryParam("paperFeedName") String paperFeedName,
+            @QueryParam("rssUrl") String rssUrl
+    ) {
+        requireCurrentUser();
+        String normalizedPaperFeedName = normalizeRequired(paperFeedName, "paperFeedName is required");
+        String normalizedRssUrl = normalizeRequired(rssUrl, "rssUrl is required");
+        return quickSetup.data("mode", "running")
+                .data("paperFeedName", normalizedPaperFeedName)
+                .data("rssUrl", normalizedRssUrl)
+                .data("executeUrl", "/admin/quick-setup/execute?paperFeedName=" + urlEncode(normalizedPaperFeedName)
+                        + "&rssUrl=" + urlEncode(normalizedRssUrl))
+                .data("cancelUrl", "/admin");
+    }
+
+    @GET
+    @Path("/admin/quick-setup/execute")
+    @Transactional
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response quickSetupExecute(
+            @QueryParam("paperFeedName") String paperFeedName,
+            @QueryParam("rssUrl") String rssUrl
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        try {
+            String normalizedPaperFeedName = normalizeRequired(paperFeedName, "paperFeedName is required");
+            String normalizedRssUrl = normalizeRequired(rssUrl, "rssUrl is required");
+            if (logicalFeedRepository.find("name", normalizedPaperFeedName).firstResultOptional().isPresent()) {
+                throw new WebApplicationException("A paper feed with this name already exists", Response.Status.BAD_REQUEST);
+            }
+            if (feedRepository.findByUrl(normalizedRssUrl).isPresent()) {
+                throw new WebApplicationException("An RSS feed with this URL already exists", Response.Status.BAD_REQUEST);
+            }
+            LogicalFeed logicalFeed = createQuickSetupPaperFeed(currentUser, normalizedPaperFeedName, normalizedRssUrl);
+            return Response.ok("/?logicalFeedId=" + logicalFeed.id).type(MediaType.TEXT_PLAIN).build();
+        } catch (WebApplicationException e) {
+            return rethrowOrPlainText(e);
+        }
     }
 
     @POST
@@ -797,7 +871,8 @@ public class HomeResource {
         if (paper == null || paper.uploadedPdfPath == null) {
             throw new NotFoundException();
         }
-        if (!logicalFeedAccessService.canRead(paper.logicalFeed, requireCurrentUser())) {
+        AppUser currentUser = currentUserContext.get().user();
+        if (!logicalFeedAccessService.canRead(paper.logicalFeed, currentUser)) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
 
@@ -890,6 +965,25 @@ public class HomeResource {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
         paper.notes = notes;
+        return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/papers/{id}/tags")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response updatePaperTags(
+            @jakarta.ws.rs.PathParam("id") Long id,
+            @RestForm("tags") String tags
+    ) {
+        Paper paper = paperRepository.findById(id);
+        if (paper == null) {
+            throw new NotFoundException();
+        }
+        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
+        }
+        paper.tags = Paper.normalizeTags(tags);
         return Response.noContent().build();
     }
 
@@ -1098,6 +1192,33 @@ public class HomeResource {
         });
     }
 
+    private LogicalFeed createQuickSetupPaperFeed(AppUser owner, String paperFeedName, String rssUrl) {
+        LogicalFeed logicalFeed = new LogicalFeed();
+        logicalFeed.name = paperFeedName;
+        logicalFeed.description = "Created from quick setup";
+        logicalFeed.workflowStates = """
+                - DISCARDED
+                - NEW
+                - TODO
+                - DONE
+                """;
+        logicalFeed.owner = owner;
+        logicalFeed.publicReadable = false;
+        logicalFeedRepository.persist(logicalFeed);
+
+        Feed feed = new Feed();
+        feed.name = paperFeedName + " RSS";
+        feed.url = rssUrl;
+        feed.pollIntervalMinutes = 60;
+        feed.defaultPaperStatus = "NEW";
+        feed.logicalFeed = logicalFeed;
+        feedRepository.persist(feed);
+
+        paperGitSyncService.syncLogicalFeed(logicalFeed);
+        feedPollingService.pollFeedById(feed.id);
+        return logicalFeed;
+    }
+
     private String stripPdfSuffix(String fileName) {
         if (fileName == null) {
             return "Uploaded paper";
@@ -1140,6 +1261,9 @@ public class HomeResource {
             markdown.append("* authors: ").append(escapeMarkdownText(stringOrDefault(paper.authors, "Unknown authors"))).append("\n");
             markdown.append("* publication date: ").append(escapeMarkdownText(stringOrDefault(paper.publishedOn, "unknown"))).append("\n");
             markdown.append("* venue: ").append(escapeMarkdownText(stringOrDefault(paper.publisher, "Unknown venue"))).append("\n");
+            if (paper.tags != null && !paper.tags.isBlank()) {
+                markdown.append("* tags: ").append(escapeMarkdownText(String.join(", ", paper.tagList()))).append("\n");
+            }
             if (paper.sourceLink != null && !paper.sourceLink.startsWith("upload:")) {
                 markdown.append("* source: ").append(paper.sourceLink).append("\n");
             }
@@ -1172,6 +1296,10 @@ public class HomeResource {
 
     private String normalizeBaseUrl() {
         return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+    }
+
+    private String urlEncode(String value) {
+        return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private String normalizeExportFormat(String format) {

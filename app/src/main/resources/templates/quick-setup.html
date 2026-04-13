@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paper Feed Quick Setup</title>
+    <style>
+        :root {
+            --bg: #f5f0e8;
+            --panel: #fffaf3;
+            --ink: #1f1d1a;
+            --muted: #6c655d;
+            --accent: #b34f2e;
+            --line: #d8c6b5;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            font-family: Georgia, "Times New Roman", serif;
+            background:
+                radial-gradient(circle at top left, rgba(179, 79, 46, 0.16), transparent 28%),
+                linear-gradient(180deg, #f9f4ed 0%, var(--bg) 100%);
+            color: var(--ink);
+        }
+        main {
+            width: min(760px, calc(100% - 2rem));
+        }
+        .panel {
+            background: color-mix(in srgb, var(--panel) 92%, white);
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 1.6rem;
+            box-shadow: 0 18px 40px rgba(77, 56, 38, 0.08);
+        }
+        .meta {
+            color: var(--muted);
+            line-height: 1.5;
+        }
+        .actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+            margin-top: 1rem;
+        }
+        .button {
+            display: inline-block;
+            border-radius: 12px;
+            border: 1px solid var(--accent);
+            padding: 0.75rem 1rem;
+            background: var(--accent);
+            color: white;
+            text-decoration: none;
+        }
+        .button.secondary {
+            background: white;
+            color: var(--accent);
+        }
+        pre {
+            white-space: pre-wrap;
+            background: rgba(255, 255, 255, 0.75);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        .status {
+            margin-top: 1rem;
+            padding: 0.9rem 1rem;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.65);
+        }
+        .spinner {
+            width: 2.2rem;
+            height: 2.2rem;
+            border-radius: 999px;
+            border: 3px solid #dfc6b4;
+            border-top-color: var(--accent);
+            animation: spin 1s linear infinite;
+            margin-bottom: 1rem;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <section class="panel">
+        {#if mode == 'confirm'}
+        <h1>Confirm Paper Feed Creation</h1>
+        <p class="meta">This quick setup will create the review workspace below for your account.</p>
+        <ul>
+            <li><strong>Paper feed:</strong> {paperFeedName}</li>
+            <li><strong>RSS feed URL:</strong> {rssUrl}</li>
+            <li><strong>RSS imported state:</strong> {defaultPaperStatus}</li>
+        </ul>
+        <p class="meta">Workflow that will be created:</p>
+        <pre>{workflowYaml}</pre>
+        <div class="actions">
+            <a class="button" href="{confirmUrl}">Create, poll, and open this paper feed</a>
+            <a class="button secondary" href="{cancelUrl}">Cancel</a>
+        </div>
+        {/if}
+
+        {#if mode == 'running'}
+        <h1>Creating Paper Feed</h1>
+        <div class="spinner" aria-hidden="true"></div>
+        <p class="meta">Paper feed creation is running in the background. The RSS feed is being created and polled now.</p>
+        <div class="status" id="quick-setup-status">Creating paper feed <strong>{paperFeedName}</strong> from <strong>{rssUrl}</strong>...</div>
+        <div class="actions">
+            <a class="button secondary" href="{cancelUrl}">Back to admin</a>
+        </div>
+        <script>
+            const status = document.getElementById("quick-setup-status");
+            fetch("{executeUrl}", { headers: { Accept: "text/plain" } })
+                .then(async (response) => {
+                    const body = await response.text();
+                    if (!response.ok) {
+                        throw new Error(body || "Quick setup failed");
+                    }
+                    status.textContent = "Polling completed. Opening the new paper feed...";
+                    window.location.href = body;
+                })
+                .catch((error) => {
+                    status.textContent = error.message || "Quick setup failed";
+                });
+        </script>
+        {/if}
+    </section>
+</main>
+</body>
+</html>

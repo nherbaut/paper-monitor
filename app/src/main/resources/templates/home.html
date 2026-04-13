@@ -228,6 +228,78 @@
             box-shadow: none;
         }
 
+        .tag-browser {
+            display: none;
+            gap: 0.9rem;
+            margin-bottom: 1.2rem;
+        }
+
+        .tag-browser.visible {
+            display: grid;
+        }
+
+        .tag-badge-list,
+        .paper-tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .badge-button,
+        .paper-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.4rem 0.72rem;
+            border-radius: 999px;
+            border: 1px solid #d4c1ae;
+            background: #f6e6db;
+            color: #6a2e18;
+            font-size: 0.88rem;
+            line-height: 1;
+        }
+
+        .badge-button {
+            cursor: pointer;
+        }
+
+        .badge-button.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .badge-button.secondary-badge {
+            background: #efe8de;
+            color: #53463a;
+        }
+
+        .paper-tag button {
+            width: auto;
+            min-width: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            line-height: 1;
+        }
+
+        .paper-tag-editor {
+            display: none;
+            gap: 0.6rem;
+            margin-top: 0.85rem;
+        }
+
+        .paper-tag-add {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .paper-tag-add input {
+            flex: 1 1 14rem;
+        }
+
         form {
             display: grid;
             gap: 0.75rem;
@@ -938,6 +1010,13 @@
     <section class="panel panel-wide">
         <h2 id="paper-feed-heading">Paper feed</h2>
         <div class="reader-tabs" id="reader-tabs"></div>
+        <div class="tag-browser" id="tag-browser">
+            <div class="tag-badge-list" id="tag-badge-list"></div>
+            <div class="actions">
+                <button class="secondary" id="clear-tag-filters" type="button">Deselect all tags</button>
+            </div>
+            <p class="meta" id="tag-browser-meta"></p>
+        </div>
         <div class="reader-layout">
             <div class="stack paper-list" id="paper-list">
                 {#if authenticated}
@@ -958,6 +1037,8 @@
                          data-paper-summary="{paper.summary ?: ''}"
                          data-paper-source-link="{paper.sourceLink ?: ''}"
                          data-paper-open-access-link="{paper.openAccessLink ?: ''}"
+                         data-paper-tags="{paper.tagsToken}"
+                         data-paper-can-edit-tags="{#if paper.viewerCanEdit}true{#else}false{/if}"
                          data-paper-notes="{paper.notes ?: ''}">
                     <div class="pill">{paper.logicalFeed.name}</div>
                     <div class="card-header">
@@ -1033,6 +1114,14 @@
                 <div class="paper-view-meta">
                     <h3 id="pdf-panel-title">Select a paper</h3>
                     <p class="meta" id="pdf-panel-meta">The paper view will open here when you click a paper.</p>
+                    <div class="paper-tag-editor" id="paper-tag-editor">
+                        <div class="paper-tag-list" id="paper-tag-list"></div>
+                        <div class="paper-tag-add" id="paper-tag-add">
+                            <input id="paper-tag-input" list="paper-tag-suggestions" type="text" placeholder="Add a tag">
+                            <button class="secondary" id="paper-tag-add-button" type="button">Add tag</button>
+                        </div>
+                        <datalist id="paper-tag-suggestions"></datalist>
+                    </div>
                 </div>
                 <div class="pdf-scroll">
                     <div class="paper-view-content">
@@ -1078,6 +1167,10 @@
     const exportTabMenu = document.getElementById("export-tab-menu");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
     const paperFeedHeading = document.getElementById("paper-feed-heading");
+    const tagBrowser = document.getElementById("tag-browser");
+    const tagBadgeList = document.getElementById("tag-badge-list");
+    const clearTagFiltersButton = document.getElementById("clear-tag-filters");
+    const tagBrowserMeta = document.getElementById("tag-browser-meta");
     const themeToggle = document.getElementById("theme-toggle");
     const themeToggleLabel = document.getElementById("theme-toggle-label");
     const fullscreenToggle = document.getElementById("fullscreen-toggle");
@@ -1102,6 +1195,12 @@
     const paperDownloadButton = document.getElementById("paper-download");
     const paperRemovePdfButton = document.getElementById("paper-remove-pdf");
     const paperShareButton = document.getElementById("paper-share");
+    const paperTagEditor = document.getElementById("paper-tag-editor");
+    const paperTagList = document.getElementById("paper-tag-list");
+    const paperTagAdd = document.getElementById("paper-tag-add");
+    const paperTagInput = document.getElementById("paper-tag-input");
+    const paperTagAddButton = document.getElementById("paper-tag-add-button");
+    const paperTagSuggestions = document.getElementById("paper-tag-suggestions");
     const ttsPlayer = document.getElementById("tts-player");
     const notesPanel = document.getElementById("notes-panel");
     const noteViewUploadCue = document.getElementById("note-view-upload-cue");
@@ -1121,9 +1220,11 @@
     let currentTtsUrl = null;
     let handToolState = null;
     let activeStatusTab = "NEW";
+    let activePrimaryTab = "state";
     let cardDragState = null;
     let keyboardStatePicker = null;
     let suppressCardClick = false;
+    let selectedTagFilters = [];
     const themeStorageKey = "paper-monitor.theme";
     const initialPaperId = readerBootstrap?.dataset.initialPaperId || "";
     const initialLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || "";
@@ -1176,6 +1277,9 @@
     };
 
     const enterNotesEditMode = () => {
+        if (!authenticated) {
+            return;
+        }
         notesPreview.classList.add("hidden");
         notesEditorShell.classList.remove("hidden");
         updateNotesEditorView();
@@ -1228,6 +1332,10 @@
                 ? "Drop a PDF here to attach it to the selected paper."
                 : "Select a paper, then drop a PDF here to attach it.";
         }
+        if (!authenticated) {
+            notesEditorShell.classList.add("hidden");
+            notesPreview.classList.remove("hidden");
+        }
     };
 
     const selectedPaperCard = () => {
@@ -1260,6 +1368,18 @@
     };
 
     const normalizeStatus = (status) => status || "NEW";
+
+    const parsePaperTags = (card) => {
+        const token = card?.dataset.paperTags || "";
+        if (!token) {
+            return [];
+        }
+        return token.split("|").map((value) => value.trim()).filter(Boolean);
+    };
+
+    const setPaperTags = (card, tags) => {
+        card.dataset.paperTags = tags.join("|");
+    };
 
     const workflowTreeForLogicalFeed = (logicalFeedId) => {
         const option = Array.from(logicalFeedFilter.options).find((item) => item.value === logicalFeedId);
@@ -1352,6 +1472,61 @@
         return seen;
     };
 
+    const specialTagLabel = (key) => {
+        if (key === "has-pdf") {
+            return "Has PDF";
+        }
+        if (key.startsWith("state:")) {
+            return statusLabel(key.slice("state:".length));
+        }
+        return key;
+    };
+
+    const tagFilterKeysForCard = (card) => {
+        const keys = new Set(parsePaperTags(card));
+        keys.add("state:" + (card.dataset.paperTopStatus || normalizeStatus(card.dataset.paperStatus)));
+        if (card.dataset.pdfUrl) {
+            keys.add("has-pdf");
+        }
+        return keys;
+    };
+
+    const tagFilterMatchesCard = (card, keys) => {
+        if (!keys.length) {
+            return true;
+        }
+        const cardKeys = tagFilterKeysForCard(card);
+        return keys.every((key) => cardKeys.has(key));
+    };
+
+    const currentFeedCards = () => {
+        const selectedLogicalFeedId = logicalFeedFilter.value;
+        if (!selectedLogicalFeedId) {
+            return [];
+        }
+        return Array.from(paperCards).filter((card) => card.dataset.logicalFeedId === selectedLogicalFeedId);
+    };
+
+    const tagCandidatesForCurrentFeed = () => {
+        const cards = currentFeedCards();
+        const workflow = selectedWorkflowStates();
+        const entries = new Map();
+        workflow.forEach((state) => {
+            entries.set("state:" + state, { key: "state:" + state, label: statusLabel(state), secondary: true });
+        });
+        entries.set("has-pdf", { key: "has-pdf", label: "Has PDF", secondary: true });
+        cards.forEach((card) => {
+            parsePaperTags(card).forEach((tag) => {
+                if (!entries.has(tag)) {
+                    entries.set(tag, { key: tag, label: tag, secondary: false });
+                }
+            });
+        });
+        return Array.from(entries.values());
+    };
+
+    const normalizeTagInput = (value) => value.trim().replace(/\s+/g, " ");
+
     const getNextInterestingStatus = (status, logicalFeedId) => {
         const workflow = workflowStatesForLogicalFeed(logicalFeedId);
         const index = workflow.indexOf(status);
@@ -1380,6 +1555,134 @@
         const counts = stateCountsFromToken(option.dataset.stateCounts || "");
         const summary = formatStateSummary(workflowStates, counts);
         option.textContent = summary ? option.dataset.feedName + " (" + summary + ")" : option.dataset.feedName;
+    };
+
+    const renderTagBrowser = () => {
+        if (!tagBrowser || !tagBadgeList || !tagBrowserMeta) {
+            return;
+        }
+        const visible = activePrimaryTab === "tags";
+        tagBrowser.classList.toggle("visible", visible);
+        if (!visible) {
+            return;
+        }
+
+        const cards = currentFeedCards();
+        if (!logicalFeedFilter.value) {
+            tagBadgeList.innerHTML = "";
+            tagBrowserMeta.textContent = "Select a paper feed to browse tags.";
+            return;
+        }
+
+        const candidates = tagCandidatesForCurrentFeed()
+            .map((candidate) => {
+                const stateKeys = selectedTagFilters.filter((key) => key.startsWith("state:"));
+                let filterKeys = selectedTagFilters.filter((key) => key !== candidate.key);
+                if (candidate.key.startsWith("state:") && stateKeys.length) {
+                    filterKeys = filterKeys.filter((key) => !key.startsWith("state:"));
+                }
+                if (!selectedTagFilters.includes(candidate.key)) {
+                    filterKeys = [...filterKeys, candidate.key];
+                } else {
+                    filterKeys = [...filterKeys, candidate.key];
+                }
+                const count = cards.filter((card) => tagFilterMatchesCard(card, filterKeys)).length;
+                return { ...candidate, count };
+            })
+            .sort((left, right) => (right.count - left.count) || left.label.localeCompare(right.label));
+
+        tagBadgeList.innerHTML = "";
+        candidates.forEach((candidate) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "badge-button"
+                + (selectedTagFilters.includes(candidate.key) ? " active" : "")
+                + (candidate.secondary ? " secondary-badge" : "");
+            button.textContent = candidate.label + " (" + candidate.count + ")";
+            button.addEventListener("click", () => {
+                if (candidate.key.startsWith("state:")) {
+                    selectedTagFilters = selectedTagFilters.filter((key) => !key.startsWith("state:"));
+                }
+                if (selectedTagFilters.includes(candidate.key)) {
+                    selectedTagFilters = selectedTagFilters.filter((key) => key !== candidate.key);
+                } else {
+                    selectedTagFilters = [...selectedTagFilters, candidate.key];
+                }
+                applyLogicalFeedFilter();
+            });
+            tagBadgeList.appendChild(button);
+        });
+
+        const matchingCount = cards.filter((card) => tagFilterMatchesCard(card, selectedTagFilters)).length;
+        tagBrowserMeta.textContent = selectedTagFilters.length
+            ? matchingCount + " paper(s) match " + selectedTagFilters.map(specialTagLabel).join(", ")
+            : cards.length + " paper(s) in this paper feed.";
+    };
+
+    const feedTagSuggestions = (logicalFeedId, currentPaperId = null) => {
+        const suggestions = new Set();
+        Array.from(paperCards)
+            .filter((card) => card.dataset.logicalFeedId === logicalFeedId && card.dataset.paperId !== currentPaperId)
+            .forEach((card) => {
+                parsePaperTags(card).forEach((tag) => suggestions.add(tag));
+            });
+        return Array.from(suggestions).sort((left, right) => left.localeCompare(right));
+    };
+
+    const renderPaperTagEditor = (card) => {
+        if (!paperTagEditor || !paperTagList || !paperTagAdd || !paperTagSuggestions) {
+            return;
+        }
+        if (!card) {
+            paperTagEditor.style.display = "none";
+            return;
+        }
+        paperTagEditor.style.display = "grid";
+        const tags = parsePaperTags(card);
+        const canEdit = authenticated && card.dataset.paperCanEditTags === "true";
+        paperTagList.innerHTML = "";
+        tags.forEach((tag) => {
+            const badge = document.createElement("span");
+            badge.className = "paper-tag";
+            badge.textContent = tag;
+            if (canEdit) {
+                const removeButton = document.createElement("button");
+                removeButton.type = "button";
+                removeButton.textContent = "×";
+                removeButton.title = "Remove tag";
+                removeButton.addEventListener("click", async () => {
+                    await savePaperTags(card, tags.filter((value) => value !== tag));
+                });
+                badge.appendChild(removeButton);
+            }
+            paperTagList.appendChild(badge);
+        });
+        paperTagAdd.style.display = canEdit ? "flex" : "none";
+        paperTagInput.value = "";
+        paperTagSuggestions.innerHTML = "";
+        feedTagSuggestions(card.dataset.logicalFeedId, card.dataset.paperId).forEach((tag) => {
+            const option = document.createElement("option");
+            option.value = tag;
+            paperTagSuggestions.appendChild(option);
+        });
+    };
+
+    const savePaperTags = async (card, tags) => {
+        const normalized = Array.from(new Set(tags.map(normalizeTagInput).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+        const response = await fetch("/papers/" + card.dataset.paperId + "/tags", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+            },
+            body: new URLSearchParams({ tags: normalized.join("\n") })
+        });
+        if (!response.ok) {
+            const message = await response.text();
+            throw new Error(message || "Failed to save tags");
+        }
+        setPaperTags(card, normalized);
+        renderPaperTagEditor(card);
+        applyLogicalFeedFilter();
     };
 
     const renderStateWheel = (container, options, activeIndex) => {
@@ -1480,8 +1783,12 @@
         }
 
         paperCards.forEach((card) => {
-            const visible = (!selectedLogicalFeedId || card.dataset.logicalFeedId === selectedLogicalFeedId)
-                && (activeStatusTab == null || card.dataset.paperTopStatus === activeStatusTab);
+            const feedMatches = activePrimaryTab === "tags"
+                ? Boolean(selectedLogicalFeedId) && card.dataset.logicalFeedId === selectedLogicalFeedId
+                : (!selectedLogicalFeedId || card.dataset.logicalFeedId === selectedLogicalFeedId);
+            const visible = activePrimaryTab === "tags"
+                ? feedMatches && tagFilterMatchesCard(card, selectedTagFilters)
+                : feedMatches && (activeStatusTab == null || card.dataset.paperTopStatus === activeStatusTab);
             card.hidden = !visible;
             if (visible && card.dataset.paperId === selectedPaperId) {
                 activeCardStillVisible = true;
@@ -1496,16 +1803,29 @@
         availableTabs.forEach((status) => {
             const tab = document.createElement("button");
             tab.type = "button";
-            tab.className = "reader-tab" + (status === activeStatusTab ? " active" : "");
+            tab.className = "reader-tab" + (activePrimaryTab === "state" && status === activeStatusTab ? " active" : "");
             tab.textContent = statusLabel(status) + " (" + (availableCounts[status] || 0) + ")";
             tab.addEventListener("click", () => {
+                activePrimaryTab = "state";
                 activeStatusTab = status;
                 applyLogicalFeedFilter();
             });
             statusTabsContainer.appendChild(tab);
         });
 
-        const exportDisabled = !selectedLogicalFeedId || !activeStatusTab;
+        const tagsTab = document.createElement("button");
+        tagsTab.type = "button";
+        tagsTab.className = "reader-tab" + (activePrimaryTab === "tags" ? " active" : "");
+        tagsTab.textContent = "Tags";
+        tagsTab.addEventListener("click", () => {
+            activePrimaryTab = "tags";
+            applyLogicalFeedFilter();
+        });
+        statusTabsContainer.appendChild(tagsTab);
+
+        renderTagBrowser();
+
+        const exportDisabled = activePrimaryTab !== "state" || !selectedLogicalFeedId || !activeStatusTab;
         exportTabButton.classList.toggle("disabled", exportDisabled);
         exportFormatButtons.forEach((button) => {
             button.disabled = exportDisabled;
@@ -1527,6 +1847,7 @@
         contentPanelLabel.textContent = "";
         pdfPanelTitle.textContent = "Select a paper";
         pdfPanelMeta.textContent = "The paper view will open here when you click a paper.";
+        renderPaperTagEditor(null);
         notesEditor.value = "";
         notesStatus.textContent = "Saved";
         if (currentTtsUrl) {
@@ -1588,6 +1909,7 @@
         populatePaperViewMeta(card);
         currentPdfPageTexts = [];
         notesEditor.value = card.dataset.paperNotes || "";
+        renderPaperTagEditor(card);
         notesStatus.textContent = "Saved";
         updateNotesEditorView();
         renderNotesPreview();
@@ -1840,6 +2162,7 @@
 
         contentPanelLabel.textContent = "";
         notesEditor.value = card.dataset.paperNotes || "";
+        renderPaperTagEditor(card);
         notesStatus.textContent = "Saved";
         updateNotesEditorView();
         renderNotesPreview();
@@ -2268,7 +2591,12 @@
         }
     });
 
-    notesEditor.addEventListener("input", queueNotesSave);
+    notesEditor.addEventListener("input", () => {
+        if (!authenticated) {
+            return;
+        }
+        queueNotesSave();
+    });
 
     notesEditor.addEventListener("scroll", () => {
         notesHighlight.scrollTop = notesEditor.scrollTop;
@@ -2276,6 +2604,9 @@
     });
 
     notesEditor.addEventListener("paste", async (event) => {
+        if (!authenticated) {
+            return;
+        }
         const items = Array.from(event.clipboardData?.items || []);
         const imageItem = items.find((item) => item.type.startsWith("image/"));
         if (!imageItem) {
@@ -2300,12 +2631,53 @@
     });
 
     notesEditor.addEventListener("blur", () => {
+        if (!authenticated) {
+            return;
+        }
         leaveNotesEditMode();
     });
 
     notesPreview.addEventListener("click", () => {
+        if (!authenticated) {
+            return;
+        }
         enterNotesEditMode();
     });
+
+    if (paperTagAddButton) {
+        paperTagAddButton.addEventListener("click", async () => {
+            const card = selectedPaperCard();
+            if (!card || !authenticated || card.dataset.paperCanEditTags !== "true") {
+                return;
+            }
+            const nextTag = normalizeTagInput(paperTagInput.value || "");
+            if (!nextTag) {
+                return;
+            }
+            try {
+                await savePaperTags(card, [...parsePaperTags(card), nextTag]);
+            } catch (error) {
+                pdfPanelMeta.textContent = error.message || "Failed to save tags";
+            }
+        });
+    }
+
+    if (paperTagInput) {
+        paperTagInput.addEventListener("keydown", async (event) => {
+            if (event.key !== "Enter") {
+                return;
+            }
+            event.preventDefault();
+            paperTagAddButton?.click();
+        });
+    }
+
+    if (clearTagFiltersButton) {
+        clearTagFiltersButton.addEventListener("click", () => {
+            selectedTagFilters = [];
+            applyLogicalFeedFilter();
+        });
+    }
 
     ["dragenter", "dragover"].forEach((eventName) => {
         notesPanel.addEventListener(eventName, (event) => {
@@ -2616,6 +2988,7 @@
     Array.from(logicalFeedFilter.options).forEach(refreshLogicalFeedOptionLabel);
     logicalFeedFilter.addEventListener("change", applyLogicalFeedFilter);
     logicalFeedFilter.addEventListener("change", () => {
+        selectedTagFilters = [];
         if (!doiImportLogicalFeed) {
             return;
         }
