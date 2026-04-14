@@ -513,6 +513,9 @@ public class PaperGitSyncService {
     }
 
     private Long parsePaperId(String fileName) {
+        if (fileName == null) {
+            return null;
+        }
         if (!fileName.startsWith("paper-")) {
             return null;
         }
