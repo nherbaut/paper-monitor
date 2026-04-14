@@ -478,33 +478,27 @@ public class PaperGitSyncService {
     }
 
     private String repoFileName(Paper paper) {
-        String baseName = paper.uploadedPdfFileName == null || paper.uploadedPdfFileName.isBlank()
-                ? paper.title
-                : paper.uploadedPdfFileName;
-        String sanitized = sanitizeFileName(baseName);
-        if (!sanitized.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
-            sanitized = sanitized + ".pdf";
-        }
-        return "paper-" + paper.id + "--" + sanitized;
+        return "paper-" + paper.id + "--" + repoSafeTitleBaseName(paper) + ".pdf";
     }
 
     private String repoNotesFileName(Paper paper) {
-        String baseName = paper.uploadedPdfFileName == null || paper.uploadedPdfFileName.isBlank()
-                ? paper.title
-                : stripPdfSuffix(paper.uploadedPdfFileName);
-        String sanitized = sanitizeFileName(baseName);
+        return "paper-" + paper.id + "--" + repoSafeTitleBaseName(paper) + ".md";
+    }
+
+    private String repoSafeTitleBaseName(Paper paper) {
+        String sanitized = sanitizeFileName(paper == null ? null : paper.title);
         if (sanitized.toLowerCase(Locale.ROOT).endsWith(".pdf")) {
             sanitized = stripPdfSuffix(sanitized);
         }
-        if (!sanitized.toLowerCase(Locale.ROOT).endsWith(".md")) {
-            sanitized = sanitized + ".md";
+        if (sanitized.toLowerCase(Locale.ROOT).endsWith(".md")) {
+            sanitized = sanitized.substring(0, sanitized.length() - 3);
         }
-        return "paper-" + paper.id + "--" + sanitized;
+        return sanitized;
     }
 
     private String sanitizeFileName(String value) {
         if (value == null || value.isBlank()) {
-            return "paper.pdf";
+            return "paper";
         }
         return value.replaceAll("[^A-Za-z0-9._-]+", "-")
                 .replaceAll("-{2,}", "-")
