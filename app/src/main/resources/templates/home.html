@@ -256,6 +256,10 @@
             display: none;
         }
 
+        .share-anon-hidden {
+            display: none !important;
+        }
+
         .reader-search input {
             width: min(100%, 28rem);
             margin: 0;
@@ -1067,8 +1071,7 @@
         </div>
     </header>
 
-    {#if !shareMode || authenticated}
-    <section class="panel panel-wide status">
+    <section class="panel panel-wide status {#if shareMode && !authenticated}share-anon-hidden{/if}">
         <div>
             <div class="pill">Last seen paper feed</div>
             <p class="meta" id="last-seen-logical-feed">No paper feed seen yet.</p>
@@ -1112,24 +1115,21 @@
             {/if}
         </div>
     </section>
-    {/if}
 
     <section class="panel panel-wide">
         <h2 id="paper-feed-heading">Paper feed</h2>
-        {#if !shareMode || authenticated}
-        <div class="reader-tabs" id="reader-tabs"></div>
-        <div class="reader-search" id="reader-search">
+        <div class="reader-tabs {#if shareMode && !authenticated}share-anon-hidden{/if}" id="reader-tabs"></div>
+        <div class="reader-search {#if shareMode && !authenticated}share-anon-hidden{/if}" id="reader-search">
             <input id="state-search-input" type="search" placeholder="Search this state in title, abstract, authors, or venue">
             <p class="meta" id="state-search-meta"></p>
         </div>
-        <div class="tag-browser" id="tag-browser">
+        <div class="tag-browser {#if shareMode && !authenticated}share-anon-hidden{/if}" id="tag-browser">
             <div class="tag-badge-list" id="tag-badge-list"></div>
             <div class="actions">
                 <button class="secondary" id="clear-tag-filters" type="button">Deselect all tags</button>
             </div>
             <p class="meta" id="tag-browser-meta"></p>
         </div>
-        {/if}
         <div class="reader-layout">
             <div class="stack paper-list" id="paper-list">
                 {#if authenticated}
