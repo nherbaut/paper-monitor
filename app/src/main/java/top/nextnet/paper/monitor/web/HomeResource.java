@@ -249,7 +249,41 @@ public class HomeResource {
                 .data("adminLogicalFeeds", adminLogicalFeeds)
                 .data("currentUser", currentUser)
                 .data("canAdmin", currentUserContext.get().isAdmin())
-                .data("authenticated", currentUser != null);
+                .data("authenticated", currentUser != null)
+                .data("shareMode", false)
+                .data("sharedPaper", null)
+                .data("sharedPaperUrl", null);
+    }
+
+    @GET
+    @Path("/share/paper/{token}")
+    @Transactional
+    public TemplateInstance sharedPaper(@jakarta.ws.rs.PathParam("token") String token) {
+        Paper paper = paperRepository.findByShareToken(token).orElseThrow(NotFoundException::new);
+        AppUser currentUser = currentUserContext.get().user();
+        if (paper.logicalFeed == null) {
+            throw new NotFoundException();
+        }
+        if (!paper.logicalFeed.publicReadable && !logicalFeedAccessService.canRead(paper.logicalFeed, currentUser)) {
+            throw new NotFoundException();
+        }
+        List<LogicalFeed> logicalFeeds = List.of(paper.logicalFeed);
+        populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
+        populatePaperCounts(logicalFeeds);
+        populatePaperBadges(List.of(paper));
+        paper.viewerCanEdit = logicalFeedAccessService.canAdmin(paper.logicalFeed, currentUser);
+        List<LogicalFeed> adminLogicalFeeds = paper.viewerCanEdit ? logicalFeeds : List.of();
+        return home.data("recentPapers", List.of(paper))
+                .data("initialPaperId", paper.id)
+                .data("initialLogicalFeedId", paper.logicalFeed.id)
+                .data("logicalFeeds", logicalFeeds)
+                .data("adminLogicalFeeds", adminLogicalFeeds)
+                .data("currentUser", currentUser)
+                .data("canAdmin", currentUserContext.get().isAdmin())
+                .data("authenticated", currentUser != null)
+                .data("shareMode", true)
+                .data("sharedPaper", paper)
+                .data("sharedPaperUrl", normalizeBaseUrl() + "/share/paper/" + paper.shareToken);
     }
 
     @GET
@@ -996,6 +1030,26 @@ public class HomeResource {
             paperEventService.log(paper, "NOTE_VIEWED", "Opened in note view");
         }
         return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/papers/{id}/share-link")
+    @Transactional
+    @Produces(MediaType.TEXT_PLAIN)
+    public Response createPaperShareLink(@jakarta.ws.rs.PathParam("id") Long id) {
+        Paper paper = paperRepository.findForReader(id).orElseThrow(NotFoundException::new);
+        AppUser currentUser = requireCurrentUser();
+        if (!logicalFeedAccessService.canRead(paper.logicalFeed, currentUser)) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
+        }
+        if (!paper.logicalFeed.publicReadable) {
+            throw new WebApplicationException("Paper feed must be public to create an anonymous share link",
+                    Response.Status.BAD_REQUEST);
+        }
+        if (paper.shareToken == null || paper.shareToken.isBlank()) {
+            paper.shareToken = UUID.randomUUID().toString();
+        }
+        return Response.ok(normalizeBaseUrl() + "/share/paper/" + paper.shareToken, MediaType.TEXT_PLAIN).build();
     }
 
     @POST

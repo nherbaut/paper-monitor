@@ -17,6 +17,15 @@ public class PaperRepository implements PanacheRepository<Paper> {
         return find("logicalFeed = ?1 and sourceLink = ?2", logicalFeed, sourceLink).firstResultOptional();
     }
 
+    public Optional<Paper> findByShareToken(String shareToken) {
+        return find("select p from Paper p "
+                        + "join fetch p.logicalFeed "
+                        + "join fetch p.feed "
+                        + "where p.shareToken = ?1",
+                shareToken)
+                .firstResultOptional();
+    }
+
     public List<Paper> findRecentForLogicalFeed(LogicalFeed logicalFeed, int limit) {
         return find("select p from Paper p "
                         + "join fetch p.logicalFeed "

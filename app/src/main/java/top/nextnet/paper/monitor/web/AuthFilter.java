@@ -149,6 +149,9 @@ public class AuthFilter implements ContainerRequestFilter {
         if (path.startsWith("assets/")) {
             return true;
         }
+        if (path.matches("share/paper/[0-9a-fA-F-]{36}")) {
+            return true;
+        }
         if (path.matches("papers/\\d+/pdf")) {
             String[] parts = path.split("/");
             Long paperId = Long.parseLong(parts[1]);

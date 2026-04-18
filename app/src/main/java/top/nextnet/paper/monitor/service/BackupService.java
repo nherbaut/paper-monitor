@@ -253,6 +253,7 @@ public class BackupService {
             item.put("id", paper.id);
             item.put("title", paper.title);
             item.put("sourceLink", paper.sourceLink);
+            item.put("shareToken", paper.shareToken);
             item.put("openAccessLink", paper.openAccessLink);
             item.put("uploadedPdfPath", paper.uploadedPdfPath);
             item.put("uploadedPdfFileName", paper.uploadedPdfFileName);
@@ -398,6 +399,7 @@ public class BackupService {
             Paper paper = new Paper();
             paper.title = stringValue(item.get("title"));
             paper.sourceLink = stringValue(item.get("sourceLink"));
+            paper.shareToken = stringValue(item.get("shareToken"));
             paper.openAccessLink = stringValue(item.get("openAccessLink"));
             paper.uploadedPdfPath = stringValue(item.get("uploadedPdfPath"));
             paper.uploadedPdfFileName = stringValue(item.get("uploadedPdfFileName"));

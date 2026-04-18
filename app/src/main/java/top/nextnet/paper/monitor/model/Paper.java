@@ -33,6 +33,9 @@ public class Paper extends PanacheEntityBase {
     @Column(nullable = false, length = 1000)
     public String sourceLink;
 
+    @Column(unique = true, length = 36)
+    public String shareToken;
+
     @Column(length = 1000)
     public String openAccessLink;
 
