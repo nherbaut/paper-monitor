@@ -4,6 +4,8 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import io.quarkus.arc.Unremovable;
+import io.quarkus.runtime.Startup;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import top.nextnet.paper.monitor.repo.AppUserRepository;
@@ -12,6 +14,8 @@ import top.nextnet.paper.monitor.repo.LogicalFeedRepository;
 import top.nextnet.paper.monitor.repo.PaperRepository;
 
 @ApplicationScoped
+@Startup
+@Unremovable
 public class ApplicationMetricsService {
 
     private final MeterRegistry meterRegistry;
