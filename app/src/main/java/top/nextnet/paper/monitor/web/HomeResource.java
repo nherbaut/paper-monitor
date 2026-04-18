@@ -258,14 +258,18 @@ public class HomeResource {
     @GET
     @Path("/share/paper/{token}")
     @Transactional
-    public TemplateInstance sharedPaper(@jakarta.ws.rs.PathParam("token") String token) {
+    public Response sharedPaper(@jakarta.ws.rs.PathParam("token") String token) {
         Paper paper = paperRepository.findByShareToken(token).orElseThrow(NotFoundException::new);
         AppUser currentUser = currentUserContext.get().user();
         if (paper.logicalFeed == null) {
             throw new NotFoundException();
         }
-        if (!paper.logicalFeed.publicReadable && !logicalFeedAccessService.canRead(paper.logicalFeed, currentUser)) {
+        boolean canRead = logicalFeedAccessService.canRead(paper.logicalFeed, currentUser);
+        if (!paper.logicalFeed.publicReadable && !canRead) {
             throw new NotFoundException();
+        }
+        if (currentUser != null && canRead) {
+            return seeOther("/?paperId=" + paper.id + "&logicalFeedId=" + paper.logicalFeed.id);
         }
         List<LogicalFeed> logicalFeeds = List.of(paper.logicalFeed);
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
@@ -273,7 +277,7 @@ public class HomeResource {
         populatePaperBadges(List.of(paper));
         paper.viewerCanEdit = logicalFeedAccessService.canAdmin(paper.logicalFeed, currentUser);
         List<LogicalFeed> adminLogicalFeeds = paper.viewerCanEdit ? logicalFeeds : List.of();
-        return home.data("recentPapers", List.of(paper))
+        TemplateInstance page = home.data("recentPapers", List.of(paper))
                 .data("initialPaperId", paper.id)
                 .data("initialLogicalFeedId", paper.logicalFeed.id)
                 .data("logicalFeeds", logicalFeeds)
@@ -284,6 +288,7 @@ public class HomeResource {
                 .data("shareMode", true)
                 .data("sharedPaper", paper)
                 .data("sharedPaperUrl", normalizeBaseUrl() + "/share/paper/" + paper.shareToken);
+        return Response.ok(page.render(), MediaType.TEXT_HTML).build();
     }
 
     @GET

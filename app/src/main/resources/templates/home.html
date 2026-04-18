@@ -1067,6 +1067,7 @@
         </div>
     </header>
 
+    {#if !shareMode || authenticated}
     <section class="panel panel-wide status">
         <div>
             <div class="pill">Last seen paper feed</div>
@@ -1111,9 +1112,11 @@
             {/if}
         </div>
     </section>
+    {/if}
 
     <section class="panel panel-wide">
         <h2 id="paper-feed-heading">Paper feed</h2>
+        {#if !shareMode || authenticated}
         <div class="reader-tabs" id="reader-tabs"></div>
         <div class="reader-search" id="reader-search">
             <input id="state-search-input" type="search" placeholder="Search this state in title, abstract, authors, or venue">
@@ -1126,6 +1129,7 @@
             </div>
             <p class="meta" id="tag-browser-meta"></p>
         </div>
+        {/if}
         <div class="reader-layout">
             <div class="stack paper-list" id="paper-list">
                 {#if authenticated}
