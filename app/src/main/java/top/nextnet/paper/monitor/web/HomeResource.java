@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.io.IOException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -236,6 +237,7 @@ public class HomeResource {
             paperRepository.findForReader(paperId).ifPresent((paper) -> papers.add(0, paper));
         }
         papers.removeIf((paper) -> !logicalFeedAccessService.canRead(paper.logicalFeed, currentUser));
+        populatePaperBadges(papers);
         for (Paper paper : papers) {
             paper.viewerCanEdit = logicalFeedAccessService.canAdmin(paper.logicalFeed, currentUser);
         }
@@ -979,6 +981,24 @@ public class HomeResource {
     }
 
     @POST
+    @Path("/papers/{id}/viewed")
+    @Transactional
+    public Response markPaperViewed(@jakarta.ws.rs.PathParam("id") Long id) {
+        Paper paper = paperRepository.findById(id);
+        if (paper == null) {
+            throw new NotFoundException();
+        }
+        AppUser currentUser = currentUserContext.get().user();
+        if (!logicalFeedAccessService.canRead(paper.logicalFeed, currentUser)) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
+        }
+        if (!paperEventRepository.existsByPaperIdAndType(id, "NOTE_VIEWED")) {
+            paperEventService.log(paper, "NOTE_VIEWED", "Opened in note view");
+        }
+        return Response.noContent().build();
+    }
+
+    @POST
     @Path("/papers/{id}/notes")
     @Transactional
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -1047,6 +1067,29 @@ public class HomeResource {
             throw new WebApplicationException("Invalid paper status", Response.Status.BAD_REQUEST);
         }
         return Response.noContent().build();
+    }
+
+    private void populatePaperBadges(List<Paper> papers) {
+        Instant newThreshold = Instant.now().minus(7, ChronoUnit.DAYS);
+        List<Long> paperIds = papers.stream().map((paper) -> paper.id).toList();
+        Map<Long, List<top.nextnet.paper.monitor.model.PaperEvent>> eventsByPaperId = paperEventRepository.findByPaperIds(paperIds);
+        for (Paper paper : papers) {
+            paper.newBadge = paper.discoveredAt != null && !paper.discoveredAt.isBefore(newThreshold);
+            boolean noteViewed = false;
+            boolean userStateChanged = false;
+            for (top.nextnet.paper.monitor.model.PaperEvent event : eventsByPaperId.getOrDefault(paper.id, List.of())) {
+                if ("NOTE_VIEWED".equals(event.type)) {
+                    noteViewed = true;
+                }
+                if ("STATE_CHANGED".equals(event.type) && (event.details == null || !event.details.contains("(git)"))) {
+                    userStateChanged = true;
+                }
+            }
+            paper.freshBadge = paper.newBadge
+                    && "NEW".equals(paper.topLevelStatus())
+                    && !noteViewed
+                    && !userStateChanged;
+        }
     }
 
     @POST

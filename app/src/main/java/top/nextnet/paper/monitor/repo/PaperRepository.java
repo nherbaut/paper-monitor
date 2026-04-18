@@ -2,6 +2,7 @@ package top.nextnet.paper.monitor.repo;
 
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,5 +97,9 @@ public class PaperRepository implements PanacheRepository<Paper> {
                     .put(status, count);
         }
         return counts;
+    }
+
+    public long countDiscoveredSince(Instant threshold) {
+        return count("discoveredAt >= ?1", threshold);
     }
 }

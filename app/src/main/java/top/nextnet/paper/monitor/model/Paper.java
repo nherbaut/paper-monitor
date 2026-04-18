@@ -76,6 +76,12 @@ public class Paper extends PanacheEntityBase {
     @Transient
     public boolean viewerCanEdit;
 
+    @Transient
+    public boolean newBadge;
+
+    @Transient
+    public boolean freshBadge;
+
     public String topLevelStatus() {
         if (status == null || status.isBlank()) {
             return "NEW";

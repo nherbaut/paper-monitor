@@ -435,6 +435,37 @@
             border-color: rgba(95, 166, 108, 0.35);
         }
 
+        .paper-status-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin: 0.45rem 0 0;
+        }
+
+        .paper-status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.14rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            text-transform: uppercase;
+            border: 1px solid transparent;
+        }
+
+        .paper-status-badge.new-badge {
+            color: #1d5f9f;
+            background: rgba(70, 138, 217, 0.12);
+            border-color: rgba(70, 138, 217, 0.28);
+        }
+
+        .paper-status-badge.fresh-badge {
+            color: #1f6b3a;
+            background: rgba(95, 166, 108, 0.14);
+            border-color: rgba(95, 166, 108, 0.32);
+        }
+
         .card-actions-inline {
             display: flex;
             flex-wrap: wrap;
@@ -1101,8 +1132,20 @@
                          data-paper-open-access-link="{paper.openAccessLink ?: ''}"
                          data-paper-tags="{paper.tagsToken}"
                          data-paper-can-edit-tags="{#if paper.viewerCanEdit}true{#else}false{/if}"
-                         data-paper-notes="{paper.notes ?: ''}">
+                         data-paper-notes="{paper.notes ?: ''}"
+                         data-paper-is-new="{#if paper.newBadge}true{#else}false{/if}"
+                         data-paper-is-fresh="{#if paper.freshBadge}true{#else}false{/if}">
                     <div class="pill">{paper.logicalFeed.name}</div>
+                    {#if paper.newBadge || paper.freshBadge}
+                    <div class="paper-status-badges">
+                        {#if paper.newBadge}
+                        <span class="paper-status-badge new-badge">New</span>
+                        {/if}
+                        {#if paper.freshBadge}
+                        <span class="paper-status-badge fresh-badge">Fresh</span>
+                        {/if}
+                    </div>
+                    {/if}
                     <div class="card-header">
                         <div class="card-title-wrap">
                             <h3>{paper.title}</h3>
@@ -2082,6 +2125,7 @@
         paperCards.forEach((item) => item.classList.remove("active"));
         card.classList.add("active");
         selectedPaperId = card.dataset.paperId;
+        markPaperViewed(selectedPaperId, card);
         selectedPdfUrl = null;
         selectedDownloadUrl = card.dataset.pdfUrl || "";
         selectedContentKind = "card";
@@ -2324,6 +2368,7 @@
         paperCards.forEach((item) => item.classList.remove("active"));
         card.classList.add("active");
         selectedPaperId = card.dataset.paperId;
+        markPaperViewed(selectedPaperId, card);
         if (currentTtsUrl) {
             URL.revokeObjectURL(currentTtsUrl);
             currentTtsUrl = null;
@@ -2387,6 +2432,25 @@
             window.alert(error.message || "Upload failed");
         } finally {
             card.classList.remove("dragover");
+        }
+    };
+
+    const markPaperViewed = async (paperId, card) => {
+        if (!paperId || !card || card.dataset.paperIsFresh !== "true") {
+            return;
+        }
+        try {
+            await fetch("/papers/" + paperId + "/viewed", {
+                method: "POST"
+            });
+            card.dataset.paperIsFresh = "false";
+            const freshBadge = card.querySelector(".fresh-badge");
+            freshBadge?.remove();
+            const badgeWrap = card.querySelector(".paper-status-badges");
+            if (badgeWrap && !badgeWrap.children.length) {
+                badgeWrap.remove();
+            }
+        } catch {
         }
     };
 
