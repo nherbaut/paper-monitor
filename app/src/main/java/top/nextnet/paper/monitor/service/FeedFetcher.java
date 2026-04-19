@@ -15,7 +15,7 @@ public class FeedFetcher {
     public byte[] fetch(String url) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
                 .GET()
-                .header("Accept", "application/rss+xml, application/xml, text/xml")
+                .header("Accept", "application/atom+xml, application/rss+xml, application/xml, text/xml")
                 .build();
         HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
         if (response.statusCode() >= 400) {

@@ -4,6 +4,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
@@ -11,6 +12,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
 import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
 
 @ApplicationScoped
@@ -20,7 +22,9 @@ public class RssParser {
         try {
             Document document = parseDocument(xmlBytes);
             RssProvider provider = detectProvider(document);
-            var items = document.getElementsByTagName("item");
+            NodeList items = provider == RssProvider.ARXIV && isAtomFeed(document)
+                    ? document.getElementsByTagNameNS("*", "entry")
+                    : document.getElementsByTagName("item");
             List<RssPaperItem> parsedItems = new ArrayList<>();
             for (int i = 0; i < items.getLength(); i++) {
                 Node item = items.item(i);
@@ -45,13 +49,21 @@ public class RssParser {
     }
 
     private RssProvider detectProvider(Document document) {
-        Node channel = document.getElementsByTagName("channel").item(0);
+        Node channel = firstNode(document, "channel");
         String title = normalize(childText(channel, "title"));
         String link = normalize(childText(channel, "link"));
         String description = normalize(childText(channel, "description"));
 
+        if (channel == null && isAtomFeed(document)) {
+            Node feed = document.getDocumentElement();
+            title = normalize(childText(feed, "title"));
+            link = normalize(atomAlternateLink(feed));
+            description = normalize(childText(feed, "subtitle"));
+        }
+
         if ((title != null && title.toLowerCase().contains("arxiv.org"))
-                || (link != null && link.toLowerCase().contains("arxiv.org"))) {
+                || (link != null && link.toLowerCase().contains("arxiv.org"))
+                || isAtomFeed(document) && title != null && title.toLowerCase().startsWith("arxiv query:")) {
             return RssProvider.ARXIV;
         }
 
@@ -67,7 +79,13 @@ public class RssParser {
     }
 
     private boolean hasTag(Document document, String tagName) {
-        return document.getElementsByTagName(tagName).getLength() > 0;
+        return document.getElementsByTagName(tagName).getLength() > 0
+                || document.getElementsByTagNameNS("*", tagName).getLength() > 0;
+    }
+
+    private boolean isAtomFeed(Document document) {
+        Node root = document.getDocumentElement();
+        return root != null && matchesTag(root, "feed");
     }
 
     private boolean looksLikeMiageScholarItem(Document document) {
@@ -108,15 +126,16 @@ public class RssParser {
 
     private RssPaperItem parseArxivItem(Node item) {
         String title = normalize(childText(item, "title"));
-        String link = normalize(childText(item, "link"));
-        String description = normalize(childText(item, "description"));
-        String pubDate = childText(item, "pubDate");
-        String authors = normalize(firstNonBlank(childText(item, "dc:creator"), childText(item, "author")));
+        String link = normalize(firstNonBlank(atomAlternateLink(item), childText(item, "link"), childText(item, "id")));
+        String openAccessLink = normalize(firstNonBlank(atomPdfLink(item), childText(item, "link")));
+        String description = normalize(firstNonBlank(childText(item, "summary"), childText(item, "description")));
+        String pubDate = firstNonBlank(childText(item, "published"), childText(item, "pubDate"), childText(item, "updated"));
+        String authors = normalize(firstNonBlank(joinAuthorNames(item), childText(item, "dc:creator"), childText(item, "author")));
         String summary = extractArxivSummary(description);
         return new RssPaperItem(
                 title,
                 link,
-                null,
+                openAccessLink,
                 summary,
                 authors,
                 "arXiv",
@@ -131,8 +150,94 @@ public class RssParser {
         var children = node.getChildNodes();
         for (int i = 0; i < children.getLength(); i++) {
             Node child = children.item(i);
-            if (tagName.equals(child.getNodeName())) {
+            if (matchesTag(child, tagName)) {
                 return child.getTextContent();
+            }
+        }
+        return null;
+    }
+
+    private boolean matchesTag(Node node, String tagName) {
+        if (node == null || tagName == null) {
+            return false;
+        }
+        return tagName.equals(node.getNodeName()) || tagName.equals(node.getLocalName());
+    }
+
+    private Node firstNode(Document document, String tagName) {
+        NodeList direct = document.getElementsByTagName(tagName);
+        if (direct.getLength() > 0) {
+            return direct.item(0);
+        }
+        NodeList namespaced = document.getElementsByTagNameNS("*", tagName);
+        return namespaced.getLength() > 0 ? namespaced.item(0) : null;
+    }
+
+    private String joinAuthorNames(Node item) {
+        List<String> names = new ArrayList<>();
+        var children = item.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (!matchesTag(child, "author")) {
+                continue;
+            }
+            String name = normalize(childText(child, "name"));
+            if (name != null) {
+                names.add(name);
+            }
+        }
+        return names.isEmpty() ? null : String.join(", ", names);
+    }
+
+    private String atomAlternateLink(Node node) {
+        return atomLink(node, "alternate", "text/html");
+    }
+
+    private String atomPdfLink(Node node) {
+        return firstNonBlank(
+                atomLink(node, "related", "application/pdf"),
+                atomLinkByTitle(node, "pdf"));
+    }
+
+    private String atomLink(Node node, String rel, String type) {
+        if (!(node instanceof org.w3c.dom.Element element)) {
+            return null;
+        }
+        var children = element.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (!(child instanceof org.w3c.dom.Element linkElement) || !matchesTag(child, "link")) {
+                continue;
+            }
+            String childRel = normalize(linkElement.getAttribute("rel"));
+            String childType = normalize(linkElement.getAttribute("type"));
+            String href = normalize(linkElement.getAttribute("href"));
+            if (href == null) {
+                continue;
+            }
+            boolean relMatches = rel == null || rel.equalsIgnoreCase(childRel);
+            boolean typeMatches = type == null || type.equalsIgnoreCase(childType);
+            if (relMatches && typeMatches) {
+                return href;
+            }
+        }
+        return null;
+    }
+
+    private String atomLinkByTitle(Node node, String title) {
+        if (!(node instanceof org.w3c.dom.Element element)) {
+            return null;
+        }
+        var children = element.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (!(child instanceof org.w3c.dom.Element linkElement) || !matchesTag(child, "link")) {
+                continue;
+            }
+            String childTitle = normalize(linkElement.getAttribute("title"));
+            String href = normalize(linkElement.getAttribute("href"));
+            if (href != null && title.equalsIgnoreCase(childTitle)) {
+                return href;
             }
         }
         return null;
@@ -239,11 +344,23 @@ public class RssParser {
         if (pubDate == null || pubDate.isBlank()) {
             return null;
         }
-        return OffsetDateTime.parse(pubDate, DateTimeFormatter.RFC_1123_DATE_TIME).toLocalDate();
+        try {
+            return OffsetDateTime.parse(pubDate, DateTimeFormatter.RFC_1123_DATE_TIME).toLocalDate();
+        } catch (Exception ignored) {
+            return ZonedDateTime.parse(pubDate).toLocalDate();
+        }
     }
 
-    private String firstNonBlank(String first, String second) {
-        return (first != null && !first.isBlank()) ? first : second;
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private String normalize(String value) {
