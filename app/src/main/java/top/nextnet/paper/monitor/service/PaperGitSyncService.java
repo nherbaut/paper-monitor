@@ -112,9 +112,14 @@ public class PaperGitSyncService {
     }
 
     private List<String> commitsToProcess(Path repoPath, String lastProcessedCommit) throws IOException {
-        String range = lastProcessedCommit == null || lastProcessedCommit.isBlank()
-                ? "HEAD"
-                : lastProcessedCommit + "..HEAD";
+        String range;
+        if (lastProcessedCommit == null || lastProcessedCommit.isBlank()) {
+            range = "HEAD";
+        } else if (commitExists(repoPath, lastProcessedCommit)) {
+            range = lastProcessedCommit + "..HEAD";
+        } else {
+            range = "HEAD";
+        }
         String output = runGit(repoPath, "rev-list", "--reverse", range).trim();
         if (output.isEmpty()) {
             return List.of();
@@ -127,6 +132,15 @@ public class PaperGitSyncService {
             }
         }
         return commits;
+    }
+
+    private boolean commitExists(Path repoPath, String commit) {
+        try {
+            runGit(repoPath, "rev-parse", "--verify", commit + "^{commit}");
+            return true;
+        } catch (IOException ignored) {
+            return false;
+        }
     }
 
     private void processCommit(LogicalFeed logicalFeed, Path repoPath, String commit) throws IOException {
