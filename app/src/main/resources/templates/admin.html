@@ -100,6 +100,19 @@
             flex-wrap: wrap;
         }
 
+        .poll-slider {
+            display: grid;
+            gap: 0.45rem;
+        }
+
+        .poll-slider-output {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.5rem;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
         .pill {
             display: inline-block;
             padding: 0.18rem 0.55rem;
@@ -214,7 +227,14 @@
 - Done</textarea>
             <div class="two-columns">
                 <input type="url" name="rssFeedUrl" value="https://scholar.miage.dev/feed/4.rss" required>
-                <input type="number" name="pollIntervalMinutes" min="1" value="60" required>
+                <div class="poll-slider">
+                    <input type="range" min="0" max="2" step="1" value="0" data-poll-slider>
+                    <input type="hidden" name="pollIntervalMinutes" value="1440" data-poll-minutes>
+                    <div class="poll-slider-output">
+                        <span>Daily</span>
+                        <strong data-poll-label>Daily</strong>
+                    </div>
+                </div>
             </div>
             <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
             <button type="submit">Create paper feed and RSS feed</button>
@@ -323,7 +343,14 @@
                 <h3>Create RSS feed</h3>
                 <input type="text" name="name" placeholder="RSS feed name" required>
                 <input type="url" name="url" placeholder="https://example.com/feed.xml" required>
-                <input type="number" name="pollIntervalMinutes" min="1" value="60" required>
+                <div class="poll-slider">
+                    <input type="range" min="0" max="2" step="1" value="0" data-poll-slider>
+                    <input type="hidden" name="pollIntervalMinutes" value="1440" data-poll-minutes>
+                    <div class="poll-slider-output">
+                        <span>Daily</span>
+                        <strong data-poll-label>Daily</strong>
+                    </div>
+                </div>
                 <input type="text" name="defaultPaperStatus" placeholder="Optional default imported state">
                 <select name="logicalFeedId" required>
                     <option value="">Attach to paper feed</option>
@@ -365,7 +392,14 @@
                             <form action="/feeds/{feed.id}/update" method="post">
                                 <input type="text" name="name" value="{feed.name}" required>
                                 <input type="url" name="url" value="{feed.url}" required>
-                                <input type="number" name="pollIntervalMinutes" min="1" value="{feed.pollIntervalMinutes}" required>
+                                <div class="poll-slider">
+                                    <input type="range" min="0" max="2" step="1" value="0" data-poll-slider data-poll-stored-minutes="{feed.pollIntervalMinutes}">
+                                    <input type="hidden" name="pollIntervalMinutes" value="1440" data-poll-minutes>
+                                    <div class="poll-slider-output">
+                                        <span>Daily</span>
+                                        <strong data-poll-label>Daily</strong>
+                                    </div>
+                                </div>
                                 <input type="text" name="defaultPaperStatus" value="{feed.defaultPaperStatus}" placeholder="Optional default imported state">
                                 <select name="logicalFeedId" required>
                                     {#for logicalFeed in adminLogicalFeeds}
@@ -481,5 +515,38 @@
         {/if}
     </section>
 </main>
+<script>
+    const POLL_PRESETS = [
+        { label: "Daily", minutes: 1440 },
+        { label: "Weekly", minutes: 10080 },
+        { label: "Monthly", minutes: 43200 }
+    ];
+
+    const resolvePollPresetIndex = (value) => {
+        const minutes = Number.parseInt(value || "", 10);
+        const index = POLL_PRESETS.findIndex((preset) => preset.minutes === minutes);
+        return index >= 0 ? index : 0;
+    };
+
+    document.querySelectorAll(".poll-slider").forEach((wrapper) => {
+        const slider = wrapper.querySelector("[data-poll-slider]");
+        const minutesField = wrapper.querySelector("[data-poll-minutes]");
+        const label = wrapper.querySelector("[data-poll-label]");
+        if (!slider || !minutesField || !label) {
+            return;
+        }
+
+        const sync = () => {
+            const preset = POLL_PRESETS[Number.parseInt(slider.value || "0", 10)] || POLL_PRESETS[0];
+            minutesField.value = String(preset.minutes);
+            label.textContent = preset.label;
+        };
+
+        slider.value = String(resolvePollPresetIndex(slider.dataset.pollStoredMinutes || minutesField.value));
+        sync();
+        slider.addEventListener("input", sync);
+        slider.addEventListener("change", sync);
+    });
+</script>
 </body>
 </html>
