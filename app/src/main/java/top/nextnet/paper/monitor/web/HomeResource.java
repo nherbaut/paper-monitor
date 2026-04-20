@@ -773,7 +773,7 @@ public class HomeResource {
     @Transactional
     public Response deleteLogicalFeed(@jakarta.ws.rs.PathParam("id") Long id) {
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
-        if (logicalFeed != null && logicalFeed.feeds.isEmpty()) {
+        if (logicalFeed != null) {
             logicalFeed.delete();
         }
         return seeOther("/admin");
