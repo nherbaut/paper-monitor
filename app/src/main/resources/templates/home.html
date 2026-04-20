@@ -136,8 +136,10 @@
 
         .status-controls {
             display: flex;
-            align-items: center;
+            align-items: end;
             gap: 0.75rem;
+            flex-wrap: wrap;
+            min-width: 0;
         }
 
         .export-menu {
@@ -220,9 +222,17 @@
             cursor: not-allowed;
         }
 
+        .status-field {
+            display: grid;
+            gap: 0.3rem;
+            min-width: 0;
+            flex: 1 1 20rem;
+        }
+
         .status-controls select {
-            width: auto;
-            min-width: 220px;
+            width: 100%;
+            min-width: 0;
+            max-width: 100%;
         }
 
         .reader-tabs {
@@ -256,7 +266,6 @@
         .reader-search {
             display: flex;
             align-items: center;
-            justify-content: space-between;
             gap: 0.75rem;
             margin: 0 0 1rem;
         }
@@ -269,10 +278,30 @@
             display: none !important;
         }
 
-        .reader-search input {
+        .hidden {
+            display: none !important;
+        }
+
+        .reader-search-box {
+            position: relative;
             width: min(100%, 28rem);
+        }
+
+        .reader-search-icon {
+            position: absolute;
+            top: 50%;
+            left: 0.85rem;
+            transform: translateY(-50%);
+            color: var(--muted);
+            pointer-events: none;
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .reader-search input {
+            width: 100%;
             margin: 0;
-            padding: 0.55rem 0.85rem;
+            padding: 0.55rem 0.85rem 0.55rem 2.35rem;
             border-radius: 999px;
             border: 1px solid var(--line);
             background: color-mix(in srgb, var(--panel) 92%, white);
@@ -468,7 +497,16 @@
             display: flex;
             flex-wrap: wrap;
             gap: 0.4rem;
-            margin: 0.45rem 0 0;
+            margin: 0;
+        }
+
+        .card-feed-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.5rem;
         }
 
         .paper-status-badge {
@@ -687,7 +725,7 @@
             border: 1px solid var(--line);
             border-radius: 18px;
             background: linear-gradient(180deg, #eee5da 0%, #e8ddd1 100%);
-            padding: 1.1rem;
+            padding: 0.65rem;
         }
 
         body.dark-mode .pdf-scroll {
@@ -726,7 +764,7 @@
             border: 1px solid var(--line);
             border-radius: 18px;
             background: color-mix(in srgb, var(--panel) 86%, white);
-            padding: 1.1rem;
+            padding: 0.8rem;
         }
 
         .paper-view-abstract {
@@ -950,7 +988,16 @@
         }
 
         .upload-cue {
-            margin-bottom: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1.7rem;
+            height: 1.7rem;
+            margin-bottom: 0.3rem;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            color: var(--muted);
+            background: color-mix(in srgb, var(--panel) 88%, white);
         }
 
         .notes-editor {
@@ -1125,6 +1172,36 @@
             margin-bottom: 0;
         }
 
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .topbar-menu summary {
+            width: auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            padding: 0.7rem;
+            border-radius: 999px;
+        }
+
+        .topbar-menu-panel {
+            right: 0;
+            left: auto;
+            min-width: 15rem;
+        }
+
+        .topbar-menu-panel .nav-action {
+            justify-content: flex-start;
+        }
+
+        .topbar-menu-panel .nav-action-label {
+            display: inline;
+        }
+
         .paper-list h3,
         .notes-preview,
         .topbar-title-text {
@@ -1188,6 +1265,14 @@
                 min-height: auto;
             }
 
+            .status-controls {
+                width: 100%;
+            }
+
+            .status-field {
+                flex-basis: 100%;
+            }
+
             .pdf-frame {
                 min-height: 40vh;
             }
@@ -1200,33 +1285,51 @@
         <h1>Paper Monitor</h1>
     </div>
     <nav class="topbar-actions" aria-label="Primary">
-        <button class="secondary nav-action" id="theme-toggle" type="button">
-            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1.5a.5.5 0 0 1 .5.5v1.1a.5.5 0 0 1-1 0V2A.5.5 0 0 1 8 1.5Zm0 9.4A2.9 2.9 0 1 0 8 5.1a2.9 2.9 0 0 0 0 5.8Zm5-3.4a.5.5 0 0 1 .5.5.5.5 0 0 1-.5.5h-1.1a.5.5 0 0 1 0-1H13ZM4.1 8a.5.5 0 0 1-.5.5H2.5a.5.5 0 0 1 0-1h1.1a.5.5 0 0 1 .5.5Zm6.02-4.52a.5.5 0 0 1 .7 0l.78.78a.5.5 0 1 1-.7.7l-.78-.77a.5.5 0 0 1 0-.71Zm-5.44 5.45a.5.5 0 0 1 .7 0l.78.78a.5.5 0 1 1-.7.7l-.78-.78a.5.5 0 0 1 0-.7Zm6.15.78a.5.5 0 0 1 .7-.7l.78.78a.5.5 0 0 1-.7.7l-.78-.78Zm-5.44-5.45a.5.5 0 0 1 .7-.7l.78.77a.5.5 0 1 1-.7.71l-.78-.78Z"/></svg>
-            <span class="nav-action-label" id="theme-toggle-label">Dark mode</span>
-        </button>
-        <button class="secondary nav-action" id="fullscreen-toggle" type="button">
-            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.5 6V1.5H6v1H3.2l3.3 3.3-.7.7-3.3-3.3V6h-1Zm9.3-4.5h4.7V6h-1V3.2l-3.3 3.3-.7-.7 3.3-3.3h-2.8v-1Zm3.7 9.3h1v4.7h-4.7v-1h2.8l-3.3-3.3.7-.7 3.3 3.3v-2.8Zm-12 0v2.8l3.3-3.3.7.7-3.3 3.3H6v1H1.5v-4.7h1Z"/></svg>
-            <span class="nav-action-label" id="fullscreen-toggle-label">Full width</span>
-        </button>
-        {#if authenticated}
-        <a class="secondary nav-action" href="/admin">
-            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.67 1.5 10 3.1c.3.12.59.28.86.47l1.47-.5 1 1.73-1.15 1.03c.04.31.04.63 0 .94l1.15 1.03-1 1.73-1.47-.5c-.27.2-.56.35-.86.47L9.67 14.5H7.33L7 12.9a4.9 4.9 0 0 1-.86-.47l-1.47.5-1-1.73 1.15-1.03a3.7 3.7 0 0 1 0-.94L3.67 8.2l1-1.73 1.47.5c.27-.19.56-.35.86-.47l.33-1.6h2.34ZM8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z"/></svg>
-            <span class="nav-action-label">Admin</span>
-        </a>
-        <a class="secondary nav-action" href="/logs">
-            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5h12v11H2v-11Zm1 1v9h10v-9H3Zm1.5 1.5H8v1H4.5V5Zm0 2.5h7v1h-7v-1Zm0 2.5h7v1h-7v-1Z"/></svg>
-            <span class="nav-action-label">Logs</span>
-        </a>
-        <a class="secondary nav-action" href="/logout">
-            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9 2.5h-5v11h5v-1H5v-9h4v-1Zm1.85 2.15-.7.7L12.29 7.5H7v1h5.29l-2.14 2.15.7.7L14.21 8l-3.36-3.35Z"/></svg>
-            <span class="nav-action-label">Logout</span>
-        </a>
-        {#else}
-        <a class="secondary nav-action" href="/login">
-            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9 2.5h-5v11h5v-1H5v-9h4v-1Zm1.85 2.15-.7.7L12.29 7.5H7v1h5.29l-2.14 2.15.7.7L14.21 8l-3.36-3.35Z"/></svg>
-            <span class="nav-action-label">Login</span>
-        </a>
-        {/if}
+        <details class="inline-menu topbar-menu">
+            <summary class="secondary nav-action" title="Actions">
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 8a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 3 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 8 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 13 8Z"/></svg>
+            </summary>
+            <div class="inline-menu-panel topbar-menu-panel">
+                <button class="secondary nav-action" id="theme-toggle" type="button">
+                    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1.5a.5.5 0 0 1 .5.5v1.1a.5.5 0 0 1-1 0V2A.5.5 0 0 1 8 1.5Zm0 9.4A2.9 2.9 0 1 0 8 5.1a2.9 2.9 0 0 0 0 5.8Zm5-3.4a.5.5 0 0 1 .5.5.5.5 0 0 1-.5.5h-1.1a.5.5 0 0 1 0-1H13ZM4.1 8a.5.5 0 0 1-.5.5H2.5a.5.5 0 0 1 0-1h1.1a.5.5 0 0 1 .5.5Zm6.02-4.52a.5.5 0 0 1 .7 0l.78.78a.5.5 0 1 1-.7.7l-.78-.77a.5.5 0 0 1 0-.71Zm-5.44 5.45a.5.5 0 0 1 .7 0l.78.78a.5.5 0 1 1-.7.7l-.78-.78a.5.5 0 0 1 0-.7Zm6.15.78a.5.5 0 0 1 .7-.7l.78.78a.5.5 0 0 1-.7.7l-.78-.78Zm-5.44-5.45a.5.5 0 0 1 .7-.7l.78.77a.5.5 0 1 1-.7.71l-.78-.78Z"/></svg>
+                    <span class="nav-action-label" id="theme-toggle-label">Dark mode</span>
+                </button>
+                <button class="secondary nav-action" id="fullscreen-toggle" type="button">
+                    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.5 6V1.5H6v1H3.2l3.3 3.3-.7.7-3.3-3.3V6h-1Zm9.3-4.5h4.7V6h-1V3.2l-3.3 3.3-.7-.7 3.3-3.3h-2.8v-1Zm3.7 9.3h1v4.7h-4.7v-1h2.8l-3.3-3.3.7-.7 3.3 3.3v-2.8Zm-12 0v2.8l3.3-3.3.7.7-3.3 3.3H6v1H1.5v-4.7h1Z"/></svg>
+                    <span class="nav-action-label" id="fullscreen-toggle-label">Full width</span>
+                </button>
+                <details class="export-menu" id="export-tab-menu">
+                    <summary class="secondary nav-action" id="export-tab-button">
+                        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1.5a.5.5 0 0 1 .5.5v6.29l2.15-2.14.7.7L8 10.2 4.65 6.85l.7-.7L7.5 8.29V2a.5.5 0 0 1 .5-.5Zm-5 10h10v2H3v-2Z"/></svg>
+                        <span class="nav-action-label">Export</span>
+                    </summary>
+                    <div class="export-menu-panel">
+                        <button class="secondary export-format-button" data-format="md" type="button">Markdown</button>
+                        <button class="secondary export-format-button" data-format="pdf" type="button">PDF</button>
+                        <button class="secondary export-format-button" data-format="docx" type="button">DOCX</button>
+                    </div>
+                </details>
+                {#if authenticated}
+                <a class="secondary nav-action" href="/admin">
+                    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.67 1.5 10 3.1c.3.12.59.28.86.47l1.47-.5 1 1.73-1.15 1.03c.04.31.04.63 0 .94l1.15 1.03-1 1.73-1.47-.5c-.27.2-.56.35-.86.47L9.67 14.5H7.33L7 12.9a4.9 4.9 0 0 1-.86-.47l-1.47.5-1-1.73 1.15-1.03a3.7 3.7 0 0 1 0-.94L3.67 8.2l1-1.73 1.47.5c.27-.19.56-.35.86-.47l.33-1.6h2.34ZM8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z"/></svg>
+                    <span class="nav-action-label">Admin</span>
+                </a>
+                <a class="secondary nav-action" href="/logs">
+                    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5h12v11H2v-11Zm1 1v9h10v-9H3Zm1.5 1.5H8v1H4.5V5Zm0 2.5h7v1h-7v-1Zm0 2.5h7v1h-7v-1Z"/></svg>
+                    <span class="nav-action-label">Logs</span>
+                </a>
+                <a class="secondary nav-action" href="/logout">
+                    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9 2.5h-5v11h5v-1H5v-9h4v-1Zm1.85 2.15-.7.7L12.29 7.5H7v1h5.29l-2.14 2.15.7.7L14.21 8l-3.36-3.35Z"/></svg>
+                    <span class="nav-action-label">Logout</span>
+                </a>
+                {#else}
+                <a class="secondary nav-action" href="/login">
+                    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9 2.5h-5v11h5v-1H5v-9h4v-1Zm1.85 2.15-.7.7L12.29 7.5H7v1h5.29l-2.14 2.15.7.7L14.21 8l-3.36-3.35Z"/></svg>
+                    <span class="nav-action-label">Login</span>
+                </a>
+                {/if}
+            </div>
+        </details>
     </nav>
 </div>
 <main>
@@ -1239,32 +1342,23 @@
             {/if}
         </div>
     </header>
+    <p class="meta hidden" id="last-seen-logical-feed">No paper feed seen yet.</p>
 
     <section class="panel panel-wide status {#if shareMode && !authenticated}share-anon-hidden{/if}">
-        <div>
-            <div class="pill">Last seen paper feed</div>
-            <p class="meta" id="last-seen-logical-feed">No paper feed seen yet.</p>
-        </div>
         <div class="status-controls">
-            <label class="meta" for="logical-feed-filter">Paper feed</label>
-            <select id="logical-feed-filter">
-                <option value="">All paper feeds</option>
-                {#for logicalFeed in logicalFeeds}
-                <option value="{logicalFeed.id}"
-                        data-feed-name="{logicalFeed.name}"
-                        data-workflow-states="{logicalFeed.workflowStatesToken}"
-                        data-workflow-tree='{logicalFeed.workflowTreeJson}'
-                        data-state-counts="{logicalFeed.paperCountsToken}">{logicalFeed.readerLabel}</option>
-                {/for}
-            </select>
-            <details class="export-menu" id="export-tab-menu">
-                <summary class="secondary" id="export-tab-button">Export tab</summary>
-                <div class="export-menu-panel">
-                    <button class="secondary export-format-button" data-format="md" type="button">Markdown</button>
-                    <button class="secondary export-format-button" data-format="pdf" type="button">PDF</button>
-                    <button class="secondary export-format-button" data-format="docx" type="button">DOCX</button>
-                </div>
-            </details>
+            <div class="status-field">
+                <label class="meta" for="logical-feed-filter">Paper feed</label>
+                <select id="logical-feed-filter">
+                    <option value="">All paper feeds</option>
+                    {#for logicalFeed in logicalFeeds}
+                    <option value="{logicalFeed.id}"
+                            data-feed-name="{logicalFeed.name}"
+                            data-workflow-states="{logicalFeed.workflowStatesToken}"
+                            data-workflow-tree='{logicalFeed.workflowTreeJson}'
+                            data-state-counts="{logicalFeed.paperCountsToken}">{logicalFeed.readerLabel}</option>
+                    {/for}
+                </select>
+            </div>
             {#if authenticated}
             <details class="export-menu">
                 <summary class="secondary">Import DOI</summary>
@@ -1286,11 +1380,13 @@
     </section>
 
     <section class="panel panel-wide">
-        <h2 id="paper-feed-heading">Paper feed</h2>
+        <h2 id="paper-feed-heading">All paper feeds</h2>
         <div class="reader-tabs {#if shareMode && !authenticated}share-anon-hidden{/if}" id="reader-tabs"></div>
         <div class="reader-search {#if shareMode && !authenticated}share-anon-hidden{/if}" id="reader-search">
-            <input id="state-search-input" type="search" placeholder="Search this state in title, abstract, authors, or venue">
-            <p class="meta" id="state-search-meta"></p>
+            <div class="reader-search-box">
+                <svg class="reader-search-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.2 10.5 14.5 13.8l-.7.7-3.3-3.3a5 5 0 1 1 .7-.7ZM6.75 11a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Z"/></svg>
+                <input id="state-search-input" type="search" placeholder="Search this state in title, abstract, authors, or venue">
+            </div>
         </div>
         <div class="tag-browser {#if shareMode && !authenticated}share-anon-hidden{/if}" id="tag-browser">
             <div class="tag-badge-list" id="tag-badge-list"></div>
@@ -1324,17 +1420,19 @@
                          data-paper-notes="{paper.notes ?: ''}"
                          data-paper-is-new="{#if paper.newBadge}true{#else}false{/if}"
                          data-paper-is-fresh="{#if paper.freshBadge}true{#else}false{/if}">
-                    <div class="pill">{paper.logicalFeed.name}</div>
-                    {#if paper.newBadge || paper.freshBadge}
-                    <div class="paper-status-badges">
-                        {#if paper.newBadge}
-                        <span class="paper-status-badge new-badge">New</span>
-                        {/if}
-                        {#if paper.freshBadge}
-                        <span class="paper-status-badge fresh-badge">Fresh</span>
+                    <div class="card-feed-row">
+                        <div class="pill">{paper.logicalFeed.name}</div>
+                        {#if paper.newBadge || paper.freshBadge}
+                        <div class="paper-status-badges">
+                            {#if paper.newBadge}
+                            <span class="paper-status-badge new-badge">New</span>
+                            {/if}
+                            {#if paper.freshBadge}
+                            <span class="paper-status-badge fresh-badge">Fresh</span>
+                            {/if}
+                        </div>
                         {/if}
                     </div>
-                    {/if}
                     <div class="card-header">
                         <div class="card-title-wrap">
                             <h3>{paper.title}</h3>
@@ -1433,13 +1531,11 @@
                 <button class="icon-button secondary notes-panel-collapsed-toggle" id="notes-expand" type="button" title="Show notes">‹</button>
                 <div class="notes-panel-inner">
                     <div class="notes-panel-header">
-                        <p class="notes-panel-title">Notes</p>
+                        {#if authenticated}
+                        <span class="meta upload-cue" id="note-view-upload-cue" title="Drop a PDF on the paper or notes area to attach it to the selected paper.">↥</span>
+                        {/if}
                         <button class="icon-button secondary notes-collapse-button" id="notes-collapse" type="button" title="Fold notes">›</button>
                     </div>
-                    {#if authenticated}
-                    <p class="meta upload-cue" id="note-view-upload-cue">Drop a PDF here to attach it to the selected paper.</p>
-                    {/if}
-                    <p class="meta">Markdown notes for the selected paper.</p>
                     <div class="notes-preview" id="notes-preview"></div>
                     <div class="notes-editor notes-editor-shell hidden" id="notes-editor-shell">
                         <pre class="notes-highlight" id="notes-highlight"></pre>
@@ -1479,7 +1575,6 @@
     const tagBrowserMeta = document.getElementById("tag-browser-meta");
     const readerSearch = document.getElementById("reader-search");
     const stateSearchInput = document.getElementById("state-search-input");
-    const stateSearchMeta = document.getElementById("state-search-meta");
     const searchLoadMoreRow = document.getElementById("search-load-more-row");
     const searchLoadMoreButton = document.getElementById("search-load-more");
     const themeToggle = document.getElementById("theme-toggle");
@@ -1558,16 +1653,18 @@
     let lastPdfFrameWidth = 0;
 
     const renderLastSeenLogicalFeed = (logicalFeedName) => {
-        lastSeenElement.textContent = logicalFeedName || "No paper feed seen yet.";
+        if (lastSeenElement) {
+            lastSeenElement.textContent = logicalFeedName || "No paper feed seen yet.";
+        }
     };
 
     const updatePaperFeedHeading = () => {
         const selectedOption = logicalFeedFilter?.selectedOptions?.[0];
         if (selectedOption && selectedOption.value) {
-            paperFeedHeading.textContent = "Paper feed: " + selectedOption.dataset.feedName;
+            paperFeedHeading.textContent = selectedOption.dataset.feedName;
             return;
         }
-        paperFeedHeading.textContent = "Paper feed";
+        paperFeedHeading.textContent = "All paper feeds";
     };
 
     const applyTheme = (theme) => {
@@ -1694,7 +1791,7 @@
         );
         setActionAvailability(paperShareButton, hasSelectedPaper, "Select a paper first.");
         if (noteViewUploadCue) {
-            noteViewUploadCue.textContent = hasSelectedPaper
+            noteViewUploadCue.title = hasSelectedPaper
                 ? "Drop a PDF on the paper or notes area to attach it to the selected paper."
                 : "Select a paper, then drop a PDF on the paper or notes area to attach it.";
         }
@@ -2475,18 +2572,6 @@
         renderTagBrowser();
 
         readerSearch.classList.toggle("hidden", activePrimaryTab !== "state");
-        if (activePrimaryTab === "state") {
-            if (isStateSearchActive) {
-                stateSearchMeta.textContent = matchingSearchCards.length + " matching paper"
-                    + (matchingSearchCards.length === 1 ? "" : "s");
-            } else {
-                stateSearchMeta.textContent = activeStatusTab
-                    ? "Search within " + statusLabel(activeStatusTab)
-                    : "";
-            }
-        } else {
-            stateSearchMeta.textContent = "";
-        }
         searchLoadMoreRow.classList.toggle("hidden",
             !isStateSearchActive || matchingSearchCards.length <= stateSearchVisibleLimit);
 
