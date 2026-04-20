@@ -886,6 +886,17 @@
             .reader-layout.with-notes,
             .reader-layout.with-notes.notes-collapsed {
                 grid-template-columns: minmax(0, 1fr);
+                gap: 1rem;
+            }
+
+            .reader-layout.with-notes .pdf-panel {
+                order: 1;
+                width: 100%;
+            }
+
+            .reader-layout.with-notes .notes-panel {
+                order: 2;
+                width: 100%;
             }
 
             .notes-collapsed .notes-panel {
@@ -907,6 +918,19 @@
             .notes-collapse-button {
                 position: static;
                 transform: none;
+            }
+
+            .pdf-scroll,
+            .notes-preview,
+            .notes-editor,
+            .notes-editor-shell {
+                min-height: 0;
+                height: auto;
+            }
+
+            .pdf-scroll {
+                height: auto;
+                max-height: none;
             }
         }
 
@@ -1516,6 +1540,7 @@
     let activeStatusTab = "NEW";
     let activePrimaryTab = "state";
     let cardDragState = null;
+    let activeTouchStatusDrag = null;
     let keyboardStatePicker = null;
     let keyboardStatusUndo = null;
     let suppressCardClick = false;
@@ -2281,6 +2306,95 @@
         };
         visualTarget.classList.add("drag-armed");
         hideStateWheels();
+    };
+
+    const beginPaperStatusDragAtPoint = (card, clientX, clientY, visualTarget = card) => {
+        beginPaperStatusDrag(card, { clientX, clientY }, visualTarget);
+    };
+
+    const updatePaperStatusDrag = (clientX, clientY) => {
+        if (!cardDragState) {
+            return;
+        }
+
+        const card = cardDragState.card;
+        const visualTarget = cardDragState.visualTarget || card;
+        const deltaX = clientX - cardDragState.startX;
+        const deltaY = clientY - cardDragState.startY;
+        const currentIndex = cardDragState.workflow.indexOf(cardDragState.currentTopStatus);
+        resetCardDragVisual(visualTarget);
+        visualTarget.classList.add("drag-armed");
+
+        if (deltaX > STATE_DRAG_TRIGGER_X && currentIndex >= 0 && currentIndex < cardDragState.workflow.length - 1) {
+            const options = cardDragState.workflow.slice(currentIndex + 1).flatMap((groupName) => {
+                const group = workflowTreeForLogicalFeed(card.dataset.logicalFeedId).find((item) => item.name === groupName);
+                const entries = [{ type: "group", label: groupName }];
+                stateLeafChoices(group).forEach((choice) => {
+                    entries.push({ type: "state", label: choice.child || choice.value, value: choice.value });
+                });
+                return entries;
+            });
+            const selectableIndexes = options.map((entry, index) => entry.type === "state" ? index : -1).filter((index) => index >= 0);
+            const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(deltaY / STATE_WHEEL_ROW_HEIGHT)))] ?? 0;
+            cardDragState.side = "right";
+            cardDragState.options = options;
+            cardDragState.activeIndex = activeIndex;
+            visualTarget.classList.add("drag-right");
+            leftStateWheel.classList.remove("visible");
+            rightStateWheel.classList.add("visible");
+            renderStateWheel(rightStateOptions, options, activeIndex);
+        } else if (deltaX < -STATE_DRAG_TRIGGER_X && currentIndex > 0) {
+            const options = cardDragState.workflow.slice(0, currentIndex).reverse().flatMap((groupName) => {
+                const group = workflowTreeForLogicalFeed(card.dataset.logicalFeedId).find((item) => item.name === groupName);
+                const entries = [{ type: "group", label: groupName }];
+                stateLeafChoices(group).forEach((choice) => {
+                    entries.push({ type: "state", label: choice.child || choice.value, value: choice.value });
+                });
+                return entries;
+            });
+            const selectableIndexes = options.map((entry, index) => entry.type === "state" ? index : -1).filter((index) => index >= 0);
+            const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(-deltaY / STATE_WHEEL_ROW_HEIGHT)))] ?? 0;
+            cardDragState.side = "left";
+            cardDragState.options = options;
+            cardDragState.activeIndex = activeIndex;
+            visualTarget.classList.add("drag-left");
+            rightStateWheel.classList.remove("visible");
+            leftStateWheel.classList.add("visible");
+            renderStateWheel(leftStateOptions, options, activeIndex);
+        } else {
+            cardDragState.side = null;
+            cardDragState.options = [];
+            cardDragState.activeIndex = 0;
+            hideStateWheels();
+        }
+    };
+
+    const finishPaperStatusDrag = async (clientX) => {
+        if (!cardDragState) {
+            return;
+        }
+
+        const { card, startX, side, options, activeIndex, currentStatus, visualTarget } = cardDragState;
+        cardDragState = null;
+        const deltaX = clientX - startX;
+        let nextStatus = null;
+
+        if ((side === "right" && deltaX > STATE_DRAG_TRIGGER_X) || (side === "left" && deltaX < -STATE_DRAG_TRIGGER_X)) {
+            nextStatus = options[activeIndex]?.value || null;
+        }
+
+        hideStateWheels();
+        resetCardDragVisual(visualTarget || card);
+
+        if (!nextStatus || nextStatus === normalizeStatus(card.dataset.paperStatus)) {
+            return;
+        }
+
+        try {
+            await applyPaperStatusTransition(card, nextStatus, currentStatus, { advanceFocus: false });
+        } catch (error) {
+            window.alert(error.message || "Failed to update paper status");
+        }
     };
 
     const applyLogicalFeedFilter = () => {
@@ -3099,6 +3213,21 @@
             beginPaperStatusDrag(card, event, card);
         });
 
+        card.addEventListener("touchstart", (event) => {
+            if (event.touches.length !== 1 || event.target.closest("a")) {
+                return;
+            }
+            const touch = event.touches[0];
+            activeTouchStatusDrag = {
+                target: "card",
+                paperId,
+                startX: touch.clientX,
+                startY: touch.clientY,
+                captured: false
+            };
+            beginPaperStatusDragAtPoint(card, touch.clientX, touch.clientY, card);
+        }, { passive: true });
+
         ["dragenter", "dragover"].forEach((eventName) => {
             card.addEventListener(eventName, (event) => {
                 event.preventDefault();
@@ -3123,88 +3252,57 @@
     });
 
     window.addEventListener("mousemove", (event) => {
-        if (!cardDragState) {
-            return;
-        }
-
-        const card = cardDragState.card;
-        const visualTarget = cardDragState.visualTarget || card;
-        const deltaX = event.clientX - cardDragState.startX;
-        const deltaY = event.clientY - cardDragState.startY;
-        const currentIndex = cardDragState.workflow.indexOf(cardDragState.currentTopStatus);
-        resetCardDragVisual(visualTarget);
-        visualTarget.classList.add("drag-armed");
-
-        if (deltaX > STATE_DRAG_TRIGGER_X && currentIndex >= 0 && currentIndex < cardDragState.workflow.length - 1) {
-            const options = cardDragState.workflow.slice(currentIndex + 1).flatMap((groupName) => {
-                const group = workflowTreeForLogicalFeed(card.dataset.logicalFeedId).find((item) => item.name === groupName);
-                const entries = [{ type: "group", label: groupName }];
-                stateLeafChoices(group).forEach((choice) => {
-                    entries.push({ type: "state", label: choice.child || choice.value, value: choice.value });
-                });
-                return entries;
-            });
-            const selectableIndexes = options.map((entry, index) => entry.type === "state" ? index : -1).filter((index) => index >= 0);
-            const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(deltaY / STATE_WHEEL_ROW_HEIGHT)))] ?? 0;
-            cardDragState.side = "right";
-            cardDragState.options = options;
-            cardDragState.activeIndex = activeIndex;
-            visualTarget.classList.add("drag-right");
-            leftStateWheel.classList.remove("visible");
-            rightStateWheel.classList.add("visible");
-            renderStateWheel(rightStateOptions, options, activeIndex);
-        } else if (deltaX < -STATE_DRAG_TRIGGER_X && currentIndex > 0) {
-            const options = cardDragState.workflow.slice(0, currentIndex).reverse().flatMap((groupName) => {
-                const group = workflowTreeForLogicalFeed(card.dataset.logicalFeedId).find((item) => item.name === groupName);
-                const entries = [{ type: "group", label: groupName }];
-                stateLeafChoices(group).forEach((choice) => {
-                    entries.push({ type: "state", label: choice.child || choice.value, value: choice.value });
-                });
-                return entries;
-            });
-            const selectableIndexes = options.map((entry, index) => entry.type === "state" ? index : -1).filter((index) => index >= 0);
-            const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(-deltaY / STATE_WHEEL_ROW_HEIGHT)))] ?? 0;
-            cardDragState.side = "left";
-            cardDragState.options = options;
-            cardDragState.activeIndex = activeIndex;
-            visualTarget.classList.add("drag-left");
-            rightStateWheel.classList.remove("visible");
-            leftStateWheel.classList.add("visible");
-            renderStateWheel(leftStateOptions, options, activeIndex);
-        } else {
-            cardDragState.side = null;
-            cardDragState.options = [];
-            cardDragState.activeIndex = 0;
-            hideStateWheels();
-        }
+        updatePaperStatusDrag(event.clientX, event.clientY);
     });
 
     window.addEventListener("mouseup", async (event) => {
         if (event.button !== 0 || !cardDragState) {
             return;
         }
+        await finishPaperStatusDrag(event.clientX);
+    });
 
-        const { card, startX, side, options, activeIndex, currentStatus, visualTarget } = cardDragState;
-        cardDragState = null;
-        const deltaX = event.clientX - startX;
-        let nextStatus = null;
-
-        if ((side === "right" && deltaX > STATE_DRAG_TRIGGER_X) || (side === "left" && deltaX < -STATE_DRAG_TRIGGER_X)) {
-            nextStatus = options[activeIndex]?.value || null;
-        }
-
-        hideStateWheels();
-        resetCardDragVisual(visualTarget || card);
-
-        if (!nextStatus || nextStatus === normalizeStatus(card.dataset.paperStatus)) {
+    window.addEventListener("touchmove", (event) => {
+        if (!activeTouchStatusDrag || !cardDragState || event.touches.length !== 1) {
             return;
         }
-
-        try {
-            await applyPaperStatusTransition(card, nextStatus, currentStatus, { advanceFocus: false });
-        } catch (error) {
-            window.alert(error.message || "Failed to update paper status");
+        const touch = event.touches[0];
+        const deltaX = touch.clientX - activeTouchStatusDrag.startX;
+        const deltaY = touch.clientY - activeTouchStatusDrag.startY;
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 20) {
+            activeTouchStatusDrag.captured = true;
+            event.preventDefault();
         }
+        if (activeTouchStatusDrag.captured) {
+            updatePaperStatusDrag(touch.clientX, touch.clientY);
+        }
+    }, { passive: false });
+
+    window.addEventListener("touchend", async (event) => {
+        if (!activeTouchStatusDrag || !cardDragState) {
+            activeTouchStatusDrag = null;
+            return;
+        }
+        const touch = event.changedTouches?.[0];
+        if (!touch) {
+            activeTouchStatusDrag = null;
+            return;
+        }
+        if (activeTouchStatusDrag.captured) {
+            event.preventDefault();
+        }
+        activeTouchStatusDrag = null;
+        await finishPaperStatusDrag(touch.clientX);
+    }, { passive: false });
+
+    window.addEventListener("touchcancel", () => {
+        activeTouchStatusDrag = null;
+        if (!cardDragState) {
+            return;
+        }
+        hideStateWheels();
+        resetCardDragVisual(cardDragState.visualTarget || cardDragState.card);
+        cardDragState = null;
     });
 
     pdfPanel.addEventListener("mousedown", (event) => {
@@ -3223,6 +3321,31 @@
         }
         beginPaperStatusDrag(card, event, pdfPanel);
     });
+
+    pdfPanel.addEventListener("touchstart", (event) => {
+        if (!selectedPaperId || event.touches.length !== 1) {
+            return;
+        }
+        if (event.target.closest("a, button, summary, input, textarea, select, audio, .paper-tag-editor, .inline-menu-panel")) {
+            return;
+        }
+        if (event.target.closest(".pdf-scroll") || event.target.closest(".pdf-close-button")) {
+            return;
+        }
+        const card = findCardByPaperId(selectedPaperId);
+        if (!card) {
+            return;
+        }
+        const touch = event.touches[0];
+        activeTouchStatusDrag = {
+            target: "pdf",
+            paperId: selectedPaperId,
+            startX: touch.clientX,
+            startY: touch.clientY,
+            captured: false
+        };
+        beginPaperStatusDragAtPoint(card, touch.clientX, touch.clientY, pdfPanel);
+    }, { passive: true });
 
     notesEditor.addEventListener("input", () => {
         if (!authenticated) {
