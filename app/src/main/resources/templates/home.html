@@ -215,6 +215,11 @@
             text-align: left;
         }
 
+        .inline-menu-panel button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
         .status-controls select {
             width: auto;
             min-width: 220px;
@@ -654,6 +659,28 @@
             line-height: 1;
         }
 
+        .keyboard-status-toast {
+            position: absolute;
+            top: 1.2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 5;
+            display: none;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.55rem 0.8rem;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--panel) 94%, white);
+            box-shadow: 0 12px 30px rgba(77, 56, 38, 0.14);
+            color: var(--ink);
+            max-width: calc(100% - 3rem);
+        }
+
+        .keyboard-status-toast.visible {
+            display: inline-flex;
+        }
+
         .pdf-scroll {
             height: 70vh;
             overflow: auto;
@@ -786,11 +813,18 @@
         }
 
         .notes-collapse-button {
-            min-width: 2.35rem;
-            width: 2.35rem;
+            min-width: 1.7rem;
+            width: 1.7rem;
+            height: 1.7rem;
             padding: 0;
-            font-size: 1rem;
+            font-size: 0.9rem;
             line-height: 1;
+            border-radius: 999px;
+            position: absolute;
+            top: 1.25rem;
+            left: 0;
+            transform: translateX(-50%);
+            z-index: 4;
         }
 
         .notes-collapsed .notes-panel {
@@ -825,10 +859,17 @@
         .notes-collapsed .notes-panel-collapsed-toggle {
             display: inline-flex;
             position: absolute;
-            top: 0.75rem;
-            left: 50%;
+            top: 1.25rem;
+            left: 0;
             transform: translateX(-50%);
-            z-index: 1;
+            z-index: 4;
+            min-width: 1.7rem;
+            width: 1.7rem;
+            height: 1.7rem;
+            padding: 0;
+            font-size: 0.9rem;
+            line-height: 1;
+            border-radius: 999px;
         }
 
         @media (min-width: 721px) {
@@ -862,6 +903,11 @@
             .notes-collapsed .notes-panel-collapsed-toggle {
                 display: none;
             }
+
+            .notes-collapse-button {
+                position: static;
+                transform: none;
+            }
         }
 
         .notes-panel.drop-target {
@@ -869,6 +915,12 @@
         }
 
         .notes-panel.dragover {
+            border-color: var(--accent);
+            background: color-mix(in srgb, var(--panel) 76%, var(--accent-soft));
+        }
+
+        .pdf-panel.dragover .paper-view-content,
+        .pdf-panel.dragover .pdf-scroll {
             border-color: var(--accent);
             background: color-mix(in srgb, var(--panel) 76%, var(--accent-soft));
         }
@@ -1226,7 +1278,7 @@
         <div class="reader-layout">
             <div class="stack paper-list" id="paper-list">
                 {#if authenticated}
-                <p class="meta upload-cue">Drag a PDF onto a paper card or into the note view to attach it.</p>
+                <p class="meta upload-cue">Drag a PDF onto a paper card, the paper view, or the notes view to attach it.</p>
                 {/if}
                 {#for paper in recentPapers}
                 <article class="card drop-target selectable"
@@ -1315,6 +1367,7 @@
 
             <aside class="panel pdf-panel" id="pdf-panel">
                 <button class="icon-button secondary pdf-close-button" id="pdf-close" type="button" title="Close viewer">×</button>
+                <div class="keyboard-status-toast" id="keyboard-status-toast"></div>
                 <div class="pdf-toolbar">
                     <div id="content-panel-label" class="meta"></div>
                     <div class="toolbar-actions">
@@ -1422,6 +1475,7 @@
     const pdfPanelTitle = document.getElementById("pdf-panel-title");
     const pdfPanelMeta = document.getElementById("pdf-panel-meta");
     const pdfClose = document.getElementById("pdf-close");
+    const keyboardStatusToast = document.getElementById("keyboard-status-toast");
     const paperActionsMenu = document.getElementById("paper-actions-menu");
     const paperZoomOutButton = document.getElementById("paper-zoom-out");
     const paperZoomInButton = document.getElementById("paper-zoom-in");
@@ -1463,12 +1517,14 @@
     let activePrimaryTab = "state";
     let cardDragState = null;
     let keyboardStatePicker = null;
+    let keyboardStatusUndo = null;
     let suppressCardClick = false;
     let stateSearchQuery = "";
     let stateSearchVisibleLimit = 10;
     let selectedTagFilters = [];
     const themeStorageKey = "paper-monitor.theme";
     const notesCollapsedStorageKey = "paper-monitor.notes-collapsed";
+    const KEYBOARD_STATUS_TOAST_MS = 2200;
     const initialPaperId = readerBootstrap?.dataset.initialPaperId || "";
     const initialLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || "";
     const authenticated = readerBootstrap?.dataset.authenticated === "true";
@@ -1577,28 +1633,45 @@
         const hasReaderContent = hasSelectedPaper
             && (selectedContentKind === "pdf" || selectedContentKind === "abstract" || selectedContentKind === "card");
         const hasPdf = hasReaderContent && selectedContentKind === "pdf";
+        const activeCard = selectedPaperCard();
+        const canEditPaper = Boolean(activeCard)
+            && authenticated
+            && activeCard.dataset.paperCanEditTags === "true";
+        const importUrl = supportedSourcePdfUrl(activeCard);
+        const downloadUrl = downloadablePaperUrl(activeCard);
         readerLayout.classList.toggle("with-notes", hasReaderContent);
         paperList.classList.toggle("hidden", hasReaderContent);
         pdfPanel.classList.toggle("visible", hasReaderContent);
         notesPanel.classList.toggle("visible", hasReaderContent);
         applyNotesCollapsedState();
         paperSpeakButton.textContent = hasPdf ? "Speak selection" : "Speak abstract";
-        paperSpeakButton.disabled = !hasSelectedPaper;
-        paperZoomOutButton.disabled = !hasPdf;
-        paperZoomInButton.disabled = !hasPdf;
-        paperDownloadButton.disabled = !selectedDownloadUrl;
-        const editableCard = selectedPaperCard();
-        const canImportPdf = Boolean(editableCard)
-            && authenticated
-            && editableCard.dataset.paperCanEditTags === "true"
-            && Boolean(supportedSourcePdfUrl(editableCard));
-        paperImportPdfButton.disabled = !canImportPdf;
-        paperRemovePdfButton.disabled = !hasPdf || !authenticated;
-        paperShareButton.disabled = !hasSelectedPaper;
+        setActionAvailability(paperSpeakButton, hasSelectedPaper, "Select a paper first.");
+        setActionAvailability(paperZoomOutButton, hasPdf, "Zoom is available only when a PDF is open.");
+        setActionAvailability(paperZoomInButton, hasPdf, "Zoom is available only when a PDF is open.");
+        setActionAvailability(paperDownloadButton, Boolean(downloadUrl), "No downloadable source is available for this paper.");
+        setActionAvailability(
+            paperImportPdfButton,
+            Boolean(canEditPaper && importUrl),
+            !authenticated
+                ? "Sign in with edit access to fetch a source PDF."
+                : !canEditPaper
+                    ? "You need admin access on this paper feed to fetch a source PDF."
+                    : "No supported source PDF link is available."
+        );
+        setActionAvailability(
+            paperRemovePdfButton,
+            Boolean(hasPdf && authenticated && canEditPaper),
+            !authenticated
+                ? "Sign in with edit access to remove the attached PDF."
+                : !canEditPaper
+                    ? "You need admin access on this paper feed to remove the attached PDF."
+                    : "This paper has no attached PDF."
+        );
+        setActionAvailability(paperShareButton, hasSelectedPaper, "Select a paper first.");
         if (noteViewUploadCue) {
             noteViewUploadCue.textContent = hasSelectedPaper
-                ? "Drop a PDF here to attach it to the selected paper."
-                : "Select a paper, then drop a PDF here to attach it.";
+                ? "Drop a PDF on the paper or notes area to attach it to the selected paper."
+                : "Select a paper, then drop a PDF on the paper or notes area to attach it.";
         }
         if (!authenticated) {
             notesEditorShell.classList.add("hidden");
@@ -1672,6 +1745,25 @@
             }
         }
         return null;
+    };
+
+    const downloadablePaperUrl = (card) => {
+        if (!card) {
+            return "";
+        }
+        return selectedDownloadUrl
+            || card.dataset.pdfUrl
+            || card.dataset.paperOpenAccessLink
+            || card.dataset.paperSourceLink
+            || "";
+    };
+
+    const setActionAvailability = (button, enabled, reason, enabledTitle = "") => {
+        if (!button) {
+            return;
+        }
+        button.disabled = !enabled;
+        button.title = enabled ? enabledTitle : reason;
     };
 
     const normalizeStatus = (status) => status || "NEW";
@@ -2051,6 +2143,32 @@
         hideStateWheels();
     };
 
+    const clearKeyboardStatusToast = () => {
+        if (keyboardStatusUndo?.timer) {
+            window.clearTimeout(keyboardStatusUndo.timer);
+        }
+        keyboardStatusUndo = null;
+        if (keyboardStatusToast) {
+            keyboardStatusToast.classList.remove("visible");
+            keyboardStatusToast.textContent = "";
+        }
+    };
+
+    const showKeyboardStatusToast = (text, undoState) => {
+        clearKeyboardStatusToast();
+        if (!keyboardStatusToast) {
+            return;
+        }
+        keyboardStatusUndo = {
+            ...undoState,
+            timer: window.setTimeout(() => {
+                clearKeyboardStatusToast();
+            }, KEYBOARD_STATUS_TOAST_MS)
+        };
+        keyboardStatusToast.textContent = text;
+        keyboardStatusToast.classList.add("visible");
+    };
+
     const startKeyboardStatePicker = (side) => {
         const card = selectedPaperCard();
         if (!card) {
@@ -2087,6 +2205,58 @@
             activeIndex
         };
         renderKeyboardStatePicker();
+    };
+
+    const immediateKeyboardTransition = async (side, card, nextStatus, previousStatus) => {
+        await applyPaperStatusTransition(card, nextStatus, previousStatus, { advanceFocus: true });
+        const nextCard = selectedPaperCard();
+        showKeyboardStatusToast(
+            "Moved to " + statusLabel(nextStatus) + ". Press " + (side === "left" ? "→" : "←") + " to undo.",
+            {
+                side,
+                card,
+                previousStatus,
+                nextStatus,
+                nextCardId: nextCard?.dataset.paperId || null
+            }
+        );
+    };
+
+    const maybeStartImmediateKeyboardTransition = async (side) => {
+        const card = selectedPaperCard();
+        if (!card) {
+            return false;
+        }
+        const workflowTree = workflowTreeForLogicalFeed(card.dataset.logicalFeedId);
+        const currentTopStatus = card.dataset.paperTopStatus || normalizeStatus(card.dataset.paperStatus);
+        const currentIndex = workflowTree.findIndex((group) => group?.name === currentTopStatus);
+        let groups = [];
+        if (side === "left" && currentIndex > 0) {
+            groups = workflowTree.slice(0, currentIndex).reverse();
+        } else if (side === "right" && currentIndex >= 0 && currentIndex < workflowTree.length - 1) {
+            groups = workflowTree.slice(currentIndex + 1);
+        }
+        const states = groups.flatMap((group) => stateLeafChoices(group).map((choice) => choice.value));
+        if (states.length !== 1) {
+            return false;
+        }
+        await immediateKeyboardTransition(side, card, states[0], normalizeStatus(card.dataset.paperStatus));
+        return true;
+    };
+
+    const tryUndoKeyboardTransition = async (pressedSide) => {
+        if (!keyboardStatusUndo) {
+            return false;
+        }
+        const oppositeSide = keyboardStatusUndo.side === "left" ? "right" : "left";
+        if (pressedSide !== oppositeSide) {
+            return false;
+        }
+        const { card, previousStatus, nextStatus } = keyboardStatusUndo;
+        clearKeyboardStatusToast();
+        await applyPaperStatusTransition(card, previousStatus, nextStatus, { advanceFocus: false });
+        openPaperCard(card);
+        return true;
     };
 
     const resetCardDragVisual = (element) => {
@@ -2216,6 +2386,7 @@
 
     const closeViewer = () => {
         clearKeyboardStatePicker();
+        clearKeyboardStatusToast();
         selectedPaperId = null;
         selectedPdfUrl = null;
         selectedDownloadUrl = null;
@@ -2849,7 +3020,7 @@
 
     const removeSelectedPaperPdf = async () => {
         const card = selectedPaperCard();
-        if (!card || !card.dataset.pdfUrl || !authenticated) {
+        if (!card || !card.dataset.pdfUrl || !authenticated || card.dataset.paperCanEditTags !== "true") {
             return;
         }
         const response = await fetch("/papers/" + card.dataset.paperId + "/pdf/delete", {
@@ -3174,6 +3345,16 @@
         });
     });
 
+    ["dragenter", "dragover"].forEach((eventName) => {
+        pdfPanel.addEventListener(eventName, (event) => {
+            if (!authenticated || !selectedPaperId) {
+                return;
+            }
+            event.preventDefault();
+            pdfPanel.classList.add("dragover");
+        });
+    });
+
     ["dragleave", "dragend", "drop"].forEach((eventName) => {
         notesPanel.addEventListener(eventName, (event) => {
             if (!authenticated) {
@@ -3184,7 +3365,32 @@
         });
     });
 
+    ["dragleave", "dragend", "drop"].forEach((eventName) => {
+        pdfPanel.addEventListener(eventName, (event) => {
+            if (!authenticated || !selectedPaperId) {
+                return;
+            }
+            event.preventDefault();
+            pdfPanel.classList.remove("dragover");
+        });
+    });
+
     notesPanel.addEventListener("drop", (event) => {
+        if (!authenticated || !selectedPaperId) {
+            return;
+        }
+        const files = event.dataTransfer?.files;
+        if (!files || files.length === 0) {
+            return;
+        }
+        const card = findCardByPaperId(selectedPaperId);
+        if (!card) {
+            return;
+        }
+        uploadPdfForPaper(selectedPaperId, files[0], card);
+    });
+
+    pdfPanel.addEventListener("drop", (event) => {
         if (!authenticated || !selectedPaperId) {
             return;
         }
@@ -3410,6 +3616,9 @@
 
         if (event.key === "ArrowLeft") {
             event.preventDefault();
+            if (await tryUndoKeyboardTransition("left")) {
+                return;
+            }
             if (keyboardStatePicker?.side === "right") {
                 clearKeyboardStatePicker();
                 return;
@@ -3424,6 +3633,9 @@
                 } catch (error) {
                     window.alert(error.message || "Failed to update paper status");
                 }
+                return;
+            }
+            if (await maybeStartImmediateKeyboardTransition("left")) {
                 return;
             }
             startKeyboardStatePicker("left");
@@ -3432,6 +3644,9 @@
 
         if (event.key === "ArrowRight") {
             event.preventDefault();
+            if (await tryUndoKeyboardTransition("right")) {
+                return;
+            }
             if (keyboardStatePicker?.side === "left") {
                 clearKeyboardStatePicker();
                 return;
@@ -3446,6 +3661,9 @@
                 } catch (error) {
                     window.alert(error.message || "Failed to update paper status");
                 }
+                return;
+            }
+            if (await maybeStartImmediateKeyboardTransition("right")) {
                 return;
             }
             startKeyboardStatePicker("right");

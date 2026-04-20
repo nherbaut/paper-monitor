@@ -9,13 +9,15 @@ DOCKERFILE_IMAGES := $(patsubst %/,%,$(DOCKERFILE_IMAGE_DIRS))
 QUARKUS_IMAGES := $(if $(wildcard app/pom.xml),app,)
 IMAGES := $(sort $(DOCKERFILE_IMAGES) $(QUARKUS_IMAGES))
 
-.PHONY: help list build push build-% push-%
+.PHONY: help list build push build-java push-java build-app push-app build-% push-%
 
 help:
 	@echo "Targets:"
 	@echo "  make list                      List image-producing subfolders"
 	@echo "  make build                     Build every image found in subfolders"
 	@echo "  make push                      Push every image found in subfolders to Docker Hub"
+	@echo "  make build-java                Build only the Quarkus app image"
+	@echo "  make push-java                 Push only the Quarkus app image"
 	@echo "Notes:"
 	@echo "  app/ is built with the Quarkus container-image plugin"
 	@echo "  other subfolders use Dockerfile/Containerfile builds"
@@ -24,7 +26,9 @@ help:
 	@echo "  IMAGE_TAG=<tag>                Defaults to latest"
 	@echo "Examples:"
 	@echo "  make list"
+	@echo "  make build-java DOCKERHUB_NAMESPACE=mydockerhubuser IMAGE_TAG=dev"
 	@echo "  make build DOCKERHUB_NAMESPACE=mydockerhubuser IMAGE_TAG=dev"
+	@echo "  make push-java DOCKERHUB_NAMESPACE=mydockerhubuser IMAGE_TAG=latest"
 	@echo "  make push DOCKERHUB_NAMESPACE=mydockerhubuser IMAGE_TAG=latest"
 
 list:
@@ -33,6 +37,10 @@ list:
 build: $(addprefix build-,$(IMAGES))
 
 push: $(addprefix push-,$(IMAGES))
+
+build-java: build-app
+
+push-java: push-app
 
 build-app:
 	@if [[ -z "$(DOCKERHUB_NAMESPACE)" ]]; then \
