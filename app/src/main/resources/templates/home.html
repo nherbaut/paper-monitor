@@ -244,6 +244,11 @@
             padding-left: 0.35rem;
         }
 
+        .mobile-state-menu {
+            display: none;
+            margin-bottom: 1rem;
+        }
+
         .reader-tab {
             width: auto;
             min-width: 0;
@@ -284,7 +289,7 @@
 
         .reader-search-box {
             position: relative;
-            width: min(100%, 28rem);
+            width: 100%;
         }
 
         .reader-search-icon {
@@ -533,6 +538,17 @@
             border-color: rgba(95, 166, 108, 0.32);
         }
 
+        .search-highlight {
+            background: rgba(234, 199, 94, 0.38);
+            color: inherit;
+            border-radius: 0.25rem;
+            padding: 0 0.08rem;
+        }
+
+        body.dark-mode .search-highlight {
+            background: rgba(234, 199, 94, 0.28);
+        }
+
         .card-actions-inline {
             display: flex;
             flex-wrap: wrap;
@@ -604,9 +620,7 @@
         }
 
         .state-wheel-title {
-            margin: 0 0 0.6rem;
-            color: var(--muted);
-            font-size: 0.9rem;
+            display: none;
         }
 
         .state-wheel-options {
@@ -1202,6 +1216,14 @@
             display: inline;
         }
 
+        .topbar-menu-meta {
+            padding: 0.2rem 0.2rem 0.55rem;
+            border-bottom: 1px solid var(--line);
+            margin-bottom: 0.2rem;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
         .paper-list h3,
         .notes-preview,
         .topbar-title-text {
@@ -1273,8 +1295,29 @@
                 flex-basis: 100%;
             }
 
+            .reader-tabs {
+                display: none;
+            }
+
+            .mobile-state-menu {
+                display: block;
+            }
+
+            .reader-search {
+                width: 100%;
+            }
+
             .pdf-frame {
                 min-height: 40vh;
+            }
+
+            .pdf-panel,
+            .pdf-panel.visible {
+                display: none;
+            }
+
+            #note-view-upload-cue {
+                display: none;
             }
         }
     </style>
@@ -1290,6 +1333,13 @@
                 <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 8a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 3 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 8 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 13 8Z"/></svg>
             </summary>
             <div class="inline-menu-panel topbar-menu-panel">
+                <div class="topbar-menu-meta">
+                    {#if authenticated}
+                    Signed in as <strong>{currentUser.displayLabel}</strong>{#if currentUser.admin} · admin{/if}
+                    {#else}
+                    Public read-only view
+                    {/if}
+                </div>
                 <button class="secondary nav-action" id="theme-toggle" type="button">
                     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 1.5a.5.5 0 0 1 .5.5v1.1a.5.5 0 0 1-1 0V2A.5.5 0 0 1 8 1.5Zm0 9.4A2.9 2.9 0 1 0 8 5.1a2.9 2.9 0 0 0 0 5.8Zm5-3.4a.5.5 0 0 1 .5.5.5.5 0 0 1-.5.5h-1.1a.5.5 0 0 1 0-1H13ZM4.1 8a.5.5 0 0 1-.5.5H2.5a.5.5 0 0 1 0-1h1.1a.5.5 0 0 1 .5.5Zm6.02-4.52a.5.5 0 0 1 .7 0l.78.78a.5.5 0 1 1-.7.7l-.78-.77a.5.5 0 0 1 0-.71Zm-5.44 5.45a.5.5 0 0 1 .7 0l.78.78a.5.5 0 1 1-.7.7l-.78-.78a.5.5 0 0 1 0-.7Zm6.15.78a.5.5 0 0 1 .7-.7l.78.78a.5.5 0 0 1-.7.7l-.78-.78Zm-5.44-5.45a.5.5 0 0 1 .7-.7l.78.77a.5.5 0 1 1-.7.71l-.78-.78Z"/></svg>
                     <span class="nav-action-label" id="theme-toggle-label">Dark mode</span>
@@ -1333,15 +1383,6 @@
     </nav>
 </div>
 <main>
-    <header>
-        <div class="meta">
-            {#if authenticated}
-            Signed in as <strong>{currentUser.displayLabel}</strong>{#if currentUser.admin} · admin{/if}
-            {#else}
-            Public read-only view
-            {/if}
-        </div>
-    </header>
     <p class="meta hidden" id="last-seen-logical-feed">No paper feed seen yet.</p>
 
     <section class="panel panel-wide status {#if shareMode && !authenticated}share-anon-hidden{/if}">
@@ -1381,6 +1422,10 @@
 
     <section class="panel panel-wide">
         <h2 id="paper-feed-heading">All paper feeds</h2>
+        <details class="mobile-state-menu {#if shareMode && !authenticated}share-anon-hidden{/if}" id="mobile-state-menu">
+            <summary class="secondary" id="mobile-state-menu-summary">States</summary>
+            <div class="stack" id="mobile-state-tabs"></div>
+        </details>
         <div class="reader-tabs {#if shareMode && !authenticated}share-anon-hidden{/if}" id="reader-tabs"></div>
         <div class="reader-search {#if shareMode && !authenticated}share-anon-hidden{/if}" id="reader-search">
             <div class="reader-search-box">
@@ -1397,9 +1442,6 @@
         </div>
         <div class="reader-layout">
             <div class="stack paper-list" id="paper-list">
-                {#if authenticated}
-                <p class="meta upload-cue">Drag a PDF onto a paper card, the paper view, or the notes view to attach it.</p>
-                {/if}
                 {#for paper in recentPapers}
                 <article class="card drop-target selectable"
                          data-logical-feed-name="{paper.logicalFeed.name}"
@@ -1412,6 +1454,7 @@
                          data-paper-authors="{paper.authors ?: 'Unknown authors'}"
                          data-paper-published-on="{paper.publishedOn ?: 'unknown'}"
                          data-paper-venue="{paper.publisher ?: 'Unknown venue'}"
+                         data-paper-feed-name="{paper.feed.name}"
                          data-paper-summary="{paper.summary ?: ''}"
                          data-paper-source-link="{paper.sourceLink ?: ''}"
                          data-paper-open-access-link="{paper.openAccessLink ?: ''}"
@@ -1435,7 +1478,7 @@
                     </div>
                     <div class="card-header">
                         <div class="card-title-wrap">
-                            <h3>{paper.title}</h3>
+                            <h3 class="paper-title">{paper.title}</h3>
                         </div>
                         <div class="pdf-presence {#if paper.uploadedPdfPath}has-pdf{/if}" title="{#if paper.uploadedPdfPath}PDF attached{#else}No PDF attached{/if}">
                             {#if paper.uploadedPdfPath}
@@ -1445,14 +1488,14 @@
                             {/if}
                         </div>
                     </div>
-                    <p class="meta">
+                    <p class="meta paper-meta">
                         {paper.authors ?: 'Unknown authors'}<br>
                         {paper.publisher ?: 'Unknown publisher'}<br>
                         Published: {paper.publishedOn ?: 'unknown'}<br>
                         From feed: {paper.feed.name}
                     </p>
                     {#if paper.summary}
-                    <p>{paper.summary}</p>
+                    <p class="paper-summary">{paper.summary}</p>
                     {/if}
                     <p>
                         {#if paper.uploadedPdfPath}
@@ -1560,6 +1603,9 @@
     const storageKey = "paper-monitor.lastSeenLogicalFeed";
     const readerBootstrap = document.getElementById("reader-bootstrap");
     const statusTabsContainer = document.getElementById("reader-tabs");
+    const mobileStateMenu = document.getElementById("mobile-state-menu");
+    const mobileStateMenuSummary = document.getElementById("mobile-state-menu-summary");
+    const mobileStateTabs = document.getElementById("mobile-state-tabs");
     const lastSeenElement = document.getElementById("last-seen-logical-feed");
     const latestPaperCard = document.querySelector("[data-logical-feed-name]");
     const paperCards = document.querySelectorAll("[data-paper-id]");
@@ -1652,6 +1698,8 @@
     let pdfResizeObserver = null;
     let lastPdfFrameWidth = 0;
 
+    const isMobileViewport = () => window.innerWidth <= 720;
+
     const renderLastSeenLogicalFeed = (logicalFeedName) => {
         if (lastSeenElement) {
             lastSeenElement.textContent = logicalFeedName || "No paper feed seen yet.";
@@ -1690,6 +1738,27 @@
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
+
+    const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const highlightedHtml = (value, query) => {
+        const source = String(value || "");
+        const normalizedQuery = (query || "").replace(/\s+/g, " ").trim();
+        if (!normalizedQuery) {
+            return escapeHtml(source);
+        }
+        const pattern = new RegExp(escapeRegex(normalizedQuery).replace(/\s+/g, "\\s+"), "gi");
+        let result = "";
+        let lastIndex = 0;
+        let match;
+        while ((match = pattern.exec(source)) !== null) {
+            result += escapeHtml(source.slice(lastIndex, match.index));
+            result += "<mark class=\"search-highlight\">" + escapeHtml(match[0]) + "</mark>";
+            lastIndex = match.index + match[0].length;
+        }
+        result += escapeHtml(source.slice(lastIndex));
+        return result;
+    };
 
     const highlightMarkdown = (value) => {
         let html = escapeHtml(value);
@@ -1765,6 +1834,7 @@
         paperList.classList.toggle("hidden", hasReaderContent);
         pdfPanel.classList.toggle("visible", hasReaderContent);
         notesPanel.classList.toggle("visible", hasReaderContent);
+        readerSearch.classList.toggle("hidden", activePrimaryTab !== "state" || hasReaderContent);
         applyNotesCollapsedState();
         paperSpeakButton.textContent = hasPdf ? "Speak selection" : "Speak abstract";
         setActionAvailability(paperSpeakButton, hasSelectedPaper, "Select a paper first.");
@@ -1841,6 +1911,29 @@
             return "<p class=\"paper-link-row meta\">" + links.join(" | ") + "</p>";
         }
         return "Source links: " + links.join(" | ");
+    };
+
+    const renderCardSearchHighlights = (card) => {
+        if (!card) {
+            return;
+        }
+        const query = normalizedSearchText(stateSearchQuery);
+        const title = card.querySelector(".paper-title");
+        const meta = card.querySelector(".paper-meta");
+        const summary = card.querySelector(".paper-summary");
+        if (title) {
+            title.innerHTML = highlightedHtml(card.dataset.paperTitle || "", query);
+        }
+        if (meta) {
+            meta.innerHTML = ""
+                + highlightedHtml(card.dataset.paperAuthors || "Unknown authors", query) + "<br>"
+                + highlightedHtml(card.dataset.paperVenue || "Unknown publisher", query) + "<br>"
+                + "Published: " + escapeHtml(card.dataset.paperPublishedOn || "unknown") + "<br>"
+                + "From feed: " + escapeHtml(card.dataset.paperFeedName || "");
+        }
+        if (summary) {
+            summary.innerHTML = highlightedHtml(card.dataset.paperSummary || "", query);
+        }
     };
 
     const supportedSourcePdfUrl = (card) => {
@@ -2510,6 +2603,7 @@
         }
 
         paperCards.forEach((card) => {
+            renderCardSearchHighlights(card);
             const feedMatches = activePrimaryTab === "tags"
                 ? Boolean(selectedLogicalFeedId) && card.dataset.logicalFeedId === selectedLogicalFeedId
                 : (!selectedLogicalFeedId || card.dataset.logicalFeedId === selectedLogicalFeedId);
@@ -2544,18 +2638,35 @@
         }
 
         statusTabsContainer.innerHTML = "";
+        if (mobileStateTabs) {
+            mobileStateTabs.innerHTML = "";
+        }
         availableTabs.forEach((status) => {
             const tab = document.createElement("button");
             tab.type = "button";
             tab.className = "reader-tab" + (activePrimaryTab === "state" && status === activeStatusTab ? " active" : "");
             tab.textContent = statusLabel(status) + " (" + (availableCounts[status] || 0) + ")";
-            tab.addEventListener("click", () => {
+            const activateTab = () => {
                 activePrimaryTab = "state";
                 activeStatusTab = status;
                 stateSearchVisibleLimit = 10;
                 applyLogicalFeedFilter();
-            });
+            };
+            tab.addEventListener("click", activateTab);
             statusTabsContainer.appendChild(tab);
+            if (mobileStateTabs) {
+                const mobileTab = document.createElement("button");
+                mobileTab.type = "button";
+                mobileTab.className = "secondary";
+                mobileTab.textContent = tab.textContent;
+                mobileTab.addEventListener("click", () => {
+                    activateTab();
+                    if (mobileStateMenu) {
+                        mobileStateMenu.open = false;
+                    }
+                });
+                mobileStateTabs.appendChild(mobileTab);
+            }
         });
 
         const tagsTab = document.createElement("button");
@@ -2568,10 +2679,33 @@
             applyLogicalFeedFilter();
         });
         statusTabsContainer.appendChild(tagsTab);
+        if (mobileStateTabs) {
+            const mobileTagsTab = document.createElement("button");
+            mobileTagsTab.type = "button";
+            mobileTagsTab.className = "secondary";
+            mobileTagsTab.textContent = "Tags";
+            mobileTagsTab.addEventListener("click", () => {
+                activePrimaryTab = "tags";
+                stateSearchVisibleLimit = 10;
+                applyLogicalFeedFilter();
+                if (mobileStateMenu) {
+                    mobileStateMenu.open = false;
+                }
+            });
+            mobileStateTabs.appendChild(mobileTagsTab);
+        }
+
+        if (mobileStateMenuSummary) {
+            mobileStateMenuSummary.textContent = activePrimaryTab === "tags"
+                ? "Tags"
+                : activeStatusTab
+                    ? statusLabel(activeStatusTab) + " (" + (availableCounts[activeStatusTab] || 0) + ")"
+                    : "States";
+        }
 
         renderTagBrowser();
 
-        readerSearch.classList.toggle("hidden", activePrimaryTab !== "state");
+        readerSearch.classList.toggle("hidden", activePrimaryTab !== "state" || Boolean(selectedPaperId));
         searchLoadMoreRow.classList.toggle("hidden",
             !isStateSearchActive || matchingSearchCards.length <= stateSearchVisibleLimit);
 
@@ -2580,6 +2714,13 @@
         exportFormatButtons.forEach((button) => {
             button.disabled = exportDisabled;
         });
+        const activeCard = selectedPaperCard();
+        if (activeCard) {
+            populatePaperViewMeta(activeCard);
+            if (selectedContentKind !== "pdf") {
+                renderPaperCardPreview(activeCard);
+            }
+        }
         updatePaperFeedHeading();
     };
 
@@ -2689,7 +2830,7 @@
             return;
         }
 
-        if (card.dataset.pdfUrl) {
+        if (card.dataset.pdfUrl && !isMobileViewport()) {
             showPdfForCard(card);
             card.scrollIntoView({ behavior: "smooth", block: "center" });
             return;
@@ -2871,8 +3012,9 @@
 
     const renderPaperCardPreview = (card) => {
         const summary = (card.dataset.paperSummary || "").trim();
+        const query = normalizedSearchText(stateSearchQuery);
         const abstractHtml = summary
-            ? "<div class=\"paper-view-abstract\"><p>" + escapeHtml(summary).replace(/\n+/g, "</p><p>") + "</p></div>"
+            ? "<div class=\"paper-view-abstract\"><p>" + highlightedHtml(summary, query).replace(/\n+/g, "</p><p>") + "</p></div>"
             : "<p class=\"meta\">No abstract available for this paper.</p>";
         pdfFrame.innerHTML = abstractHtml + paperLinksHtml(card, true);
     };
@@ -2882,14 +3024,19 @@
         const authors = card.dataset.paperAuthors || "Unknown authors";
         const publicationDate = card.dataset.paperPublishedOn || "unknown";
         const venue = card.dataset.paperVenue || "Unknown venue";
-        pdfPanelTitle.textContent = title;
+        const query = normalizedSearchText(stateSearchQuery);
+        pdfPanelTitle.innerHTML = highlightedHtml(title, query);
         pdfPanelMeta.innerHTML = ""
-            + escapeHtml(authors) + "<br>"
+            + highlightedHtml(authors, query) + "<br>"
             + "Publication date: " + escapeHtml(publicationDate) + "<br>"
-            + "Venue: " + escapeHtml(venue);
+            + "Venue: " + highlightedHtml(venue, query);
     };
 
     const showPdfForCard = (card) => {
+        if (isMobileViewport()) {
+            focusPaperCard(card);
+            return;
+        }
         clearKeyboardStatePicker();
         paperCards.forEach((item) => item.classList.remove("active"));
         card.classList.add("active");
