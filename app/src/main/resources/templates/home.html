@@ -122,6 +122,10 @@
             grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
         }
 
+        .reader-layout.with-notes.notes-collapsed {
+            grid-template-columns: minmax(0, 1fr) 3.1rem;
+        }
+
         .status {
             display: flex;
             align-items: center;
@@ -755,10 +759,76 @@
 
         .notes-panel {
             display: none;
+            position: relative;
         }
 
         .notes-panel.visible {
             display: block;
+        }
+
+        .notes-panel-inner {
+            display: grid;
+            gap: 0.9rem;
+        }
+
+        .notes-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .notes-panel-title {
+            margin: 0;
+            font-size: 1rem;
+            color: var(--muted);
+        }
+
+        .notes-collapse-button {
+            min-width: 2.35rem;
+            width: 2.35rem;
+            padding: 0;
+            font-size: 1rem;
+            line-height: 1;
+        }
+
+        .notes-collapsed .notes-panel {
+            padding: 0.85rem 0.5rem;
+            overflow: hidden;
+        }
+
+        .notes-collapsed .notes-panel-inner {
+            display: none;
+        }
+
+        .notes-collapsed .notes-panel.visible {
+            display: flex;
+            justify-content: center;
+        }
+
+        .notes-collapsed .notes-panel::before {
+            content: attr(data-collapsed-label);
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            font-size: 0.78rem;
+            color: var(--muted);
+            align-self: center;
+        }
+
+        .notes-panel-collapsed-toggle {
+            display: none;
+        }
+
+        .notes-collapsed .notes-panel-collapsed-toggle {
+            display: inline-flex;
+            position: absolute;
+            top: 0.75rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1;
         }
 
         @media (min-width: 721px) {
@@ -768,6 +838,29 @@
                 align-self: start;
                 max-height: calc(100vh - 2rem);
                 overflow: auto;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .reader-layout.with-notes,
+            .reader-layout.with-notes.notes-collapsed {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .notes-collapsed .notes-panel {
+                padding: 1.35rem;
+            }
+
+            .notes-collapsed .notes-panel::before {
+                display: none;
+            }
+
+            .notes-collapsed .notes-panel-inner {
+                display: grid;
+            }
+
+            .notes-collapsed .notes-panel-collapsed-toggle {
+                display: none;
             }
         }
 
@@ -1260,16 +1353,23 @@
             </aside>
 
             <aside class="panel notes-panel" id="notes-panel">
-                {#if authenticated}
-                <p class="meta upload-cue" id="note-view-upload-cue">Drop a PDF here to attach it to the selected paper.</p>
-                {/if}
-                <p class="meta">Markdown notes for the selected paper.</p>
-                <div class="notes-preview" id="notes-preview"></div>
-                <div class="notes-editor notes-editor-shell hidden" id="notes-editor-shell">
-                    <pre class="notes-highlight" id="notes-highlight"></pre>
-                    <textarea class="notes-input" id="notes-editor" placeholder="# Notes"></textarea>
+                <button class="icon-button secondary notes-panel-collapsed-toggle" id="notes-expand" type="button" title="Show notes">‹</button>
+                <div class="notes-panel-inner">
+                    <div class="notes-panel-header">
+                        <p class="notes-panel-title">Notes</p>
+                        <button class="icon-button secondary notes-collapse-button" id="notes-collapse" type="button" title="Fold notes">›</button>
+                    </div>
+                    {#if authenticated}
+                    <p class="meta upload-cue" id="note-view-upload-cue">Drop a PDF here to attach it to the selected paper.</p>
+                    {/if}
+                    <p class="meta">Markdown notes for the selected paper.</p>
+                    <div class="notes-preview" id="notes-preview"></div>
+                    <div class="notes-editor notes-editor-shell hidden" id="notes-editor-shell">
+                        <pre class="notes-highlight" id="notes-highlight"></pre>
+                        <textarea class="notes-input" id="notes-editor" placeholder="# Notes"></textarea>
+                    </div>
+                    <p class="meta" id="notes-status">Saved</p>
                 </div>
-                <p class="meta" id="notes-status">Saved</p>
             </aside>
         </div>
     </section>
@@ -1338,6 +1438,8 @@
     const paperTagSuggestions = document.getElementById("paper-tag-suggestions");
     const ttsPlayer = document.getElementById("tts-player");
     const notesPanel = document.getElementById("notes-panel");
+    const notesCollapseButton = document.getElementById("notes-collapse");
+    const notesExpandButton = document.getElementById("notes-expand");
     const noteViewUploadCue = document.getElementById("note-view-upload-cue");
     const notesPreview = document.getElementById("notes-preview");
     const notesEditorShell = document.getElementById("notes-editor-shell");
@@ -1366,9 +1468,13 @@
     let stateSearchVisibleLimit = 10;
     let selectedTagFilters = [];
     const themeStorageKey = "paper-monitor.theme";
+    const notesCollapsedStorageKey = "paper-monitor.notes-collapsed";
     const initialPaperId = readerBootstrap?.dataset.initialPaperId || "";
     const initialLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || "";
     const authenticated = readerBootstrap?.dataset.authenticated === "true";
+    let notesCollapsed = false;
+    let pdfResizeObserver = null;
+    let lastPdfFrameWidth = 0;
 
     const renderLastSeenLogicalFeed = (logicalFeedName) => {
         lastSeenElement.textContent = logicalFeedName || "No paper feed seen yet.";
@@ -1387,6 +1493,19 @@
         const darkMode = theme === "dark";
         document.body.classList.toggle("dark-mode", darkMode);
         themeToggleLabel.textContent = darkMode ? "Light mode" : "Dark mode";
+    };
+
+    const applyNotesCollapsedState = () => {
+        const collapsed = notesCollapsed && window.innerWidth > 720;
+        readerLayout.classList.toggle("notes-collapsed", collapsed);
+        notesPanel.dataset.collapsedLabel = collapsed ? "Notes" : "";
+        if (notesCollapseButton) {
+            notesCollapseButton.title = collapsed ? "Show notes" : "Fold notes";
+            notesCollapseButton.textContent = collapsed ? "‹" : "›";
+        }
+        if (notesExpandButton) {
+            notesExpandButton.title = "Show notes";
+        }
     };
 
     const escapeHtml = (value) => value
@@ -1435,8 +1554,10 @@
     };
 
     const storedLogicalFeedName = window.localStorage.getItem(storageKey);
+    notesCollapsed = window.localStorage.getItem(notesCollapsedStorageKey) === "true";
     applyTheme(window.localStorage.getItem(themeStorageKey) || "light");
     renderLastSeenLogicalFeed(storedLogicalFeedName);
+    applyNotesCollapsedState();
 
     if (latestPaperCard) {
         const latestLogicalFeedName = latestPaperCard.dataset.logicalFeedName;
@@ -1460,6 +1581,7 @@
         paperList.classList.toggle("hidden", hasReaderContent);
         pdfPanel.classList.toggle("visible", hasReaderContent);
         notesPanel.classList.toggle("visible", hasReaderContent);
+        applyNotesCollapsedState();
         paperSpeakButton.textContent = hasPdf ? "Speak selection" : "Speak abstract";
         paperSpeakButton.disabled = !hasSelectedPaper;
         paperZoomOutButton.disabled = !hasPdf;
@@ -1489,6 +1611,19 @@
             return null;
         }
         return findCardByPaperId(selectedPaperId);
+    };
+
+    const queuePdfRefit = () => {
+        requestAnimationFrame(() => {
+            rerenderSelectedPdf();
+        });
+    };
+
+    const setNotesCollapsed = (nextCollapsed) => {
+        notesCollapsed = Boolean(nextCollapsed);
+        window.localStorage.setItem(notesCollapsedStorageKey, notesCollapsed ? "true" : "false");
+        applyNotesCollapsedState();
+        queuePdfRefit();
     };
 
     const paperLinksHtml = (card, insideAbstractView = false) => {
@@ -2308,6 +2443,7 @@
 
                 const unscaledViewport = page.getViewport({ scale: 1 });
                 const availableWidth = Math.max(pdfFrame.clientWidth - 2, 400);
+                lastPdfFrameWidth = availableWidth;
                 const fitScale = availableWidth / unscaledViewport.width;
                 const viewport = page.getViewport({ scale: fitScale * currentZoom });
 
@@ -2693,6 +2829,24 @@
         }
     };
 
+    const installPdfWidthObserver = () => {
+        if (typeof ResizeObserver === "undefined") {
+            return;
+        }
+        pdfResizeObserver = new ResizeObserver((entries) => {
+            if (selectedContentKind !== "pdf" || !selectedPdfUrl) {
+                return;
+            }
+            const width = Math.round(entries[0]?.contentRect?.width || 0);
+            if (!width || Math.abs(width - lastPdfFrameWidth) < 8) {
+                return;
+            }
+            lastPdfFrameWidth = width;
+            queuePdfRefit();
+        });
+        pdfResizeObserver.observe(pdfFrame);
+    };
+
     const removeSelectedPaperPdf = async () => {
         const card = selectedPaperCard();
         if (!card || !card.dataset.pdfUrl || !authenticated) {
@@ -2950,6 +3104,14 @@
             return;
         }
         enterNotesEditMode();
+    });
+
+    notesCollapseButton?.addEventListener("click", () => {
+        setNotesCollapsed(true);
+    });
+
+    notesExpandButton?.addEventListener("click", () => {
+        setNotesCollapsed(false);
     });
 
     if (paperTagAddButton) {
@@ -3323,11 +3485,12 @@
     fullscreenToggle.addEventListener("click", () => {
         const fullBleed = document.body.classList.toggle("full-bleed");
         fullscreenToggleLabel.textContent = fullBleed ? "Centered width" : "Full width";
-        rerenderSelectedPdf();
+        queuePdfRefit();
     });
 
     window.addEventListener("resize", () => {
-        rerenderSelectedPdf();
+        applyNotesCollapsedState();
+        queuePdfRefit();
     });
 
     themeToggle.addEventListener("click", () => {
@@ -3353,6 +3516,8 @@
             && Array.from(doiImportLogicalFeed.options).some((option) => option.value === logicalFeedFilter.value)) {
         doiImportLogicalFeed.value = logicalFeedFilter.value;
     }
+
+    installPdfWidthObserver();
 
     const triggerTabExport = (format) => {
         const logicalFeedId = logicalFeedFilter.value;
