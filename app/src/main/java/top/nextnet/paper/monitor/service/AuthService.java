@@ -89,6 +89,7 @@ public class AuthService {
             return bootstrap;
         }
         AppUser user = existing.orElseThrow(() -> new IllegalArgumentException("Invalid username or password"));
+        normalizeLegacyActivation(user);
         if (!verifyPassword(user, normalizedPassword)) {
             throw new IllegalArgumentException("Invalid username or password");
         }
@@ -212,7 +213,9 @@ public class AuthService {
     }
 
     public List<AppUser> allUsers() {
-        return appUserRepository.find("order by approved asc, emailVerified asc, admin desc, username asc").list();
+        List<AppUser> users = appUserRepository.find("order by approved asc, emailVerified asc, admin desc, username asc").list();
+        users.forEach(this::normalizeLegacyActivation);
+        return users;
     }
 
     @Transactional
@@ -314,6 +317,29 @@ public class AuthService {
         }
         if (!user.isApproved()) {
             throw new IllegalArgumentException("Your account is awaiting admin approval");
+        }
+    }
+
+    private void normalizeLegacyActivation(AppUser user) {
+        if (user == null) {
+            return;
+        }
+        if (!"LOCAL".equals(user.authProvider)) {
+            return;
+        }
+        if (user.emailVerificationToken != null) {
+            return;
+        }
+        if (user.emailVerified || user.approved) {
+            return;
+        }
+        user.emailVerified = true;
+        if (user.email != null && !user.email.isBlank() && user.emailVerifiedAt == null) {
+            user.emailVerifiedAt = user.createdAt == null ? Instant.now() : user.createdAt;
+        }
+        user.approved = true;
+        if (user.approvedAt == null) {
+            user.approvedAt = user.createdAt == null ? Instant.now() : user.createdAt;
         }
     }
 

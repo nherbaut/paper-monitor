@@ -93,22 +93,15 @@ public class AppUser extends PanacheEntityBase {
     }
 
     public boolean isEmailVerified() {
-        return emailVerified || isLegacyActivatedLocalAccount();
+        return emailVerified;
     }
 
     public boolean isApproved() {
-        return approved || isLegacyActivatedLocalAccount();
+        return approved;
     }
 
     public boolean isActive() {
         return isEmailVerified() && isApproved();
-    }
-
-    public boolean isLegacyActivatedLocalAccount() {
-        return "LOCAL".equals(authProvider)
-                && emailVerificationToken == null
-                && !emailVerified
-                && !approved;
     }
 
     public String displayLabel() {
