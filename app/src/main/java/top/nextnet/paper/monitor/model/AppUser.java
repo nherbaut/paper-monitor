@@ -105,7 +105,7 @@ public class AppUser extends PanacheEntityBase {
     }
 
     public boolean isLegacyActivatedLocalAccount() {
-        return isLocalAccount()
+        return "LOCAL".equals(authProvider)
                 && emailVerificationToken == null
                 && !emailVerified
                 && !approved;
