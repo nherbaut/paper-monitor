@@ -693,6 +693,31 @@ public class HomeResource {
     }
 
     @GET
+    @Path("/papers/import-doi/preview-pdf")
+    @Produces("application/pdf")
+    public Response previewPaperPdfFromUrl(
+            @QueryParam("url") String url,
+            @QueryParam("title") String title
+    ) {
+        requireCurrentUser();
+        String normalizedUrl = normalizeRequired(url, "PDF URL is required");
+        try {
+            PaperPdfImportService.DownloadedPdf downloadedPdf = paperPdfImportService.downloadPdf(normalizedUrl, normalize(title));
+            return Response.ok(downloadedPdf.content(), "application/pdf")
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + downloadedPdf.fileName() + "\"")
+                    .build();
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new WebApplicationException("Failed to fetch remote PDF", Response.Status.BAD_GATEWAY);
+        }
+    }
+
+    @GET
     @Path("/exports/tab")
     @Transactional
     @Produces("text/markdown")

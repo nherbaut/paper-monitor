@@ -6,6 +6,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -42,24 +43,41 @@ public class PaperPdfImportService {
     public ImportedPdf importSupportedPdf(Paper paper) throws IOException, InterruptedException {
         String pdfUrl = supportedPdfUrl(paper)
                 .orElseThrow(() -> new IllegalArgumentException("This paper does not expose a supported remote PDF source"));
+        DownloadedPdf downloadedPdf = downloadPdf(pdfUrl, paper == null ? null : paper.title);
+        Path tempFile = Files.createTempFile("paper-monitor-import-", ".pdf");
+        try {
+            Files.write(tempFile, downloadedPdf.content());
+            PaperStorageService.StoredPdf storedPdf = paperStorageService.storePdf(tempFile, downloadedPdf.fileName());
+            return new ImportedPdf(storedPdf, pdfUrl);
+        } finally {
+            Files.deleteIfExists(tempFile);
+        }
+    }
 
+    public DownloadedPdf downloadPdf(String pdfUrl, String paperTitle) throws IOException, InterruptedException {
+        if (pdfUrl == null || pdfUrl.isBlank()) {
+            throw new IllegalArgumentException("Remote PDF URL is required");
+        }
         HttpRequest request = HttpRequest.newBuilder(URI.create(pdfUrl))
                 .timeout(Duration.ofSeconds(60))
                 .header("Accept", "application/pdf")
                 .GET()
                 .build();
-
-        Path tempFile = Files.createTempFile("paper-monitor-import-", ".pdf");
-        try {
-            HttpResponse<Path> response = httpClient.send(request, HttpResponse.BodyHandlers.ofFile(tempFile));
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IOException("Remote PDF download failed with status " + response.statusCode());
-            }
-            PaperStorageService.StoredPdf storedPdf = paperStorageService.storePdf(tempFile, suggestedFileName(pdfUrl, paper));
-            return new ImportedPdf(storedPdf, pdfUrl);
-        } finally {
-            Files.deleteIfExists(tempFile);
+        HttpResponse<byte[]> response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray());
+        if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            throw new IOException("Remote PDF download failed with status " + response.statusCode());
         }
+        String contentType = response.headers().firstValue("Content-Type").orElse("");
+        String contentDisposition = response.headers().firstValue("Content-Disposition").orElse("");
+        String lowerType = contentType.toLowerCase(Locale.ROOT);
+        boolean looksLikePdf = lowerType.contains("application/pdf")
+                || contentDisposition.toLowerCase(Locale.ROOT).contains(".pdf")
+                || pdfUrl.toLowerCase(Locale.ROOT).endsWith(".pdf")
+                || startsWithPdfMagic(response.body());
+        if (!looksLikePdf) {
+            throw new IOException("Remote URL did not return a PDF");
+        }
+        return new DownloadedPdf(suggestedFileName(pdfUrl, paperTitle), response.body());
     }
 
     private Optional<String> normalizeArxivPdfUrl(String candidate) {
@@ -90,7 +108,18 @@ public class PaperPdfImportService {
         return Optional.empty();
     }
 
+    private boolean startsWithPdfMagic(byte[] bytes) {
+        if (bytes == null || bytes.length < 4) {
+            return false;
+        }
+        return new String(bytes, 0, 4, StandardCharsets.US_ASCII).equals("%PDF");
+    }
+
     private String suggestedFileName(String pdfUrl, Paper paper) {
+        return suggestedFileName(pdfUrl, paper == null ? null : paper.title);
+    }
+
+    private String suggestedFileName(String pdfUrl, String paperTitle) {
         String fromUrl = URI.create(pdfUrl).getPath();
         if (fromUrl != null) {
             int lastSlash = fromUrl.lastIndexOf('/');
@@ -101,12 +130,15 @@ public class PaperPdfImportService {
                 }
             }
         }
-        String title = paper == null || paper.title == null || paper.title.isBlank()
+        String title = paperTitle == null || paperTitle.isBlank()
                 ? "paper"
-                : paper.title.replaceAll("[^a-zA-Z0-9]+", "-").replaceAll("^-+|-+$", "");
+                : paperTitle.replaceAll("[^a-zA-Z0-9]+", "-").replaceAll("^-+|-+$", "");
         return (title.isBlank() ? "paper" : title) + ".pdf";
     }
 
     public record ImportedPdf(PaperStorageService.StoredPdf storedPdf, String sourceUrl) {
+    }
+
+    public record DownloadedPdf(String fileName, byte[] content) {
     }
 }
