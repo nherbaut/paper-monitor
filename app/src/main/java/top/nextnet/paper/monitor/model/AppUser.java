@@ -53,12 +53,12 @@ public class AppUser extends PanacheEntityBase {
     @Column(nullable = false)
     public boolean admin;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "boolean default false")
     public boolean emailVerified;
 
     public Instant emailVerifiedAt;
 
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "boolean default false")
     public boolean approved;
 
     public Instant approvedAt;
