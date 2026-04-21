@@ -89,6 +89,16 @@ public class PaperRepository implements PanacheRepository<Paper> {
                 .list();
     }
 
+    public List<Paper> findAllForExport(LogicalFeed logicalFeed) {
+        return find("select p from Paper p "
+                        + "join fetch p.logicalFeed "
+                        + "join fetch p.feed "
+                        + "where p.logicalFeed = ?1 "
+                        + "order by p.publishedOn desc nulls last, p.discoveredAt desc",
+                logicalFeed)
+                .list();
+    }
+
     public Map<Long, Map<String, Long>> countByLogicalFeedAndStatus() {
         List<Object[]> rows = getEntityManager().createQuery(
                         "select p.logicalFeed.id, p.status, count(p) "

@@ -211,6 +211,25 @@
             text-align: left;
         }
 
+        .export-menu-group {
+            display: grid;
+            gap: 0.35rem;
+        }
+
+        .export-menu-group + .export-menu-group {
+            margin-top: 0.35rem;
+            padding-top: 0.45rem;
+            border-top: 1px solid var(--line);
+        }
+
+        .export-menu-group-title {
+            color: var(--muted);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 0 0.2rem;
+        }
+
         .inline-menu-panel button,
         .inline-menu-panel a {
             width: 100%;
@@ -1354,9 +1373,23 @@
                         <span class="nav-action-label">Export</span>
                     </summary>
                     <div class="export-menu-panel">
-                        <button class="secondary export-format-button" data-format="md" type="button">Markdown</button>
-                        <button class="secondary export-format-button" data-format="pdf" type="button">PDF</button>
-                        <button class="secondary export-format-button" data-format="docx" type="button">DOCX</button>
+                        <div class="export-menu-group">
+                            <div class="export-menu-group-title">Export Reports</div>
+                            <button class="secondary export-format-button" data-kind="report" data-format="md" type="button">Markdown</button>
+                            <button class="secondary export-format-button" data-kind="report" data-format="pdf" type="button">PDF</button>
+                            <button class="secondary export-format-button" data-kind="report" data-format="docx" type="button">DOCX</button>
+                            <button class="secondary export-format-button" data-kind="report" data-format="csv" type="button">CSV</button>
+                        </div>
+                        <div class="export-menu-group">
+                            <div class="export-menu-group-title">Export Notes</div>
+                            <button class="secondary export-format-button" data-kind="notes" data-format="md" type="button">Markdown notes</button>
+                            <button class="secondary export-format-button" data-kind="notes" data-format="pdf" type="button">PDF notes</button>
+                            <button class="secondary export-format-button" data-kind="notes" data-format="docx" type="button">DOCX notes</button>
+                        </div>
+                        <div class="export-menu-group">
+                            <div class="export-menu-group-title">Export All</div>
+                            <button class="secondary export-format-button" data-kind="all" data-format="zip" type="button">Current papers</button>
+                        </div>
                     </div>
                 </details>
                 {#if authenticated}
@@ -2709,7 +2742,7 @@
         searchLoadMoreRow.classList.toggle("hidden",
             !isStateSearchActive || matchingSearchCards.length <= stateSearchVisibleLimit);
 
-        const exportDisabled = activePrimaryTab !== "state" || !selectedLogicalFeedId || !activeStatusTab;
+        const exportDisabled = !selectedLogicalFeedId || (activePrimaryTab === "state" && !activeStatusTab);
         exportTabButton.classList.toggle("disabled", exportDisabled);
         exportFormatButtons.forEach((button) => {
             button.disabled = exportDisabled;
@@ -4092,28 +4125,30 @@
 
     installPdfWidthObserver();
 
-    const triggerTabExport = (format) => {
+    const triggerTabExport = (kind, format) => {
         const logicalFeedId = logicalFeedFilter.value;
         if (!logicalFeedId) {
-            window.alert("Select a paper feed before exporting a tab.");
+            window.alert("Select a paper feed before exporting.");
             return;
         }
-        if (!activeStatusTab) {
+        if (activePrimaryTab === "state" && !activeStatusTab) {
             window.alert("Select a workflow tab before exporting.");
             return;
         }
-        const params = new URLSearchParams({
-            logicalFeedId,
-            status: activeStatusTab,
-            format
-        });
+        const params = new URLSearchParams({ logicalFeedId, kind, format });
+        if (activePrimaryTab === "state" && activeStatusTab) {
+            params.set("status", activeStatusTab);
+        }
+        if (selectedTagFilters.length) {
+            params.set("tags", selectedTagFilters.join(","));
+        }
         window.location.href = "/exports/tab?" + params.toString();
     };
 
     exportFormatButtons.forEach((button) => {
         button.addEventListener("click", () => {
             exportTabMenu.open = false;
-            triggerTabExport(button.dataset.format || "md");
+            triggerTabExport(button.dataset.kind || "report", button.dataset.format || "md");
         });
     });
 

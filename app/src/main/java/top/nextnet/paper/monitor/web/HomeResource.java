@@ -24,15 +24,23 @@ import jakarta.ws.rs.core.NewCookie;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.io.IOException;
+import java.io.ByteArrayOutputStream;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
+import java.util.Comparator;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.zip.CRC32;
+import java.util.zip.Deflater;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
 import top.nextnet.paper.monitor.model.AppUser;
@@ -661,41 +669,57 @@ public class HomeResource {
     public Response exportTab(
             @jakarta.ws.rs.QueryParam("logicalFeedId") Long logicalFeedId,
             @jakarta.ws.rs.QueryParam("status") String status,
+            @jakarta.ws.rs.QueryParam("tags") String tags,
+            @DefaultValue("report") @jakarta.ws.rs.QueryParam("kind") String kind,
             @DefaultValue("md") @jakarta.ws.rs.QueryParam("format") String format
     ) {
         if (logicalFeedId == null) {
             throw new WebApplicationException("logicalFeedId is required", Response.Status.BAD_REQUEST);
         }
         LogicalFeed logicalFeed = logicalFeedAccessService.requireReadableLogicalFeed(logicalFeedId, requireCurrentUser());
-        String normalizedStatus = normalizePaperStatus(status);
-        if (!logicalFeed.workflowStateList().contains(normalizedStatus)) {
-            if (!logicalFeed.topLevelWorkflowStateList().contains(normalizedStatus)) {
-                throw new WebApplicationException("status must belong to the selected logical feed workflow",
-                    Response.Status.BAD_REQUEST);
-            }
-        }
-
-        List<Paper> papers = paperRepository.findForTabExport(logicalFeed, logicalFeed.workflowConfig().leafStates(), normalizedStatus);
-        String markdown = renderTabExportMarkdown(logicalFeed, normalizedStatus, papers);
-        String normalizedFormat = normalizeExportFormat(format);
-        String baseFileName = slug(logicalFeed.name) + "-" + slug(normalizedStatus.toLowerCase()) + "-export";
-
-        if ("md".equals(normalizedFormat)) {
-            return Response.ok(markdown, "text/markdown; charset=UTF-8")
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=\"" + baseFileName + ".md\"")
-                    .build();
-        }
+        String normalizedKind = normalizeExportKind(kind);
+        String normalizedFormat = normalizeExportFormat(format, normalizedKind);
+        List<String> normalizedTags = normalizeExportTags(tags);
+        String normalizedStatus = normalizeNullableExportStatus(logicalFeed, status);
+        List<Paper> papers = selectPapersForExport(logicalFeed, normalizedStatus, normalizedTags);
+        String filterLabel = exportFilterLabel(normalizedStatus, normalizedTags);
+        String baseFileName = slug(logicalFeed.name) + "-" + slug(filterLabel) + "-" + normalizedKind;
 
         try {
+            if ("all".equals(normalizedKind)) {
+                byte[] zip = exportCurrentPapersArchive(logicalFeed, filterLabel, papers);
+                return Response.ok(zip, "application/zip")
+                        .header(HttpHeaders.CONTENT_DISPOSITION,
+                                "attachment; filename=\"" + baseFileName + ".zip\"")
+                        .build();
+            }
+
+            if ("csv".equals(normalizedFormat)) {
+                String csv = renderExportCsv(papers);
+                return Response.ok(csv, "text/csv; charset=UTF-8")
+                        .header(HttpHeaders.CONTENT_DISPOSITION,
+                                "attachment; filename=\"" + baseFileName + ".csv\"")
+                        .build();
+            }
+
+            String markdown = "notes".equals(normalizedKind)
+                    ? renderNotesExportMarkdown(logicalFeed, filterLabel, papers)
+                    : renderTabExportMarkdown(logicalFeed, filterLabel, papers);
+            if ("md".equals(normalizedFormat)) {
+                return Response.ok(markdown, "text/markdown; charset=UTF-8")
+                        .header(HttpHeaders.CONTENT_DISPOSITION,
+                                "attachment; filename=\"" + baseFileName + ".md\"")
+                        .build();
+            }
+
             byte[] converted = convertMarkdownWithPandoc(markdown, normalizedFormat);
             return Response.ok(converted, exportContentType(normalizedFormat))
                     .header(HttpHeaders.CONTENT_DISPOSITION,
                             "attachment; filename=\"" + baseFileName + "." + normalizedFormat + "\"")
                     .build();
         } catch (IOException e) {
-            Log.errorf(e, "Tab export failed for logicalFeedId=%d status=%s format=%s",
-                    logicalFeed.id, normalizedStatus, normalizedFormat);
+            Log.errorf(e, "Tab export failed for logicalFeedId=%d status=%s tags=%s kind=%s format=%s",
+                    logicalFeed.id, normalizedStatus, normalizedTags, normalizedKind, normalizedFormat);
             return Response.status(Response.Status.BAD_GATEWAY)
                     .type(MediaType.TEXT_PLAIN)
                     .entity(e.getMessage())
@@ -1372,12 +1396,12 @@ public class HomeResource {
         return normalizedStatus;
     }
 
-    private String renderTabExportMarkdown(LogicalFeed logicalFeed, String status, List<Paper> papers) {
+    private String renderTabExportMarkdown(LogicalFeed logicalFeed, String filterLabel, List<Paper> papers) {
         StringBuilder markdown = new StringBuilder();
         markdown.append("# ").append(escapeMarkdownText(logicalFeed.name)).append("\n\n");
         markdown.append("* export date: ").append(ZonedDateTime.now()).append("\n");
         markdown.append("* number of papers: ").append(papers.size()).append("\n");
-        markdown.append("* state: ").append(escapeMarkdownText(status)).append("\n\n");
+        markdown.append("* filter: ").append(escapeMarkdownText(filterLabel)).append("\n\n");
 
         for (Paper paper : papers) {
             markdown.append("# ").append(escapeMarkdownText(paper.title)).append("\n\n");
@@ -1409,6 +1433,44 @@ public class HomeResource {
         return markdown.toString().trim() + "\n";
     }
 
+    private String renderNotesExportMarkdown(LogicalFeed logicalFeed, String filterLabel, List<Paper> papers) {
+        StringBuilder markdown = new StringBuilder();
+        markdown.append("# ").append(escapeMarkdownText(logicalFeed.name)).append(" Notes\n\n");
+        markdown.append("* export date: ").append(ZonedDateTime.now()).append("\n");
+        markdown.append("* number of papers: ").append(papers.size()).append("\n");
+        markdown.append("* filter: ").append(escapeMarkdownText(filterLabel)).append("\n\n");
+        for (Paper paper : papers) {
+            markdown.append("## ").append(escapeMarkdownText(paper.title)).append("\n\n");
+            markdown.append("* authors: ").append(escapeMarkdownText(stringOrDefault(paper.authors, "Unknown authors"))).append("\n");
+            markdown.append("* publication date: ").append(escapeMarkdownText(stringOrDefault(paper.publishedOn, "unknown"))).append("\n");
+            markdown.append("* venue: ").append(escapeMarkdownText(stringOrDefault(paper.publisher, "Unknown venue"))).append("\n\n");
+            markdown.append("### Notes\n\n");
+            markdown.append(indentMarkdownHeadings(stringOrDefault(paper.notes, "No notes yet."))).append("\n\n");
+        }
+        return markdown.toString().trim() + "\n";
+    }
+
+    private String renderExportCsv(List<Paper> papers) {
+        StringBuilder csv = new StringBuilder();
+        csv.append("title,authors,publication_date,venue,status,discovered_at,source_link,open_access_link,feed,paper_feed,tags,has_pdf\n");
+        for (Paper paper : papers) {
+            csv.append(csvField(paper.title)).append(',')
+                    .append(csvField(paper.authors)).append(',')
+                    .append(csvField(paper.publishedOn)).append(',')
+                    .append(csvField(paper.publisher)).append(',')
+                    .append(csvField(paper.status)).append(',')
+                    .append(csvField(paper.discoveredAt)).append(',')
+                    .append(csvField(paper.sourceLink)).append(',')
+                    .append(csvField(paper.openAccessLink)).append(',')
+                    .append(csvField(paper.feed != null ? paper.feed.name : null)).append(',')
+                    .append(csvField(paper.logicalFeed != null ? paper.logicalFeed.name : null)).append(',')
+                    .append(csvField(paper.tagsToken())).append(',')
+                    .append(csvField(Boolean.toString(paper.uploadedPdfPath != null && !paper.uploadedPdfPath.isBlank())))
+                    .append('\n');
+        }
+        return csv.toString();
+    }
+
     private String indentMarkdownHeadings(String markdown) {
         return markdown.lines()
                 .map((line) -> {
@@ -1433,9 +1495,22 @@ public class HomeResource {
         return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
-    private String normalizeExportFormat(String format) {
+    private String normalizeExportKind(String kind) {
+        String normalized = kind == null ? "report" : kind.trim().toLowerCase();
+        if (!List.of("report", "notes", "all").contains(normalized)) {
+            throw new WebApplicationException("Unsupported export kind", Response.Status.BAD_REQUEST);
+        }
+        return normalized;
+    }
+
+    private String normalizeExportFormat(String format, String kind) {
         String normalized = format == null ? "md" : format.trim().toLowerCase();
-        if (!List.of("md", "pdf", "docx").contains(normalized)) {
+        List<String> allowed = "all".equals(kind)
+                ? List.of("zip")
+                : "notes".equals(kind)
+                    ? List.of("md", "pdf", "docx")
+                    : List.of("md", "pdf", "docx", "csv");
+        if (!allowed.contains(normalized)) {
             throw new WebApplicationException("Unsupported export format", Response.Status.BAD_REQUEST);
         }
         return normalized;
@@ -1445,6 +1520,8 @@ public class HomeResource {
         return switch (format) {
             case "pdf" -> "application/pdf";
             case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "csv" -> "text/csv; charset=UTF-8";
+            case "zip" -> "application/zip";
             default -> "text/markdown; charset=UTF-8";
         };
     }
@@ -1506,6 +1583,114 @@ public class HomeResource {
 
     private String stringOrDefault(Object value, String fallback) {
         return value == null ? fallback : String.valueOf(value);
+    }
+
+    private String csvField(Object value) {
+        String text = value == null ? "" : String.valueOf(value);
+        return "\"" + text.replace("\"", "\"\"") + "\"";
+    }
+
+    private String normalizeNullableExportStatus(LogicalFeed logicalFeed, String status) {
+        String normalized = normalize(status);
+        if (normalized == null) {
+            return null;
+        }
+        String normalizedStatus = normalizePaperStatus(normalized);
+        if (logicalFeed.workflowStateList().contains(normalizedStatus)
+                || logicalFeed.topLevelWorkflowStateList().contains(normalizedStatus)) {
+            return normalizedStatus;
+        }
+        throw new WebApplicationException("status must belong to the selected logical feed workflow",
+                Response.Status.BAD_REQUEST);
+    }
+
+    private List<String> normalizeExportTags(String tags) {
+        String normalized = normalize(tags);
+        if (normalized == null) {
+            return List.of();
+        }
+        return List.of(normalized.split(","))
+                .stream()
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .map(value -> value.startsWith("state:")
+                        ? "state:" + normalizePaperStatus(value.substring("state:".length()))
+                        : value)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private List<Paper> selectPapersForExport(LogicalFeed logicalFeed, String status, List<String> tags) {
+        List<Paper> papers = paperRepository.findAllForExport(logicalFeed);
+        if (!tags.isEmpty()) {
+            return papers.stream()
+                    .filter(paper -> exportTagsMatch(paper, tags))
+                    .sorted(Comparator.comparing((Paper paper) -> paper.publishedOn, Comparator.nullsLast(Comparator.reverseOrder()))
+                            .thenComparing(paper -> paper.discoveredAt, Comparator.reverseOrder()))
+                    .toList();
+        }
+        if (status == null) {
+            return papers;
+        }
+        return papers.stream()
+                .filter(paper -> paper.status != null
+                        && (paper.status.equals(status) || paper.status.startsWith(status + "/")))
+                .toList();
+    }
+
+    private boolean exportTagsMatch(Paper paper, List<String> tags) {
+        Set<String> keys = new HashSet<>(paper.tagList());
+        keys.add("state:" + paper.topLevelStatus());
+        if (paper.uploadedPdfPath != null && !paper.uploadedPdfPath.isBlank()) {
+            keys.add("has-pdf");
+        }
+        return tags.stream().allMatch(keys::contains);
+    }
+
+    private String exportFilterLabel(String status, List<String> tags) {
+        if (!tags.isEmpty()) {
+            return "tags-" + String.join("-", tags);
+        }
+        return status == null ? "all-papers" : status.toLowerCase();
+    }
+
+    private byte[] exportCurrentPapersArchive(LogicalFeed logicalFeed, String filterLabel, List<Paper> papers) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        try (ZipOutputStream zip = new ZipOutputStream(output, StandardCharsets.UTF_8)) {
+            zip.setLevel(Deflater.NO_COMPRESSION);
+            String baseName = slug(logicalFeed.name) + "-" + slug(filterLabel);
+            String reportMarkdown = renderTabExportMarkdown(logicalFeed, filterLabel, papers);
+            addStoredZipEntry(zip, baseName + "/reports/" + baseName + "-report.md", reportMarkdown.getBytes(StandardCharsets.UTF_8));
+            addStoredZipEntry(zip, baseName + "/reports/" + baseName + "-report.pdf", convertMarkdownWithPandoc(reportMarkdown, "pdf"));
+            addStoredZipEntry(zip, baseName + "/reports/" + baseName + "-report.docx", convertMarkdownWithPandoc(reportMarkdown, "docx"));
+            addStoredZipEntry(zip, baseName + "/reports/" + baseName + "-report.csv", renderExportCsv(papers).getBytes(StandardCharsets.UTF_8));
+
+            for (Paper paper : papers) {
+                if (paper.uploadedPdfPath == null || paper.uploadedPdfPath.isBlank()) {
+                    continue;
+                }
+                try (var input = paperStorageService.open(paper.uploadedPdfPath)) {
+                    addStoredZipEntry(zip,
+                            baseName + "/papers/" + slug(paper.title) + "-" + paper.id + ".pdf",
+                            input.readAllBytes());
+                }
+            }
+        }
+        return output.toByteArray();
+    }
+
+    private void addStoredZipEntry(ZipOutputStream zip, String name, byte[] content) throws IOException {
+        ZipEntry entry = new ZipEntry(name);
+        entry.setMethod(ZipEntry.STORED);
+        entry.setSize(content.length);
+        entry.setCompressedSize(content.length);
+        CRC32 crc32 = new CRC32();
+        crc32.update(content);
+        entry.setCrc(crc32.getValue());
+        zip.putNextEntry(entry);
+        zip.write(content);
+        zip.closeEntry();
     }
 
     private AppUser requireCurrentUser() {
