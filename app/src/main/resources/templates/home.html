@@ -111,6 +111,19 @@
             margin-top: 1.25rem;
         }
 
+        .getting-started-callout {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .getting-started-callout p {
+            margin: 0;
+            max-width: 56rem;
+        }
+
         .reader-layout {
             display: grid;
             grid-template-columns: minmax(0, 1fr);
@@ -1540,6 +1553,13 @@
             {/if}
         </div>
     </section>
+
+    {#if authenticated && logicalFeeds.isEmpty}
+    <section class="panel panel-wide getting-started-callout">
+        <p class="meta">You do not have any paper feed yet. The setup flow in admin is a quick and easy way to get started.</p>
+        <a class="secondary" href="/admin#setup">Open quick setup</a>
+    </section>
+    {/if}
 
     <section class="panel panel-wide">
         <h2 id="paper-feed-heading">All paper feeds</h2>
