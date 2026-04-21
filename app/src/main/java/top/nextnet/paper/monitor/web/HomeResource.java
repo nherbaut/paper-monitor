@@ -59,6 +59,7 @@ import top.nextnet.paper.monitor.service.BackupService;
 import top.nextnet.paper.monitor.service.CurrentUserContext;
 import top.nextnet.paper.monitor.service.DoiMetadataService;
 import top.nextnet.paper.monitor.service.FeedPollingService;
+import top.nextnet.paper.monitor.service.JsonCodec;
 import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
 import top.nextnet.paper.monitor.service.NotificationService;
 import top.nextnet.paper.monitor.service.OidcService;
@@ -617,29 +618,23 @@ public class HomeResource {
     @POST
     @Path("/papers/import-doi")
     @Transactional
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Consumes(MediaType.MULTIPART_FORM_DATA)
     public Response importPaperFromDoi(
             @RestForm("logicalFeedId") Long logicalFeedId,
-            @RestForm("doi") String doi
+            @RestForm("doi") String doi,
+            @RestForm("pdf") FileUpload pdf
     ) {
         AppUser currentUser = requireCurrentUser();
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, currentUser);
-        String normalizedDoi = normalizeRequired(doi, "DOI is required");
-        String sourceLink = normalizedDoi.startsWith("http://") || normalizedDoi.startsWith("https://")
-                ? normalizedDoi
-                : "https://doi.org/" + normalizedDoi.replaceFirst("^(?i)doi:", "");
+        String normalizedDoi = normalizeDoiInput(doi);
+        String sourceLink = normalizedDoiSourceLink(normalizedDoi);
 
         Paper existing = paperRepository.findByLogicalFeedAndSourceLink(logicalFeed, sourceLink).orElse(null);
         if (existing != null) {
             return seeOther("/?paperId=" + existing.id);
         }
 
-        DoiMetadataService.DoiMetadata metadata;
-        try {
-            metadata = doiMetadataService.fetch(normalizedDoi.replaceFirst("^(?i)https?://doi.org/", "").replaceFirst("^(?i)doi:", ""));
-        } catch (IOException e) {
-            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_GATEWAY);
-        }
+        DoiMetadataService.DoiMetadata metadata = fetchDoiMetadata(normalizedDoi);
 
         Paper paper = new Paper();
         paper.title = normalize(metadata.title());
@@ -656,10 +651,45 @@ public class HomeResource {
         paper.discoveredAt = Instant.now();
         paper.feed = getOrCreateDoiImportFeed(logicalFeed);
         paper.logicalFeed = logicalFeed;
+        if (pdf != null && pdf.fileName() != null && !pdf.fileName().isBlank()) {
+            PaperStorageService.StoredPdf storedPdf;
+            try {
+                storedPdf = paperStorageService.storePdf(pdf);
+            } catch (IllegalArgumentException e) {
+                throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+            } catch (Exception e) {
+                throw new WebApplicationException("Failed to store PDF", Response.Status.INTERNAL_SERVER_ERROR);
+            }
+            paper.uploadedPdfPath = storedPdf.storedPath();
+            paper.uploadedPdfFileName = storedPdf.originalFileName();
+        }
         paperRepository.persist(paper);
         paperEventService.log(paper, "FETCH", "Imported from DOI " + normalizedDoi);
+        if (paper.uploadedPdfFileName != null) {
+            paperEventService.log(paper, "PDF_UPLOADED", "Attached PDF " + paper.uploadedPdfFileName);
+        }
         paperGitSyncService.syncLogicalFeed(logicalFeed);
         return seeOther("/?paperId=" + paper.id);
+    }
+
+    @GET
+    @Path("/papers/import-doi/preview")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response previewPaperFromDoi(@QueryParam("doi") String doi) {
+        requireCurrentUser();
+        String normalizedDoi = normalizeDoiInput(doi);
+        DoiMetadataService.DoiMetadata metadata = fetchDoiMetadata(normalizedDoi);
+        String responseJson = JsonCodec.stringify(Map.of(
+                "doi", normalizedDoi,
+                "sourceLink", stringOrDefault(metadata.doiUrl(), normalizedDoiSourceLink(normalizedDoi)),
+                "title", stringOrDefault(metadata.title(), ""),
+                "authors", stringOrDefault(metadata.authors(), ""),
+                "publisher", stringOrDefault(metadata.publisher(), ""),
+                "summary", stringOrDefault(metadata.summary(), ""),
+                "openAccessUrl", stringOrDefault(metadata.openAccessUrl(), ""),
+                "publishedOn", metadata.publishedOn() == null ? "" : metadata.publishedOn().toString()
+        ));
+        return Response.ok(responseJson, MediaType.APPLICATION_JSON).build();
     }
 
     @GET
@@ -1583,6 +1613,26 @@ public class HomeResource {
 
     private String stringOrDefault(Object value, String fallback) {
         return value == null ? fallback : String.valueOf(value);
+    }
+
+    private String normalizeDoiInput(String doi) {
+        return normalizeRequired(doi, "DOI is required");
+    }
+
+    private String normalizedDoiSourceLink(String normalizedDoi) {
+        return normalizedDoi.startsWith("http://") || normalizedDoi.startsWith("https://")
+                ? normalizedDoi
+                : "https://doi.org/" + normalizedDoi.replaceFirst("^(?i)doi:", "");
+    }
+
+    private DoiMetadataService.DoiMetadata fetchDoiMetadata(String normalizedDoi) {
+        try {
+            return doiMetadataService.fetch(normalizedDoi
+                    .replaceFirst("^(?i)https?://doi.org/", "")
+                    .replaceFirst("^(?i)doi:", ""));
+        } catch (IOException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_GATEWAY);
+        }
     }
 
     private String csvField(Object value) {

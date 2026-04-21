@@ -211,6 +211,67 @@
             text-align: left;
         }
 
+        .manual-import-panel {
+            min-width: min(32rem, calc(100vw - 2rem));
+        }
+
+        .manual-import-form {
+            display: grid;
+            gap: 0.8rem;
+        }
+
+        .manual-import-form input[type="text"],
+        .manual-import-form select {
+            width: 100%;
+        }
+
+        .manual-import-preview {
+            border: 1px solid var(--line);
+            border-radius: 0.9rem;
+            padding: 0.85rem 0.95rem;
+            background: rgba(255, 255, 255, 0.6);
+            display: grid;
+            gap: 0.5rem;
+        }
+
+        .manual-import-preview h3,
+        .manual-import-preview p {
+            margin: 0;
+        }
+
+        .manual-import-preview h3 {
+            font-size: 1rem;
+            line-height: 1.35;
+        }
+
+        .manual-import-preview-summary {
+            max-height: 9rem;
+            overflow: auto;
+            padding-right: 0.25rem;
+        }
+
+        .manual-import-dropzone {
+            border: 1px dashed var(--line);
+            border-radius: 0.9rem;
+            padding: 1rem;
+            display: grid;
+            gap: 0.6rem;
+            justify-items: start;
+            background: rgba(255, 255, 255, 0.45);
+            transition: border-color 160ms ease, background 160ms ease;
+        }
+
+        .manual-import-dropzone.drag-over {
+            border-color: var(--accent);
+            background: rgba(187, 152, 90, 0.16);
+        }
+
+        .manual-import-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+        }
+
         .export-menu-group {
             display: grid;
             gap: 0.35rem;
@@ -1429,17 +1490,32 @@
             </div>
             {#if authenticated}
             <details class="export-menu">
-                <summary class="secondary">Import DOI</summary>
-                <div class="export-menu-panel" style="min-width: 24rem;">
-                    <form action="/papers/import-doi" method="post">
+                <summary class="secondary">Manual import</summary>
+                <div class="export-menu-panel manual-import-panel">
+                    <form action="/papers/import-doi" class="manual-import-form" enctype="multipart/form-data" id="manual-import-form" method="post">
                         <select name="logicalFeedId" id="doi-import-logical-feed" required>
                             <option value="">Select paper feed</option>
                             {#for logicalFeed in adminLogicalFeeds}
                             <option value="{logicalFeed.id}">{logicalFeed.name}</option>
                             {/for}
                         </select>
-                        <input type="text" name="doi" placeholder="10.1007/978-981-95-5015-9_14" required>
-                        <button class="secondary" type="submit">Import from DOI</button>
+                        <input type="text" id="manual-import-doi" name="doi" placeholder="10.1007/978-981-95-5015-9_14" required>
+                        <div class="manual-import-actions">
+                            <button class="secondary" id="manual-import-fetch" type="button">Fetch metadata</button>
+                        </div>
+                        <p class="meta hidden" id="manual-import-status"></p>
+                        <section class="manual-import-preview hidden" id="manual-import-preview" aria-live="polite">
+                            <h3 id="manual-import-preview-title"></h3>
+                            <p class="meta" id="manual-import-preview-meta"></p>
+                            <p class="manual-import-preview-summary" id="manual-import-preview-summary"></p>
+                            <p class="meta" id="manual-import-preview-links"></p>
+                        </section>
+                        <section class="manual-import-dropzone hidden" id="manual-import-dropzone">
+                            <input class="hidden" id="manual-import-pdf" name="pdf" type="file" accept="application/pdf">
+                            <p class="meta" id="manual-import-file-label">Drop a PDF here, or select one from your device.</p>
+                            <button class="secondary" id="manual-import-file-button" type="button">Choose PDF</button>
+                        </section>
+                        <button class="secondary hidden" id="manual-import-submit" type="submit">Import paper</button>
                     </form>
                 </div>
             </details>
@@ -1638,6 +1714,20 @@
     const paperCards = document.querySelectorAll("[data-paper-id]");
     const logicalFeedFilter = document.getElementById("logical-feed-filter");
     const doiImportLogicalFeed = document.getElementById("doi-import-logical-feed");
+    const manualImportForm = document.getElementById("manual-import-form");
+    const manualImportDoi = document.getElementById("manual-import-doi");
+    const manualImportFetch = document.getElementById("manual-import-fetch");
+    const manualImportStatus = document.getElementById("manual-import-status");
+    const manualImportPreview = document.getElementById("manual-import-preview");
+    const manualImportPreviewTitle = document.getElementById("manual-import-preview-title");
+    const manualImportPreviewMeta = document.getElementById("manual-import-preview-meta");
+    const manualImportPreviewSummary = document.getElementById("manual-import-preview-summary");
+    const manualImportPreviewLinks = document.getElementById("manual-import-preview-links");
+    const manualImportDropzone = document.getElementById("manual-import-dropzone");
+    const manualImportPdf = document.getElementById("manual-import-pdf");
+    const manualImportFileButton = document.getElementById("manual-import-file-button");
+    const manualImportFileLabel = document.getElementById("manual-import-file-label");
+    const manualImportSubmit = document.getElementById("manual-import-submit");
     const exportTabButton = document.getElementById("export-tab-button");
     const exportTabMenu = document.getElementById("export-tab-menu");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
@@ -1785,6 +1875,73 @@
         }
         result += escapeHtml(source.slice(lastIndex));
         return result;
+    };
+
+    const setManualImportStatus = (message, isError = false) => {
+        if (!manualImportStatus) {
+            return;
+        }
+        manualImportStatus.textContent = message || "";
+        manualImportStatus.classList.toggle("hidden", !message);
+        manualImportStatus.style.color = isError ? "var(--danger, #a33)" : "";
+    };
+
+    const updateManualImportFileLabel = () => {
+        if (!manualImportFileLabel || !manualImportPdf) {
+            return;
+        }
+        manualImportFileLabel.textContent = manualImportPdf.files && manualImportPdf.files[0]
+            ? "Selected PDF: " + manualImportPdf.files[0].name
+            : "Drop a PDF here, or select one from your device.";
+    };
+
+    const resetManualImportPreview = () => {
+        if (manualImportPreview) {
+            manualImportPreview.classList.add("hidden");
+        }
+        if (manualImportDropzone) {
+            manualImportDropzone.classList.add("hidden");
+            manualImportDropzone.classList.remove("drag-over");
+        }
+        if (manualImportSubmit) {
+            manualImportSubmit.classList.add("hidden");
+            manualImportSubmit.disabled = true;
+        }
+        if (manualImportPdf) {
+            manualImportPdf.value = "";
+        }
+        updateManualImportFileLabel();
+    };
+
+    const renderManualImportPreview = (metadata) => {
+        if (!manualImportPreview) {
+            return;
+        }
+        manualImportPreviewTitle.textContent = metadata.title || "Untitled paper";
+        const metaParts = [];
+        if (metadata.authors) {
+            metaParts.push(metadata.authors);
+        }
+        if (metadata.publisher) {
+            metaParts.push(metadata.publisher);
+        }
+        if (metadata.publishedOn) {
+            metaParts.push(metadata.publishedOn);
+        }
+        manualImportPreviewMeta.textContent = metaParts.join(" | ");
+        manualImportPreviewSummary.textContent = metadata.summary || "No abstract available.";
+        const links = [];
+        if (metadata.sourceLink) {
+            links.push("<a href=\"" + escapeHtml(metadata.sourceLink) + "\" target=\"_blank\" rel=\"noreferrer\">Source</a>");
+        }
+        if (metadata.openAccessUrl) {
+            links.push("<a href=\"" + escapeHtml(metadata.openAccessUrl) + "\" target=\"_blank\" rel=\"noreferrer\">Open access</a>");
+        }
+        manualImportPreviewLinks.innerHTML = links.join(" | ");
+        manualImportPreview.classList.remove("hidden");
+        manualImportDropzone.classList.remove("hidden");
+        manualImportSubmit.classList.remove("hidden");
+        manualImportSubmit.disabled = false;
     };
 
     const highlightMarkdown = (value) => {
@@ -4115,6 +4272,79 @@
     if (doiImportLogicalFeed && logicalFeedFilter.value
             && Array.from(doiImportLogicalFeed.options).some((option) => option.value === logicalFeedFilter.value)) {
         doiImportLogicalFeed.value = logicalFeedFilter.value;
+    }
+
+    if (manualImportDoi) {
+        manualImportDoi.addEventListener("input", () => {
+            setManualImportStatus("");
+            resetManualImportPreview();
+        });
+    }
+
+    if (manualImportPdf) {
+        manualImportPdf.addEventListener("change", updateManualImportFileLabel);
+    }
+
+    if (manualImportFileButton && manualImportPdf) {
+        manualImportFileButton.addEventListener("click", () => manualImportPdf.click());
+    }
+
+    if (manualImportDropzone && manualImportPdf) {
+        ["dragenter", "dragover"].forEach((eventName) => {
+            manualImportDropzone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                manualImportDropzone.classList.add("drag-over");
+            });
+        });
+        ["dragleave", "drop"].forEach((eventName) => {
+            manualImportDropzone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                manualImportDropzone.classList.remove("drag-over");
+            });
+        });
+        manualImportDropzone.addEventListener("drop", (event) => {
+            const files = Array.from(event.dataTransfer?.files || []).filter((file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+            if (!files.length) {
+                setManualImportStatus("Drop a PDF file.", true);
+                return;
+            }
+            const transfer = new DataTransfer();
+            transfer.items.add(files[0]);
+            manualImportPdf.files = transfer.files;
+            updateManualImportFileLabel();
+            setManualImportStatus("");
+        });
+    }
+
+    if (manualImportFetch && manualImportDoi) {
+        manualImportFetch.addEventListener("click", async () => {
+            const doi = manualImportDoi.value.trim();
+            if (!doi) {
+                setManualImportStatus("Enter a DOI first.", true);
+                resetManualImportPreview();
+                return;
+            }
+            manualImportFetch.disabled = true;
+            setManualImportStatus("Fetching metadata...");
+            resetManualImportPreview();
+            try {
+                const response = await fetch("/papers/import-doi/preview?doi=" + encodeURIComponent(doi), {
+                    headers: { Accept: "application/json" }
+                });
+                const body = await response.text();
+                if (!response.ok) {
+                    throw new Error(body || "Failed to fetch DOI metadata.");
+                }
+                const metadata = JSON.parse(body);
+                renderManualImportPreview(metadata);
+                setManualImportStatus("Metadata loaded.");
+            } catch (error) {
+                setManualImportStatus(error.message || "Failed to fetch DOI metadata.", true);
+                resetManualImportPreview();
+            } finally {
+                manualImportFetch.disabled = false;
+            }
+        });
     }
 
     installPdfWidthObserver();
