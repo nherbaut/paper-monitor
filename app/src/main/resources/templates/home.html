@@ -2895,6 +2895,7 @@
 
         const exportDisabled = !selectedLogicalFeedId || (activePrimaryTab === "state" && !activeStatusTab);
         exportTabButton.classList.toggle("disabled", exportDisabled);
+        exportTabButton.title = exportDisabled ? "Select a paper feed before exporting." : "Export";
         exportFormatButtons.forEach((button) => {
             button.disabled = exportDisabled;
         });

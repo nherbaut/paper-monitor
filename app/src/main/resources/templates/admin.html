@@ -31,6 +31,51 @@
             padding: 2rem 0 4rem;
         }
 
+        .settings-layout {
+            display: grid;
+            grid-template-columns: 260px minmax(0, 1fr);
+            gap: 1.25rem;
+            align-items: start;
+            margin-top: 1.5rem;
+        }
+
+        .settings-sidebar {
+            position: sticky;
+            top: 1rem;
+            display: grid;
+            gap: 0.35rem;
+            padding: 0.75rem;
+            background: color-mix(in srgb, var(--panel) 92%, white);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            box-shadow: 0 18px 40px rgba(77, 56, 38, 0.08);
+        }
+
+        .settings-nav-button {
+            width: 100%;
+            text-align: left;
+            padding: 0.75rem 0.9rem;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            background: transparent;
+            color: var(--ink);
+        }
+
+        .settings-nav-button:hover {
+            border-color: var(--line);
+            background: rgba(255, 255, 255, 0.7);
+        }
+
+        .settings-nav-button.active {
+            background: rgba(179, 79, 46, 0.12);
+            border-color: rgba(179, 79, 46, 0.28);
+            color: #6f2d19;
+        }
+
+        .settings-panels {
+            min-width: 0;
+        }
+
         h1, h2, h3 {
             font-weight: 600;
             letter-spacing: 0.02em;
@@ -42,12 +87,19 @@
         }
 
         section {
-            margin-top: 1.5rem;
             background: color-mix(in srgb, var(--panel) 92%, white);
             border: 1px solid var(--line);
             border-radius: 18px;
             padding: 1.25rem;
             box-shadow: 0 18px 40px rgba(77, 56, 38, 0.08);
+        }
+
+        .settings-panel {
+            margin-top: 0;
+        }
+
+        .settings-panel.hidden {
+            display: none;
         }
 
         form {
@@ -169,6 +221,17 @@
         a { color: var(--accent); }
 
         @media (max-width: 900px) {
+            .settings-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .settings-sidebar {
+                position: static;
+                grid-auto-flow: column;
+                grid-auto-columns: minmax(10rem, 1fr);
+                overflow-x: auto;
+            }
+
             .two-columns {
                 grid-template-columns: 1fr;
             }
@@ -206,7 +269,18 @@
         </p>
     </header>
 
-    <section>
+    <div class="settings-layout">
+        <aside class="settings-sidebar" aria-label="Admin sections">
+            <button class="settings-nav-button active" data-settings-target="setup" type="button">My Review Setup</button>
+            <button class="settings-nav-button" data-settings-target="feeds" type="button">Paper Feed Management</button>
+            <button class="settings-nav-button" data-settings-target="rss" type="button">RSS Feed Management</button>
+            <button class="settings-nav-button" data-settings-target="tts" type="button">TTS Management</button>
+            <button class="settings-nav-button" data-settings-target="users" type="button">User Management</button>
+            <button class="settings-nav-button" data-settings-target="backup" type="button">Backup</button>
+        </aside>
+
+        <div class="settings-panels">
+    <section class="settings-panel" data-settings-panel="setup">
         <h2>My Review Setup</h2>
         <p class="meta">A paper feed is your review workspace. It groups papers, notes, workflow states, and one or more RSS feeds.</p>
         <p class="meta">Workflow states describe where a paper is in your review process. Recommended defaults:</p>
@@ -241,7 +315,7 @@
         </form>
     </section>
 
-    <section>
+    <section class="settings-panel hidden" data-settings-panel="feeds">
         <h2>Paper Feed Management</h2>
         <div class="two-columns">
             <form action="/logical-feeds" method="post">
@@ -336,7 +410,7 @@
         </table>
     </section>
 
-    <section>
+    <section class="settings-panel hidden" data-settings-panel="rss">
         <h2>RSS Feed Management</h2>
         <div class="two-columns">
             <form action="/feeds" method="post">
@@ -427,7 +501,7 @@
         </table>
     </section>
 
-    <section>
+    <section class="settings-panel hidden" data-settings-panel="tts">
         <h2>TTS Management</h2>
         <p class="meta">These settings are personal. They affect your own reader defaults only.</p>
         <form action="/admin/tts" method="post">
@@ -450,7 +524,7 @@
         </form>
     </section>
 
-    <section>
+    <section class="settings-panel hidden" data-settings-panel="users">
         <h2>User Management</h2>
         {#if canAdmin}
         <form action="/admin/local-users" method="post">
@@ -497,7 +571,7 @@
         {/for}
     </section>
 
-    <section>
+    <section class="settings-panel hidden" data-settings-panel="backup">
         <h2>Backup</h2>
         <p class="meta">Export includes only the paper feeds you can read or administer, with their feeds, papers, notes, and stored files.</p>
         <div class="toolbar">
@@ -514,6 +588,8 @@
         <p class="meta">Import remains reserved for paper admins because it replaces server data.</p>
         {/if}
     </section>
+        </div>
+    </div>
 </main>
 <script>
     const POLL_PRESETS = [
@@ -546,6 +622,22 @@
         sync();
         slider.addEventListener("input", sync);
         slider.addEventListener("change", sync);
+    });
+
+    const settingsNavButtons = document.querySelectorAll("[data-settings-target]");
+    const settingsPanels = document.querySelectorAll("[data-settings-panel]");
+
+    const showSettingsPanel = (target) => {
+        settingsNavButtons.forEach((button) => {
+            button.classList.toggle("active", button.dataset.settingsTarget === target);
+        });
+        settingsPanels.forEach((panel) => {
+            panel.classList.toggle("hidden", panel.dataset.settingsPanel !== target);
+        });
+    };
+
+    settingsNavButtons.forEach((button) => {
+        button.addEventListener("click", () => showSettingsPanel(button.dataset.settingsTarget));
     });
 </script>
 </body>
