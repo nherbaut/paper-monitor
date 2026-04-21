@@ -223,6 +223,8 @@ public class BackupService {
             item.put("workflowStates", logicalFeed.workflowStates);
             item.put("gitRepoToken", logicalFeed.gitRepoToken);
             item.put("lastProcessedGitCommit", logicalFeed.lastProcessedGitCommit);
+            item.put("publicReadable", logicalFeed.publicReadable);
+            item.put("publicShareToken", logicalFeed.publicShareToken);
             item.put("ownerId", logicalFeed.owner == null ? null : logicalFeed.owner.id);
             logicalFeeds.add(item);
         }
@@ -361,6 +363,8 @@ public class BackupService {
             logicalFeed.workflowStates = stringValue(item.get("workflowStates"));
             logicalFeed.gitRepoToken = stringValue(item.get("gitRepoToken"));
             logicalFeed.lastProcessedGitCommit = stringValue(item.get("lastProcessedGitCommit"));
+            logicalFeed.publicReadable = boolValue(item.get("publicReadable"));
+            logicalFeed.publicShareToken = stringValue(item.get("publicShareToken"));
             logicalFeed.owner = usersByOldId.get(longValue(item.get("ownerId")));
             logicalFeedRepository.persist(logicalFeed);
             logicalFeedsByOldId.put(longValue(item.get("id")), logicalFeed);

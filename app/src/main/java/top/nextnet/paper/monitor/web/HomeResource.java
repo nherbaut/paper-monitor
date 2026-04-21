@@ -235,6 +235,11 @@ public class HomeResource {
             @jakarta.ws.rs.QueryParam("logicalFeedId") Long logicalFeedId
     ) {
         AppUser currentUser = currentUserContext.get().user();
+        if (currentUser == null) {
+            return login.data("returnTo", "/")
+                    .data("oidcEnabled", oidcService.isEnabled())
+                    .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0);
+        }
         List<LogicalFeed> logicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser);
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
         paperGitSyncService.syncLogicalFeeds(logicalFeeds);
@@ -297,6 +302,41 @@ public class HomeResource {
                 .data("shareMode", true)
                 .data("sharedPaper", paper)
                 .data("sharedPaperUrl", normalizeBaseUrl() + "/share/paper/" + paper.shareToken);
+        return Response.ok(page.render(), MediaType.TEXT_HTML).build();
+    }
+
+    @GET
+    @Path("/share/feed/{token}")
+    @Transactional
+    public Response sharedFeed(@jakarta.ws.rs.PathParam("token") String token) {
+        LogicalFeed logicalFeed = logicalFeedRepository.findByPublicShareToken(token).orElseThrow(NotFoundException::new);
+        AppUser currentUser = currentUserContext.get().user();
+        boolean canRead = logicalFeedAccessService.canRead(logicalFeed, currentUser);
+        if (!logicalFeed.publicReadable && !canRead) {
+            throw new NotFoundException();
+        }
+        if (currentUser != null && canRead) {
+            return seeOther("/?logicalFeedId=" + logicalFeed.id);
+        }
+        ensurePublicShareToken(logicalFeed);
+        populateLogicalFeedAccessFlags(List.of(logicalFeed), currentUser);
+        populatePaperCounts(List.of(logicalFeed));
+        List<Paper> papers = new ArrayList<>(paperRepository.findAllForExport(logicalFeed));
+        populatePaperBadges(papers);
+        for (Paper paper : papers) {
+            paper.viewerCanEdit = false;
+        }
+        TemplateInstance page = home.data("recentPapers", papers)
+                .data("initialPaperId", null)
+                .data("initialLogicalFeedId", logicalFeed.id)
+                .data("logicalFeeds", List.of(logicalFeed))
+                .data("adminLogicalFeeds", List.of())
+                .data("currentUser", currentUser)
+                .data("canAdmin", false)
+                .data("authenticated", false)
+                .data("shareMode", true)
+                .data("sharedPaper", null)
+                .data("sharedPaperUrl", null);
         return Response.ok(page.render(), MediaType.TEXT_HTML).build();
     }
 
@@ -450,10 +490,11 @@ public class HomeResource {
 
         LogicalFeed logicalFeed = new LogicalFeed();
         logicalFeed.name = normalizedLogicalFeedName;
-        logicalFeed.description = normalize(logicalFeedDescription);
+       logicalFeed.description = normalize(logicalFeedDescription);
         logicalFeed.workflowStates = normalizedWorkflowStates;
         logicalFeed.owner = currentUser;
         logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
+        ensurePublicShareToken(logicalFeed);
         logicalFeedRepository.persist(logicalFeed);
 
         Feed feed = new Feed();
@@ -817,6 +858,7 @@ public class HomeResource {
             logicalFeed.workflowStates = normalizeWorkflowStates(workflowStates);
             logicalFeed.owner = requireCurrentUser();
             logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
+            ensurePublicShareToken(logicalFeed);
             logicalFeedRepository.persist(logicalFeed);
             return seeOther("/admin");
         } catch (WebApplicationException e) {
@@ -841,6 +883,7 @@ public class HomeResource {
             logicalFeed.description = normalize(description);
             logicalFeed.workflowStates = normalizeWorkflowStates(workflowStates);
             logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
+            ensurePublicShareToken(logicalFeed);
             return seeOther("/admin");
         } catch (WebApplicationException e) {
             return rethrowOrPlainText(e);
@@ -1811,8 +1854,18 @@ public class HomeResource {
         for (LogicalFeed logicalFeed : logicalFeeds) {
             logicalFeed.viewerCanAdmin = logicalFeedAccessService.canAdmin(logicalFeed, currentUser);
             logicalFeed.publicUrl = logicalFeed.publicReadable
-                    ? normalizeBaseUrl() + "/?logicalFeedId=" + logicalFeed.id
+                    ? normalizeBaseUrl() + "/share/feed/" + ensurePublicShareToken(logicalFeed)
                     : null;
         }
+    }
+
+    private String ensurePublicShareToken(LogicalFeed logicalFeed) {
+        if (logicalFeed == null || !logicalFeed.publicReadable) {
+            return logicalFeed == null ? null : logicalFeed.publicShareToken;
+        }
+        if (logicalFeed.publicShareToken == null || logicalFeed.publicShareToken.isBlank()) {
+            logicalFeed.publicShareToken = UUID.randomUUID().toString();
+        }
+        return logicalFeed.publicShareToken;
     }
 }

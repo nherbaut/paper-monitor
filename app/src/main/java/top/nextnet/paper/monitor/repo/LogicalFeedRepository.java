@@ -24,4 +24,8 @@ public class LogicalFeedRepository implements PanacheRepository<LogicalFeed> {
     public boolean existsPublicReadable() {
         return count("publicReadable", true) > 0;
     }
+
+    public java.util.Optional<LogicalFeed> findByPublicShareToken(String token) {
+        return find("publicShareToken", token).firstResultOptional();
+    }
 }

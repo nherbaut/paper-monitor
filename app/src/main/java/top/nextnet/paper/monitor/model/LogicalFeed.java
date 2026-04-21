@@ -44,6 +44,9 @@ public class LogicalFeed extends PanacheEntityBase {
     @Column(nullable = false)
     public boolean publicReadable;
 
+    @Column(length = 36, unique = true)
+    public String publicShareToken;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn
     public AppUser owner;

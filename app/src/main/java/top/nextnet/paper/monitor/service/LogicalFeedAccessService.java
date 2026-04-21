@@ -34,7 +34,7 @@ public class LogicalFeedAccessService {
 
     public List<LogicalFeed> readableLogicalFeeds(AppUser user) {
         if (user == null) {
-            return logicalFeedRepository.find("publicReadable = true order by name").list();
+            return List.of();
         }
         if (user.admin) {
             return logicalFeedRepository.findAll().list();

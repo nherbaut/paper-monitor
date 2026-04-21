@@ -144,12 +144,15 @@ public class AuthFilter implements ContainerRequestFilter {
             return false;
         }
         if (path.isEmpty()) {
-            return logicalFeedRepository.existsPublicReadable();
+            return true;
         }
         if (path.startsWith("assets/")) {
             return true;
         }
         if (path.matches("share/paper/[0-9a-fA-F-]{36}")) {
+            return true;
+        }
+        if (path.matches("share/feed/[0-9a-fA-F-]{36}")) {
             return true;
         }
         if (path.matches("papers/\\d+/pdf")) {
