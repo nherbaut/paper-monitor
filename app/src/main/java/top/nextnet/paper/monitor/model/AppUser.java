@@ -54,6 +54,19 @@ public class AppUser extends PanacheEntityBase {
     public boolean admin;
 
     @Column(nullable = false)
+    public boolean emailVerified;
+
+    public Instant emailVerifiedAt;
+
+    @Column(nullable = false)
+    public boolean approved;
+
+    public Instant approvedAt;
+
+    @Column(length = 255)
+    public String emailVerificationToken;
+
+    @Column(nullable = false)
     public Instant createdAt = Instant.now();
 
     public Instant lastLoginAt;
@@ -77,6 +90,25 @@ public class AppUser extends PanacheEntityBase {
 
     public boolean isOidcAccount() {
         return "OIDC".equals(authProvider);
+    }
+
+    public boolean isEmailVerified() {
+        return emailVerified || isLegacyActivatedLocalAccount();
+    }
+
+    public boolean isApproved() {
+        return approved || isLegacyActivatedLocalAccount();
+    }
+
+    public boolean isActive() {
+        return isEmailVerified() && isApproved();
+    }
+
+    public boolean isLegacyActivatedLocalAccount() {
+        return isLocalAccount()
+                && emailVerificationToken == null
+                && !emailVerified
+                && !approved;
     }
 
     public String displayLabel() {

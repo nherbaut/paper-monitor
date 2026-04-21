@@ -175,6 +175,34 @@
             margin-bottom: 0.5rem;
         }
 
+        .status-row {
+            display: flex;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+            margin: 0.5rem 0 0.25rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.72);
+        }
+
+        .status-badge.good {
+            color: #1d4d2d;
+            border-color: #b8d5bf;
+            background: #ebf7ee;
+        }
+
+        .status-badge.warn {
+            color: #7b4e11;
+            border-color: #e7c693;
+            background: #fbf2df;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -380,7 +408,7 @@
                                 <select name="userId" required>
                                     <option value="">Select user</option>
                                     {#for user in allUsers}
-                                    {#if user.id != logicalFeed.owner.id}
+                                    {#if user.id != logicalFeed.owner.id && user.active}
                                     <option value="{user.id}">{user.displayLabel} {#if user.email}({user.email}){/if}</option>
                                     {/if}
                                     {/for}
@@ -539,6 +567,7 @@
             <label><input type="checkbox" name="admin"> Paper admin</label>
             <button type="submit">Create local user</button>
         </form>
+        <p class="meta">Self-registered users stay blocked until their email is verified and a paper admin approves them here.</p>
         {#else}
         <p class="meta">Only paper admins can create, update, delete users, or grant the global admin role.</p>
         {/if}
@@ -551,7 +580,20 @@
                 {#if user.email}<br>{user.email}{/if}
                 <br>Provider: {user.authProvider}
             </p>
+            <div class="status-row">
+                <span class="status-badge {#if user.emailVerified}good{#else}warn{/if}">
+                    {#if user.emailVerified}Email verified{#else}Email pending{/if}
+                </span>
+                <span class="status-badge {#if user.approved}good{#else}warn{/if}">
+                    {#if user.approved}Admin approved{#else}Admin approval pending{/if}
+                </span>
+            </div>
             {#if canAdmin}
+            {#if !user.approved}
+            <form action="/admin/users/{user.id}/approve" method="post">
+                <button type="submit">Approve account</button>
+            </form>
+            {/if}
             <form action="/admin/users/{user.id}/update" method="post">
                 <div class="two-columns">
                     <input type="text" name="displayName" value="{user.displayName}" placeholder="Display name">
@@ -592,6 +634,7 @@
     </div>
 </main>
 <script>
+    const initialSettingsPanel = window.location.hash === "#users" ? "users" : "setup";
     const POLL_PRESETS = [
         { label: "Daily", minutes: 1440 },
         { label: "Weekly", minutes: 10080 },
@@ -637,8 +680,13 @@
     };
 
     settingsNavButtons.forEach((button) => {
-        button.addEventListener("click", () => showSettingsPanel(button.dataset.settingsTarget));
+        button.addEventListener("click", () => {
+            window.location.hash = button.dataset.settingsTarget;
+            showSettingsPanel(button.dataset.settingsTarget);
+        });
     });
+
+    showSettingsPanel(initialSettingsPanel);
 </script>
 </body>
 </html>

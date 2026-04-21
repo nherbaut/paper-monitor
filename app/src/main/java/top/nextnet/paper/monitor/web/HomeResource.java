@@ -154,10 +154,16 @@ public class HomeResource {
     @GET
     @Path("/login")
     @Transactional
-    public TemplateInstance login(@QueryParam("returnTo") String returnTo) {
+    public TemplateInstance login(
+            @QueryParam("returnTo") String returnTo,
+            @QueryParam("info") String info,
+            @QueryParam("error") String error
+    ) {
         return login.data("returnTo", safeReturnTo(returnTo))
                 .data("oidcEnabled", oidcService.isEnabled())
-                .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0);
+                .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0)
+                .data("infoMessage", normalize(info))
+                .data("errorMessage", normalize(error));
     }
 
     @POST
@@ -177,6 +183,39 @@ public class HomeResource {
                     .type(MediaType.TEXT_PLAIN)
                     .entity(e.getMessage())
                     .build();
+        }
+    }
+
+    @POST
+    @Path("/signup/local")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response signUpLocal(
+            @RestForm("username") String username,
+            @RestForm("displayName") String displayName,
+            @RestForm("email") String email,
+            @RestForm("password") String password
+    ) {
+        try {
+            authService.signUpLocal(username, displayName, email, password);
+            return seeOther("/login?info=" + urlEncode("Check your email to verify your account, then wait for admin approval"));
+        } catch (IllegalArgumentException e) {
+            return seeOther("/login?error=" + urlEncode(e.getMessage()));
+        }
+    }
+
+    @GET
+    @Path("/signup/verify")
+    @Transactional
+    public Response verifySignupEmail(@QueryParam("token") String token) {
+        try {
+            AppUser user = authService.verifyEmail(token);
+            String info = user.approved
+                    ? "Email verified. You can now sign in"
+                    : "Email verified. Your account now awaits admin approval";
+            return seeOther("/login?info=" + urlEncode(info));
+        } catch (IllegalArgumentException e) {
+            return seeOther("/login?error=" + urlEncode(e.getMessage()));
         }
     }
 
@@ -238,7 +277,9 @@ public class HomeResource {
         if (currentUser == null) {
             return login.data("returnTo", "/")
                     .data("oidcEnabled", oidcService.isEnabled())
-                    .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0);
+                    .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0)
+                    .data("infoMessage", null)
+                    .data("errorMessage", null);
         }
         List<LogicalFeed> logicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser);
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
@@ -544,6 +585,18 @@ public class HomeResource {
         try {
             authService.updateUser(id, displayName, email, "on".equalsIgnoreCase(admin), password);
             return seeOther("/admin");
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
+    }
+
+    @POST
+    @Path("/admin/users/{id}/approve")
+    @Transactional
+    public Response approveUser(@jakarta.ws.rs.PathParam("id") Long id) {
+        try {
+            authService.approveUser(id);
+            return seeOther("/admin#users");
         } catch (IllegalArgumentException e) {
             throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
         }

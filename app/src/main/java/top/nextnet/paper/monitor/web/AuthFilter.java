@@ -31,6 +31,7 @@ public class AuthFilter implements ContainerRequestFilter {
 
     private static final List<String> PUBLIC_PATH_PREFIXES = List.of(
             "login",
+            "signup",
             "auth/oidc/start",
             "auth/oidc/callback",
             "logout");

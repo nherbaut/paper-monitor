@@ -61,6 +61,25 @@
             color: var(--muted);
             line-height: 1.5;
         }
+        .message {
+            margin-top: 1rem;
+            padding: 0.8rem 0.9rem;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.78);
+        }
+        .message.error {
+            border-color: #d7a18e;
+            color: #7b2f18;
+            background: rgba(247, 226, 219, 0.86);
+        }
+        .divider {
+            margin: 1.25rem 0 0.25rem;
+            font-size: 0.92rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
     </style>
 </head>
 <body>
@@ -68,6 +87,12 @@
     <section class="panel">
         <h1>Sign in to Paper Monitor</h1>
         <p class="meta">Use a local account or delegate authentication to your OIDC provider.</p>
+        {#if infoMessage}
+        <p class="message">{infoMessage}</p>
+        {/if}
+        {#if errorMessage}
+        <p class="message error">{errorMessage}</p>
+        {/if}
         {#if bootstrapLocalAdmin}
         <p class="meta">No local user exists yet. The first successful local login will create the initial admin account.</p>
         {/if}
@@ -81,6 +106,17 @@
         <form action="/auth/oidc/start" method="get">
             <input type="hidden" name="returnTo" value="{returnTo}">
             <button class="secondary" type="submit">Sign in with OIDC</button>
+        </form>
+        {/if}
+        {#if !bootstrapLocalAdmin}
+        <p class="divider">New account</p>
+        <p class="meta">Local signup requires email verification and admin approval before access is enabled.</p>
+        <form action="/signup/local" method="post">
+            <input type="text" name="username" placeholder="Username" required>
+            <input type="text" name="displayName" placeholder="Display name">
+            <input type="email" name="email" placeholder="Email" required>
+            <input type="password" name="password" placeholder="Password" required>
+            <button class="secondary" type="submit">Create account</button>
         </form>
         {/if}
     </section>

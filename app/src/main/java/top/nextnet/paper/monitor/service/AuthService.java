@@ -79,6 +79,10 @@ public class AuthService {
             bootstrap.displayName = normalizedUsername;
             bootstrap.authProvider = "LOCAL";
             bootstrap.admin = true;
+            bootstrap.emailVerified = true;
+            bootstrap.emailVerifiedAt = Instant.now();
+            bootstrap.approved = true;
+            bootstrap.approvedAt = Instant.now();
             setPassword(bootstrap, normalizedPassword);
             appUserRepository.persist(bootstrap);
             ensureSettings(bootstrap);
@@ -88,6 +92,7 @@ public class AuthService {
         if (!verifyPassword(user, normalizedPassword)) {
             throw new IllegalArgumentException("Invalid username or password");
         }
+        assertLocalLoginAllowed(user);
         ensureSettings(user);
         return user;
     }
@@ -104,12 +109,69 @@ public class AuthService {
         user.email = normalize(email);
         user.authProvider = "LOCAL";
         user.admin = admin;
+        user.emailVerified = true;
+        user.emailVerifiedAt = user.email == null ? null : Instant.now();
+        user.approved = true;
+        user.approvedAt = Instant.now();
         setPassword(user, normalizeRequired(password, "Password is required"));
         appUserRepository.persist(user);
         ensureSettings(user);
         notificationService.sendUserAccountNotification(user,
                 "Paper Monitor account created",
                 "A Paper Monitor local account was created for you.\n\nUsername: " + user.username);
+        return user;
+    }
+
+    @Transactional
+    public AppUser signUpLocal(String username, String displayName, String email, String password) {
+        if (appUserRepository.countLocalAccounts() == 0) {
+            throw new IllegalArgumentException("Create the initial admin account from the sign-in form first");
+        }
+        String normalizedUsername = normalizeRequired(username, "Username is required").toLowerCase();
+        String normalizedEmail = normalizeRequired(email, "Email is required").toLowerCase();
+        if (appUserRepository.findLocalByUsername(normalizedUsername).isPresent()) {
+            throw new IllegalArgumentException("A local user with this username already exists");
+        }
+        if (appUserRepository.findByEmail(normalizedEmail).isPresent()) {
+            throw new IllegalArgumentException("An account with this email already exists");
+        }
+        AppUser user = new AppUser();
+        user.username = normalizedUsername;
+        user.displayName = normalize(displayName);
+        user.email = normalizedEmail;
+        user.authProvider = "LOCAL";
+        user.admin = false;
+        user.emailVerified = false;
+        user.approved = false;
+        user.emailVerificationToken = randomToken(32);
+        setPassword(user, normalizeRequired(password, "Password is required"));
+        appUserRepository.persist(user);
+        ensureSettings(user);
+        notificationService.sendSignupVerificationEmail(user, verificationUrl(user.emailVerificationToken));
+        notificationService.sendPendingSignupNotification(appUserRepository.findAdminUsersWithEmail(), user, adminUsersUrl());
+        return user;
+    }
+
+    @Transactional
+    public AppUser verifyEmail(String token) {
+        String normalizedToken = normalizeRequired(token, "Verification token is required");
+        AppUser user = appUserRepository.findByEmailVerificationToken(normalizedToken)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired verification link"));
+        user.emailVerified = true;
+        user.emailVerifiedAt = Instant.now();
+        user.emailVerificationToken = null;
+        return user;
+    }
+
+    @Transactional
+    public AppUser approveUser(Long userId) {
+        AppUser user = appUserRepository.findByIdOptional(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        user.approved = true;
+        if (user.approvedAt == null) {
+            user.approvedAt = Instant.now();
+        }
+        notificationService.sendAccountApprovedNotification(user, loginUrl());
         return user;
     }
 
@@ -150,7 +212,7 @@ public class AuthService {
     }
 
     public List<AppUser> allUsers() {
-        return appUserRepository.find("order by admin desc, username asc").list();
+        return appUserRepository.find("order by approved asc, emailVerified asc, admin desc, username asc").list();
     }
 
     @Transactional
@@ -163,6 +225,15 @@ public class AuthService {
         user.displayName = fallback(normalize(displayName), user.username);
         user.email = normalize(email);
         user.admin = admin;
+        user.emailVerified = true;
+        if (user.emailVerifiedAt == null) {
+            user.emailVerifiedAt = Instant.now();
+        }
+        user.approved = true;
+        if (user.approvedAt == null) {
+            user.approvedAt = Instant.now();
+        }
+        user.emailVerificationToken = null;
         user.lastLoginAt = Instant.now();
         if (user.id == null) {
             appUserRepository.persist(user);
@@ -237,6 +308,15 @@ public class AuthService {
         return baseUrl.startsWith("https://");
     }
 
+    private void assertLocalLoginAllowed(AppUser user) {
+        if (!user.isEmailVerified()) {
+            throw new IllegalArgumentException("Your email address must be verified before you can sign in");
+        }
+        if (!user.isApproved()) {
+            throw new IllegalArgumentException("Your account is awaiting admin approval");
+        }
+    }
+
     private void setPassword(AppUser user, String password) {
         byte[] salt = new byte[16];
         secureRandom.nextBytes(salt);
@@ -287,5 +367,21 @@ public class AuthService {
 
     private String fallback(String first, String second) {
         return first == null || first.isBlank() ? second : first;
+    }
+
+    private String verificationUrl(String token) {
+        return normalizeBaseUrl() + "/signup/verify?token=" + token;
+    }
+
+    private String adminUsersUrl() {
+        return normalizeBaseUrl() + "/admin#users";
+    }
+
+    private String loginUrl() {
+        return normalizeBaseUrl() + "/login";
+    }
+
+    private String normalizeBaseUrl() {
+        return baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
     }
 }

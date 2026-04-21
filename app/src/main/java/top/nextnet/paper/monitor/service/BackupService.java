@@ -191,6 +191,11 @@ public class BackupService {
             item.put("passwordSalt", user.passwordSalt);
             item.put("passwordHash", user.passwordHash);
             item.put("admin", user.admin);
+            item.put("emailVerified", user.isEmailVerified());
+            item.put("emailVerifiedAt", user.emailVerifiedAt == null ? null : user.emailVerifiedAt.toString());
+            item.put("approved", user.isApproved());
+            item.put("approvedAt", user.approvedAt == null ? null : user.approvedAt.toString());
+            item.put("emailVerificationToken", user.emailVerificationToken);
             item.put("createdAt", user.createdAt == null ? null : user.createdAt.toString());
             item.put("lastLoginAt", user.lastLoginAt == null ? null : user.lastLoginAt.toString());
             users.add(item);
@@ -337,6 +342,11 @@ public class BackupService {
             user.passwordSalt = stringValue(item.get("passwordSalt"));
             user.passwordHash = stringValue(item.get("passwordHash"));
             user.admin = boolValue(item.get("admin"));
+            user.emailVerified = item.containsKey("emailVerified") ? boolValue(item.get("emailVerified")) : true;
+            user.emailVerifiedAt = instantValue(item.get("emailVerifiedAt"));
+            user.approved = item.containsKey("approved") ? boolValue(item.get("approved")) : true;
+            user.approvedAt = instantValue(item.get("approvedAt"));
+            user.emailVerificationToken = stringValue(item.get("emailVerificationToken"));
             user.createdAt = instantValue(item.get("createdAt"));
             user.lastLoginAt = instantValue(item.get("lastLoginAt"));
             appUserRepository.persist(user);
