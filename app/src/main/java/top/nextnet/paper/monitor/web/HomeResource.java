@@ -414,6 +414,7 @@ public class HomeResource {
                 .data("currentUser", currentUser)
                 .data("canAdmin", currentUserContext.get().isAdmin())
                 .data("allUsers", authService.allUsers())
+                .data("userManagementUsers", currentUserContext.get().isAdmin() ? authService.allUsers() : List.of(currentUser))
                 .data("oidcEnabled", oidcService.isEnabled());
     }
 
@@ -510,7 +511,8 @@ public class HomeResource {
             @RestForm("rssFeedName") String rssFeedName,
             @RestForm("rssFeedUrl") String rssFeedUrl,
             @RestForm("pollIntervalMinutes") Integer pollIntervalMinutes,
-            @RestForm("publicReadable") String publicReadable
+            @RestForm("publicReadable") String publicReadable,
+            @RestForm("notifyOnNewRssPapers") String notifyOnNewRssPapers
     ) {
         AppUser currentUser = requireCurrentUser();
 
@@ -535,6 +537,7 @@ public class HomeResource {
         logicalFeed.workflowStates = normalizedWorkflowStates;
         logicalFeed.owner = currentUser;
         logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
+        logicalFeed.notifyOnNewRssPapers = !"off".equalsIgnoreCase(notifyOnNewRssPapers);
         ensurePublicShareToken(logicalFeed);
         logicalFeedRepository.persist(logicalFeed);
 
@@ -902,7 +905,8 @@ public class HomeResource {
             @RestForm("name") String name,
             @RestForm("description") String description,
             @RestForm("workflowStates") String workflowStates,
-            @RestForm("publicReadable") String publicReadable
+            @RestForm("publicReadable") String publicReadable,
+            @RestForm("notifyOnNewRssPapers") String notifyOnNewRssPapers
     ) {
         try {
             LogicalFeed logicalFeed = new LogicalFeed();
@@ -911,6 +915,7 @@ public class HomeResource {
             logicalFeed.workflowStates = normalizeWorkflowStates(workflowStates);
             logicalFeed.owner = requireCurrentUser();
             logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
+            logicalFeed.notifyOnNewRssPapers = !"off".equalsIgnoreCase(notifyOnNewRssPapers);
             ensurePublicShareToken(logicalFeed);
             logicalFeedRepository.persist(logicalFeed);
             return seeOther("/admin");
@@ -928,7 +933,8 @@ public class HomeResource {
             @RestForm("name") String name,
             @RestForm("description") String description,
             @RestForm("workflowStates") String workflowStates,
-            @RestForm("publicReadable") String publicReadable
+            @RestForm("publicReadable") String publicReadable,
+            @RestForm("notifyOnNewRssPapers") String notifyOnNewRssPapers
     ) {
         try {
             LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
@@ -936,6 +942,7 @@ public class HomeResource {
             logicalFeed.description = normalize(description);
             logicalFeed.workflowStates = normalizeWorkflowStates(workflowStates);
             logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
+            logicalFeed.notifyOnNewRssPapers = !"off".equalsIgnoreCase(notifyOnNewRssPapers);
             ensurePublicShareToken(logicalFeed);
             return seeOther("/admin");
         } catch (WebApplicationException e) {

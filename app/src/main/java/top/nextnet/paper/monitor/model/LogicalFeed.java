@@ -44,6 +44,9 @@ public class LogicalFeed extends PanacheEntityBase {
     @Column(nullable = false)
     public boolean publicReadable;
 
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    public boolean notifyOnNewRssPapers = true;
+
     @Column(length = 36, unique = true)
     public String publicShareToken;
 

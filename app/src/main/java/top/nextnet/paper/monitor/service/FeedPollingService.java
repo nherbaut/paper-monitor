@@ -5,6 +5,7 @@ import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import top.nextnet.paper.monitor.model.Feed;
 import top.nextnet.paper.monitor.model.Paper;
@@ -27,19 +28,22 @@ public class FeedPollingService {
     private final FeedFetcher feedFetcher;
     private final RssParser rssParser;
     private final PaperEventService paperEventService;
+    private final NotificationService notificationService;
 
     public FeedPollingService(
             FeedRepository feedRepository,
             PaperRepository paperRepository,
             FeedFetcher feedFetcher,
             RssParser rssParser,
-            PaperEventService paperEventService
+            PaperEventService paperEventService,
+            NotificationService notificationService
     ) {
         this.feedRepository = feedRepository;
         this.paperRepository = paperRepository;
         this.feedFetcher = feedFetcher;
         this.rssParser = rssParser;
         this.paperEventService = paperEventService;
+        this.notificationService = notificationService;
     }
 
     @Scheduled(every = "{paper-monitor.poller.every:60s}")
@@ -94,6 +98,7 @@ public class FeedPollingService {
             var items = rssParser.parse(body);
             Log.infof("Parsed %d RSS items for feed id=%d url=%s", items.size(), feed.id, feed.url);
             int createdCount = 0;
+            List<Paper> createdPapers = new ArrayList<>();
             int skippedDuplicateCount = 0;
             int skippedMissingLinkCount = 0;
             for (var item : items) {
@@ -121,9 +126,13 @@ public class FeedPollingService {
                 paperRepository.persist(paper);
                 paperEventService.log(paper, "FETCH", "Fetched from " + feed.name);
                 createdCount++;
+                createdPapers.add(paper);
             }
             feed.lastPolledAt = now;
             feed.lastError = null;
+            if (feed.logicalFeed != null && feed.logicalFeed.notifyOnNewRssPapers && !createdPapers.isEmpty()) {
+                notificationService.sendRssPaperDigest(feed.logicalFeed, feed, createdPapers);
+            }
             Log.infof(
                     "Feed poll completed id=%d created=%d duplicates=%d missingLink=%d",
                     feed.id, createdCount, skippedDuplicateCount, skippedMissingLinkCount);

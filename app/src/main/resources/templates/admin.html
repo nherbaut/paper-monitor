@@ -339,6 +339,7 @@
                 </div>
             </div>
             <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
+            <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Email owner and feed admins when RSS adds papers to the default state</label>
             <button type="submit">Create paper feed and RSS feed</button>
         </form>
     </section>
@@ -352,6 +353,7 @@
                 <textarea name="description" placeholder="Optional description"></textarea>
                 <textarea name="workflowStates" required></textarea>
                 <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
+                <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Email owner and feed admins when RSS adds papers to the default state</label>
                 <button type="submit">Create paper feed</button>
             </form>
             <div>
@@ -402,6 +404,7 @@
                                 <textarea name="description">{logicalFeed.description}</textarea>
                                 <textarea name="workflowStates" required>{logicalFeed.workflowStatesText}</textarea>
                                 <label><input type="checkbox" name="publicReadable" {#if logicalFeed.publicReadable}checked{/if}> Public read-only feed</label>
+                                <label><input type="checkbox" name="notifyOnNewRssPapers" {#if logicalFeed.notifyOnNewRssPapers}checked{/if}> Email owner and feed admins when RSS adds papers to the default state</label>
                                 <button type="submit">Save paper feed</button>
                             </form>
                             <form action="/logical-feeds/{logicalFeed.id}/share" method="post">
@@ -572,7 +575,7 @@
         <p class="meta">Only paper admins can create, update, delete users, or grant the global admin role.</p>
         {/if}
 
-        {#for user in allUsers}
+        {#for user in userManagementUsers}
         <details>
             <summary>{user.username} {#if user.admin}(paper admin){/if}</summary>
             <p class="meta">
