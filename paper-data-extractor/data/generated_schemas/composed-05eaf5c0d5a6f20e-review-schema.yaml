@@ -1,0 +1,211 @@
+id: https://papers.home.nextnet.top/generated/composed_05eaf5c0d5a6f20e_review_schema
+name: composed_05eaf5c0d5a6f20e_review_schema
+prefixes:
+  ex: https://papers.home.nextnet.top/generated/
+  linkml: https://w3id.org/linkml/
+imports:
+- linkml:types
+default_prefix: ex
+classes:
+  PaperReview:
+    tree_root: true
+    description: Review answers for taxonomy Taxonomy of AI explainability techniques
+    slots:
+    - paper_id
+    - taxonomy_id
+    - explanation_interaction
+    - explanation_target
+    - explanation_scope
+    - explanation_generation
+    - explanation_representation
+    - explanation_modality
+    - explanation_persona
+slots:
+  paper_id:
+    range: string
+    required: true
+    description: Paper identifier in Paper Monitor.
+  taxonomy_id:
+    range: string
+    required: true
+    description: Composed taxonomy identifier.
+  explanation_interaction:
+    title: Interaction type
+    description: 'Whether the explanation adapts to user feedback or remains fixed.
+
+      '
+    required: true
+    range: explanation_interaction_enum
+    multivalued: false
+  explanation_target:
+    title: Explanation target
+    description: 'The entity being explained by the method.
+
+      '
+    required: true
+    range: explanation_target_enum
+    multivalued: false
+  explanation_scope:
+    title: Explanation scope
+    description: 'The level at which the explanation is provided.
+
+      '
+    required: true
+    range: explanation_scope_enum
+    multivalued: false
+  explanation_generation:
+    title: Explanation generation type
+    description: 'Mechanism used to produce explanations.
+
+      '
+    required: true
+    range: explanation_generation_enum
+    multivalued: false
+  explanation_representation:
+    title: Explanation representation
+    description: 'The form in which explanations are expressed.
+
+      '
+    required: false
+    range: explanation_representation_enum
+    multivalued: true
+  explanation_modality:
+    title: Data modality
+    description: 'Type of data supported by the explanation method.
+
+      '
+    required: false
+    range: explanation_modality_enum
+    multivalued: true
+  explanation_persona:
+    title: Consumer persona
+    description: 'Target user type requiring the explanation.
+
+      '
+    required: false
+    range: explanation_persona_enum
+    multivalued: true
+enums:
+  explanation_interaction_enum:
+    permissible_values:
+      static:
+        title: Static
+        description: 'Explanation does not change in response to user interaction.
+
+          '
+      interactive:
+        title: Interactive
+        description: 'Explanation allows iterative exploration or dialogue with the
+          user.
+
+          '
+  explanation_target_enum:
+    permissible_values:
+      data:
+        title: Data
+        description: 'Explanation focuses on understanding datasets or feature structure.
+
+          '
+      model:
+        title: Model
+        description: 'Explanation focuses on understanding model behavior or predictions.
+
+          '
+  explanation_scope_enum:
+    permissible_values:
+      local:
+        title: Local
+        description: 'Explanation applies to a single prediction or instance.
+
+          '
+      global:
+        title: Global
+        description: 'Explanation describes overall model behavior.
+
+          '
+  explanation_generation_enum:
+    permissible_values:
+      direct:
+        title: Directly interpretable
+        description: 'The model itself is inherently interpretable and provides explanations.
+
+          '
+      post_hoc:
+        title: Post-hoc
+        description: 'Explanation is generated after model training using an auxiliary
+          method.
+
+          '
+      self_explaining:
+        title: Self-explaining
+        description: 'The model generates explanations as part of its prediction process.
+
+          '
+  explanation_representation_enum:
+    permissible_values:
+      features:
+        title: Feature-based
+        description: 'Explanation highlights relevant features influencing predictions.
+
+          '
+      samples:
+        title: Sample-based
+        description: 'Explanation uses representative or similar instances.
+
+          '
+      distributions:
+        title: Distribution-based
+        description: 'Explanation characterizes statistical properties of data or
+          model outputs.
+
+          '
+      surrogate_model:
+        title: Surrogate model
+        description: 'Explanation approximates the original model using a simpler
+          interpretable model.
+
+          '
+      visualization:
+        title: Visualization
+        description: 'Explanation is presented through graphical or visual representations.
+
+          '
+  explanation_modality_enum:
+    permissible_values:
+      tabular:
+        title: Tabular
+        description: 'Structured data with rows and columns.
+
+          '
+      image:
+        title: Image
+        description: 'Visual data such as images.
+
+          '
+      text:
+        title: Text
+        description: 'Natural language or textual data.
+
+          '
+  explanation_persona_enum:
+    permissible_values:
+      data_scientist:
+        title: Data scientist
+        description: 'User developing or analyzing models.
+
+          '
+      domain_expert:
+        title: Domain expert
+        description: 'Specialist interpreting model outputs in context.
+
+          '
+      end_user:
+        title: End user
+        description: 'Non-expert affected by decisions.
+
+          '
+      regulator:
+        title: Regulator
+        description: 'Authority ensuring compliance and fairness.
+
+          '

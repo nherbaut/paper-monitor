@@ -1,0 +1,794 @@
+id: https://papers.home.nextnet.top/generated/composed_b12e8a08c9a417a7_review_schema
+name: composed_b12e8a08c9a417a7_review_schema
+prefixes:
+  ex: https://papers.home.nextnet.top/generated/
+  linkml: https://w3id.org/linkml/
+imports:
+- linkml:types
+default_prefix: ex
+classes:
+  PaperReview:
+    tree_root: true
+    description: Review answers for taxonomy Requirements engineering paper classification
+      and evaluation criteria + HCI-centric survey and taxonomy of Human-Generative-AI
+      interactions
+    slots:
+    - paper_id
+    - taxonomy_id
+    - paper_class
+    - purpose_of_using_genai
+    - feedback_from_models_to_users
+    - output_modality
+    - function_of_genai_model
+    - output_synchronization
+    - control_from_users_to_models
+    - method_to_improve_output
+    - object_to_control
+    - medium_of_control
+    - level_of_engagement
+    - application_domain
+    - evaluation_strategy
+    - problem_clearly_stated
+    - properties_clearly_stated
+    - research_method_sound
+    - knowledge_claim_validated
+    - knowledge_increase_significant
+    - related_work_sufficient
+    - problem_explained
+    - technique_novel
+    - technique_well_described
+    - technique_sound
+    - broader_relevance_argued
+    - competing_techniques_discussed
+    - technique_clearly_described
+    - technique_properties_stated
+    - applicability_conditions_clear
+    - framework_original
+    - framework_sound
+    - framework_insightful
+    - position_sound
+    - opinion_surprising
+    - discussion_provoking
+    - experience_original
+    - report_sound
+    - report_revealing
+    - practitioner_relevance
+slots:
+  paper_id:
+    range: string
+    required: true
+    description: Paper identifier in Paper Monitor.
+  taxonomy_id:
+    range: string
+    required: true
+    description: Composed taxonomy identifier.
+  paper_class:
+    title: Paper class
+    required: true
+    range: paper_class_enum
+    multivalued: true
+  purpose_of_using_genai:
+    title: Purpose of using GenAI
+    description: 'The objective or intent behind using generative AI in a task, reflecting
+      how the human leverages the system.
+
+      '
+    required: true
+    range: purpose_of_using_genai_enum
+    multivalued: true
+  feedback_from_models_to_users:
+    title: Feedback from models to users
+    description: 'The form and structure of outputs produced by the generative model
+      and presented to the user.
+
+      '
+    required: false
+    range: string
+    multivalued: true
+  output_modality:
+    title: Output modality
+    description: 'The modality or representation format of generated outputs.
+
+      '
+    required: false
+    range: output_modality_enum
+    multivalued: true
+  function_of_genai_model:
+    title: Function of GenAI model
+    description: 'The functional role played by the generative model in producing
+      outputs.
+
+      '
+    required: false
+    range: function_of_genai_model_enum
+    multivalued: true
+  output_synchronization:
+    title: Output synchronization
+    description: 'Temporal alignment between generation and presentation.
+
+      '
+    required: false
+    range: output_synchronization_enum
+    multivalued: false
+  control_from_users_to_models:
+    title: Control from users to models
+    description: 'Mechanisms through which users influence or guide model behavior.
+
+      '
+    required: false
+    range: string
+    multivalued: true
+  method_to_improve_output:
+    title: Method to improve output
+    description: 'Interaction techniques used to refine results.
+
+      '
+    required: false
+    range: method_to_improve_output_enum
+    multivalued: true
+  object_to_control:
+    title: Object to control
+    description: 'Internal or external elements influenced by the user.
+
+      '
+    required: false
+    range: object_to_control_enum
+    multivalued: true
+  medium_of_control:
+    title: Medium of control
+    description: 'Interface or modality used to provide control.
+
+      '
+    required: false
+    range: medium_of_control_enum
+    multivalued: true
+  level_of_engagement:
+    title: Level of engagement
+    description: 'Degree of human involvement in interaction with the generative system.
+
+      '
+    required: false
+    range: level_of_engagement_enum
+    multivalued: false
+  application_domain:
+    title: Application domain
+    description: 'Domain or context in which the generative system is applied.
+
+      '
+    required: false
+    range: application_domain_enum
+    multivalued: true
+  evaluation_strategy:
+    title: Evaluation strategy
+    description: 'Methods used to assess system performance and interaction quality.
+
+      '
+    required: false
+    range: evaluation_strategy_enum
+    multivalued: true
+  problem_clearly_stated:
+    title: Problem clearly stated
+    description: Is the problem clearly stated?
+    range: problem_clearly_stated_enum
+  properties_clearly_stated:
+    title: Properties clearly stated
+    description: Are the causal or logical properties clearly stated?
+    range: properties_clearly_stated_enum
+  research_method_sound:
+    title: Research method sound
+    description: Is the research method sound?
+    range: research_method_sound_enum
+  knowledge_claim_validated:
+    title: Knowledge claim validated
+    description: Is the conclusion supported by the paper?
+    range: knowledge_claim_validated_enum
+  knowledge_increase_significant:
+    title: Significant knowledge increase
+    description: Are the lessons learned interesting?
+    range: knowledge_increase_significant_enum
+  related_work_sufficient:
+    title: Related work sufficient
+    description: Is there sufficient discussion of related work?
+    range: related_work_sufficient_enum
+  problem_explained:
+    title: Problem explained
+    description: Is the problem to be solved clearly explained?
+    range: problem_explained_enum
+  technique_novel:
+    title: Technique novel
+    description: Is the technique novel, or is the application novel?
+    range: technique_novel_enum
+  technique_well_described:
+    title: Technique well described
+    description: Is the technique sufficiently well described for later validation?
+    range: technique_well_described_enum
+  technique_sound:
+    title: Technique sound
+    description: Is the technique sound?
+    range: technique_sound_enum
+  broader_relevance_argued:
+    title: Broader relevance argued
+    description: Is the broader relevance of the technique argued?
+    range: broader_relevance_argued_enum
+  competing_techniques_discussed:
+    title: Competing techniques discussed
+    description: Are competing techniques discussed and compared?
+    range: competing_techniques_discussed_enum
+  technique_clearly_described:
+    title: Technique clearly described
+    description: Is the technique to be validated clearly described?
+    range: technique_clearly_described_enum
+  technique_properties_stated:
+    title: Technique properties stated
+    description: Are the causal or logical properties of the technique clearly stated?
+    range: technique_properties_stated_enum
+  applicability_conditions_clear:
+    title: Applicability conditions clear
+    description: Is it clear under which circumstances the technique has the stated
+      properties?
+    range: applicability_conditions_clear_enum
+  framework_original:
+    title: Framework original
+    description: Is the conceptual framework original?
+    range: framework_original_enum
+  framework_sound:
+    title: Framework sound
+    description: Is it sound?
+    range: framework_sound_enum
+  framework_insightful:
+    title: Framework insightful
+    description: Is the framework insightful?
+    range: framework_insightful_enum
+  position_sound:
+    title: Position sound
+    description: Is the stated position sound?
+    range: position_sound_enum
+  opinion_surprising:
+    title: Opinion surprising
+    description: Is the opinion surprising?
+    range: opinion_surprising_enum
+  discussion_provoking:
+    title: Discussion provoking
+    description: Is it likely to provoke discussion?
+    range: discussion_provoking_enum
+  experience_original:
+    title: Experience original
+    description: Is the experience original?
+    range: experience_original_enum
+  report_sound:
+    title: Report sound
+    description: Is the report about it sound?
+    range: report_sound_enum
+  report_revealing:
+    title: Report revealing
+    description: Is the report revealing?
+    range: report_revealing_enum
+  practitioner_relevance:
+    title: Practitioner relevance
+    description: Is the report relevant for practitioners?
+    range: practitioner_relevance_enum
+enums:
+  paper_class_enum:
+    permissible_values:
+      evaluation_research:
+        title: Evaluation research
+        description: 'Investigation of a problem in practice or of an implemented
+          technique in practice. The focus is on empirical or analytical evaluation
+          in a real-world context, with emphasis on the validity of the knowledge
+          claim and the soundness of the research method.
+
+          '
+      proposal_of_solution:
+        title: Proposal of solution
+        description: 'Proposal of a novel or significantly improved technique, supported
+          by argumentation or limited evidence, but without full validation in practice.
+
+          '
+      validation_research:
+        title: Validation research
+        description: 'Investigation of the properties of a solution that has not yet
+          been implemented in practice, using controlled experiments, simulations,
+          or formal analysis.
+
+          '
+      philosophical_paper:
+        title: Philosophical paper
+        description: 'Paper proposing a new conceptual framework or way of thinking
+          about requirements engineering problems.
+
+          '
+      opinion_paper:
+        title: Opinion paper
+        description: 'Paper expressing the author''s viewpoint about practices, methods,
+          or directions in the field.
+
+          '
+      personal_experience_paper:
+        title: Personal experience paper
+        description: 'Report of personal experience in applying techniques or working
+          in projects, emphasizing observed outcomes and lessons learned.
+
+          '
+  problem_clearly_stated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  properties_clearly_stated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  research_method_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  knowledge_claim_validated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  knowledge_increase_significant_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  related_work_sufficient_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  problem_explained_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_novel_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_well_described_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  broader_relevance_argued_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  competing_techniques_discussed_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_clearly_described_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_properties_stated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  applicability_conditions_clear_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  framework_original_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  framework_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  framework_insightful_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  position_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  opinion_surprising_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  discussion_provoking_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  experience_original_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  report_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  report_revealing_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  practitioner_relevance_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  purpose_of_using_genai_enum:
+    permissible_values:
+      refine_outcomes:
+        title: Refine outcomes
+        description: 'Improve or iteratively refine generated outputs toward a desired
+          result.
+
+          '
+      explore_alternatives:
+        title: Explore alternatives
+        description: 'Generate multiple variations to explore a design or solution
+          space.
+
+          '
+      get_answers_to_inquiries:
+        title: Get answers to inquiries
+        description: 'Obtain direct answers or responses to user questions.
+
+          '
+      understand_subjects:
+        title: Understand subjects
+        description: 'Support comprehension or learning about a topic.
+
+          '
+      automate_processes:
+        title: Automate processes
+        description: 'Delegate parts of a workflow or task execution to the system.
+
+          '
+      enhance_experiences:
+        title: Enhance experiences
+        description: 'Improve user interaction, engagement, or usability through generative
+          capabilities.
+
+          '
+      augment_sample_data:
+        title: Augment sample data
+        description: 'Generate additional data to support training, testing, or analysis.
+
+          '
+  output_modality_enum:
+    permissible_values:
+      textual:
+        title: Textual
+        description: 'Text-based outputs in natural or formal language.
+
+          '
+      text:
+        title: Text
+        description: Plain textual content.
+      chat:
+        title: Chat
+        description: Conversational interaction format.
+      code:
+        title: Code
+        description: Source code generation.
+      font:
+        title: Font
+        description: Generated typography.
+      handwriting:
+        title: Handwriting
+        description: Simulated handwritten text.
+      two_dimensional_visual:
+        title: 2D visual
+        description: 'Two-dimensional visual outputs.
+
+          '
+      image:
+        title: Image
+        description: Static visual imagery.
+      sketch:
+        title: Sketch
+        description: Rough or conceptual drawings.
+      slide:
+        title: Slide
+        description: Presentation-style visuals.
+      video:
+        title: Video
+        description: Temporal visual sequences.
+      spatial_ar:
+        title: Spatial AR
+        description: Augmented reality overlays.
+      data_visualization:
+        title: Data visualization
+        description: Graphs and charts.
+      layout:
+        title: Layout
+        description: 'Structured spatial arrangement outputs.
+
+          '
+      game_layout:
+        title: Game layout
+        description: Game environment structure.
+      web_layout:
+        title: Web layout
+        description: Web page structure.
+      graphic_layout:
+        title: Graphic layout
+        description: Graphic composition.
+      floor_plan:
+        title: Floor plan
+        description: Spatial architectural layout.
+      numerical_data:
+        title: Numerical data
+        description: 'Structured numeric outputs.
+
+          '
+      robot_control_sequence:
+        title: Robot control sequence
+        description: Numerical control instructions.
+      audio:
+        title: Audio
+        description: 'Sound-based outputs.
+
+          '
+      music:
+        title: Music
+        description: Musical content.
+      sound_effect:
+        title: Sound effect
+        description: Non-musical audio signals.
+      voice:
+        title: Voice
+        description: Spoken language synthesis.
+      three_dimensional_graphic:
+        title: 3D graphic
+        description: 'Three-dimensional generated content.
+
+          '
+      three_d_model:
+        title: 3D model
+        description: Static 3D objects.
+      three_d_motion:
+        title: 3D motion
+        description: Animated 3D sequences.
+      xr_scene:
+        title: XR scene
+        description: Extended reality environments.
+  function_of_genai_model_enum:
+    permissible_values:
+      generation_from_scratch:
+        title: Generation from scratch
+        description: Create outputs without prior content.
+      completion:
+        title: Completion
+        description: Extend or complete partial inputs.
+      intra_modal_transformation:
+        title: Intra-modal transformation
+        description: Transform content within the same modality.
+      inter_modal_conversion:
+        title: Inter-modal conversion
+        description: Convert content across modalities.
+      diversification:
+        title: Diversification
+        description: Generate multiple variations.
+      aggregation:
+        title: Aggregation
+        description: Combine multiple inputs into a unified output.
+  output_synchronization_enum:
+    permissible_values:
+      preliminary:
+        title: Preliminary
+        description: Provided before final output.
+      real_time:
+        title: Real-time
+        description: Generated interactively during use.
+      delayed:
+        title: Delayed
+        description: Provided after processing completion.
+  method_to_improve_output_enum:
+    permissible_values:
+      option_selection:
+        title: Option selection
+        description: Choosing among generated alternatives.
+      highlighting_and_inpainting:
+        title: Highlighting and inpainting
+        description: Selecting regions for modification.
+      parameter_based_tuning:
+        title: Parameter-based tuning
+        description: Adjusting system parameters.
+      natural_language_command:
+        title: Natural language command
+        description: Using textual instructions.
+      additional_demonstration:
+        title: Additional demonstration
+        description: Providing examples.
+      reinitialization:
+        title: Re-initialization
+        description: Restarting generation.
+  object_to_control_enum:
+    permissible_values:
+      latent_space:
+        title: Latent space
+        description: Internal representation space.
+      parameters_or_weights:
+        title: Parameters or weights
+        description: Model parameters.
+      hyperparameters:
+        title: Hyperparameters
+        description: Training or inference configuration.
+      input:
+        title: Input
+        description: Input data or prompts.
+  medium_of_control_enum:
+    permissible_values:
+      gui_and_widget:
+        title: GUI and widget
+        description: Graphical interface elements.
+      controller:
+        title: Controller
+        description: Dedicated input devices.
+      tangible_object:
+        title: Tangible object
+        description: Physical interaction artifacts.
+      pen:
+        title: Pen
+        description: Stylus-based input.
+      brain_control_signal:
+        title: Brain control signal
+        description: Neural interface signals.
+      body_motion_and_gesture:
+        title: Body motion and gesture
+        description: Motion-based interaction.
+      audio:
+        title: Audio
+        description: Voice or sound input.
+  level_of_engagement_enum:
+    permissible_values:
+      passive:
+        title: Passive
+        description: Minimal user involvement.
+      deterministic:
+        title: Deterministic
+        description: User specifies exact outputs.
+      assistive:
+        title: Assistive
+        description: System assists user decisions.
+      collaborative:
+        title: Collaborative
+        description: Human and system co-create outputs.
+  application_domain_enum:
+    permissible_values:
+      art_and_creativity:
+        title: Art and creativity
+        description: Creative production tasks.
+      research_and_science:
+        title: Research and science
+        description: Scientific workflows.
+      writing:
+        title: Writing
+        description: Text composition tasks.
+      programming:
+        title: Programming
+        description: Software development.
+      robotics_and_iot:
+        title: Robotics and IoT
+        description: Physical systems control.
+      education_and_training:
+        title: Education and training
+        description: Learning environments.
+      game_development:
+        title: Game development
+        description: Game design and content creation.
+      three_d_modeling:
+        title: 3D modeling
+        description: 3D content creation.
+      design:
+        title: Design
+        description: Product or interface design.
+      quality_of_life:
+        title: Quality of life
+        description: Everyday assistance and well-being.
+  evaluation_strategy_enum:
+    permissible_values:
+      technical_evaluation:
+        title: Technical evaluation
+        description: Evaluation of algorithmic or system performance.
+      demonstration:
+        title: Demonstration
+        description: Proof-of-concept or illustrative examples.
+      user_evaluation:
+        title: User evaluation
+        description: Empirical studies involving users.

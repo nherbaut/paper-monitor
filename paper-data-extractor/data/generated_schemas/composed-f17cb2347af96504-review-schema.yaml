@@ -1,0 +1,814 @@
+id: https://papers.home.nextnet.top/generated/composed_f17cb2347af96504_review_schema
+name: composed_f17cb2347af96504_review_schema
+prefixes:
+  ex: https://papers.home.nextnet.top/generated/
+  linkml: https://w3id.org/linkml/
+imports:
+- linkml:types
+default_prefix: ex
+classes:
+  PaperReview:
+    tree_root: true
+    description: Review answers for taxonomy Requirements engineering paper classification
+      and evaluation criteria + Taxonomy of AI explainability techniques + Taxonomy
+      of trust in AI
+    slots:
+    - paper_id
+    - taxonomy_id
+    - paper_class
+    - explanation_interaction
+    - explanation_target
+    - explanation_scope
+    - explanation_generation
+    - explanation_representation
+    - explanation_modality
+    - explanation_persona
+    - interaction_type
+    - trust_factor_category
+    - trust_parameter
+    - technical_metric
+    - non_technical_metric
+    - trust_dynamics
+    - trust_principle
+    - problem_clearly_stated
+    - properties_clearly_stated
+    - research_method_sound
+    - knowledge_claim_validated
+    - knowledge_increase_significant
+    - related_work_sufficient
+    - problem_explained
+    - technique_novel
+    - technique_well_described
+    - technique_sound
+    - broader_relevance_argued
+    - competing_techniques_discussed
+    - technique_clearly_described
+    - technique_properties_stated
+    - applicability_conditions_clear
+    - framework_original
+    - framework_sound
+    - framework_insightful
+    - position_sound
+    - opinion_surprising
+    - discussion_provoking
+    - experience_original
+    - report_sound
+    - report_revealing
+    - practitioner_relevance
+slots:
+  paper_id:
+    range: string
+    required: true
+    description: Paper identifier in Paper Monitor.
+  taxonomy_id:
+    range: string
+    required: true
+    description: Composed taxonomy identifier.
+  paper_class:
+    title: Paper class
+    required: true
+    range: paper_class_enum
+    multivalued: true
+  explanation_interaction:
+    title: Interaction type
+    description: 'Whether the explanation adapts to user feedback or remains fixed.
+
+      '
+    required: true
+    range: explanation_interaction_enum
+    multivalued: false
+  explanation_target:
+    title: Explanation target
+    description: 'The entity being explained by the method.
+
+      '
+    required: true
+    range: explanation_target_enum
+    multivalued: false
+  explanation_scope:
+    title: Explanation scope
+    description: 'The level at which the explanation is provided.
+
+      '
+    required: true
+    range: explanation_scope_enum
+    multivalued: false
+  explanation_generation:
+    title: Explanation generation type
+    description: 'Mechanism used to produce explanations.
+
+      '
+    required: true
+    range: explanation_generation_enum
+    multivalued: false
+  explanation_representation:
+    title: Explanation representation
+    description: 'The form in which explanations are expressed.
+
+      '
+    required: false
+    range: explanation_representation_enum
+    multivalued: true
+  explanation_modality:
+    title: Data modality
+    description: 'Type of data supported by the explanation method.
+
+      '
+    required: false
+    range: explanation_modality_enum
+    multivalued: true
+  explanation_persona:
+    title: Consumer persona
+    description: 'Target user type requiring the explanation.
+
+      '
+    required: false
+    range: explanation_persona_enum
+    multivalued: true
+  interaction_type:
+    title: Interaction type
+    description: 'Type of interaction in which trust relationships occur.
+
+      '
+    required: true
+    range: interaction_type_enum
+    multivalued: false
+  trust_factor_category:
+    title: Trust factor category
+    description: 'High-level grouping of factors influencing trust.
+
+      '
+    required: true
+    range: trust_factor_category_enum
+    multivalued: true
+  trust_parameter:
+    title: Trust parameter
+    description: 'Core dimensions structuring trust evaluation (derived from Fig.
+      3).
+
+      '
+    required: true
+    range: trust_parameter_enum
+    multivalued: true
+  technical_metric:
+    title: Technical trust metric
+    description: 'Quantifiable system-level properties contributing to trustworthiness.
+
+      '
+    required: false
+    range: technical_metric_enum
+    multivalued: true
+  non_technical_metric:
+    title: Axiological (non-technical) metric
+    description: 'Ethical, legal, and social dimensions of trustworthiness.
+
+      '
+    required: false
+    range: non_technical_metric_enum
+    multivalued: true
+  trust_dynamics:
+    title: Trust dynamics
+    description: 'Mechanisms that increase or decrease trust over time.
+
+      '
+    required: false
+    range: trust_dynamics_enum
+    multivalued: true
+  trust_principle:
+    title: Trust principle
+    description: 'Normative principles required for trustworthy AI.
+
+      '
+    required: false
+    range: trust_principle_enum
+    multivalued: true
+  problem_clearly_stated:
+    title: Problem clearly stated
+    description: Is the problem clearly stated?
+    range: problem_clearly_stated_enum
+  properties_clearly_stated:
+    title: Properties clearly stated
+    description: Are the causal or logical properties clearly stated?
+    range: properties_clearly_stated_enum
+  research_method_sound:
+    title: Research method sound
+    description: Is the research method sound?
+    range: research_method_sound_enum
+  knowledge_claim_validated:
+    title: Knowledge claim validated
+    description: Is the conclusion supported by the paper?
+    range: knowledge_claim_validated_enum
+  knowledge_increase_significant:
+    title: Significant knowledge increase
+    description: Are the lessons learned interesting?
+    range: knowledge_increase_significant_enum
+  related_work_sufficient:
+    title: Related work sufficient
+    description: Is there sufficient discussion of related work?
+    range: related_work_sufficient_enum
+  problem_explained:
+    title: Problem explained
+    description: Is the problem to be solved clearly explained?
+    range: problem_explained_enum
+  technique_novel:
+    title: Technique novel
+    description: Is the technique novel, or is the application novel?
+    range: technique_novel_enum
+  technique_well_described:
+    title: Technique well described
+    description: Is the technique sufficiently well described for later validation?
+    range: technique_well_described_enum
+  technique_sound:
+    title: Technique sound
+    description: Is the technique sound?
+    range: technique_sound_enum
+  broader_relevance_argued:
+    title: Broader relevance argued
+    description: Is the broader relevance of the technique argued?
+    range: broader_relevance_argued_enum
+  competing_techniques_discussed:
+    title: Competing techniques discussed
+    description: Are competing techniques discussed and compared?
+    range: competing_techniques_discussed_enum
+  technique_clearly_described:
+    title: Technique clearly described
+    description: Is the technique to be validated clearly described?
+    range: technique_clearly_described_enum
+  technique_properties_stated:
+    title: Technique properties stated
+    description: Are the causal or logical properties of the technique clearly stated?
+    range: technique_properties_stated_enum
+  applicability_conditions_clear:
+    title: Applicability conditions clear
+    description: Is it clear under which circumstances the technique has the stated
+      properties?
+    range: applicability_conditions_clear_enum
+  framework_original:
+    title: Framework original
+    description: Is the conceptual framework original?
+    range: framework_original_enum
+  framework_sound:
+    title: Framework sound
+    description: Is it sound?
+    range: framework_sound_enum
+  framework_insightful:
+    title: Framework insightful
+    description: Is the framework insightful?
+    range: framework_insightful_enum
+  position_sound:
+    title: Position sound
+    description: Is the stated position sound?
+    range: position_sound_enum
+  opinion_surprising:
+    title: Opinion surprising
+    description: Is the opinion surprising?
+    range: opinion_surprising_enum
+  discussion_provoking:
+    title: Discussion provoking
+    description: Is it likely to provoke discussion?
+    range: discussion_provoking_enum
+  experience_original:
+    title: Experience original
+    description: Is the experience original?
+    range: experience_original_enum
+  report_sound:
+    title: Report sound
+    description: Is the report about it sound?
+    range: report_sound_enum
+  report_revealing:
+    title: Report revealing
+    description: Is the report revealing?
+    range: report_revealing_enum
+  practitioner_relevance:
+    title: Practitioner relevance
+    description: Is the report relevant for practitioners?
+    range: practitioner_relevance_enum
+enums:
+  paper_class_enum:
+    permissible_values:
+      evaluation_research:
+        title: Evaluation research
+        description: 'Investigation of a problem in practice or of an implemented
+          technique in practice. The focus is on empirical or analytical evaluation
+          in a real-world context, with emphasis on the validity of the knowledge
+          claim and the soundness of the research method.
+
+          '
+      proposal_of_solution:
+        title: Proposal of solution
+        description: 'Proposal of a novel or significantly improved technique, supported
+          by argumentation or limited evidence, but without full validation in practice.
+
+          '
+      validation_research:
+        title: Validation research
+        description: 'Investigation of the properties of a solution that has not yet
+          been implemented in practice, using controlled experiments, simulations,
+          or formal analysis.
+
+          '
+      philosophical_paper:
+        title: Philosophical paper
+        description: 'Paper proposing a new conceptual framework or way of thinking
+          about requirements engineering problems.
+
+          '
+      opinion_paper:
+        title: Opinion paper
+        description: 'Paper expressing the author''s viewpoint about practices, methods,
+          or directions in the field.
+
+          '
+      personal_experience_paper:
+        title: Personal experience paper
+        description: 'Report of personal experience in applying techniques or working
+          in projects, emphasizing observed outcomes and lessons learned.
+
+          '
+  problem_clearly_stated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  properties_clearly_stated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  research_method_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  knowledge_claim_validated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  knowledge_increase_significant_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  related_work_sufficient_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  problem_explained_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_novel_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_well_described_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  broader_relevance_argued_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  competing_techniques_discussed_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_clearly_described_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_properties_stated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  applicability_conditions_clear_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  framework_original_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  framework_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  framework_insightful_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  position_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  opinion_surprising_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  discussion_provoking_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  experience_original_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  report_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  report_revealing_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  practitioner_relevance_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  explanation_interaction_enum:
+    permissible_values:
+      static:
+        title: Static
+        description: 'Explanation does not change in response to user interaction.
+
+          '
+      interactive:
+        title: Interactive
+        description: 'Explanation allows iterative exploration or dialogue with the
+          user.
+
+          '
+  explanation_target_enum:
+    permissible_values:
+      data:
+        title: Data
+        description: 'Explanation focuses on understanding datasets or feature structure.
+
+          '
+      model:
+        title: Model
+        description: 'Explanation focuses on understanding model behavior or predictions.
+
+          '
+  explanation_scope_enum:
+    permissible_values:
+      local:
+        title: Local
+        description: 'Explanation applies to a single prediction or instance.
+
+          '
+      global:
+        title: Global
+        description: 'Explanation describes overall model behavior.
+
+          '
+  explanation_generation_enum:
+    permissible_values:
+      direct:
+        title: Directly interpretable
+        description: 'The model itself is inherently interpretable and provides explanations.
+
+          '
+      post_hoc:
+        title: Post-hoc
+        description: 'Explanation is generated after model training using an auxiliary
+          method.
+
+          '
+      self_explaining:
+        title: Self-explaining
+        description: 'The model generates explanations as part of its prediction process.
+
+          '
+  explanation_representation_enum:
+    permissible_values:
+      features:
+        title: Feature-based
+        description: 'Explanation highlights relevant features influencing predictions.
+
+          '
+      samples:
+        title: Sample-based
+        description: 'Explanation uses representative or similar instances.
+
+          '
+      distributions:
+        title: Distribution-based
+        description: 'Explanation characterizes statistical properties of data or
+          model outputs.
+
+          '
+      surrogate_model:
+        title: Surrogate model
+        description: 'Explanation approximates the original model using a simpler
+          interpretable model.
+
+          '
+      visualization:
+        title: Visualization
+        description: 'Explanation is presented through graphical or visual representations.
+
+          '
+  explanation_modality_enum:
+    permissible_values:
+      tabular:
+        title: Tabular
+        description: 'Structured data with rows and columns.
+
+          '
+      image:
+        title: Image
+        description: 'Visual data such as images.
+
+          '
+      text:
+        title: Text
+        description: 'Natural language or textual data.
+
+          '
+  explanation_persona_enum:
+    permissible_values:
+      data_scientist:
+        title: Data scientist
+        description: 'User developing or analyzing models.
+
+          '
+      domain_expert:
+        title: Domain expert
+        description: 'Specialist interpreting model outputs in context.
+
+          '
+      end_user:
+        title: End user
+        description: 'Non-expert affected by decisions.
+
+          '
+      regulator:
+        title: Regulator
+        description: 'Authority ensuring compliance and fairness.
+
+          '
+  interaction_type_enum:
+    permissible_values:
+      human_machine:
+        title: "Human\u2013machine"
+        description: 'Human is trustor and AI system is trustee.
+
+          '
+      machine_human:
+        title: "Machine\u2013human"
+        description: 'AI evaluates trustworthiness of human inputs or users.
+
+          '
+      machine_machine:
+        title: "Machine\u2013machine"
+        description: 'Autonomous systems evaluate each other.
+
+          '
+      ai_object:
+        title: "AI\u2013object"
+        description: 'AI evaluates trustworthiness of data, signals, or objects.
+
+          '
+  trust_factor_category_enum:
+    permissible_values:
+      human_based:
+        title: Human-based
+        description: 'Factors related to user traits, cognition, and perception.
+
+          '
+      context_based:
+        title: Context-based
+        description: 'Environmental, organizational, and situational factors.
+
+          '
+      technology_based:
+        title: Technology-based
+        description: 'Properties of the AI system itself.
+
+          '
+  trust_parameter_enum:
+    permissible_values:
+      ability:
+        title: Ability
+        description: 'Competence of the AI system (accuracy, reliability, performance).
+
+          '
+      integrity:
+        title: Integrity
+        description: 'Compliance with standards, rules, and regulations.
+
+          '
+      benevolence:
+        title: Benevolence
+        description: 'Alignment with human values and societal benefit.
+
+          '
+  technical_metric_enum:
+    permissible_values:
+      accuracy:
+        title: Accuracy
+        description: 'Correctness of predictions.
+
+          '
+      robustness:
+        title: Robustness
+        description: 'Stability under perturbations and adversarial conditions.
+
+          '
+      safety:
+        title: Safety
+        description: 'Avoidance of harmful outcomes.
+
+          '
+      reliability:
+        title: Reliability
+        description: 'Consistency of system behavior over time.
+
+          '
+      security:
+        title: Security
+        description: 'Resistance to attacks or manipulation.
+
+          '
+      transparency:
+        title: Transparency
+        description: 'Visibility into system processes.
+
+          '
+      explainability:
+        title: Explainability
+        description: 'Ability to provide understandable explanations.
+
+          '
+  non_technical_metric_enum:
+    permissible_values:
+      fairness:
+        title: Fairness
+        description: 'Absence of bias and discrimination.
+
+          '
+      privacy:
+        title: Privacy
+        description: 'Protection and control of personal data.
+
+          '
+      accountability:
+        title: Accountability
+        description: 'Ability to justify decisions and assign responsibility.
+
+          '
+      ethics:
+        title: Ethics
+        description: 'Alignment with moral principles.
+
+          '
+      transparency_social:
+        title: Social transparency
+        description: 'Communication of system behavior to stakeholders.
+
+          '
+  trust_dynamics_enum:
+    permissible_values:
+      trust_builder:
+        title: Trust builder
+        description: 'Factors increasing trust (e.g., explanations, certification).
+
+          '
+      trust_breaker:
+        title: Trust breaker
+        description: 'Factors decreasing trust (e.g., opacity, bias, autonomy threats).
+
+          '
+      trust_calibration:
+        title: Trust calibration
+        description: 'Adjustment of trust to appropriate levels (avoid over/under-trust).
+
+          '
+  trust_principle_enum:
+    permissible_values:
+      beneficence:
+        title: Beneficence
+        description: 'AI should benefit humans and society.
+
+          '
+      non_maleficence:
+        title: Non-maleficence
+        description: 'AI should avoid harm.
+
+          '
+      autonomy:
+        title: Autonomy
+        description: 'Respect for human control and agency.
+
+          '
+      justice:
+        title: Justice
+        description: 'Fair distribution of benefits and risks.
+
+          '
+      explicability:
+        title: Explicability
+        description: 'Systems must be explainable and understandable.
+
+          '

@@ -1,0 +1,894 @@
+{
+  "$defs": {
+    "ApplicabilityConditionsClearEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "ApplicabilityConditionsClearEnum",
+      "type": "string"
+    },
+    "BroaderRelevanceArguedEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "BroaderRelevanceArguedEnum",
+      "type": "string"
+    },
+    "CompetingTechniquesDiscussedEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "CompetingTechniquesDiscussedEnum",
+      "type": "string"
+    },
+    "DiscussionProvokingEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "DiscussionProvokingEnum",
+      "type": "string"
+    },
+    "ExperienceOriginalEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "ExperienceOriginalEnum",
+      "type": "string"
+    },
+    "ExplanationGenerationEnum": {
+      "description": "",
+      "enum": [
+        "direct",
+        "post_hoc",
+        "self_explaining"
+      ],
+      "title": "ExplanationGenerationEnum",
+      "type": "string"
+    },
+    "ExplanationInteractionEnum": {
+      "description": "",
+      "enum": [
+        "static",
+        "interactive"
+      ],
+      "title": "ExplanationInteractionEnum",
+      "type": "string"
+    },
+    "ExplanationModalityEnum": {
+      "description": "",
+      "enum": [
+        "tabular",
+        "image",
+        "text"
+      ],
+      "title": "ExplanationModalityEnum",
+      "type": "string"
+    },
+    "ExplanationPersonaEnum": {
+      "description": "",
+      "enum": [
+        "data_scientist",
+        "domain_expert",
+        "end_user",
+        "regulator"
+      ],
+      "title": "ExplanationPersonaEnum",
+      "type": "string"
+    },
+    "ExplanationRepresentationEnum": {
+      "description": "",
+      "enum": [
+        "features",
+        "samples",
+        "distributions",
+        "surrogate_model",
+        "visualization"
+      ],
+      "title": "ExplanationRepresentationEnum",
+      "type": "string"
+    },
+    "ExplanationScopeEnum": {
+      "description": "",
+      "enum": [
+        "local",
+        "global"
+      ],
+      "title": "ExplanationScopeEnum",
+      "type": "string"
+    },
+    "ExplanationTargetEnum": {
+      "description": "",
+      "enum": [
+        "data",
+        "model"
+      ],
+      "title": "ExplanationTargetEnum",
+      "type": "string"
+    },
+    "FrameworkInsightfulEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "FrameworkInsightfulEnum",
+      "type": "string"
+    },
+    "FrameworkOriginalEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "FrameworkOriginalEnum",
+      "type": "string"
+    },
+    "FrameworkSoundEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "FrameworkSoundEnum",
+      "type": "string"
+    },
+    "InteractionTypeEnum": {
+      "description": "",
+      "enum": [
+        "human_machine",
+        "machine_human",
+        "machine_machine",
+        "ai_object"
+      ],
+      "title": "InteractionTypeEnum",
+      "type": "string"
+    },
+    "KnowledgeClaimValidatedEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "KnowledgeClaimValidatedEnum",
+      "type": "string"
+    },
+    "KnowledgeIncreaseSignificantEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "KnowledgeIncreaseSignificantEnum",
+      "type": "string"
+    },
+    "NonTechnicalMetricEnum": {
+      "description": "",
+      "enum": [
+        "fairness",
+        "privacy",
+        "accountability",
+        "ethics",
+        "transparency_social"
+      ],
+      "title": "NonTechnicalMetricEnum",
+      "type": "string"
+    },
+    "OpinionSurprisingEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "OpinionSurprisingEnum",
+      "type": "string"
+    },
+    "PaperClassEnum": {
+      "description": "",
+      "enum": [
+        "evaluation_research",
+        "proposal_of_solution",
+        "validation_research",
+        "philosophical_paper",
+        "opinion_paper",
+        "personal_experience_paper"
+      ],
+      "title": "PaperClassEnum",
+      "type": "string"
+    },
+    "PaperReview": {
+      "additionalProperties": false,
+      "description": "Review answers for taxonomy Requirements engineering paper classification and evaluation criteria + Taxonomy of AI explainability techniques + Taxonomy of trust in AI",
+      "properties": {
+        "applicability_conditions_clear": {
+          "$ref": "#/$defs/ApplicabilityConditionsClearEnum",
+          "description": "Is it clear under which circumstances the technique has the stated properties?"
+        },
+        "broader_relevance_argued": {
+          "$ref": "#/$defs/BroaderRelevanceArguedEnum",
+          "description": "Is the broader relevance of the technique argued?"
+        },
+        "competing_techniques_discussed": {
+          "$ref": "#/$defs/CompetingTechniquesDiscussedEnum",
+          "description": "Are competing techniques discussed and compared?"
+        },
+        "discussion_provoking": {
+          "$ref": "#/$defs/DiscussionProvokingEnum",
+          "description": "Is it likely to provoke discussion?"
+        },
+        "experience_original": {
+          "$ref": "#/$defs/ExperienceOriginalEnum",
+          "description": "Is the experience original?"
+        },
+        "explanation_generation": {
+          "$ref": "#/$defs/ExplanationGenerationEnum",
+          "description": "Mechanism used to produce explanations.\n"
+        },
+        "explanation_interaction": {
+          "$ref": "#/$defs/ExplanationInteractionEnum",
+          "description": "Whether the explanation adapts to user feedback or remains fixed.\n"
+        },
+        "explanation_modality": {
+          "description": "Type of data supported by the explanation method.\n",
+          "items": {
+            "$ref": "#/$defs/ExplanationModalityEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "explanation_persona": {
+          "description": "Target user type requiring the explanation.\n",
+          "items": {
+            "$ref": "#/$defs/ExplanationPersonaEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "explanation_representation": {
+          "description": "The form in which explanations are expressed.\n",
+          "items": {
+            "$ref": "#/$defs/ExplanationRepresentationEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "explanation_scope": {
+          "$ref": "#/$defs/ExplanationScopeEnum",
+          "description": "The level at which the explanation is provided.\n"
+        },
+        "explanation_target": {
+          "$ref": "#/$defs/ExplanationTargetEnum",
+          "description": "The entity being explained by the method.\n"
+        },
+        "framework_insightful": {
+          "$ref": "#/$defs/FrameworkInsightfulEnum",
+          "description": "Is the framework insightful?"
+        },
+        "framework_original": {
+          "$ref": "#/$defs/FrameworkOriginalEnum",
+          "description": "Is the conceptual framework original?"
+        },
+        "framework_sound": {
+          "$ref": "#/$defs/FrameworkSoundEnum",
+          "description": "Is it sound?"
+        },
+        "interaction_type": {
+          "$ref": "#/$defs/InteractionTypeEnum",
+          "description": "Type of interaction in which trust relationships occur.\n"
+        },
+        "knowledge_claim_validated": {
+          "$ref": "#/$defs/KnowledgeClaimValidatedEnum",
+          "description": "Is the conclusion supported by the paper?"
+        },
+        "knowledge_increase_significant": {
+          "$ref": "#/$defs/KnowledgeIncreaseSignificantEnum",
+          "description": "Are the lessons learned interesting?"
+        },
+        "non_technical_metric": {
+          "description": "Ethical, legal, and social dimensions of trustworthiness.\n",
+          "items": {
+            "$ref": "#/$defs/NonTechnicalMetricEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "opinion_surprising": {
+          "$ref": "#/$defs/OpinionSurprisingEnum",
+          "description": "Is the opinion surprising?"
+        },
+        "paper_class": {
+          "items": {
+            "$ref": "#/$defs/PaperClassEnum"
+          },
+          "type": "array"
+        },
+        "paper_id": {
+          "description": "Paper identifier in Paper Monitor.",
+          "type": "string"
+        },
+        "position_sound": {
+          "$ref": "#/$defs/PositionSoundEnum",
+          "description": "Is the stated position sound?"
+        },
+        "practitioner_relevance": {
+          "$ref": "#/$defs/PractitionerRelevanceEnum",
+          "description": "Is the report relevant for practitioners?"
+        },
+        "problem_clearly_stated": {
+          "$ref": "#/$defs/ProblemClearlyStatedEnum",
+          "description": "Is the problem clearly stated?"
+        },
+        "problem_explained": {
+          "$ref": "#/$defs/ProblemExplainedEnum",
+          "description": "Is the problem to be solved clearly explained?"
+        },
+        "properties_clearly_stated": {
+          "$ref": "#/$defs/PropertiesClearlyStatedEnum",
+          "description": "Are the causal or logical properties clearly stated?"
+        },
+        "related_work_sufficient": {
+          "$ref": "#/$defs/RelatedWorkSufficientEnum",
+          "description": "Is there sufficient discussion of related work?"
+        },
+        "report_revealing": {
+          "$ref": "#/$defs/ReportRevealingEnum",
+          "description": "Is the report revealing?"
+        },
+        "report_sound": {
+          "$ref": "#/$defs/ReportSoundEnum",
+          "description": "Is the report about it sound?"
+        },
+        "research_method_sound": {
+          "$ref": "#/$defs/ResearchMethodSoundEnum",
+          "description": "Is the research method sound?"
+        },
+        "taxonomy_id": {
+          "description": "Composed taxonomy identifier.",
+          "type": "string"
+        },
+        "technical_metric": {
+          "description": "Quantifiable system-level properties contributing to trustworthiness.\n",
+          "items": {
+            "$ref": "#/$defs/TechnicalMetricEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "technique_clearly_described": {
+          "$ref": "#/$defs/TechniqueClearlyDescribedEnum",
+          "description": "Is the technique to be validated clearly described?"
+        },
+        "technique_novel": {
+          "$ref": "#/$defs/TechniqueNovelEnum",
+          "description": "Is the technique novel, or is the application novel?"
+        },
+        "technique_properties_stated": {
+          "$ref": "#/$defs/TechniquePropertiesStatedEnum",
+          "description": "Are the causal or logical properties of the technique clearly stated?"
+        },
+        "technique_sound": {
+          "$ref": "#/$defs/TechniqueSoundEnum",
+          "description": "Is the technique sound?"
+        },
+        "technique_well_described": {
+          "$ref": "#/$defs/TechniqueWellDescribedEnum",
+          "description": "Is the technique sufficiently well described for later validation?"
+        },
+        "trust_dynamics": {
+          "description": "Mechanisms that increase or decrease trust over time.\n",
+          "items": {
+            "$ref": "#/$defs/TrustDynamicsEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "trust_factor_category": {
+          "description": "High-level grouping of factors influencing trust.\n",
+          "items": {
+            "$ref": "#/$defs/TrustFactorCategoryEnum"
+          },
+          "type": "array"
+        },
+        "trust_parameter": {
+          "description": "Core dimensions structuring trust evaluation (derived from Fig. 3).\n",
+          "items": {
+            "$ref": "#/$defs/TrustParameterEnum"
+          },
+          "type": "array"
+        },
+        "trust_principle": {
+          "description": "Normative principles required for trustworthy AI.\n",
+          "items": {
+            "$ref": "#/$defs/TrustPrincipleEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "paper_id",
+        "taxonomy_id",
+        "paper_class",
+        "explanation_interaction",
+        "explanation_target",
+        "explanation_scope",
+        "explanation_generation",
+        "interaction_type",
+        "trust_factor_category",
+        "trust_parameter"
+      ],
+      "title": "PaperReview",
+      "type": "object"
+    },
+    "PositionSoundEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "PositionSoundEnum",
+      "type": "string"
+    },
+    "PractitionerRelevanceEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "PractitionerRelevanceEnum",
+      "type": "string"
+    },
+    "ProblemClearlyStatedEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "ProblemClearlyStatedEnum",
+      "type": "string"
+    },
+    "ProblemExplainedEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "ProblemExplainedEnum",
+      "type": "string"
+    },
+    "PropertiesClearlyStatedEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "PropertiesClearlyStatedEnum",
+      "type": "string"
+    },
+    "RelatedWorkSufficientEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "RelatedWorkSufficientEnum",
+      "type": "string"
+    },
+    "ReportRevealingEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "ReportRevealingEnum",
+      "type": "string"
+    },
+    "ReportSoundEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "ReportSoundEnum",
+      "type": "string"
+    },
+    "ResearchMethodSoundEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "ResearchMethodSoundEnum",
+      "type": "string"
+    },
+    "TechnicalMetricEnum": {
+      "description": "",
+      "enum": [
+        "accuracy",
+        "robustness",
+        "safety",
+        "reliability",
+        "security",
+        "transparency",
+        "explainability"
+      ],
+      "title": "TechnicalMetricEnum",
+      "type": "string"
+    },
+    "TechniqueClearlyDescribedEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "TechniqueClearlyDescribedEnum",
+      "type": "string"
+    },
+    "TechniqueNovelEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "TechniqueNovelEnum",
+      "type": "string"
+    },
+    "TechniquePropertiesStatedEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "TechniquePropertiesStatedEnum",
+      "type": "string"
+    },
+    "TechniqueSoundEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "TechniqueSoundEnum",
+      "type": "string"
+    },
+    "TechniqueWellDescribedEnum": {
+      "description": "",
+      "enum": [
+        "0",
+        "1",
+        "2"
+      ],
+      "title": "TechniqueWellDescribedEnum",
+      "type": "string"
+    },
+    "TrustDynamicsEnum": {
+      "description": "",
+      "enum": [
+        "trust_builder",
+        "trust_breaker",
+        "trust_calibration"
+      ],
+      "title": "TrustDynamicsEnum",
+      "type": "string"
+    },
+    "TrustFactorCategoryEnum": {
+      "description": "",
+      "enum": [
+        "human_based",
+        "context_based",
+        "technology_based"
+      ],
+      "title": "TrustFactorCategoryEnum",
+      "type": "string"
+    },
+    "TrustParameterEnum": {
+      "description": "",
+      "enum": [
+        "ability",
+        "integrity",
+        "benevolence"
+      ],
+      "title": "TrustParameterEnum",
+      "type": "string"
+    },
+    "TrustPrincipleEnum": {
+      "description": "",
+      "enum": [
+        "beneficence",
+        "non_maleficence",
+        "autonomy",
+        "justice",
+        "explicability"
+      ],
+      "title": "TrustPrincipleEnum",
+      "type": "string"
+    }
+  },
+  "$id": "https://papers.home.nextnet.top/generated/composed_f17cb2347af96504_review_schema",
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "additionalProperties": true,
+  "description": "Review answers for taxonomy Requirements engineering paper classification and evaluation criteria + Taxonomy of AI explainability techniques + Taxonomy of trust in AI",
+  "metamodel_version": "1.7.0",
+  "properties": {
+    "applicability_conditions_clear": {
+      "$ref": "#/$defs/ApplicabilityConditionsClearEnum",
+      "description": "Is it clear under which circumstances the technique has the stated properties?"
+    },
+    "broader_relevance_argued": {
+      "$ref": "#/$defs/BroaderRelevanceArguedEnum",
+      "description": "Is the broader relevance of the technique argued?"
+    },
+    "competing_techniques_discussed": {
+      "$ref": "#/$defs/CompetingTechniquesDiscussedEnum",
+      "description": "Are competing techniques discussed and compared?"
+    },
+    "discussion_provoking": {
+      "$ref": "#/$defs/DiscussionProvokingEnum",
+      "description": "Is it likely to provoke discussion?"
+    },
+    "experience_original": {
+      "$ref": "#/$defs/ExperienceOriginalEnum",
+      "description": "Is the experience original?"
+    },
+    "explanation_generation": {
+      "$ref": "#/$defs/ExplanationGenerationEnum",
+      "description": "Mechanism used to produce explanations.\n"
+    },
+    "explanation_interaction": {
+      "$ref": "#/$defs/ExplanationInteractionEnum",
+      "description": "Whether the explanation adapts to user feedback or remains fixed.\n"
+    },
+    "explanation_modality": {
+      "description": "Type of data supported by the explanation method.\n",
+      "items": {
+        "$ref": "#/$defs/ExplanationModalityEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "explanation_persona": {
+      "description": "Target user type requiring the explanation.\n",
+      "items": {
+        "$ref": "#/$defs/ExplanationPersonaEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "explanation_representation": {
+      "description": "The form in which explanations are expressed.\n",
+      "items": {
+        "$ref": "#/$defs/ExplanationRepresentationEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "explanation_scope": {
+      "$ref": "#/$defs/ExplanationScopeEnum",
+      "description": "The level at which the explanation is provided.\n"
+    },
+    "explanation_target": {
+      "$ref": "#/$defs/ExplanationTargetEnum",
+      "description": "The entity being explained by the method.\n"
+    },
+    "framework_insightful": {
+      "$ref": "#/$defs/FrameworkInsightfulEnum",
+      "description": "Is the framework insightful?"
+    },
+    "framework_original": {
+      "$ref": "#/$defs/FrameworkOriginalEnum",
+      "description": "Is the conceptual framework original?"
+    },
+    "framework_sound": {
+      "$ref": "#/$defs/FrameworkSoundEnum",
+      "description": "Is it sound?"
+    },
+    "interaction_type": {
+      "$ref": "#/$defs/InteractionTypeEnum",
+      "description": "Type of interaction in which trust relationships occur.\n"
+    },
+    "knowledge_claim_validated": {
+      "$ref": "#/$defs/KnowledgeClaimValidatedEnum",
+      "description": "Is the conclusion supported by the paper?"
+    },
+    "knowledge_increase_significant": {
+      "$ref": "#/$defs/KnowledgeIncreaseSignificantEnum",
+      "description": "Are the lessons learned interesting?"
+    },
+    "non_technical_metric": {
+      "description": "Ethical, legal, and social dimensions of trustworthiness.\n",
+      "items": {
+        "$ref": "#/$defs/NonTechnicalMetricEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "opinion_surprising": {
+      "$ref": "#/$defs/OpinionSurprisingEnum",
+      "description": "Is the opinion surprising?"
+    },
+    "paper_class": {
+      "items": {
+        "$ref": "#/$defs/PaperClassEnum"
+      },
+      "type": "array"
+    },
+    "paper_id": {
+      "description": "Paper identifier in Paper Monitor.",
+      "type": "string"
+    },
+    "position_sound": {
+      "$ref": "#/$defs/PositionSoundEnum",
+      "description": "Is the stated position sound?"
+    },
+    "practitioner_relevance": {
+      "$ref": "#/$defs/PractitionerRelevanceEnum",
+      "description": "Is the report relevant for practitioners?"
+    },
+    "problem_clearly_stated": {
+      "$ref": "#/$defs/ProblemClearlyStatedEnum",
+      "description": "Is the problem clearly stated?"
+    },
+    "problem_explained": {
+      "$ref": "#/$defs/ProblemExplainedEnum",
+      "description": "Is the problem to be solved clearly explained?"
+    },
+    "properties_clearly_stated": {
+      "$ref": "#/$defs/PropertiesClearlyStatedEnum",
+      "description": "Are the causal or logical properties clearly stated?"
+    },
+    "related_work_sufficient": {
+      "$ref": "#/$defs/RelatedWorkSufficientEnum",
+      "description": "Is there sufficient discussion of related work?"
+    },
+    "report_revealing": {
+      "$ref": "#/$defs/ReportRevealingEnum",
+      "description": "Is the report revealing?"
+    },
+    "report_sound": {
+      "$ref": "#/$defs/ReportSoundEnum",
+      "description": "Is the report about it sound?"
+    },
+    "research_method_sound": {
+      "$ref": "#/$defs/ResearchMethodSoundEnum",
+      "description": "Is the research method sound?"
+    },
+    "taxonomy_id": {
+      "description": "Composed taxonomy identifier.",
+      "type": "string"
+    },
+    "technical_metric": {
+      "description": "Quantifiable system-level properties contributing to trustworthiness.\n",
+      "items": {
+        "$ref": "#/$defs/TechnicalMetricEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "technique_clearly_described": {
+      "$ref": "#/$defs/TechniqueClearlyDescribedEnum",
+      "description": "Is the technique to be validated clearly described?"
+    },
+    "technique_novel": {
+      "$ref": "#/$defs/TechniqueNovelEnum",
+      "description": "Is the technique novel, or is the application novel?"
+    },
+    "technique_properties_stated": {
+      "$ref": "#/$defs/TechniquePropertiesStatedEnum",
+      "description": "Are the causal or logical properties of the technique clearly stated?"
+    },
+    "technique_sound": {
+      "$ref": "#/$defs/TechniqueSoundEnum",
+      "description": "Is the technique sound?"
+    },
+    "technique_well_described": {
+      "$ref": "#/$defs/TechniqueWellDescribedEnum",
+      "description": "Is the technique sufficiently well described for later validation?"
+    },
+    "trust_dynamics": {
+      "description": "Mechanisms that increase or decrease trust over time.\n",
+      "items": {
+        "$ref": "#/$defs/TrustDynamicsEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "trust_factor_category": {
+      "description": "High-level grouping of factors influencing trust.\n",
+      "items": {
+        "$ref": "#/$defs/TrustFactorCategoryEnum"
+      },
+      "type": "array"
+    },
+    "trust_parameter": {
+      "description": "Core dimensions structuring trust evaluation (derived from Fig. 3).\n",
+      "items": {
+        "$ref": "#/$defs/TrustParameterEnum"
+      },
+      "type": "array"
+    },
+    "trust_principle": {
+      "description": "Normative principles required for trustworthy AI.\n",
+      "items": {
+        "$ref": "#/$defs/TrustPrincipleEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "paper_id",
+    "taxonomy_id",
+    "paper_class",
+    "explanation_interaction",
+    "explanation_target",
+    "explanation_scope",
+    "explanation_generation",
+    "interaction_type",
+    "trust_factor_category",
+    "trust_parameter"
+  ],
+  "title": "composed_f17cb2347af96504_review_schema",
+  "type": "object",
+  "version": null
+}

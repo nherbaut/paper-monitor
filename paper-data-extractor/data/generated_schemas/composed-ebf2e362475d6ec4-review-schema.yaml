@@ -1,0 +1,253 @@
+id: https://papers.home.nextnet.top/generated/composed_ebf2e362475d6ec4_review_schema
+name: composed_ebf2e362475d6ec4_review_schema
+prefixes:
+  ex: https://papers.home.nextnet.top/generated/
+  linkml: https://w3id.org/linkml/
+imports:
+- linkml:types
+default_prefix: ex
+classes:
+  PaperReview:
+    tree_root: true
+    description: Review answers for taxonomy Taxonomy of trust in AI
+    slots:
+    - paper_id
+    - taxonomy_id
+    - interaction_type
+    - trust_factor_category
+    - trust_parameter
+    - technical_metric
+    - non_technical_metric
+    - trust_dynamics
+    - trust_principle
+slots:
+  paper_id:
+    range: string
+    required: true
+    description: Paper identifier in Paper Monitor.
+  taxonomy_id:
+    range: string
+    required: true
+    description: Composed taxonomy identifier.
+  interaction_type:
+    title: Interaction type
+    description: 'Type of interaction in which trust relationships occur.
+
+      '
+    required: true
+    range: interaction_type_enum
+    multivalued: false
+  trust_factor_category:
+    title: Trust factor category
+    description: 'High-level grouping of factors influencing trust.
+
+      '
+    required: true
+    range: trust_factor_category_enum
+    multivalued: true
+  trust_parameter:
+    title: Trust parameter
+    description: 'Core dimensions structuring trust evaluation (derived from Fig.
+      3).
+
+      '
+    required: true
+    range: trust_parameter_enum
+    multivalued: true
+  technical_metric:
+    title: Technical trust metric
+    description: 'Quantifiable system-level properties contributing to trustworthiness.
+
+      '
+    required: false
+    range: technical_metric_enum
+    multivalued: true
+  non_technical_metric:
+    title: Axiological (non-technical) metric
+    description: 'Ethical, legal, and social dimensions of trustworthiness.
+
+      '
+    required: false
+    range: non_technical_metric_enum
+    multivalued: true
+  trust_dynamics:
+    title: Trust dynamics
+    description: 'Mechanisms that increase or decrease trust over time.
+
+      '
+    required: false
+    range: trust_dynamics_enum
+    multivalued: true
+  trust_principle:
+    title: Trust principle
+    description: 'Normative principles required for trustworthy AI.
+
+      '
+    required: false
+    range: trust_principle_enum
+    multivalued: true
+enums:
+  interaction_type_enum:
+    permissible_values:
+      human_machine:
+        title: "Human\u2013machine"
+        description: 'Human is trustor and AI system is trustee.
+
+          '
+      machine_human:
+        title: "Machine\u2013human"
+        description: 'AI evaluates trustworthiness of human inputs or users.
+
+          '
+      machine_machine:
+        title: "Machine\u2013machine"
+        description: 'Autonomous systems evaluate each other.
+
+          '
+      ai_object:
+        title: "AI\u2013object"
+        description: 'AI evaluates trustworthiness of data, signals, or objects.
+
+          '
+  trust_factor_category_enum:
+    permissible_values:
+      human_based:
+        title: Human-based
+        description: 'Factors related to user traits, cognition, and perception.
+
+          '
+      context_based:
+        title: Context-based
+        description: 'Environmental, organizational, and situational factors.
+
+          '
+      technology_based:
+        title: Technology-based
+        description: 'Properties of the AI system itself.
+
+          '
+  trust_parameter_enum:
+    permissible_values:
+      ability:
+        title: Ability
+        description: 'Competence of the AI system (accuracy, reliability, performance).
+
+          '
+      integrity:
+        title: Integrity
+        description: 'Compliance with standards, rules, and regulations.
+
+          '
+      benevolence:
+        title: Benevolence
+        description: 'Alignment with human values and societal benefit.
+
+          '
+  technical_metric_enum:
+    permissible_values:
+      accuracy:
+        title: Accuracy
+        description: 'Correctness of predictions.
+
+          '
+      robustness:
+        title: Robustness
+        description: 'Stability under perturbations and adversarial conditions.
+
+          '
+      safety:
+        title: Safety
+        description: 'Avoidance of harmful outcomes.
+
+          '
+      reliability:
+        title: Reliability
+        description: 'Consistency of system behavior over time.
+
+          '
+      security:
+        title: Security
+        description: 'Resistance to attacks or manipulation.
+
+          '
+      transparency:
+        title: Transparency
+        description: 'Visibility into system processes.
+
+          '
+      explainability:
+        title: Explainability
+        description: 'Ability to provide understandable explanations.
+
+          '
+  non_technical_metric_enum:
+    permissible_values:
+      fairness:
+        title: Fairness
+        description: 'Absence of bias and discrimination.
+
+          '
+      privacy:
+        title: Privacy
+        description: 'Protection and control of personal data.
+
+          '
+      accountability:
+        title: Accountability
+        description: 'Ability to justify decisions and assign responsibility.
+
+          '
+      ethics:
+        title: Ethics
+        description: 'Alignment with moral principles.
+
+          '
+      transparency_social:
+        title: Social transparency
+        description: 'Communication of system behavior to stakeholders.
+
+          '
+  trust_dynamics_enum:
+    permissible_values:
+      trust_builder:
+        title: Trust builder
+        description: 'Factors increasing trust (e.g., explanations, certification).
+
+          '
+      trust_breaker:
+        title: Trust breaker
+        description: 'Factors decreasing trust (e.g., opacity, bias, autonomy threats).
+
+          '
+      trust_calibration:
+        title: Trust calibration
+        description: 'Adjustment of trust to appropriate levels (avoid over/under-trust).
+
+          '
+  trust_principle_enum:
+    permissible_values:
+      beneficence:
+        title: Beneficence
+        description: 'AI should benefit humans and society.
+
+          '
+      non_maleficence:
+        title: Non-maleficence
+        description: 'AI should avoid harm.
+
+          '
+      autonomy:
+        title: Autonomy
+        description: 'Respect for human control and agency.
+
+          '
+      justice:
+        title: Justice
+        description: 'Fair distribution of benefits and risks.
+
+          '
+      explicability:
+        title: Explicability
+        description: 'Systems must be explainable and understandable.
+
+          '

@@ -1,0 +1,764 @@
+id: test
+title: test
+target_entity: paper
+selected_model_ids:
+- wieringa_2006_paper_classification
+- arya_2019_explainability_taxonomy
+- afroogh_2024_trust_in_ai_taxonomy
+composed_model:
+  id: composed-f17cb2347af96504
+  title: Requirements engineering paper classification and evaluation criteria + Taxonomy
+    of AI explainability techniques + Taxonomy of trust in AI
+  target_entity: paper
+  source:
+    citation_key: wieringa_2006
+    title: 'Requirements engineering paper classification and evaluation criteria:
+      a proposal and a discussion'
+    authors:
+    - Roel Wieringa
+    - Neil Maiden
+    - Nancy Mead
+    - Colette Rolland
+    year: 2006
+  dimensions:
+  - id: paper_class
+    label: Paper class
+    value_type: category
+    cardinality: multiple
+    required: true
+    values:
+    - id: evaluation_research
+      label: Evaluation research
+      description: 'Investigation of a problem in practice or of an implemented technique
+        in practice. The focus is on empirical or analytical evaluation in a real-world
+        context, with emphasis on the validity of the knowledge claim and the soundness
+        of the research method.
+
+        '
+      criteria:
+      - id: problem_clearly_stated
+        label: Problem clearly stated
+        description: 'The paper explicitly defines the problem context, scope, and
+          objectives so that the reader understands what is being evaluated.
+
+          '
+        question: Is the problem clearly stated?
+        scale: ordinal_0_2
+        required: true
+      - id: properties_clearly_stated
+        label: Properties clearly stated
+        description: 'The causal, logical, or contextual properties of the problem
+          are explicitly identified, enabling interpretation of results.
+
+          '
+        question: Are the causal or logical properties clearly stated?
+        scale: ordinal_0_2
+        required: true
+      - id: research_method_sound
+        label: Research method sound
+        description: 'The evaluation design, data collection, and analysis methods
+          are appropriate, rigorous, and justified.
+
+          '
+        question: Is the research method sound?
+        scale: ordinal_0_2
+        required: true
+      - id: knowledge_claim_validated
+        label: Knowledge claim validated
+        description: 'The conclusions are supported by the evidence and analysis presented.
+
+          '
+        question: Is the conclusion supported by the paper?
+        scale: ordinal_0_2
+        required: true
+      - id: knowledge_increase_significant
+        label: Significant knowledge increase
+        description: 'The results provide meaningful and non-trivial insights for
+          the field.
+
+          '
+        question: Are the lessons learned interesting?
+        scale: ordinal_0_2
+        required: true
+      - id: related_work_sufficient
+        label: Related work sufficient
+        description: 'The paper situates its contribution within existing literature
+          and compares with prior work.
+
+          '
+        question: Is there sufficient discussion of related work?
+        scale: ordinal_0_2
+        required: true
+    - id: proposal_of_solution
+      label: Proposal of solution
+      description: 'Proposal of a novel or significantly improved technique, supported
+        by argumentation or limited evidence, but without full validation in practice.
+
+        '
+      criteria:
+      - id: problem_explained
+        label: Problem explained
+        description: 'The problem addressed by the proposed solution is clearly defined
+          and motivated.
+
+          '
+        question: Is the problem to be solved clearly explained?
+        scale: ordinal_0_2
+        required: true
+      - id: technique_novel
+        label: Technique novel
+        description: 'The proposed technique introduces new ideas or a novel application
+          of existing ideas.
+
+          '
+        question: Is the technique novel, or is the application novel?
+        scale: ordinal_0_2
+        required: true
+      - id: technique_well_described
+        label: Technique well described
+        description: 'The technique is described in sufficient detail to enable replication
+          or later validation.
+
+          '
+        question: Is the technique sufficiently well described for later validation?
+        scale: ordinal_0_2
+        required: true
+      - id: technique_sound
+        label: Technique sound
+        description: 'The proposed technique is logically consistent and technically
+          plausible.
+
+          '
+        question: Is the technique sound?
+        scale: ordinal_0_2
+        required: true
+      - id: broader_relevance_argued
+        label: Broader relevance argued
+        description: 'The applicability and usefulness of the technique beyond the
+          example are argued.
+
+          '
+        question: Is the broader relevance of the technique argued?
+        scale: ordinal_0_2
+        required: true
+      - id: competing_techniques_discussed
+        label: Competing techniques discussed
+        description: 'Alternative approaches are discussed and compared to position
+          the proposal.
+
+          '
+        question: Are competing techniques discussed and compared?
+        scale: ordinal_0_2
+        required: true
+    - id: validation_research
+      label: Validation research
+      description: 'Investigation of the properties of a solution that has not yet
+        been implemented in practice, using controlled experiments, simulations, or
+        formal analysis.
+
+        '
+      criteria:
+      - id: technique_clearly_described
+        label: Technique clearly described
+        description: 'The solution under study is precisely specified and understandable.
+
+          '
+        question: Is the technique to be validated clearly described?
+        scale: ordinal_0_2
+        required: true
+      - id: technique_properties_stated
+        label: Technique properties stated
+        description: 'The expected properties or behavior of the technique are explicitly
+          defined.
+
+          '
+        question: Are the causal or logical properties of the technique clearly stated?
+        scale: ordinal_0_2
+        required: true
+      - id: research_method_sound
+        label: Research method sound
+        description: 'The validation setup is methodologically rigorous and appropriate.
+
+          '
+        question: Is the research method sound?
+        scale: ordinal_0_2
+        required: true
+      - id: knowledge_claim_validated
+        label: Knowledge claim validated
+        description: 'The claims about the technique are supported by the validation
+          results.
+
+          '
+        question: Is the conclusion supported by the paper?
+        scale: ordinal_0_2
+        required: true
+      - id: applicability_conditions_clear
+        label: Applicability conditions clear
+        description: 'The conditions under which the technique is valid are clearly
+          specified.
+
+          '
+        question: Is it clear under which circumstances the technique has the stated
+          properties?
+        scale: ordinal_0_2
+        required: true
+      - id: knowledge_increase_significant
+        label: Significant knowledge increase
+        description: "The study contributes meaningful knowledge about the technique\u2019\
+          s behavior.\n"
+        question: Is this a significant increase in knowledge about the technique?
+        scale: ordinal_0_2
+        required: true
+      - id: related_work_sufficient
+        label: Related work sufficient
+        description: 'The validation is positioned relative to prior validation efforts
+          or techniques.
+
+          '
+        question: Is there sufficient discussion of related work?
+        scale: ordinal_0_2
+        required: true
+    - id: philosophical_paper
+      label: Philosophical paper
+      description: 'Paper proposing a new conceptual framework or way of thinking
+        about requirements engineering problems.
+
+        '
+      criteria:
+      - id: framework_original
+        label: Framework original
+        description: 'The conceptual framework introduces new perspectives or abstractions.
+
+          '
+        question: Is the conceptual framework original?
+        scale: ordinal_0_2
+        required: true
+      - id: framework_sound
+        label: Framework sound
+        description: 'The framework is internally consistent and logically coherent.
+
+          '
+        question: Is it sound?
+        scale: ordinal_0_2
+        required: true
+      - id: framework_insightful
+        label: Framework insightful
+        description: 'The framework provides useful insights for understanding or
+          structuring problems.
+
+          '
+        question: Is the framework insightful?
+        scale: ordinal_0_2
+        required: true
+    - id: opinion_paper
+      label: Opinion paper
+      description: 'Paper expressing the author''s viewpoint about practices, methods,
+        or directions in the field.
+
+        '
+      criteria:
+      - id: position_sound
+        label: Position sound
+        description: 'The arguments supporting the opinion are logically consistent
+          and justified.
+
+          '
+        question: Is the stated position sound?
+        scale: ordinal_0_2
+        required: true
+      - id: opinion_surprising
+        label: Opinion surprising
+        description: 'The opinion challenges common assumptions or introduces novel
+          viewpoints.
+
+          '
+        question: Is the opinion surprising?
+        scale: ordinal_0_2
+        required: true
+      - id: discussion_provoking
+        label: Discussion provoking
+        description: 'The opinion stimulates reflection or debate within the community.
+
+          '
+        question: Is it likely to provoke discussion?
+        scale: ordinal_0_2
+        required: true
+    - id: personal_experience_paper
+      label: Personal experience paper
+      description: 'Report of personal experience in applying techniques or working
+        in projects, emphasizing observed outcomes and lessons learned.
+
+        '
+      criteria:
+      - id: experience_original
+        label: Experience original
+        description: 'The reported experience is novel or not widely documented.
+
+          '
+        question: Is the experience original?
+        scale: ordinal_0_2
+        required: true
+      - id: report_sound
+        label: Report sound
+        description: 'The description of the experience is credible and internally
+          consistent.
+
+          '
+        question: Is the report about it sound?
+        scale: ordinal_0_2
+        required: true
+      - id: report_revealing
+        label: Report revealing
+        description: 'The report provides useful insights into practice or context.
+
+          '
+        question: Is the report revealing?
+        scale: ordinal_0_2
+        required: true
+      - id: practitioner_relevance
+        label: Practitioner relevance
+        description: 'The lessons learned are applicable or useful for practitioners.
+
+          '
+        question: Is the report relevant for practitioners?
+        scale: ordinal_0_2
+        required: true
+  - id: explanation_interaction
+    label: Interaction type
+    description: 'Whether the explanation adapts to user feedback or remains fixed.
+
+      '
+    value_type: category
+    cardinality: single
+    required: true
+    values:
+    - id: static
+      label: Static
+      description: 'Explanation does not change in response to user interaction.
+
+        '
+    - id: interactive
+      label: Interactive
+      description: 'Explanation allows iterative exploration or dialogue with the
+        user.
+
+        '
+  - id: explanation_target
+    label: Explanation target
+    description: 'The entity being explained by the method.
+
+      '
+    value_type: category
+    cardinality: single
+    required: true
+    values:
+    - id: data
+      label: Data
+      description: 'Explanation focuses on understanding datasets or feature structure.
+
+        '
+    - id: model
+      label: Model
+      description: 'Explanation focuses on understanding model behavior or predictions.
+
+        '
+  - id: explanation_scope
+    label: Explanation scope
+    description: 'The level at which the explanation is provided.
+
+      '
+    value_type: category
+    cardinality: single
+    required: true
+    values:
+    - id: local
+      label: Local
+      description: 'Explanation applies to a single prediction or instance.
+
+        '
+    - id: global
+      label: Global
+      description: 'Explanation describes overall model behavior.
+
+        '
+  - id: explanation_generation
+    label: Explanation generation type
+    description: 'Mechanism used to produce explanations.
+
+      '
+    value_type: category
+    cardinality: single
+    required: true
+    values:
+    - id: direct
+      label: Directly interpretable
+      description: 'The model itself is inherently interpretable and provides explanations.
+
+        '
+    - id: post_hoc
+      label: Post-hoc
+      description: 'Explanation is generated after model training using an auxiliary
+        method.
+
+        '
+    - id: self_explaining
+      label: Self-explaining
+      description: 'The model generates explanations as part of its prediction process.
+
+        '
+  - id: explanation_representation
+    label: Explanation representation
+    description: 'The form in which explanations are expressed.
+
+      '
+    value_type: category
+    cardinality: multiple
+    required: false
+    values:
+    - id: features
+      label: Feature-based
+      description: 'Explanation highlights relevant features influencing predictions.
+
+        '
+    - id: samples
+      label: Sample-based
+      description: 'Explanation uses representative or similar instances.
+
+        '
+    - id: distributions
+      label: Distribution-based
+      description: 'Explanation characterizes statistical properties of data or model
+        outputs.
+
+        '
+    - id: surrogate_model
+      label: Surrogate model
+      description: 'Explanation approximates the original model using a simpler interpretable
+        model.
+
+        '
+    - id: visualization
+      label: Visualization
+      description: 'Explanation is presented through graphical or visual representations.
+
+        '
+  - id: explanation_modality
+    label: Data modality
+    description: 'Type of data supported by the explanation method.
+
+      '
+    value_type: category
+    cardinality: multiple
+    required: false
+    values:
+    - id: tabular
+      label: Tabular
+      description: 'Structured data with rows and columns.
+
+        '
+    - id: image
+      label: Image
+      description: 'Visual data such as images.
+
+        '
+    - id: text
+      label: Text
+      description: 'Natural language or textual data.
+
+        '
+  - id: explanation_persona
+    label: Consumer persona
+    description: 'Target user type requiring the explanation.
+
+      '
+    value_type: category
+    cardinality: multiple
+    required: false
+    values:
+    - id: data_scientist
+      label: Data scientist
+      description: 'User developing or analyzing models.
+
+        '
+    - id: domain_expert
+      label: Domain expert
+      description: 'Specialist interpreting model outputs in context.
+
+        '
+    - id: end_user
+      label: End user
+      description: 'Non-expert affected by decisions.
+
+        '
+    - id: regulator
+      label: Regulator
+      description: 'Authority ensuring compliance and fairness.
+
+        '
+  - id: interaction_type
+    label: Interaction type
+    description: 'Type of interaction in which trust relationships occur.
+
+      '
+    value_type: category
+    cardinality: single
+    required: true
+    values:
+    - id: human_machine
+      label: "Human\u2013machine"
+      description: 'Human is trustor and AI system is trustee.
+
+        '
+    - id: machine_human
+      label: "Machine\u2013human"
+      description: 'AI evaluates trustworthiness of human inputs or users.
+
+        '
+    - id: machine_machine
+      label: "Machine\u2013machine"
+      description: 'Autonomous systems evaluate each other.
+
+        '
+    - id: ai_object
+      label: "AI\u2013object"
+      description: 'AI evaluates trustworthiness of data, signals, or objects.
+
+        '
+  - id: trust_factor_category
+    label: Trust factor category
+    description: 'High-level grouping of factors influencing trust.
+
+      '
+    value_type: category
+    cardinality: multiple
+    required: true
+    values:
+    - id: human_based
+      label: Human-based
+      description: 'Factors related to user traits, cognition, and perception.
+
+        '
+    - id: context_based
+      label: Context-based
+      description: 'Environmental, organizational, and situational factors.
+
+        '
+    - id: technology_based
+      label: Technology-based
+      description: 'Properties of the AI system itself.
+
+        '
+  - id: trust_parameter
+    label: Trust parameter
+    description: 'Core dimensions structuring trust evaluation (derived from Fig.
+      3).
+
+      '
+    value_type: category
+    cardinality: multiple
+    required: true
+    values:
+    - id: ability
+      label: Ability
+      description: 'Competence of the AI system (accuracy, reliability, performance).
+
+        '
+    - id: integrity
+      label: Integrity
+      description: 'Compliance with standards, rules, and regulations.
+
+        '
+    - id: benevolence
+      label: Benevolence
+      description: 'Alignment with human values and societal benefit.
+
+        '
+  - id: technical_metric
+    label: Technical trust metric
+    description: 'Quantifiable system-level properties contributing to trustworthiness.
+
+      '
+    value_type: category
+    cardinality: multiple
+    required: false
+    values:
+    - id: accuracy
+      label: Accuracy
+      description: 'Correctness of predictions.
+
+        '
+    - id: robustness
+      label: Robustness
+      description: 'Stability under perturbations and adversarial conditions.
+
+        '
+    - id: safety
+      label: Safety
+      description: 'Avoidance of harmful outcomes.
+
+        '
+    - id: reliability
+      label: Reliability
+      description: 'Consistency of system behavior over time.
+
+        '
+    - id: security
+      label: Security
+      description: 'Resistance to attacks or manipulation.
+
+        '
+    - id: transparency
+      label: Transparency
+      description: 'Visibility into system processes.
+
+        '
+    - id: explainability
+      label: Explainability
+      description: 'Ability to provide understandable explanations.
+
+        '
+  - id: non_technical_metric
+    label: Axiological (non-technical) metric
+    description: 'Ethical, legal, and social dimensions of trustworthiness.
+
+      '
+    value_type: category
+    cardinality: multiple
+    required: false
+    values:
+    - id: fairness
+      label: Fairness
+      description: 'Absence of bias and discrimination.
+
+        '
+    - id: privacy
+      label: Privacy
+      description: 'Protection and control of personal data.
+
+        '
+    - id: accountability
+      label: Accountability
+      description: 'Ability to justify decisions and assign responsibility.
+
+        '
+    - id: ethics
+      label: Ethics
+      description: 'Alignment with moral principles.
+
+        '
+    - id: transparency_social
+      label: Social transparency
+      description: 'Communication of system behavior to stakeholders.
+
+        '
+  - id: trust_dynamics
+    label: Trust dynamics
+    description: 'Mechanisms that increase or decrease trust over time.
+
+      '
+    value_type: category
+    cardinality: multiple
+    required: false
+    values:
+    - id: trust_builder
+      label: Trust builder
+      description: 'Factors increasing trust (e.g., explanations, certification).
+
+        '
+    - id: trust_breaker
+      label: Trust breaker
+      description: 'Factors decreasing trust (e.g., opacity, bias, autonomy threats).
+
+        '
+    - id: trust_calibration
+      label: Trust calibration
+      description: 'Adjustment of trust to appropriate levels (avoid over/under-trust).
+
+        '
+  - id: trust_principle
+    label: Trust principle
+    description: 'Normative principles required for trustworthy AI.
+
+      '
+    value_type: category
+    cardinality: multiple
+    required: false
+    values:
+    - id: beneficence
+      label: Beneficence
+      description: 'AI should benefit humans and society.
+
+        '
+    - id: non_maleficence
+      label: Non-maleficence
+      description: 'AI should avoid harm.
+
+        '
+    - id: autonomy
+      label: Autonomy
+      description: 'Respect for human control and agency.
+
+        '
+    - id: justice
+      label: Justice
+      description: 'Fair distribution of benefits and risks.
+
+        '
+    - id: explicability
+      label: Explicability
+      description: 'Systems must be explainable and understandable.
+
+        '
+  scales:
+  - id: ordinal_0_2
+    scale_type: ordinal
+    scale_values:
+    - value: '0'
+      label: not_satisfied
+    - value: '1'
+      label: partially_satisfied
+    - value: '2'
+      label: satisfied
+  rules:
+  - id: multiple_classes_allowed
+    description: A paper may belong to more than one paper class.
+    applies_to: paper_class
+  - id: class_specific_criteria
+    description: Evaluation criteria are selected from the criteria attached to each
+      selected paper class.
+    applies_to: paper_class
+  - id: decision_tree_navigation
+    description: 'Explanation methods are selected by traversing dimensions as a decision
+      tree based on user requirements and context.
+
+      '
+    applies_to: taxonomy
+  - id: multi_dimensional_classification
+    description: 'Each explanation method is characterized by a combination of values
+      across multiple independent dimensions.
+
+      '
+    applies_to: taxonomy
+  - id: persona_driven_selection
+    description: 'The choice of explanation type depends on the needs and perspective
+      of the target persona.
+
+      '
+    applies_to: explanation_persona
+  - id: trust_multidimensional
+    description: 'Trust in AI emerges from the interaction of technical, human, and
+      contextual factors.
+
+      '
+    applies_to: taxonomy
+  - id: trust_vs_trustworthiness
+    description: 'Trust and trustworthiness are distinct; one does not imply the other.
+
+      '
+    applies_to: trust_dimension
+  - id: perception_gap
+    description: 'Perceived trustworthiness is inferred from observable cues, not
+      directly from actual system properties.
+
+      '
+    applies_to: trust_dimension

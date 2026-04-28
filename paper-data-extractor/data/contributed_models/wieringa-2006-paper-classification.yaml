@@ -1,0 +1,296 @@
+id: wieringa_2006_paper_classification
+title: Requirements engineering paper classification and evaluation criteria
+target_entity: paper
+
+source:
+  citation_key: wieringa_2006
+  title: "Requirements engineering paper classification and evaluation criteria: a proposal and a discussion"
+  authors:
+    - Roel Wieringa
+    - Neil Maiden
+    - Nancy Mead
+    - Colette Rolland
+  year: 2006
+
+dimensions:
+  - id: paper_class
+    label: Paper class
+    value_type: category
+    cardinality: multiple
+    required: true
+    values:
+
+      - id: evaluation_research
+        label: Evaluation research
+        description: >
+          Investigation of a problem in practice or of an implemented technique
+          in practice. The focus is on empirical or analytical evaluation in a
+          real-world context, with emphasis on the validity of the knowledge claim
+          and the soundness of the research method.
+        criteria:
+          - id: problem_clearly_stated
+            label: Problem clearly stated
+            description: >
+              The paper explicitly defines the problem context, scope, and
+              objectives so that the reader understands what is being evaluated.
+            question: Is the problem clearly stated?
+            scale: ordinal_0_2
+            required: true
+          - id: properties_clearly_stated
+            label: Properties clearly stated
+            description: >
+              The causal, logical, or contextual properties of the problem are
+              explicitly identified, enabling interpretation of results.
+            question: Are the causal or logical properties clearly stated?
+            scale: ordinal_0_2
+            required: true
+          - id: research_method_sound
+            label: Research method sound
+            description: >
+              The evaluation design, data collection, and analysis methods are
+              appropriate, rigorous, and justified.
+            question: Is the research method sound?
+            scale: ordinal_0_2
+            required: true
+          - id: knowledge_claim_validated
+            label: Knowledge claim validated
+            description: >
+              The conclusions are supported by the evidence and analysis presented.
+            question: Is the conclusion supported by the paper?
+            scale: ordinal_0_2
+            required: true
+          - id: knowledge_increase_significant
+            label: Significant knowledge increase
+            description: >
+              The results provide meaningful and non-trivial insights for the field.
+            question: Are the lessons learned interesting?
+            scale: ordinal_0_2
+            required: true
+          - id: related_work_sufficient
+            label: Related work sufficient
+            description: >
+              The paper situates its contribution within existing literature and
+              compares with prior work.
+            question: Is there sufficient discussion of related work?
+            scale: ordinal_0_2
+            required: true
+
+      - id: proposal_of_solution
+        label: Proposal of solution
+        description: >
+          Proposal of a novel or significantly improved technique, supported by
+          argumentation or limited evidence, but without full validation in practice.
+        criteria:
+          - id: problem_explained
+            label: Problem explained
+            description: >
+              The problem addressed by the proposed solution is clearly defined
+              and motivated.
+            question: Is the problem to be solved clearly explained?
+            scale: ordinal_0_2
+            required: true
+          - id: technique_novel
+            label: Technique novel
+            description: >
+              The proposed technique introduces new ideas or a novel application
+              of existing ideas.
+            question: Is the technique novel, or is the application novel?
+            scale: ordinal_0_2
+            required: true
+          - id: technique_well_described
+            label: Technique well described
+            description: >
+              The technique is described in sufficient detail to enable replication
+              or later validation.
+            question: Is the technique sufficiently well described for later validation?
+            scale: ordinal_0_2
+            required: true
+          - id: technique_sound
+            label: Technique sound
+            description: >
+              The proposed technique is logically consistent and technically plausible.
+            question: Is the technique sound?
+            scale: ordinal_0_2
+            required: true
+          - id: broader_relevance_argued
+            label: Broader relevance argued
+            description: >
+              The applicability and usefulness of the technique beyond the example
+              are argued.
+            question: Is the broader relevance of the technique argued?
+            scale: ordinal_0_2
+            required: true
+          - id: competing_techniques_discussed
+            label: Competing techniques discussed
+            description: >
+              Alternative approaches are discussed and compared to position the proposal.
+            question: Are competing techniques discussed and compared?
+            scale: ordinal_0_2
+            required: true
+
+      - id: validation_research
+        label: Validation research
+        description: >
+          Investigation of the properties of a solution that has not yet been
+          implemented in practice, using controlled experiments, simulations,
+          or formal analysis.
+        criteria:
+          - id: technique_clearly_described
+            label: Technique clearly described
+            description: >
+              The solution under study is precisely specified and understandable.
+            question: Is the technique to be validated clearly described?
+            scale: ordinal_0_2
+            required: true
+          - id: technique_properties_stated
+            label: Technique properties stated
+            description: >
+              The expected properties or behavior of the technique are explicitly defined.
+            question: Are the causal or logical properties of the technique clearly stated?
+            scale: ordinal_0_2
+            required: true
+          - id: research_method_sound
+            label: Research method sound
+            description: >
+              The validation setup is methodologically rigorous and appropriate.
+            question: Is the research method sound?
+            scale: ordinal_0_2
+            required: true
+          - id: knowledge_claim_validated
+            label: Knowledge claim validated
+            description: >
+              The claims about the technique are supported by the validation results.
+            question: Is the conclusion supported by the paper?
+            scale: ordinal_0_2
+            required: true
+          - id: applicability_conditions_clear
+            label: Applicability conditions clear
+            description: >
+              The conditions under which the technique is valid are clearly specified.
+            question: Is it clear under which circumstances the technique has the stated properties?
+            scale: ordinal_0_2
+            required: true
+          - id: knowledge_increase_significant
+            label: Significant knowledge increase
+            description: >
+              The study contributes meaningful knowledge about the technique’s behavior.
+            question: Is this a significant increase in knowledge about the technique?
+            scale: ordinal_0_2
+            required: true
+          - id: related_work_sufficient
+            label: Related work sufficient
+            description: >
+              The validation is positioned relative to prior validation efforts or techniques.
+            question: Is there sufficient discussion of related work?
+            scale: ordinal_0_2
+            required: true
+
+      - id: philosophical_paper
+        label: Philosophical paper
+        description: >
+          Paper proposing a new conceptual framework or way of thinking about
+          requirements engineering problems.
+        criteria:
+          - id: framework_original
+            label: Framework original
+            description: >
+              The conceptual framework introduces new perspectives or abstractions.
+            question: Is the conceptual framework original?
+            scale: ordinal_0_2
+            required: true
+          - id: framework_sound
+            label: Framework sound
+            description: >
+              The framework is internally consistent and logically coherent.
+            question: Is it sound?
+            scale: ordinal_0_2
+            required: true
+          - id: framework_insightful
+            label: Framework insightful
+            description: >
+              The framework provides useful insights for understanding or structuring problems.
+            question: Is the framework insightful?
+            scale: ordinal_0_2
+            required: true
+
+      - id: opinion_paper
+        label: Opinion paper
+        description: >
+          Paper expressing the author's viewpoint about practices, methods,
+          or directions in the field.
+        criteria:
+          - id: position_sound
+            label: Position sound
+            description: >
+              The arguments supporting the opinion are logically consistent and justified.
+            question: Is the stated position sound?
+            scale: ordinal_0_2
+            required: true
+          - id: opinion_surprising
+            label: Opinion surprising
+            description: >
+              The opinion challenges common assumptions or introduces novel viewpoints.
+            question: Is the opinion surprising?
+            scale: ordinal_0_2
+            required: true
+          - id: discussion_provoking
+            label: Discussion provoking
+            description: >
+              The opinion stimulates reflection or debate within the community.
+            question: Is it likely to provoke discussion?
+            scale: ordinal_0_2
+            required: true
+
+      - id: personal_experience_paper
+        label: Personal experience paper
+        description: >
+          Report of personal experience in applying techniques or working in
+          projects, emphasizing observed outcomes and lessons learned.
+        criteria:
+          - id: experience_original
+            label: Experience original
+            description: >
+              The reported experience is novel or not widely documented.
+            question: Is the experience original?
+            scale: ordinal_0_2
+            required: true
+          - id: report_sound
+            label: Report sound
+            description: >
+              The description of the experience is credible and internally consistent.
+            question: Is the report about it sound?
+            scale: ordinal_0_2
+            required: true
+          - id: report_revealing
+            label: Report revealing
+            description: >
+              The report provides useful insights into practice or context.
+            question: Is the report revealing?
+            scale: ordinal_0_2
+            required: true
+          - id: practitioner_relevance
+            label: Practitioner relevance
+            description: >
+              The lessons learned are applicable or useful for practitioners.
+            question: Is the report relevant for practitioners?
+            scale: ordinal_0_2
+            required: true
+
+scales:
+  - id: ordinal_0_2
+    scale_type: ordinal
+    scale_values:
+      - value: "0"
+        label: not_satisfied
+      - value: "1"
+        label: partially_satisfied
+      - value: "2"
+        label: satisfied
+
+rules:
+  - id: multiple_classes_allowed
+    description: A paper may belong to more than one paper class.
+    applies_to: paper_class
+  - id: class_specific_criteria
+    description: Evaluation criteria are selected from the criteria attached to each selected paper class.
+    applies_to: paper_class

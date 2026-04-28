@@ -1,0 +1,216 @@
+{
+  "$defs": {
+    "ExplanationGenerationEnum": {
+      "description": "",
+      "enum": [
+        "direct",
+        "post_hoc",
+        "self_explaining"
+      ],
+      "title": "ExplanationGenerationEnum",
+      "type": "string"
+    },
+    "ExplanationInteractionEnum": {
+      "description": "",
+      "enum": [
+        "static",
+        "interactive"
+      ],
+      "title": "ExplanationInteractionEnum",
+      "type": "string"
+    },
+    "ExplanationModalityEnum": {
+      "description": "",
+      "enum": [
+        "tabular",
+        "image",
+        "text"
+      ],
+      "title": "ExplanationModalityEnum",
+      "type": "string"
+    },
+    "ExplanationPersonaEnum": {
+      "description": "",
+      "enum": [
+        "data_scientist",
+        "domain_expert",
+        "end_user",
+        "regulator"
+      ],
+      "title": "ExplanationPersonaEnum",
+      "type": "string"
+    },
+    "ExplanationRepresentationEnum": {
+      "description": "",
+      "enum": [
+        "features",
+        "samples",
+        "distributions",
+        "surrogate_model",
+        "visualization"
+      ],
+      "title": "ExplanationRepresentationEnum",
+      "type": "string"
+    },
+    "ExplanationScopeEnum": {
+      "description": "",
+      "enum": [
+        "local",
+        "global"
+      ],
+      "title": "ExplanationScopeEnum",
+      "type": "string"
+    },
+    "ExplanationTargetEnum": {
+      "description": "",
+      "enum": [
+        "data",
+        "model"
+      ],
+      "title": "ExplanationTargetEnum",
+      "type": "string"
+    },
+    "PaperReview": {
+      "additionalProperties": false,
+      "description": "Review answers for taxonomy Taxonomy of AI explainability techniques",
+      "properties": {
+        "explanation_generation": {
+          "$ref": "#/$defs/ExplanationGenerationEnum",
+          "description": "Mechanism used to produce explanations.\n"
+        },
+        "explanation_interaction": {
+          "$ref": "#/$defs/ExplanationInteractionEnum",
+          "description": "Whether the explanation adapts to user feedback or remains fixed.\n"
+        },
+        "explanation_modality": {
+          "description": "Type of data supported by the explanation method.\n",
+          "items": {
+            "$ref": "#/$defs/ExplanationModalityEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "explanation_persona": {
+          "description": "Target user type requiring the explanation.\n",
+          "items": {
+            "$ref": "#/$defs/ExplanationPersonaEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "explanation_representation": {
+          "description": "The form in which explanations are expressed.\n",
+          "items": {
+            "$ref": "#/$defs/ExplanationRepresentationEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "explanation_scope": {
+          "$ref": "#/$defs/ExplanationScopeEnum",
+          "description": "The level at which the explanation is provided.\n"
+        },
+        "explanation_target": {
+          "$ref": "#/$defs/ExplanationTargetEnum",
+          "description": "The entity being explained by the method.\n"
+        },
+        "paper_id": {
+          "description": "Paper identifier in Paper Monitor.",
+          "type": "string"
+        },
+        "taxonomy_id": {
+          "description": "Composed taxonomy identifier.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "paper_id",
+        "taxonomy_id",
+        "explanation_interaction",
+        "explanation_target",
+        "explanation_scope",
+        "explanation_generation"
+      ],
+      "title": "PaperReview",
+      "type": "object"
+    }
+  },
+  "$id": "https://papers.home.nextnet.top/generated/composed_05eaf5c0d5a6f20e_review_schema",
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "additionalProperties": true,
+  "description": "Review answers for taxonomy Taxonomy of AI explainability techniques",
+  "metamodel_version": "1.7.0",
+  "properties": {
+    "explanation_generation": {
+      "$ref": "#/$defs/ExplanationGenerationEnum",
+      "description": "Mechanism used to produce explanations.\n"
+    },
+    "explanation_interaction": {
+      "$ref": "#/$defs/ExplanationInteractionEnum",
+      "description": "Whether the explanation adapts to user feedback or remains fixed.\n"
+    },
+    "explanation_modality": {
+      "description": "Type of data supported by the explanation method.\n",
+      "items": {
+        "$ref": "#/$defs/ExplanationModalityEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "explanation_persona": {
+      "description": "Target user type requiring the explanation.\n",
+      "items": {
+        "$ref": "#/$defs/ExplanationPersonaEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "explanation_representation": {
+      "description": "The form in which explanations are expressed.\n",
+      "items": {
+        "$ref": "#/$defs/ExplanationRepresentationEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "explanation_scope": {
+      "$ref": "#/$defs/ExplanationScopeEnum",
+      "description": "The level at which the explanation is provided.\n"
+    },
+    "explanation_target": {
+      "$ref": "#/$defs/ExplanationTargetEnum",
+      "description": "The entity being explained by the method.\n"
+    },
+    "paper_id": {
+      "description": "Paper identifier in Paper Monitor.",
+      "type": "string"
+    },
+    "taxonomy_id": {
+      "description": "Composed taxonomy identifier.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "paper_id",
+    "taxonomy_id",
+    "explanation_interaction",
+    "explanation_target",
+    "explanation_scope",
+    "explanation_generation"
+  ],
+  "title": "composed_05eaf5c0d5a6f20e_review_schema",
+  "type": "object",
+  "version": null
+}

@@ -1,0 +1,399 @@
+id: https://papers.home.nextnet.top/generated/composed_98b8d74b2e11a1da_review_schema
+name: composed_98b8d74b2e11a1da_review_schema
+prefixes:
+  ex: https://papers.home.nextnet.top/generated/
+  linkml: https://w3id.org/linkml/
+imports:
+- linkml:types
+default_prefix: ex
+classes:
+  PaperReview:
+    tree_root: true
+    description: Review answers for taxonomy Requirements engineering paper classification
+      and evaluation criteria
+    slots:
+    - paper_id
+    - taxonomy_id
+    - paper_class
+    - problem_clearly_stated
+    - properties_clearly_stated
+    - research_method_sound
+    - knowledge_claim_validated
+    - knowledge_increase_significant
+    - related_work_sufficient
+    - problem_explained
+    - technique_novel
+    - technique_well_described
+    - technique_sound
+    - broader_relevance_argued
+    - competing_techniques_discussed
+    - technique_clearly_described
+    - technique_properties_stated
+    - applicability_conditions_clear
+    - framework_original
+    - framework_sound
+    - framework_insightful
+    - position_sound
+    - opinion_surprising
+    - discussion_provoking
+    - experience_original
+    - report_sound
+    - report_revealing
+    - practitioner_relevance
+slots:
+  paper_id:
+    range: string
+    required: true
+    description: Paper identifier in Paper Monitor.
+  taxonomy_id:
+    range: string
+    required: true
+    description: Composed taxonomy identifier.
+  paper_class:
+    title: Paper class
+    required: true
+    range: paper_class_enum
+    multivalued: true
+  problem_clearly_stated:
+    title: Problem clearly stated
+    description: Is the problem clearly stated?
+    range: problem_clearly_stated_enum
+  properties_clearly_stated:
+    title: Properties clearly stated
+    description: Are the causal or logical properties clearly stated?
+    range: properties_clearly_stated_enum
+  research_method_sound:
+    title: Research method sound
+    description: Is the research method sound?
+    range: research_method_sound_enum
+  knowledge_claim_validated:
+    title: Knowledge claim validated
+    description: Is the conclusion supported by the paper?
+    range: knowledge_claim_validated_enum
+  knowledge_increase_significant:
+    title: Significant knowledge increase
+    description: Are the lessons learned interesting?
+    range: knowledge_increase_significant_enum
+  related_work_sufficient:
+    title: Related work sufficient
+    description: Is there sufficient discussion of related work?
+    range: related_work_sufficient_enum
+  problem_explained:
+    title: Problem explained
+    description: Is the problem to be solved clearly explained?
+    range: problem_explained_enum
+  technique_novel:
+    title: Technique novel
+    description: Is the technique novel, or is the application novel?
+    range: technique_novel_enum
+  technique_well_described:
+    title: Technique well described
+    description: Is the technique sufficiently well described for later validation?
+    range: technique_well_described_enum
+  technique_sound:
+    title: Technique sound
+    description: Is the technique sound?
+    range: technique_sound_enum
+  broader_relevance_argued:
+    title: Broader relevance argued
+    description: Is the broader relevance of the technique argued?
+    range: broader_relevance_argued_enum
+  competing_techniques_discussed:
+    title: Competing techniques discussed
+    description: Are competing techniques discussed and compared?
+    range: competing_techniques_discussed_enum
+  technique_clearly_described:
+    title: Technique clearly described
+    description: Is the technique to be validated clearly described?
+    range: technique_clearly_described_enum
+  technique_properties_stated:
+    title: Technique properties stated
+    description: Are the causal or logical properties of the technique clearly stated?
+    range: technique_properties_stated_enum
+  applicability_conditions_clear:
+    title: Applicability conditions clear
+    description: Is it clear under which circumstances the technique has the stated
+      properties?
+    range: applicability_conditions_clear_enum
+  framework_original:
+    title: Framework original
+    description: Is the conceptual framework original?
+    range: framework_original_enum
+  framework_sound:
+    title: Framework sound
+    description: Is it sound?
+    range: framework_sound_enum
+  framework_insightful:
+    title: Framework insightful
+    description: Is the framework insightful?
+    range: framework_insightful_enum
+  position_sound:
+    title: Position sound
+    description: Is the stated position sound?
+    range: position_sound_enum
+  opinion_surprising:
+    title: Opinion surprising
+    description: Is the opinion surprising?
+    range: opinion_surprising_enum
+  discussion_provoking:
+    title: Discussion provoking
+    description: Is it likely to provoke discussion?
+    range: discussion_provoking_enum
+  experience_original:
+    title: Experience original
+    description: Is the experience original?
+    range: experience_original_enum
+  report_sound:
+    title: Report sound
+    description: Is the report about it sound?
+    range: report_sound_enum
+  report_revealing:
+    title: Report revealing
+    description: Is the report revealing?
+    range: report_revealing_enum
+  practitioner_relevance:
+    title: Practitioner relevance
+    description: Is the report relevant for practitioners?
+    range: practitioner_relevance_enum
+enums:
+  paper_class_enum:
+    permissible_values:
+      evaluation_research:
+        title: Evaluation research
+        description: 'Investigation of a problem in practice or of an implemented
+          technique in practice. The focus is on empirical or analytical evaluation
+          in a real-world context, with emphasis on the validity of the knowledge
+          claim and the soundness of the research method.
+
+          '
+      proposal_of_solution:
+        title: Proposal of solution
+        description: 'Proposal of a novel or significantly improved technique, supported
+          by argumentation or limited evidence, but without full validation in practice.
+
+          '
+      validation_research:
+        title: Validation research
+        description: 'Investigation of the properties of a solution that has not yet
+          been implemented in practice, using controlled experiments, simulations,
+          or formal analysis.
+
+          '
+      philosophical_paper:
+        title: Philosophical paper
+        description: 'Paper proposing a new conceptual framework or way of thinking
+          about requirements engineering problems.
+
+          '
+      opinion_paper:
+        title: Opinion paper
+        description: 'Paper expressing the author''s viewpoint about practices, methods,
+          or directions in the field.
+
+          '
+      personal_experience_paper:
+        title: Personal experience paper
+        description: 'Report of personal experience in applying techniques or working
+          in projects, emphasizing observed outcomes and lessons learned.
+
+          '
+  problem_clearly_stated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  properties_clearly_stated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  research_method_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  knowledge_claim_validated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  knowledge_increase_significant_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  related_work_sufficient_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  problem_explained_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_novel_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_well_described_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  broader_relevance_argued_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  competing_techniques_discussed_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_clearly_described_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  technique_properties_stated_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  applicability_conditions_clear_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  framework_original_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  framework_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  framework_insightful_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  position_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  opinion_surprising_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  discussion_provoking_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  experience_original_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  report_sound_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  report_revealing_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied
+  practitioner_relevance_enum:
+    permissible_values:
+      '0':
+        title: not_satisfied
+      '1':
+        title: partially_satisfied
+      '2':
+        title: satisfied

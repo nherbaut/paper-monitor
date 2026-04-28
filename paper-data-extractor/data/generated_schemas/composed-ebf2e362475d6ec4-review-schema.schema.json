@@ -1,0 +1,247 @@
+{
+  "$defs": {
+    "InteractionTypeEnum": {
+      "description": "",
+      "enum": [
+        "human_machine",
+        "machine_human",
+        "machine_machine",
+        "ai_object"
+      ],
+      "title": "InteractionTypeEnum",
+      "type": "string"
+    },
+    "NonTechnicalMetricEnum": {
+      "description": "",
+      "enum": [
+        "fairness",
+        "privacy",
+        "accountability",
+        "ethics",
+        "transparency_social"
+      ],
+      "title": "NonTechnicalMetricEnum",
+      "type": "string"
+    },
+    "PaperReview": {
+      "additionalProperties": false,
+      "description": "Review answers for taxonomy Taxonomy of trust in AI",
+      "properties": {
+        "interaction_type": {
+          "$ref": "#/$defs/InteractionTypeEnum",
+          "description": "Type of interaction in which trust relationships occur.\n"
+        },
+        "non_technical_metric": {
+          "description": "Ethical, legal, and social dimensions of trustworthiness.\n",
+          "items": {
+            "$ref": "#/$defs/NonTechnicalMetricEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "paper_id": {
+          "description": "Paper identifier in Paper Monitor.",
+          "type": "string"
+        },
+        "taxonomy_id": {
+          "description": "Composed taxonomy identifier.",
+          "type": "string"
+        },
+        "technical_metric": {
+          "description": "Quantifiable system-level properties contributing to trustworthiness.\n",
+          "items": {
+            "$ref": "#/$defs/TechnicalMetricEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "trust_dynamics": {
+          "description": "Mechanisms that increase or decrease trust over time.\n",
+          "items": {
+            "$ref": "#/$defs/TrustDynamicsEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "trust_factor_category": {
+          "description": "High-level grouping of factors influencing trust.\n",
+          "items": {
+            "$ref": "#/$defs/TrustFactorCategoryEnum"
+          },
+          "type": "array"
+        },
+        "trust_parameter": {
+          "description": "Core dimensions structuring trust evaluation (derived from Fig. 3).\n",
+          "items": {
+            "$ref": "#/$defs/TrustParameterEnum"
+          },
+          "type": "array"
+        },
+        "trust_principle": {
+          "description": "Normative principles required for trustworthy AI.\n",
+          "items": {
+            "$ref": "#/$defs/TrustPrincipleEnum"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "paper_id",
+        "taxonomy_id",
+        "interaction_type",
+        "trust_factor_category",
+        "trust_parameter"
+      ],
+      "title": "PaperReview",
+      "type": "object"
+    },
+    "TechnicalMetricEnum": {
+      "description": "",
+      "enum": [
+        "accuracy",
+        "robustness",
+        "safety",
+        "reliability",
+        "security",
+        "transparency",
+        "explainability"
+      ],
+      "title": "TechnicalMetricEnum",
+      "type": "string"
+    },
+    "TrustDynamicsEnum": {
+      "description": "",
+      "enum": [
+        "trust_builder",
+        "trust_breaker",
+        "trust_calibration"
+      ],
+      "title": "TrustDynamicsEnum",
+      "type": "string"
+    },
+    "TrustFactorCategoryEnum": {
+      "description": "",
+      "enum": [
+        "human_based",
+        "context_based",
+        "technology_based"
+      ],
+      "title": "TrustFactorCategoryEnum",
+      "type": "string"
+    },
+    "TrustParameterEnum": {
+      "description": "",
+      "enum": [
+        "ability",
+        "integrity",
+        "benevolence"
+      ],
+      "title": "TrustParameterEnum",
+      "type": "string"
+    },
+    "TrustPrincipleEnum": {
+      "description": "",
+      "enum": [
+        "beneficence",
+        "non_maleficence",
+        "autonomy",
+        "justice",
+        "explicability"
+      ],
+      "title": "TrustPrincipleEnum",
+      "type": "string"
+    }
+  },
+  "$id": "https://papers.home.nextnet.top/generated/composed_ebf2e362475d6ec4_review_schema",
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "additionalProperties": true,
+  "description": "Review answers for taxonomy Taxonomy of trust in AI",
+  "metamodel_version": "1.7.0",
+  "properties": {
+    "interaction_type": {
+      "$ref": "#/$defs/InteractionTypeEnum",
+      "description": "Type of interaction in which trust relationships occur.\n"
+    },
+    "non_technical_metric": {
+      "description": "Ethical, legal, and social dimensions of trustworthiness.\n",
+      "items": {
+        "$ref": "#/$defs/NonTechnicalMetricEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "paper_id": {
+      "description": "Paper identifier in Paper Monitor.",
+      "type": "string"
+    },
+    "taxonomy_id": {
+      "description": "Composed taxonomy identifier.",
+      "type": "string"
+    },
+    "technical_metric": {
+      "description": "Quantifiable system-level properties contributing to trustworthiness.\n",
+      "items": {
+        "$ref": "#/$defs/TechnicalMetricEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "trust_dynamics": {
+      "description": "Mechanisms that increase or decrease trust over time.\n",
+      "items": {
+        "$ref": "#/$defs/TrustDynamicsEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    },
+    "trust_factor_category": {
+      "description": "High-level grouping of factors influencing trust.\n",
+      "items": {
+        "$ref": "#/$defs/TrustFactorCategoryEnum"
+      },
+      "type": "array"
+    },
+    "trust_parameter": {
+      "description": "Core dimensions structuring trust evaluation (derived from Fig. 3).\n",
+      "items": {
+        "$ref": "#/$defs/TrustParameterEnum"
+      },
+      "type": "array"
+    },
+    "trust_principle": {
+      "description": "Normative principles required for trustworthy AI.\n",
+      "items": {
+        "$ref": "#/$defs/TrustPrincipleEnum"
+      },
+      "type": [
+        "array",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "paper_id",
+    "taxonomy_id",
+    "interaction_type",
+    "trust_factor_category",
+    "trust_parameter"
+  ],
+  "title": "composed_ebf2e362475d6ec4_review_schema",
+  "type": "object",
+  "version": null
+}
