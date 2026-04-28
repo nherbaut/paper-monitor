@@ -1,0 +1,195 @@
+id: https://papers.home.nextnet.top/survey-taxonomy-metamodel
+name: survey_taxonomy_metamodel
+
+prefixes:
+  ex: https://papers.home.nextnet.top
+  linkml: https://w3id.org/linkml/
+
+imports:
+  - linkml:types
+
+default_prefix: ex
+
+classes:
+
+  Taxonomy:
+    tree_root: true
+    slots:
+      - id
+      - title
+      - source
+      - target_entity
+      - dimensions
+      - scales
+      - rules
+
+  Source:
+    slots:
+      - citation_key
+      - title
+      - authors
+      - year
+
+  Dimension:
+    slots:
+      - id
+      - label
+      - description
+      - value_type
+      - cardinality
+      - required
+      - values
+      - subdimensions
+
+  Taxon:
+    slots:
+      - id
+      - label
+      - description
+      - children
+      - criteria
+
+  Criterion:
+    slots:
+      - id
+      - label
+      - question
+      - scale
+      - required
+
+  Scale:
+    slots:
+      - id
+      - scale_type
+      - scale_values
+
+  ScaleValue:
+    slots:
+      - value
+      - label
+      - description
+
+  Rule:
+    slots:
+      - id
+      - description
+      - applies_to
+
+slots:
+
+  id:
+    identifier: true
+    range: string
+
+  title:
+    range: string
+
+  citation_key:
+    range: string
+
+  authors:
+    range: string
+    multivalued: true
+
+  year:
+    range: integer
+
+  source:
+    range: Source
+    inlined: true
+
+  target_entity:
+    range: string
+
+  dimensions:
+    range: Dimension
+    multivalued: true
+    inlined: true
+
+  subdimensions:
+    range: Dimension
+    multivalued: true
+    inlined: true
+
+  values:
+    range: Taxon
+    multivalued: true
+    inlined: true
+
+  children:
+    range: Taxon
+    multivalued: true
+    inlined: true
+
+  criteria:
+    range: Criterion
+    multivalued: true
+    inlined: true
+
+  scales:
+    range: Scale
+    multivalued: true
+    inlined: true
+
+  scale_values:
+    range: ScaleValue
+    multivalued: true
+    inlined: true
+
+  rules:
+    range: Rule
+    multivalued: true
+    inlined: true
+
+  label:
+    range: string
+
+  description:
+    range: string
+
+  question:
+    range: string
+
+  scale:
+    range: string
+
+  required:
+    range: boolean
+
+  value:
+    range: string
+
+  applies_to:
+    range: string
+
+  value_type:
+    range: ValueType
+
+  cardinality:
+    range: Cardinality
+
+  scale_type:
+    range: ScaleType
+
+enums:
+
+  ValueType:
+    permissible_values:
+      category:
+      criterion:
+      method:
+      free_text:
+      numeric:
+
+  Cardinality:
+    permissible_values:
+      single:
+      multiple:
+
+  ScaleType:
+    permissible_values:
+      binary:
+      ordinal:
+      nominal:
+      numeric:
+      free_text:
