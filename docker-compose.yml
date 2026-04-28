@@ -15,6 +15,11 @@ services:
         image: docker.io/nherbaut/paper-monitor:1.0.0-SNAPSHOT
         depends_on:
             - paper-monitor-postgres
+            - paper-data-extractor
+    paper-data-extractor:
+        ports:
+            - 8091:8091
+        image: docker.io/nherbaut/paper-monitor-paper-data-extractor:latest
     paper-monitor-piper-api:
         ports:
             - 8090:8090

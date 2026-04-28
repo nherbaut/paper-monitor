@@ -1,0 +1,2 @@
+"""Paper Data Extractor service."""
+
