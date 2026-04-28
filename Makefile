@@ -6,10 +6,11 @@ IMAGE_TAG ?= latest
 
 DOCKERFILE_IMAGE_DIRS := $(sort $(dir $(wildcard */Dockerfile) $(wildcard */Containerfile)))
 DOCKERFILE_IMAGES := $(patsubst %/,%,$(DOCKERFILE_IMAGE_DIRS))
+EXPLICIT_DOCKERFILE_IMAGES := $(if $(wildcard paper-data-extractor/Dockerfile),paper-data-extractor,)
 QUARKUS_IMAGES := $(if $(wildcard app/pom.xml),app,)
-IMAGES := $(sort $(DOCKERFILE_IMAGES) $(QUARKUS_IMAGES))
+IMAGES := $(sort $(DOCKERFILE_IMAGES) $(EXPLICIT_DOCKERFILE_IMAGES) $(QUARKUS_IMAGES))
 
-.PHONY: help list build push build-java push-java build-app push-app build-% push-%
+.PHONY: help list build push build-java push-java build-app push-app build-extractor push-extractor build-% push-%
 
 help:
 	@echo "Targets:"
@@ -18,8 +19,11 @@ help:
 	@echo "  make push                      Push every image found in subfolders to Docker Hub"
 	@echo "  make build-java                Build only the Quarkus app image"
 	@echo "  make push-java                 Push only the Quarkus app image"
+	@echo "  make build-extractor           Build only the paper-data-extractor image"
+	@echo "  make push-extractor            Push only the paper-data-extractor image"
 	@echo "Notes:"
 	@echo "  app/ is built with the Quarkus container-image plugin"
+	@echo "  paper-data-extractor/ is built from its Dockerfile"
 	@echo "  other subfolders use Dockerfile/Containerfile builds"
 	@echo "Variables:"
 	@echo "  DOCKERHUB_NAMESPACE=<user>     Required for build/push image naming"
@@ -41,6 +45,10 @@ push: $(addprefix push-,$(IMAGES))
 build-java: build-app
 
 push-java: push-app
+
+build-extractor: build-paper-data-extractor
+
+push-extractor: push-paper-data-extractor
 
 build-app:
 	@if [[ -z "$(DOCKERHUB_NAMESPACE)" ]]; then \

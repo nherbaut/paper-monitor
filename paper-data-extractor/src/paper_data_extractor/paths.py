@@ -1,7 +1,8 @@
+import os
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT", Path(__file__).resolve().parents[2])).expanduser().resolve()
 DATA_DIR = PROJECT_ROOT / "data"
 SCHEMA_DIR = PROJECT_ROOT / "schemas"
 CONTRIBUTED_MODELS_DIR = DATA_DIR / "contributed_models"
