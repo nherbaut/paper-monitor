@@ -526,7 +526,7 @@
                         + escapeHtml(option.label) + "</span>";
                     stack.append(label);
                 }
-                stack.addEventListener("change", () => renderSelectedCriteria(field.id, criteriaContainer, values));
+                stack.addEventListener("change", () => renderSelectedCriteria(field, criteriaContainer, values));
                 card.append(stack);
                 appendValidationError(card, errorFor(field.id));
             } else {
@@ -544,12 +544,12 @@
                     item.selected = values[field.id] === option.id;
                     select.append(item);
                 }
-                select.addEventListener("change", () => renderSelectedCriteria(field.id, criteriaContainer, values));
+                select.addEventListener("change", () => renderSelectedCriteria(field, criteriaContainer, values));
                 card.append(select);
                 appendValidationError(card, errorFor(field.id));
             }
             card.append(criteriaContainer);
-            renderSelectedCriteria(field.id, criteriaContainer, values);
+            renderSelectedCriteria(field, criteriaContainer, values);
         } else if (field.value_type === "numeric") {
             const input = document.createElement("input");
             input.type = "number";
@@ -577,29 +577,42 @@
         return card;
     }
 
-    function renderSelectedCriteria(fieldId, container, values) {
+    function renderSelectedCriteria(field, container, values) {
         container.innerHTML = "";
-        for (const criterion of selectedCriteriaFor(fieldId)) {
+        for (const criterion of selectedCriteriaForField(field, values)) {
             container.append(renderCriterion(criterion, values[criterion.id]));
         }
     }
 
-    function selectedCriteriaFor(fieldId) {
+    function selectedCriteriaForField(field, values) {
         const criteriaById = new Map();
-        const checkboxes = Array.from(document.querySelectorAll("[data-field=\"" + cssEscape(fieldId) + "\"]:checked"));
-        for (const checkbox of checkboxes) {
-            for (const criterion of JSON.parse(checkbox.dataset.optionCriteria || "[]")) {
-                criteriaById.set(criterion.id, criterion);
+        const selectedValue = values[field.id];
+        const selectedValues = Array.isArray(selectedValue)
+            ? selectedValue.map((value) => String(value))
+            : selectedValue ? [String(selectedValue)] : [];
+        const optionsById = collectOptionsById(field.values || []);
+        for (const value of selectedValues) {
+            const option = optionsById.get(value);
+            if (!option) {
+                continue;
             }
-        }
-        const select = document.querySelector("select[data-field=\"" + cssEscape(fieldId) + "\"]");
-        if (select && select.selectedOptions.length > 0) {
-            const selected = select.selectedOptions[0];
-            for (const criterion of JSON.parse(selected.dataset.optionCriteria || "[]")) {
+            for (const criterion of option.criteria || []) {
                 criteriaById.set(criterion.id, criterion);
             }
         }
         return Array.from(criteriaById.values());
+    }
+
+    function collectOptionsById(options) {
+        const result = new Map();
+        for (const option of options || []) {
+            result.set(String(option.id), option);
+            const nested = collectOptionsById(option.children || []);
+            for (const [key, value] of nested.entries()) {
+                result.set(key, value);
+            }
+        }
+        return result;
     }
 
     function renderCriterion(criterion, currentValue) {
@@ -674,7 +687,7 @@
                 }
             }
         }
-        for (const criterion of selectedCriteriaFor(field.id)) {
+        for (const criterion of selectedCriteriaForField(field, values)) {
             const criterionNode = document.querySelector("[data-criterion=\"" + cssEscape(criterion.id) + "\"]");
             if (criterionNode && criterionNode.value !== "") {
                 values[criterion.id] = criterionNode.type === "number" ? Number(criterionNode.value) : criterionNode.value;
