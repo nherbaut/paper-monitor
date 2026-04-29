@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{paper.title} · Review form</title>
+    <style>
+        :root {
+            --bg: #f6f7f9;
+            --panel: #ffffff;
+            --ink: #1f2937;
+            --muted: #637182;
+            --line: #d7e0ea;
+            --accent: #285a6f;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, sans-serif;
+            background: linear-gradient(180deg, #fbfcfd 0%, var(--bg) 100%);
+            color: var(--ink);
+        }
+        main { max-width: 980px; margin: 0 auto; padding: 1.5rem 1rem 2rem; }
+        .hero, .panel, .field-card, .criterion-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            box-shadow: 0 10px 28px rgb(15 23 42 / 0.05);
+        }
+        .hero, .panel { padding: 1.2rem; }
+        .eyebrow {
+            margin: 0 0 0.35rem;
+            color: var(--accent);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+        h1 { margin: 0; font-size: clamp(1.3rem, 2vw, 1.9rem); }
+        .meta { color: var(--muted); }
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+            margin-top: 1rem;
+        }
+        button, .link-button {
+            appearance: none;
+            border: 1px solid transparent;
+            border-radius: 999px;
+            padding: 0.78rem 1rem;
+            font: inherit;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .primary { background: var(--accent); color: #fff; }
+        .secondary { background: #fff; color: var(--ink); border-color: var(--line); }
+        .danger { background: #fff2f2; color: #8a1f1f; border-color: #f1caca; }
+        .status {
+            margin-top: 0.85rem;
+            min-height: 1.25rem;
+            color: var(--muted);
+        }
+        .preview-shell {
+            margin-top: 1rem;
+            padding: 1rem;
+            border: 1px dashed rgb(40 90 111 / 0.28);
+            border-radius: 16px;
+            background:
+                repeating-linear-gradient(-45deg, rgb(40 90 111 / 0.04), rgb(40 90 111 / 0.04) 14px, rgb(255 255 255 / 0.86) 14px, rgb(255 255 255 / 0.86) 28px),
+                linear-gradient(180deg, rgb(249 251 252 / 0.95), rgb(240 245 247 / 0.95));
+        }
+        .preview-badge {
+            display: inline-flex;
+            margin-bottom: 0.8rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 999px;
+            border: 1px solid rgb(40 90 111 / 0.18);
+            background: rgb(255 255 255 / 0.8);
+            color: var(--accent);
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        #form-fields {
+            display: grid;
+            gap: 1rem;
+        }
+        .field-card, .criterion-card { padding: 1rem; }
+        .field-card h2, .criterion-card h3 {
+            margin: 0 0 0.35rem;
+            font-size: 1rem;
+        }
+        .help {
+            margin: 0 0 0.85rem;
+            color: var(--muted);
+            font-size: 0.92rem;
+            line-height: 1.45;
+        }
+        .stack { display: grid; gap: 0.65rem; }
+        label.form-check { display: flex; gap: 0.55rem; align-items: start; }
+        input[type="text"], input[type="number"], select, textarea {
+            width: 100%;
+            padding: 0.7rem 0.8rem;
+            border-radius: 12px;
+            border: 1px solid #cdd8e4;
+            background: #fff;
+            font: inherit;
+        }
+        textarea { min-height: 6rem; resize: vertical; }
+    </style>
+</head>
+<body>
+<main>
+    <section class="hero">
+        <p class="eyebrow">Review form</p>
+        <h1>{paper.title}</h1>
+        <p class="meta">Review: <strong>{review.title}</strong></p>
+        <p class="meta">{paper.authors ?: 'Unknown authors'} · State: {paper.status}</p>
+        <div class="hero-actions">
+            <button class="primary" id="save-button" type="button">Save form</button>
+            <button class="danger" id="reset-button" type="button">Reset form</button>
+            <a class="link-button secondary" href="/reviews/{review.id}" target="_self">Back to review</a>
+            {#if paper.uploadedPdfPath}
+            <a class="link-button secondary" href="/papers/{paper.id}/pdf" target="_blank" rel="noreferrer">Open PDF</a>
+            {/if}
+        </div>
+        <div class="status" id="status-line">{#if savedAt}Saved at {savedAt}{/if}</div>
+    </section>
+
+    <section class="panel">
+        <div class="preview-shell">
+            <span class="preview-badge">Review draft form</span>
+            <div id="form-fields"></div>
+        </div>
+    </section>
+</main>
+<script id="form-schema-base64" type="text/plain">{formSchemaBase64}</script>
+<script id="values-base64" type="text/plain">{valuesBase64}</script>
+<script id="paper-base64" type="text/plain">{paperSnapshotBase64}</script>
+<script>
+    const formSchema = JSON.parse(atob(document.getElementById("form-schema-base64").textContent.trim() || "e30="));
+    const initialValues = JSON.parse(atob(document.getElementById("values-base64").textContent.trim() || "e30="));
+    const paperSnapshot = JSON.parse(atob(document.getElementById("paper-base64").textContent.trim() || "e30="));
+    const fieldsContainer = document.getElementById("form-fields");
+    const statusLine = document.getElementById("status-line");
+
+    function flattenOptions(options, prefix = "") {
+        const result = [];
+        for (const option of options || []) {
+            const label = prefix ? prefix + " / " + option.label : option.label;
+            result.push({ id: option.id, label, description: option.description, criteria: option.criteria || [] });
+            result.push(...flattenOptions(option.children || [], label));
+        }
+        return result;
+    }
+
+    function renderField(field, values) {
+        const card = document.createElement("section");
+        card.className = "field-card";
+        const title = document.createElement("h2");
+        title.textContent = field.label + (field.required ? " *" : "");
+        card.append(title);
+        if (field.description) {
+            const help = document.createElement("p");
+            help.className = "help";
+            help.textContent = field.description;
+            card.append(help);
+        }
+        const criteriaContainer = document.createElement("div");
+        criteriaContainer.className = "stack";
+
+        if ((field.values || []).length > 0) {
+            const options = flattenOptions(field.values);
+            if (field.cardinality === "multiple") {
+                const selected = Array.isArray(values[field.id]) ? values[field.id] : [];
+                const stack = document.createElement("div");
+                stack.className = "stack";
+                for (const option of options) {
+                    const label = document.createElement("label");
+                    label.className = "form-check";
+                    label.title = option.description || "";
+                    const checked = selected.includes(option.id) ? " checked" : "";
+                    label.innerHTML = `<input type="checkbox" data-field="${escapeHtml(field.id)}" data-option-criteria='${escapeHtml(JSON.stringify(option.criteria || []))}' value="${escapeHtml(option.id)}"${checked}><span>${escapeHtml(option.label)}</span>`;
+                    stack.append(label);
+                }
+                stack.addEventListener("change", () => renderSelectedCriteria(field.id, criteriaContainer, values));
+                card.append(stack);
+            } else {
+                const select = document.createElement("select");
+                select.dataset.field = field.id;
+                select.innerHTML = `<option value="">Select ${escapeHtml(field.label)}</option>`;
+                for (const option of options) {
+                    const item = document.createElement("option");
+                    item.value = option.id;
+                    item.textContent = option.label;
+                    item.dataset.optionCriteria = JSON.stringify(option.criteria || []);
+                    item.selected = values[field.id] === option.id;
+                    select.append(item);
+                }
+                select.addEventListener("change", () => renderSelectedCriteria(field.id, criteriaContainer, values));
+                card.append(select);
+            }
+            card.append(criteriaContainer);
+            renderSelectedCriteria(field.id, criteriaContainer, values);
+        } else if (field.value_type === "numeric") {
+            const input = document.createElement("input");
+            input.type = "number";
+            input.dataset.field = field.id;
+            input.value = values[field.id] ?? "";
+            card.append(input);
+        } else {
+            const textarea = document.createElement("textarea");
+            textarea.dataset.field = field.id;
+            textarea.value = values[field.id] ?? "";
+            card.append(textarea);
+        }
+
+        for (const subfield of field.subdimensions || []) {
+            card.append(renderField(subfield, values));
+        }
+        return card;
+    }
+
+    function renderSelectedCriteria(fieldId, container, values) {
+        container.innerHTML = "";
+        for (const criterion of selectedCriteriaFor(fieldId)) {
+            container.append(renderCriterion(criterion, values[criterion.id]));
+        }
+    }
+
+    function selectedCriteriaFor(fieldId) {
+        const criteriaById = new Map();
+        const checkboxes = Array.from(document.querySelectorAll(`[data-field="${cssEscape(fieldId)}"]:checked`));
+        for (const checkbox of checkboxes) {
+            for (const criterion of JSON.parse(checkbox.dataset.optionCriteria || "[]")) {
+                criteriaById.set(criterion.id, criterion);
+            }
+        }
+        const select = document.querySelector(`select[data-field="${cssEscape(fieldId)}"]`);
+        if (select && select.selectedOptions.length > 0) {
+            const selected = select.selectedOptions[0];
+            for (const criterion of JSON.parse(selected.dataset.optionCriteria || "[]")) {
+                criteriaById.set(criterion.id, criterion);
+            }
+        }
+        return Array.from(criteriaById.values());
+    }
+
+    function renderCriterion(criterion, currentValue) {
+        const card = document.createElement("section");
+        card.className = "criterion-card";
+        const title = document.createElement("h3");
+        title.textContent = (criterion.label || criterion.id) + (criterion.required ? " *" : "");
+        card.append(title);
+        if (criterion.question) {
+            const help = document.createElement("p");
+            help.className = "help";
+            help.textContent = criterion.question;
+            card.append(help);
+        }
+        const scale = formSchema.scales?.[criterion.scale];
+        if (scale && Array.isArray(scale.scale_values) && scale.scale_values.length > 0) {
+            const select = document.createElement("select");
+            select.dataset.criterion = criterion.id;
+            select.innerHTML = "<option value=\"\">Select value</option>";
+            for (const scaleValue of scale.scale_values) {
+                const option = document.createElement("option");
+                option.value = scaleValue.value;
+                option.textContent = scaleValue.label || scaleValue.value;
+                option.selected = String(currentValue ?? "") === String(scaleValue.value);
+                select.append(option);
+            }
+            card.append(select);
+            return card;
+        }
+        const input = document.createElement("input");
+        input.dataset.criterion = criterion.id;
+        input.type = scale?.scale_type === "numeric" ? "number" : "text";
+        input.value = currentValue ?? "";
+        card.append(input);
+        return card;
+    }
+
+    function collectValues() {
+        const values = {};
+        for (const field of formSchema.fields || []) {
+            collectFieldValues(field, values);
+        }
+        return values;
+    }
+
+    function collectFieldValues(field, values) {
+        const checkboxes = Array.from(document.querySelectorAll(`input[type="checkbox"][data-field="${cssEscape(field.id)}"]:checked`));
+        if (checkboxes.length > 0) {
+            values[field.id] = checkboxes.map((input) => input.value);
+        } else {
+            const select = document.querySelector(`select[data-field="${cssEscape(field.id)}"]`);
+            if (select) {
+                if (select.value) {
+                    values[field.id] = select.value;
+                }
+            } else {
+                const input = document.querySelector(`[data-field="${cssEscape(field.id)}"]`);
+                if (input && input.value !== "") {
+                    values[field.id] = input.type === "number" ? Number(input.value) : input.value;
+                }
+            }
+        }
+        for (const criterion of selectedCriteriaFor(field.id)) {
+            const criterionNode = document.querySelector(`[data-criterion="${cssEscape(criterion.id)}"]`);
+            if (criterionNode && criterionNode.value !== "") {
+                values[criterion.id] = criterionNode.type === "number" ? Number(criterionNode.value) : criterionNode.value;
+            }
+        }
+        for (const subfield of field.subdimensions || []) {
+            collectFieldValues(subfield, values);
+        }
+    }
+
+    function renderForm() {
+        fieldsContainer.innerHTML = "";
+        for (const field of formSchema.fields || []) {
+            fieldsContainer.append(renderField(field, initialValues));
+        }
+    }
+
+    async function saveForm() {
+        statusLine.textContent = "Saving review form...";
+        const response = await fetch(`/api/reviews/{review.id}/papers/{paper.id}/submission`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                paper: paperSnapshot,
+                values: collectValues()
+            })
+        });
+        if (!response.ok) {
+            statusLine.textContent = await response.text();
+            return;
+        }
+        const payload = await response.json();
+        statusLine.textContent = "Saved at " + (payload.updatedAt || "just now");
+    }
+
+    async function resetForm() {
+        if (!window.confirm("Reset this review form?")) {
+            return;
+        }
+        statusLine.textContent = "Resetting review form...";
+        const response = await fetch(`/api/reviews/{review.id}/papers/{paper.id}/submission`, { method: "DELETE" });
+        if (!response.ok) {
+            statusLine.textContent = await response.text();
+            return;
+        }
+        window.location.reload();
+    }
+
+    function cssEscape(value) {
+        return window.CSS && CSS.escape ? CSS.escape(value) : String(value).replace(/"/g, "\\\"");
+    }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll("\"", "&quot;");
+    }
+
+    document.getElementById("save-button").addEventListener("click", saveForm);
+    document.getElementById("reset-button").addEventListener("click", resetForm);
+    renderForm();
+</script>
+</body>
+</html>

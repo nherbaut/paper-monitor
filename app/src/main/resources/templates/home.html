@@ -228,6 +228,26 @@
             min-width: min(32rem, calc(100vw - 2rem));
         }
 
+        .review-panel {
+            min-width: min(28rem, calc(100vw - 2rem));
+        }
+
+        .review-state-list {
+            display: grid;
+            gap: 0.45rem;
+            margin-top: 0.45rem;
+        }
+
+        .review-state-option {
+            display: flex;
+            gap: 0.55rem;
+            align-items: start;
+        }
+
+        .review-open-link {
+            text-align: center;
+        }
+
         .manual-import-form {
             display: grid;
             gap: 0.8rem;
@@ -1520,6 +1540,27 @@
                 </select>
             </div>
             {#if authenticated}
+            <details class="export-menu" id="review-menu">
+                <summary class="secondary">Review</summary>
+                <div class="export-menu-panel review-panel">
+                    <p class="meta" id="review-menu-status">Select a paper feed to create or open its review.</p>
+                    <div class="stack hidden" id="review-existing-block">
+                        <p class="meta" id="review-existing-summary"></p>
+                        <a class="secondary" id="review-open-link" href="#">Go to review</a>
+                    </div>
+                    <form class="stack hidden" id="review-create-form">
+                        <label class="meta" for="review-template-select">Review template</label>
+                        <select id="review-template-select" name="templateId" required>
+                            <option value="">Loading templates...</option>
+                        </select>
+                        <div>
+                            <p class="meta">States included in the live review scope</p>
+                            <div class="review-state-list" id="review-state-list"></div>
+                        </div>
+                        <button class="secondary" id="review-create-button" type="submit">Create review</button>
+                    </form>
+                </div>
+            </details>
             <details class="export-menu">
                 <summary class="secondary">Manual import</summary>
                 <div class="export-menu-panel manual-import-panel">
@@ -1752,6 +1793,14 @@
     const paperCards = document.querySelectorAll("[data-paper-id]");
     const logicalFeedFilter = document.getElementById("logical-feed-filter");
     const doiImportLogicalFeed = document.getElementById("doi-import-logical-feed");
+    const reviewMenu = document.getElementById("review-menu");
+    const reviewMenuStatus = document.getElementById("review-menu-status");
+    const reviewExistingBlock = document.getElementById("review-existing-block");
+    const reviewExistingSummary = document.getElementById("review-existing-summary");
+    const reviewOpenLink = document.getElementById("review-open-link");
+    const reviewCreateForm = document.getElementById("review-create-form");
+    const reviewTemplateSelect = document.getElementById("review-template-select");
+    const reviewStateList = document.getElementById("review-state-list");
     const manualImportForm = document.getElementById("manual-import-form");
     const manualImportDoi = document.getElementById("manual-import-doi");
     const manualImportFetch = document.getElementById("manual-import-fetch");
@@ -1843,6 +1892,8 @@
     let stateSearchQuery = "";
     let stateSearchVisibleLimit = 10;
     let selectedTagFilters = [];
+    let reviewTemplates = [];
+    let reviewSummaries = [];
     const themeStorageKey = "paper-monitor.theme";
     const notesCollapsedStorageKey = "paper-monitor.notes-collapsed";
     const KEYBOARD_STATUS_TOAST_MS = 2200;
@@ -2449,6 +2500,86 @@
         option.textContent = summary ? option.dataset.feedName + " (" + summary + ")" : option.dataset.feedName;
     };
 
+    const reviewForLogicalFeed = (logicalFeedId) => {
+        return reviewSummaries.find((review) => String(review.logicalFeedId) === String(logicalFeedId)) || null;
+    };
+
+    const selectedReviewStates = () => {
+        return Array.from(reviewStateList?.querySelectorAll("input[name='review-selected-state']:checked") || [])
+            .map((input) => input.value);
+    };
+
+    const renderReviewLauncher = () => {
+        if (!reviewMenuStatus || !reviewCreateForm || !reviewExistingBlock || !reviewTemplateSelect || !reviewStateList) {
+            return;
+        }
+        const logicalFeedId = logicalFeedFilter.value;
+        if (!logicalFeedId) {
+            reviewMenuStatus.textContent = "Select a paper feed to create or open its review.";
+            reviewCreateForm.classList.add("hidden");
+            reviewExistingBlock.classList.add("hidden");
+            reviewStateList.innerHTML = "";
+            return;
+        }
+
+        const existing = reviewForLogicalFeed(logicalFeedId);
+        if (existing) {
+            reviewMenuStatus.textContent = "A live review already exists for this paper feed.";
+            reviewCreateForm.classList.add("hidden");
+            reviewExistingBlock.classList.remove("hidden");
+            reviewExistingSummary.textContent = existing.selectedStates.length
+                ? "Included states: " + existing.selectedStates.join(", ")
+                : "No states configured.";
+            reviewOpenLink.href = "/reviews/" + existing.id;
+            return;
+        }
+
+        reviewExistingBlock.classList.add("hidden");
+        reviewCreateForm.classList.remove("hidden");
+        reviewMenuStatus.textContent = "Select at least one state and one review template.";
+        reviewStateList.innerHTML = "";
+        workflowStatesForLogicalFeed(logicalFeedId).forEach((state, index) => {
+            const label = document.createElement("label");
+            label.className = "review-state-option";
+            label.innerHTML = `<input type="checkbox" name="review-selected-state" value="${state}" ${index === 0 ? "checked" : ""}><span>${statusLabel(state)}</span>`;
+            reviewStateList.appendChild(label);
+        });
+
+        reviewTemplateSelect.innerHTML = "";
+        if (!reviewTemplates.length) {
+            reviewTemplateSelect.innerHTML = "<option value=\"\">No review templates available</option>";
+            return;
+        }
+        reviewTemplateSelect.innerHTML = "<option value=\"\">Select review template</option>";
+        reviewTemplates.forEach((template) => {
+            const option = document.createElement("option");
+            option.value = template.id;
+            option.textContent = template.title;
+            reviewTemplateSelect.appendChild(option);
+        });
+    };
+
+    const loadReviewWorkspace = async () => {
+        if (!authenticated) {
+            return;
+        }
+        try {
+            const [templatesResponse, reviewsResponse] = await Promise.all([
+                fetch("/api/review-templates", { headers: { Accept: "application/json" } }),
+                fetch("/api/reviews", { headers: { Accept: "application/json" } })
+            ]);
+            reviewTemplates = templatesResponse.ok ? await templatesResponse.json() : [];
+            reviewSummaries = reviewsResponse.ok ? await reviewsResponse.json() : [];
+        } catch (error) {
+            reviewTemplates = [];
+            reviewSummaries = [];
+            if (reviewMenuStatus) {
+                reviewMenuStatus.textContent = error.message || "Failed to load review workspace.";
+            }
+        }
+        renderReviewLauncher();
+    };
+
     const renderTagBrowser = () => {
         if (!tagBrowser || !tagBadgeList || !tagBrowserMeta) {
             return;
@@ -2984,6 +3115,7 @@
                 renderPaperCardPreview(activeCard);
             }
         }
+        renderReviewLauncher();
         updatePaperFeedHeading();
     };
 
@@ -4341,12 +4473,14 @@
         selectedTagFilters = [];
         stateSearchVisibleLimit = 10;
         if (!doiImportLogicalFeed) {
+            renderReviewLauncher();
             return;
         }
         const selectedFeedId = logicalFeedFilter.value;
         if (selectedFeedId && Array.from(doiImportLogicalFeed.options).some((option) => option.value === selectedFeedId)) {
             doiImportLogicalFeed.value = selectedFeedId;
         }
+        renderReviewLauncher();
     });
     if (doiImportLogicalFeed && logicalFeedFilter.value
             && Array.from(doiImportLogicalFeed.options).some((option) => option.value === logicalFeedFilter.value)) {
@@ -4431,6 +4565,59 @@
         });
     }
 
+    if (reviewMenu) {
+        reviewMenu.addEventListener("toggle", () => {
+            if (reviewMenu.open) {
+                renderReviewLauncher();
+            }
+        });
+    }
+
+    if (reviewCreateForm) {
+        reviewCreateForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const logicalFeedId = logicalFeedFilter.value;
+            const templateId = reviewTemplateSelect.value;
+            const selectedStates = selectedReviewStates();
+            if (!logicalFeedId) {
+                reviewMenuStatus.textContent = "Select a paper feed first.";
+                return;
+            }
+            if (!templateId) {
+                reviewMenuStatus.textContent = "Select a review template.";
+                return;
+            }
+            if (!selectedStates.length) {
+                reviewMenuStatus.textContent = "Select at least one state.";
+                return;
+            }
+            reviewMenuStatus.textContent = "Creating review...";
+            try {
+                const response = await fetch("/api/reviews", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                        "Accept": "application/json"
+                    },
+                    body: new URLSearchParams([
+                        ["logicalFeedId", logicalFeedId],
+                        ["templateId", templateId],
+                        ...selectedStates.map((state) => ["selectedStates", state])
+                    ])
+                });
+                const body = await response.text();
+                if (!response.ok) {
+                    throw new Error(body || "Failed to create review.");
+                }
+                const createdReview = JSON.parse(body);
+                await loadReviewWorkspace();
+                window.location.href = "/reviews/" + createdReview.id;
+            } catch (error) {
+                reviewMenuStatus.textContent = error.message || "Failed to create review.";
+            }
+        });
+    }
+
     installPdfWidthObserver();
 
     const triggerTabExport = (kind, format) => {
@@ -4465,6 +4652,7 @@
             event.preventDefault();
         }
     });
+    await loadReviewWorkspace();
     applyLogicalFeedFilter();
     applyLayoutState();
     openInitialPaper();
