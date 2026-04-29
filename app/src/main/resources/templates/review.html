@@ -58,6 +58,38 @@
             text-decoration: none;
         }
         .back-link:hover, .open-link:hover, .pdf-link:hover { border-color: #b9c6d6; }
+        .hero-actions {
+            display: flex;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+        .action-menu {
+            position: relative;
+        }
+        .action-menu > summary {
+            list-style: none;
+        }
+        .action-menu > summary::-webkit-details-marker {
+            display: none;
+        }
+        .action-menu-panel {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 0.4rem);
+            min-width: 12rem;
+            padding: 0.5rem;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: #fff;
+            box-shadow: 0 14px 34px rgb(15 23 42 / 0.1);
+            display: grid;
+            gap: 0.35rem;
+            z-index: 10;
+        }
+        .action-menu-panel a {
+            text-decoration: none;
+        }
         .title-with-icon {
             display: inline-flex;
             align-items: center;
@@ -217,6 +249,16 @@
             </div>
             <div>
                 <a class="back-link" href="/?logicalFeedId={logicalFeed.id}">Back to paper feed</a>
+                <div class="hero-actions">
+                    <details class="action-menu">
+                        <summary class="back-link">Download report</summary>
+                        <div class="action-menu-panel">
+                            <a class="open-link" href="/api/reviews/{review.id}/report.md?download=true">Markdown</a>
+                            <a class="open-link" href="/api/reviews/{review.id}/report.pdf">PDF</a>
+                            <a class="open-link" href="/api/reviews/{review.id}/report.docx">DOCX</a>
+                        </div>
+                    </details>
+                </div>
             </div>
         </div>
     </section>

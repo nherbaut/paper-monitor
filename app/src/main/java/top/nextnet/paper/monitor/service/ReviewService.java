@@ -182,7 +182,7 @@ public class ReviewService {
         if (submission == null || submission.payloadJson == null || submission.payloadJson.isBlank()) {
             return Map.of();
         }
-        Map<String, Object> payload = asObjectMap(JsonCodec.parse(submission.payloadJson));
+        Map<String, Object> payload = submissionInstance(submission);
         if (payload.containsKey("values")) {
             return asObjectMap(payload.get("values"));
         }
@@ -190,6 +190,13 @@ public class ReviewService {
         values.remove("paper_id");
         values.remove("taxonomy_id");
         return values;
+    }
+
+    public Map<String, Object> submissionInstance(ReviewSubmission submission) {
+        if (submission == null || submission.payloadJson == null || submission.payloadJson.isBlank()) {
+            return Map.of();
+        }
+        return asObjectMap(JsonCodec.parse(submission.payloadJson));
     }
 
     public Map<String, Object> submissionInstance(Review review, Paper paper, Map<String, Object> values) {

@@ -12,10 +12,12 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.Status;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -32,7 +34,9 @@ import top.nextnet.paper.monitor.model.ReviewSubmission;
 import top.nextnet.paper.monitor.service.CurrentUserContext;
 import top.nextnet.paper.monitor.service.JsonCodec;
 import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
+import top.nextnet.paper.monitor.service.MarkdownConversionService;
 import top.nextnet.paper.monitor.service.PaperDataExtractorService;
+import top.nextnet.paper.monitor.service.ReviewReportService;
 import top.nextnet.paper.monitor.service.ReviewService;
 
 @Path("/")
@@ -44,6 +48,8 @@ public class ReviewResource {
     private final CurrentUserContext currentUserContext;
     private final LogicalFeedAccessService logicalFeedAccessService;
     private final ReviewService reviewService;
+    private final ReviewReportService reviewReportService;
+    private final MarkdownConversionService markdownConversionService;
     private final PaperDataExtractorService paperDataExtractorService;
 
     public ReviewResource(
@@ -52,6 +58,8 @@ public class ReviewResource {
             CurrentUserContext currentUserContext,
             LogicalFeedAccessService logicalFeedAccessService,
             ReviewService reviewService,
+            ReviewReportService reviewReportService,
+            MarkdownConversionService markdownConversionService,
             PaperDataExtractorService paperDataExtractorService
     ) {
         this.review = review;
@@ -59,6 +67,8 @@ public class ReviewResource {
         this.currentUserContext = currentUserContext;
         this.logicalFeedAccessService = logicalFeedAccessService;
         this.reviewService = reviewService;
+        this.reviewReportService = reviewReportService;
+        this.markdownConversionService = markdownConversionService;
         this.paperDataExtractorService = paperDataExtractorService;
     }
 
@@ -141,6 +151,50 @@ public class ReviewResource {
                 .data("analyzedAngle", analyzedRatio * 360.0d)
                 .data("rows", rows)
                 .data("currentUser", currentUser);
+    }
+
+    @GET
+    @Path("/api/reviews/{id}/report")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Transactional
+    public Map<String, Object> reviewReport(@PathParam("id") Long id) {
+        AppUser currentUser = requireCurrentUser();
+        Review reviewEntity = reviewService.requireReview(id, currentUser);
+        return reviewReportService.aggregate(reviewEntity);
+    }
+
+    @GET
+    @Path("/api/reviews/{id}/report.md")
+    @Produces("text/markdown; charset=UTF-8")
+    @Transactional
+    public Response reviewReportMarkdown(
+            @PathParam("id") Long id,
+            @QueryParam("download") @jakarta.ws.rs.DefaultValue("false") boolean download
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        Review reviewEntity = reviewService.requireReview(id, currentUser);
+        String markdown = reviewReportService.renderMarkdown(reviewEntity);
+        Response.ResponseBuilder response = Response.ok(markdown);
+        if (download) {
+            response.header("Content-Disposition", "attachment; filename=\"review-" + reviewEntity.id + "-report.md\"");
+        }
+        return response.build();
+    }
+
+    @GET
+    @Path("/api/reviews/{id}/report.pdf")
+    @Produces("application/pdf")
+    @Transactional
+    public Response reviewReportPdf(@PathParam("id") Long id) {
+        return reviewReportBinary(id, "pdf", "application/pdf");
+    }
+
+    @GET
+    @Path("/api/reviews/{id}/report.docx")
+    @Produces("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    @Transactional
+    public Response reviewReportDocx(@PathParam("id") Long id) {
+        return reviewReportBinary(id, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
     }
 
     @DELETE
@@ -250,6 +304,20 @@ public class ReviewResource {
 
     private String encodeBase64(String value) {
         return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private Response reviewReportBinary(Long id, String format, String contentType) {
+        AppUser currentUser = requireCurrentUser();
+        Review reviewEntity = reviewService.requireReview(id, currentUser);
+        String markdown = reviewReportService.renderMarkdown(reviewEntity);
+        try {
+            byte[] payload = markdownConversionService.convertWithPandoc(markdown, format);
+            return Response.ok(payload, contentType)
+                    .header("Content-Disposition", "attachment; filename=\"review-" + reviewEntity.id + "-report." + format + "\"")
+                    .build();
+        } catch (IOException e) {
+            throw new WebApplicationException("Failed to convert review report: " + e.getMessage(), Status.BAD_GATEWAY);
+        }
     }
 
     public record ReviewTemplateView(String id, String title) {

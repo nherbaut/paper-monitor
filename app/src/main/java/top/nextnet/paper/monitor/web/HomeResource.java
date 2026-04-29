@@ -61,6 +61,7 @@ import top.nextnet.paper.monitor.service.DoiMetadataService;
 import top.nextnet.paper.monitor.service.FeedPollingService;
 import top.nextnet.paper.monitor.service.JsonCodec;
 import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
+import top.nextnet.paper.monitor.service.MarkdownConversionService;
 import top.nextnet.paper.monitor.service.NotificationService;
 import top.nextnet.paper.monitor.service.OidcService;
 import top.nextnet.paper.monitor.service.PaperEventService;
@@ -95,6 +96,7 @@ public class HomeResource {
     private final AuthService authService;
     private final OidcService oidcService;
     private final LogicalFeedAccessService logicalFeedAccessService;
+    private final MarkdownConversionService markdownConversionService;
     private final NotificationService notificationService;
     private final Instance<CurrentUserContext> currentUserContext;
     private final String baseUrl;
@@ -122,6 +124,7 @@ public class HomeResource {
             AuthService authService,
             OidcService oidcService,
             LogicalFeedAccessService logicalFeedAccessService,
+            MarkdownConversionService markdownConversionService,
             NotificationService notificationService,
             Instance<CurrentUserContext> currentUserContext,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl,
@@ -148,6 +151,7 @@ public class HomeResource {
         this.authService = authService;
         this.oidcService = oidcService;
         this.logicalFeedAccessService = logicalFeedAccessService;
+        this.markdownConversionService = markdownConversionService;
         this.notificationService = notificationService;
         this.currentUserContext = currentUserContext;
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.trim();
@@ -1691,42 +1695,7 @@ public class HomeResource {
     }
 
     private byte[] convertMarkdownWithPandoc(String markdown, String format) throws IOException {
-        java.nio.file.Path inputFile = Files.createTempFile("paper-monitor-export-", ".md");
-        java.nio.file.Path outputFile = Files.createTempFile("paper-monitor-export-", "." + format);
-        try {
-            Files.writeString(inputFile, markdown, StandardCharsets.UTF_8);
-            List<String> command = new ArrayList<>();
-            command.add("pandoc");
-            command.add(inputFile.toString());
-            if ("pdf".equals(format)) {
-                command.add("--pdf-engine=xelatex");
-            }
-            command.add("-o");
-            command.add(outputFile.toString());
-
-            Process process = new ProcessBuilder(command)
-                    .redirectErrorStream(true)
-                    .start();
-
-            byte[] processOutput = process.getInputStream().readAllBytes();
-            int exitCode;
-            try {
-                exitCode = process.waitFor();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException("Pandoc conversion interrupted", e);
-            }
-
-            if (exitCode != 0) {
-                String detail = new String(processOutput, StandardCharsets.UTF_8).trim();
-                throw new IOException(detail.isEmpty() ? "Pandoc conversion failed" : detail);
-            }
-
-            return Files.readAllBytes(outputFile);
-        } finally {
-            Files.deleteIfExists(inputFile);
-            Files.deleteIfExists(outputFile);
-        }
+        return markdownConversionService.convertWithPandoc(markdown, format);
     }
 
     private String escapeMarkdownText(Object value) {
