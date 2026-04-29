@@ -1109,6 +1109,8 @@ public class HomeResource {
             Response.ResponseBuilder response = Response.ok(Files.newInputStream(pdfPath), "application/pdf");
             if ("attachment".equalsIgnoreCase(disposition)) {
                 response.header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
+            } else {
+                response.header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"");
             }
             return response.build();
         } catch (IOException e) {

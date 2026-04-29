@@ -128,8 +128,15 @@
             border-radius: 999px;
         }
         .pdf-frame {
+            display: grid;
+            gap: 1rem;
             width: 100%;
-            min-height: 70vh;
+            min-height: 10rem;
+        }
+        .pdf-scroll {
+            max-height: 70vh;
+            overflow: auto;
+            padding: 0.35rem;
             border: 1px solid var(--line);
             border-radius: 14px;
             background: #fff;
@@ -146,8 +153,13 @@
         }
         .pdf-viewer-shell:fullscreen .pdf-frame,
         .pdf-viewer-shell:-webkit-full-screen .pdf-frame {
-            min-height: calc(100vh - 5rem);
             border-color: rgb(255 255 255 / 0.18);
+        }
+        .pdf-viewer-shell:fullscreen .pdf-scroll,
+        .pdf-viewer-shell:-webkit-full-screen .pdf-scroll {
+            max-height: calc(100vh - 7rem);
+            border-color: rgb(255 255 255 / 0.18);
+            background: #fff;
         }
         .pdf-fullscreen-hint {
             margin: 0;
@@ -288,6 +300,21 @@
             font-size: 0.9rem;
             font-weight: 600;
         }
+        .pdf-page-shell {
+            position: relative;
+            margin: 0 auto 1rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 28px rgb(15 23 42 / 0.08);
+            overflow: hidden;
+            background: #fff;
+            width: fit-content;
+            max-width: 100%;
+        }
+        .pdf-page {
+            display: block;
+            max-width: 100%;
+            height: auto;
+        }
         textarea { min-height: 6rem; resize: vertical; }
         @keyframes save-failed-shake {
             0%, 100% { transform: translateX(0); }
@@ -344,7 +371,9 @@
                 {#if paper.uploadedPdfPath}
                 <div class="pdf-viewer-shell" id="pdf-viewer-shell">
                     <p class="help">The attached PDF is shown inline here. Uploading from this page updates the same file used in the paper feed view.</p>
-                    <iframe class="pdf-frame" src="/papers/{paper.id}/pdf?disposition=inline" title="Paper PDF"></iframe>
+                    <div class="pdf-scroll" id="pdf-scroll">
+                        <div class="pdf-frame" id="pdf-frame"></div>
+                    </div>
                     <p class="pdf-fullscreen-hint" id="pdf-fullscreen-hint">Use the fullscreen button to focus on the paper. Press Esc to return.</p>
                 </div>
                 {#else}
@@ -392,8 +421,12 @@
 <script id="values-base64" type="text/plain">{valuesBase64}</script>
 <script id="paper-base64" type="text/plain">{paperSnapshotBase64}</script>
 <script id="notes-base64" type="text/plain">{notesBase64}</script>
-<script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.umd.min.js"></script>
-<script>
+<script type="module">
+    import { marked } from "https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.esm.js";
+    import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.min.mjs";
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.worker.min.mjs";
+
     const formSchema = JSON.parse(atob(document.getElementById("form-schema-base64").textContent.trim() || "e30="));
     const initialValues = JSON.parse(atob(document.getElementById("values-base64").textContent.trim() || "e30="));
     const paperSnapshot = JSON.parse(atob(document.getElementById("paper-base64").textContent.trim() || "e30="));
@@ -410,6 +443,8 @@
     const pdfUploadInput = document.getElementById("pdf-upload-input");
     const pdfUploadButton = document.getElementById("pdf-upload-button");
     const pdfUploadLabel = document.getElementById("pdf-upload-label");
+    const pdfScroll = document.getElementById("pdf-scroll");
+    const pdfFrame = document.getElementById("pdf-frame");
     const pdfViewerShell = document.getElementById("pdf-viewer-shell");
     const pdfFullscreenButton = document.getElementById("pdf-fullscreen-button");
     const pdfFullscreenHint = document.getElementById("pdf-fullscreen-hint");
@@ -792,6 +827,50 @@
         }
     }
 
+    async function renderPdf() {
+        if (!pdfFrame) {
+            return;
+        }
+        pdfFrame.innerHTML = "<p class=\"meta\">Loading PDF...</p>";
+        try {
+            const response = await fetch("/papers/{paper.id}/pdf?disposition=inline", {
+                headers: { Accept: "application/pdf" }
+            });
+            if (!response.ok) {
+                throw new Error("Failed to load PDF");
+            }
+            const buffer = await response.arrayBuffer();
+            const pdfDocument = await pdfjsLib.getDocument({ data: buffer }).promise;
+            pdfFrame.innerHTML = "";
+            const availableWidth = Math.max(((pdfScroll && pdfScroll.clientWidth) || pdfFrame.clientWidth || 900) - 24, 320);
+            for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+                const page = await pdfDocument.getPage(pageNumber);
+                const baseViewport = page.getViewport({ scale: 1 });
+                const scale = availableWidth / baseViewport.width;
+                const viewport = page.getViewport({ scale });
+                const pageShell = document.createElement("div");
+                pageShell.className = "pdf-page-shell";
+                const canvas = document.createElement("canvas");
+                canvas.className = "pdf-page";
+                canvas.width = Math.floor(viewport.width);
+                canvas.height = Math.floor(viewport.height);
+                canvas.style.width = Math.floor(viewport.width) + "px";
+                canvas.style.height = Math.floor(viewport.height) + "px";
+                pageShell.append(canvas);
+                pdfFrame.append(pageShell);
+                await page.render({
+                    canvasContext: canvas.getContext("2d"),
+                    viewport
+                }).promise;
+            }
+        } catch (error) {
+            pdfFrame.innerHTML = "<p class=\"meta\">Unable to render this PDF.</p>";
+            if (statusLine) {
+                statusLine.textContent = error.message || "Failed to load PDF";
+            }
+        }
+    }
+
     async function togglePdfFullscreen() {
         if (!pdfViewerShell) {
             return;
@@ -823,6 +902,9 @@
             pdfFullscreenHint.textContent = isFullscreen
                 ? "Press Esc to return to the review workspace."
                 : "Use the fullscreen button to focus on the paper. Press Esc to return.";
+        }
+        if (isFullscreen || pdfFrame) {
+            window.setTimeout(renderPdf, 50);
         }
     }
 
@@ -962,6 +1044,7 @@
             renderForm();
         }
     });
+    renderPdf();
     renderForm();
 </script>
 </body>
