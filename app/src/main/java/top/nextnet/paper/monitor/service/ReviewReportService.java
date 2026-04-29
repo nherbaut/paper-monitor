@@ -1,6 +1,7 @@
 package top.nextnet.paper.monitor.service;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -14,9 +15,17 @@ import top.nextnet.paper.monitor.model.ReviewSubmission;
 public class ReviewReportService {
 
     private final ReviewService reviewService;
+    private final String paperMonitorBaseUrl;
+    private final String paperDataExtractorBaseUrl;
 
-    public ReviewReportService(ReviewService reviewService) {
+    public ReviewReportService(
+            ReviewService reviewService,
+            @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String paperMonitorBaseUrl,
+            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "http://localhost:8091") String paperDataExtractorBaseUrl
+    ) {
         this.reviewService = reviewService;
+        this.paperMonitorBaseUrl = trimTrailingSlash(paperMonitorBaseUrl);
+        this.paperDataExtractorBaseUrl = trimTrailingSlash(paperDataExtractorBaseUrl);
     }
 
     public Map<String, Object> aggregate(Review review) {
@@ -86,6 +95,7 @@ public class ReviewReportService {
         markdown.append("- Paper feed: ").append(escapeMarkdown(stringValue(reviewSummary.get("logical_feed_name")))).append("\n");
         markdown.append("- Taxonomy: ").append(escapeMarkdown(stringValue(reviewSummary.get("taxonomy_title")))).append("\n");
         markdown.append("- Taxonomy id: `").append(escapeCode(stringValue(reviewSummary.get("taxonomy_id")))).append("`\n");
+        markdown.append("- Taxonomy in PDE: ").append(linkOrText(stringValue(reviewSummary.get("taxonomy_link")))).append("\n");
         markdown.append("- Selected states: ").append(joinStrings(stringList(reviewSummary.get("selected_states")))).append("\n\n");
 
         markdown.append("## Scope Statistics\n\n");
@@ -128,6 +138,11 @@ public class ReviewReportService {
             markdown.append("- Published on: ").append(escapeMarkdown(stringValue(item.get("published_on")))).append("\n");
             markdown.append("- Venue: ").append(escapeMarkdown(stringValue(item.get("venue")))).append("\n");
             markdown.append("- Source link: ").append(linkOrText(stringValue(item.get("source_link")))).append("\n\n");
+            markdown.append("- Paper monitor link: ").append(linkOrText(stringValue(item.get("paper_monitor_link")))).append("\n");
+            if (stringValue(item.get("pdf_link")) != null) {
+                markdown.append("- PDF link: ").append(linkOrText(stringValue(item.get("pdf_link")))).append("\n");
+            }
+            markdown.append("\n");
             markdown.append("| Field | Value |\n");
             markdown.append("| --- | --- |\n");
             Map<String, Object> instance = asObjectMap(item.get("instance"));
@@ -137,6 +152,11 @@ public class ReviewReportService {
                         .append("` | ")
                         .append(escapeMarkdown(renderValue(entry.getValue())))
                         .append(" |\n");
+            }
+            String notes = stringValue(item.get("notes"));
+            if (notes != null && !notes.isBlank()) {
+                markdown.append("\n#### Notes\n\n");
+                markdown.append(notes).append("\n");
             }
             markdown.append("\n");
         }
@@ -153,6 +173,7 @@ public class ReviewReportService {
         summary.put("selected_states", reviewService.selectedStates(review));
         summary.put("taxonomy_id", stringValue(formSchema.get("id")));
         summary.put("taxonomy_title", stringValue(formSchema.get("title")));
+        summary.put("taxonomy_link", paperDataExtractorBaseUrl + "/api/review-designs/" + review.templateId + "/download");
         return summary;
     }
 
@@ -198,6 +219,11 @@ public class ReviewReportService {
         item.put("published_on", paper.publishedOn == null ? null : paper.publishedOn.toString());
         item.put("venue", paper.publisher);
         item.put("source_link", paper.sourceLink);
+        item.put("paper_monitor_link", paperMonitorBaseUrl + "/?paperId=" + paper.id + "&logicalFeedId=" + paper.logicalFeed.id);
+        if (paper.uploadedPdfPath != null && !paper.uploadedPdfPath.isBlank()) {
+            item.put("pdf_link", paperMonitorBaseUrl + "/papers/" + paper.id + "/pdf?disposition=attachment");
+        }
+        item.put("notes", paper.notes);
         item.put("instance", instance);
         return item;
     }
@@ -368,6 +394,14 @@ public class ReviewReportService {
             return "Unavailable";
         }
         return "[" + escapeMarkdown(value) + "](" + value + ")";
+    }
+
+    private String trimTrailingSlash(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        while (trimmed.endsWith("/")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 1);
+        }
+        return trimmed;
     }
 
     private String escapeMarkdown(String value) {

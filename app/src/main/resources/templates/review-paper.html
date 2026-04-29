@@ -33,6 +33,12 @@
             top: 0;
             z-index: 20;
             margin-bottom: 1rem;
+            transition: padding 160ms ease, box-shadow 160ms ease, border-radius 160ms ease;
+        }
+        .hero.collapsed {
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+            box-shadow: 0 8px 20px rgb(15 23 42 / 0.08);
         }
         .eyebrow {
             margin: 0 0 0.35rem;
@@ -41,9 +47,29 @@
             font-weight: 700;
             letter-spacing: 0.12em;
             text-transform: uppercase;
+            transition: opacity 120ms ease, max-height 120ms ease, margin 120ms ease;
         }
         h1 { margin: 0; font-size: clamp(1.3rem, 2vw, 1.9rem); }
         .meta { color: var(--muted); }
+        .hero > .meta,
+        .paper-metadata,
+        .hero-actions,
+        .status {
+            transition: opacity 120ms ease, max-height 120ms ease, margin 120ms ease, transform 120ms ease;
+        }
+        .hero.collapsed .eyebrow,
+        .hero.collapsed > .meta,
+        .hero.collapsed .paper-metadata,
+        .hero.collapsed .hero-actions,
+        .hero.collapsed .status {
+            opacity: 0;
+            max-height: 0;
+            overflow: hidden;
+            margin-top: 0;
+            margin-bottom: 0;
+            transform: translateY(-4px);
+            pointer-events: none;
+        }
         .hero-actions {
             display: flex;
             flex-wrap: wrap;
@@ -483,6 +509,7 @@
     const paperSnapshot = JSON.parse(atob(document.getElementById("paper-base64").textContent.trim() || "e30="));
     const initialNotes = atob(document.getElementById("notes-base64").textContent.trim() || "");
     const nextPaperUrl = document.getElementById("next-paper-url").textContent.trim();
+    const heroSection = document.querySelector(".hero");
     const fieldsContainer = document.getElementById("form-fields");
     const statusLine = document.getElementById("status-line");
     const notesPreview = document.getElementById("notes-preview");
@@ -1011,6 +1038,13 @@
         }
     }
 
+    function syncHeroCollapsedState() {
+        if (!heroSection) {
+            return;
+        }
+        heroSection.classList.toggle("collapsed", window.scrollY > 56);
+    }
+
     async function saveForm(goNext = false) {
         statusLine.textContent = "Saving review form...";
         currentValues = collectValues();
@@ -1139,6 +1173,7 @@
         document.addEventListener("webkitfullscreenchange", syncPdfFullscreenUi);
         syncPdfFullscreenUi();
     }
+    window.addEventListener("scroll", syncHeroCollapsedState, { passive: true });
     fieldsContainer.addEventListener("input", () => {
         if (Object.keys(validationErrors).length > 0) {
             validationErrors = {};
@@ -1153,6 +1188,7 @@
             renderForm();
         }
     });
+    syncHeroCollapsedState();
     renderPdf();
     renderForm();
 </script>
