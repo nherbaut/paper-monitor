@@ -180,7 +180,7 @@ public class ReviewResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     @Transactional
-    public Map<String, Object> saveSubmission(
+    public Response saveSubmission(
             @PathParam("id") Long id,
             @PathParam("paperId") Long paperId,
             Map<String, Object> payload
@@ -189,11 +189,19 @@ public class ReviewResource {
         Review reviewEntity = reviewService.requireReview(id, currentUser);
         ReviewService.ReviewPaperContext context = reviewService.requireReviewPaper(reviewEntity, paperId);
         Map<String, Object> values = objectMap(payload == null ? null : payload.get("values"));
-        ReviewSubmission submission = reviewService.saveSubmission(reviewEntity, context.paper(), values);
-        Map<String, Object> response = new LinkedHashMap<>();
-        response.put("saved", true);
-        response.put("updatedAt", submission.updatedAt.toString());
-        return response;
+        try {
+            ReviewSubmission submission = reviewService.saveSubmission(reviewEntity, context.paper(), values);
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("saved", true);
+            response.put("updatedAt", submission.updatedAt.toString());
+            return Response.ok(response).build();
+        } catch (ReviewService.ReviewValidationException e) {
+            Map<String, Object> response = new LinkedHashMap<>();
+            response.put("saved", false);
+            response.put("message", "Review form validation failed");
+            response.put("errors", e.errors());
+            return Response.status(Status.BAD_REQUEST).entity(response).build();
+        }
     }
 
     @DELETE

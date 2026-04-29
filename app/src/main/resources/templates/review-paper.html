@@ -639,6 +639,17 @@
             })
         });
         if (!response.ok) {
+            const contentType = response.headers.get("content-type") || "";
+            if (contentType.includes("application/json")) {
+                const payload = await response.json();
+                const errors = Array.isArray(payload.errors) ? payload.errors : [];
+                if (errors.length > 0) {
+                    statusLine.textContent = errors.map((item) => item.fieldId + ": " + item.message).join(" | ");
+                    return;
+                }
+                statusLine.textContent = payload.message || "Review form validation failed";
+                return;
+            }
             statusLine.textContent = await response.text();
             return;
         }

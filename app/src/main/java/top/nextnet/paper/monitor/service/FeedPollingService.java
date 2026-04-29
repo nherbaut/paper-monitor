@@ -3,6 +3,7 @@ package top.nextnet.paper.monitor.service;
 import io.quarkus.logging.Log;
 import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -29,6 +30,8 @@ public class FeedPollingService {
     private final RssParser rssParser;
     private final PaperEventService paperEventService;
     private final NotificationService notificationService;
+    @Inject
+    FeedPollingService self;
 
     public FeedPollingService(
             FeedRepository feedRepository,
@@ -47,16 +50,23 @@ public class FeedPollingService {
     }
 
     @Scheduled(every = "{paper-monitor.poller.every:60s}")
-    @Transactional
     void pollDueFeeds() {
         Instant now = Instant.now();
-        List<Feed> dueFeeds = feedRepository.findAll().list();
-        for (Feed feed : dueFeeds) {
-            if (!isDue(feed, now)) {
-                continue;
-            }
-            pollFeed(feed, now);
+        for (Long feedId : dueFeedIds(now)) {
+            self.pollFeedById(feedId);
         }
+    }
+
+    @Transactional
+    List<Long> dueFeedIds(Instant now) {
+        List<Long> dueFeedIds = new ArrayList<>();
+        List<Feed> feeds = feedRepository.findAll().list();
+        for (Feed feed : feeds) {
+            if (isDue(feed, now)) {
+                dueFeedIds.add(feed.id);
+            }
+        }
+        return dueFeedIds;
     }
 
     @Transactional

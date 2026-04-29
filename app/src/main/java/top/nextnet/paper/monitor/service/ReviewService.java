@@ -7,10 +7,13 @@ import jakarta.ws.rs.ForbiddenException;
 import jakarta.ws.rs.NotFoundException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.model.Paper;
@@ -139,6 +142,7 @@ public class ReviewService {
 
     @Transactional
     public ReviewSubmission saveSubmission(Review review, Paper paper, Map<String, Object> values) {
+        validateSubmission(review, values);
         ReviewSubmission submission = reviewSubmissionRepository.findByReviewAndPaper(review, paper).orElseGet(ReviewSubmission::new);
         submission.review = review;
         submission.paper = paper;
@@ -155,6 +159,25 @@ public class ReviewService {
             reviewSubmissionRepository.persist(submission);
         }
         return submission;
+    }
+
+    public void validateSubmission(Review review, Map<String, Object> values) {
+        Map<String, Object> safeValues = values == null ? Map.of() : values;
+        Map<String, Object> schema = formSchema(review);
+        Map<String, Object> scales = asObjectMap(schema.get("scales"));
+        ValidationContext context = new ValidationContext();
+        for (Map<String, Object> field : objectMapList(schema.get("fields"))) {
+            collectFieldIds(field, context.fieldIds);
+            validateField(field, safeValues, scales, context);
+        }
+        for (String key : safeValues.keySet()) {
+            if (!context.fieldIds.contains(key) && !context.activeCriterionIds.contains(key)) {
+                context.errors.add(new ValidationError(key, "Unknown or inactive field"));
+            }
+        }
+        if (!context.errors.isEmpty()) {
+            throw new ReviewValidationException(context.errors);
+        }
     }
 
     @Transactional
@@ -215,6 +238,194 @@ public class ReviewService {
         return cast;
     }
 
+    private List<Map<String, Object>> objectMapList(Object value) {
+        if (!(value instanceof List<?> rows)) {
+            return List.of();
+        }
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object row : rows) {
+            if (row instanceof Map<?, ?>) {
+                result.add(asObjectMap(row));
+            }
+        }
+        return result;
+    }
+
+    private void collectFieldIds(Map<String, Object> field, Set<String> fieldIds) {
+        String fieldId = stringValue(field.get("id"));
+        if (fieldId != null) {
+            fieldIds.add(fieldId);
+        }
+        for (Map<String, Object> subfield : objectMapList(field.get("subdimensions"))) {
+            collectFieldIds(subfield, fieldIds);
+        }
+    }
+
+    private void validateField(
+            Map<String, Object> field,
+            Map<String, Object> values,
+            Map<String, Object> scales,
+            ValidationContext context
+    ) {
+        String fieldId = stringValue(field.get("id"));
+        if (fieldId == null) {
+            return;
+        }
+        Object value = values.get(fieldId);
+        boolean missing = isMissing(value);
+        if (booleanValue(field.get("required")) && missing) {
+            context.errors.add(new ValidationError(fieldId, "Missing required field"));
+        }
+
+        List<Map<String, Object>> options = objectMapList(field.get("values"));
+        if (!missing) {
+            validateCardinality(fieldId, stringValue(field.get("cardinality")), value, context.errors);
+            if (!options.isEmpty()) {
+                List<String> submittedValues = stringList(value);
+                Set<String> allowed = collectOptionIds(options);
+                for (String submittedValue : submittedValues) {
+                    if (!allowed.contains(submittedValue)) {
+                        context.errors.add(new ValidationError(fieldId, "Unknown value: " + submittedValue));
+                    }
+                }
+                validateSelectedCriteria(options, submittedValues, values, scales, context);
+            } else if ("numeric".equals(stringValue(field.get("value_type")))) {
+                validateNumericValue(fieldId, value, context.errors);
+            }
+        }
+
+        for (Map<String, Object> subfield : objectMapList(field.get("subdimensions"))) {
+            validateField(subfield, values, scales, context);
+        }
+    }
+
+    private void validateCardinality(String fieldId, String cardinality, Object value, List<ValidationError> errors) {
+        if ("single".equals(cardinality) && value instanceof List<?>) {
+            errors.add(new ValidationError(fieldId, "Field accepts a single value"));
+        }
+        if ("multiple".equals(cardinality) && !(value instanceof List<?>)) {
+            errors.add(new ValidationError(fieldId, "Field accepts multiple values"));
+        }
+    }
+
+    private void validateNumericValue(String fieldId, Object value, List<ValidationError> errors) {
+        if (value instanceof List<?> list) {
+            for (Object item : list) {
+                if (!(item instanceof Number)) {
+                    errors.add(new ValidationError(fieldId, "Field expects numeric values"));
+                    return;
+                }
+            }
+            return;
+        }
+        if (!(value instanceof Number)) {
+            errors.add(new ValidationError(fieldId, "Field expects a numeric value"));
+        }
+    }
+
+    private void validateSelectedCriteria(
+            List<Map<String, Object>> options,
+            List<String> selectedValues,
+            Map<String, Object> values,
+            Map<String, Object> scales,
+            ValidationContext context
+    ) {
+        Map<String, Map<String, Object>> optionsById = collectOptionsById(options);
+        for (String selectedValue : selectedValues) {
+            Map<String, Object> option = optionsById.get(selectedValue);
+            if (option == null) {
+                continue;
+            }
+            for (Map<String, Object> criterion : objectMapList(option.get("criteria"))) {
+                validateCriterion(criterion, values, scales, context);
+            }
+        }
+    }
+
+    private void validateCriterion(
+            Map<String, Object> criterion,
+            Map<String, Object> values,
+            Map<String, Object> scales,
+            ValidationContext context
+    ) {
+        String criterionId = stringValue(criterion.get("id"));
+        if (criterionId == null) {
+            return;
+        }
+        context.activeCriterionIds.add(criterionId);
+        Object answer = values.get(criterionId);
+        boolean missing = isMissing(answer);
+        if (booleanValue(criterion.get("required")) && missing) {
+            context.errors.add(new ValidationError(criterionId, "Missing required criterion"));
+            return;
+        }
+        if (missing) {
+            return;
+        }
+        Map<String, Object> scale = asObjectMap(scales.get(stringValue(criterion.get("scale"))));
+        if (scale.isEmpty()) {
+            return;
+        }
+        List<Map<String, Object>> scaleValues = objectMapList(scale.get("scale_values"));
+        if (!scaleValues.isEmpty()) {
+            Set<String> allowed = new HashSet<>();
+            for (Map<String, Object> scaleValue : scaleValues) {
+                String value = stringValue(scaleValue.get("value"));
+                if (value != null) {
+                    allowed.add(value);
+                }
+            }
+            if (!allowed.isEmpty() && !allowed.contains(String.valueOf(answer))) {
+                context.errors.add(new ValidationError(criterionId, "Unsupported value"));
+            }
+            return;
+        }
+        if ("numeric".equals(stringValue(scale.get("scale_type"))) && !(answer instanceof Number)) {
+            context.errors.add(new ValidationError(criterionId, "Criterion expects a numeric value"));
+        }
+    }
+
+    private Set<String> collectOptionIds(List<Map<String, Object>> options) {
+        return collectOptionsById(options).keySet();
+    }
+
+    private Map<String, Map<String, Object>> collectOptionsById(List<Map<String, Object>> options) {
+        Map<String, Map<String, Object>> result = new HashMap<>();
+        for (Map<String, Object> option : options) {
+            String optionId = stringValue(option.get("id"));
+            if (optionId != null) {
+                result.put(optionId, option);
+            }
+            result.putAll(collectOptionsById(objectMapList(option.get("children"))));
+        }
+        return result;
+    }
+
+    private List<String> stringList(Object value) {
+        if (value instanceof List<?> rows) {
+            List<String> result = new ArrayList<>();
+            for (Object row : rows) {
+                result.add(String.valueOf(row));
+            }
+            return result;
+        }
+        return List.of(String.valueOf(value));
+    }
+
+    private boolean isMissing(Object value) {
+        if (value == null) {
+            return true;
+        }
+        if (value instanceof String string) {
+            return string.isBlank();
+        }
+        return value instanceof List<?> rows && rows.isEmpty();
+    }
+
+    private boolean booleanValue(Object value) {
+        return value instanceof Boolean bool ? bool : Boolean.parseBoolean(String.valueOf(value));
+    }
+
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
     }
@@ -240,5 +451,27 @@ public class ReviewService {
     }
 
     public record ReviewPaperContext(Paper paper, ReviewSubmission submission) {
+    }
+
+    public record ValidationError(String fieldId, String message) {
+    }
+
+    public static final class ReviewValidationException extends RuntimeException {
+        private final List<ValidationError> errors;
+
+        public ReviewValidationException(List<ValidationError> errors) {
+            super(errors.isEmpty() ? "Review form is invalid" : errors.getFirst().message());
+            this.errors = List.copyOf(errors);
+        }
+
+        public List<ValidationError> errors() {
+            return errors;
+        }
+    }
+
+    private static final class ValidationContext {
+        private final List<ValidationError> errors = new ArrayList<>();
+        private final Set<String> fieldIds = new HashSet<>();
+        private final Set<String> activeCriterionIds = new HashSet<>();
     }
 }
