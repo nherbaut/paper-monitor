@@ -28,6 +28,12 @@
             box-shadow: 0 10px 28px rgb(15 23 42 / 0.05);
         }
         .hero, .panel { padding: 1.2rem; }
+        .hero {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            margin-bottom: 1rem;
+        }
         .eyebrow {
             margin: 0 0 0.35rem;
             color: var(--accent);
@@ -57,6 +63,9 @@
             justify-content: center;
         }
         .primary { background: var(--accent); color: #fff; }
+        .primary.validation-failed {
+            animation: save-failed-shake 420ms ease, save-failed-flash 760ms ease;
+        }
         .secondary { background: #fff; color: var(--ink); border-color: var(--line); }
         .danger { background: #fff2f2; color: #8a1f1f; border-color: #f1caca; }
         .title-with-icon {
@@ -208,6 +217,10 @@
             gap: 1rem;
         }
         .field-card, .criterion-card { padding: 1rem; }
+        .field-card.has-error, .criterion-card.has-error {
+            border-color: #d9534f;
+            box-shadow: 0 0 0 3px rgb(217 83 79 / 0.08), 0 10px 28px rgb(15 23 42 / 0.05);
+        }
         .field-card h2, .criterion-card h3 {
             margin: 0 0 0.35rem;
             font-size: 1rem;
@@ -228,7 +241,28 @@
             background: #fff;
             font: inherit;
         }
+        input.is-invalid, select.is-invalid, textarea.is-invalid {
+            border-color: #d9534f;
+            box-shadow: 0 0 0 3px rgb(217 83 79 / 0.08);
+        }
+        .validation-error {
+            margin-top: 0.55rem;
+            color: #b42318;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
         textarea { min-height: 6rem; resize: vertical; }
+        @keyframes save-failed-shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-5px); }
+            40% { transform: translateX(5px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+        @keyframes save-failed-flash {
+            0%, 100% { background: var(--accent); }
+            30%, 70% { background: #d9534f; }
+        }
         @media (max-width: 1100px) {
             .workspace {
                 grid-template-columns: 1fr;
@@ -327,7 +361,38 @@
     const pdfUploadInput = document.getElementById("pdf-upload-input");
     const pdfUploadButton = document.getElementById("pdf-upload-button");
     const pdfUploadLabel = document.getElementById("pdf-upload-label");
+    const saveButton = document.getElementById("save-button");
     let notesSaveTimer = null;
+    let currentValues = JSON.parse(JSON.stringify(initialValues));
+    let validationErrors = {};
+
+    function errorFor(id) {
+        return validationErrors[id] || "";
+    }
+
+    function fieldHasDescendantError(field) {
+        if (errorFor(field.id)) {
+            return true;
+        }
+        for (const option of flattenOptions(field.values || [])) {
+            for (const criterion of option.criteria || []) {
+                if (errorFor(criterion.id)) {
+                    return true;
+                }
+            }
+        }
+        return (field.subdimensions || []).some(fieldHasDescendantError);
+    }
+
+    function appendValidationError(container, message) {
+        if (!message) {
+            return;
+        }
+        const error = document.createElement("div");
+        error.className = "validation-error";
+        error.textContent = message;
+        container.append(error);
+    }
 
     function flattenOptions(options, prefix = "") {
         const result = [];
@@ -342,6 +407,9 @@
     function renderField(field, values) {
         const card = document.createElement("section");
         card.className = "field-card";
+        if (fieldHasDescendantError(field)) {
+            card.classList.add("has-error");
+        }
         const title = document.createElement("h2");
         title.textContent = field.label + (field.required ? " *" : "");
         card.append(title);
@@ -373,9 +441,13 @@
                 }
                 stack.addEventListener("change", () => renderSelectedCriteria(field.id, criteriaContainer, values));
                 card.append(stack);
+                appendValidationError(card, errorFor(field.id));
             } else {
                 const select = document.createElement("select");
                 select.dataset.field = field.id;
+                if (errorFor(field.id)) {
+                    select.classList.add("is-invalid");
+                }
                 select.innerHTML = "<option value=\"\">Select " + escapeHtml(field.label) + "</option>";
                 for (const option of options) {
                     const item = document.createElement("option");
@@ -387,6 +459,7 @@
                 }
                 select.addEventListener("change", () => renderSelectedCriteria(field.id, criteriaContainer, values));
                 card.append(select);
+                appendValidationError(card, errorFor(field.id));
             }
             card.append(criteriaContainer);
             renderSelectedCriteria(field.id, criteriaContainer, values);
@@ -394,13 +467,21 @@
             const input = document.createElement("input");
             input.type = "number";
             input.dataset.field = field.id;
+            if (errorFor(field.id)) {
+                input.classList.add("is-invalid");
+            }
             input.value = values[field.id] ?? "";
             card.append(input);
+            appendValidationError(card, errorFor(field.id));
         } else {
             const textarea = document.createElement("textarea");
             textarea.dataset.field = field.id;
+            if (errorFor(field.id)) {
+                textarea.classList.add("is-invalid");
+            }
             textarea.value = values[field.id] ?? "";
             card.append(textarea);
+            appendValidationError(card, errorFor(field.id));
         }
 
         for (const subfield of field.subdimensions || []) {
@@ -437,6 +518,10 @@
     function renderCriterion(criterion, currentValue) {
         const card = document.createElement("section");
         card.className = "criterion-card";
+        const criterionError = errorFor(criterion.id);
+        if (criterionError) {
+            card.classList.add("has-error");
+        }
         const title = document.createElement("h3");
         title.textContent = (criterion.label || criterion.id) + (criterion.required ? " *" : "");
         card.append(title);
@@ -450,6 +535,9 @@
         if (scale && Array.isArray(scale.scale_values) && scale.scale_values.length > 0) {
             const select = document.createElement("select");
             select.dataset.criterion = criterion.id;
+            if (criterionError) {
+                select.classList.add("is-invalid");
+            }
             select.innerHTML = "<option value=\"\">Select value</option>";
             for (const scaleValue of scale.scale_values) {
                 const option = document.createElement("option");
@@ -459,13 +547,18 @@
                 select.append(option);
             }
             card.append(select);
+            appendValidationError(card, criterionError);
             return card;
         }
         const input = document.createElement("input");
         input.dataset.criterion = criterion.id;
         input.type = scale?.scale_type === "numeric" ? "number" : "text";
+        if (criterionError) {
+            input.classList.add("is-invalid");
+        }
         input.value = currentValue ?? "";
         card.append(input);
+        appendValidationError(card, criterionError);
         return card;
     }
 
@@ -508,8 +601,27 @@
     function renderForm() {
         fieldsContainer.innerHTML = "";
         for (const field of formSchema.fields || []) {
-            fieldsContainer.append(renderField(field, initialValues));
+            fieldsContainer.append(renderField(field, currentValues));
         }
+    }
+
+    function triggerValidationFeedback() {
+        if (!saveButton) {
+            return;
+        }
+        saveButton.classList.remove("validation-failed");
+        void saveButton.offsetWidth;
+        saveButton.classList.add("validation-failed");
+        window.setTimeout(() => saveButton.classList.remove("validation-failed"), 900);
+    }
+
+    function scrollToFirstValidationError() {
+        const firstError = document.querySelector(".validation-error, .is-invalid");
+        if (!firstError) {
+            return;
+        }
+        const top = firstError.getBoundingClientRect().top + window.scrollY - 120;
+        window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     }
 
     function highlightMarkdown(value) {
@@ -630,12 +742,13 @@
 
     async function saveForm() {
         statusLine.textContent = "Saving review form...";
+        currentValues = collectValues();
         const response = await fetch(`/api/reviews/{review.id}/papers/{paper.id}/submission`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 paper: paperSnapshot,
-                values: collectValues()
+                values: currentValues
             })
         });
         if (!response.ok) {
@@ -644,7 +757,11 @@
                 const payload = await response.json();
                 const errors = Array.isArray(payload.errors) ? payload.errors : [];
                 if (errors.length > 0) {
-                    statusLine.textContent = errors.map((item) => item.fieldId + ": " + item.message).join(" | ");
+                    validationErrors = Object.fromEntries(errors.map((item) => [item.fieldId, item.message]));
+                    renderForm();
+                    triggerValidationFeedback();
+                    scrollToFirstValidationError();
+                    statusLine.textContent = "The review form has validation errors.";
                     return;
                 }
                 statusLine.textContent = payload.message || "Review form validation failed";
@@ -653,6 +770,7 @@
             statusLine.textContent = await response.text();
             return;
         }
+        validationErrors = {};
         const payload = await response.json();
         statusLine.textContent = "Saved at " + (payload.updatedAt || "just now");
     }
@@ -738,6 +856,20 @@
             uploadPdf(files[0]);
         });
     }
+    fieldsContainer.addEventListener("input", () => {
+        if (Object.keys(validationErrors).length > 0) {
+            validationErrors = {};
+            currentValues = collectValues();
+            renderForm();
+        }
+    });
+    fieldsContainer.addEventListener("change", () => {
+        if (Object.keys(validationErrors).length > 0) {
+            validationErrors = {};
+            currentValues = collectValues();
+            renderForm();
+        }
+    });
     renderForm();
 </script>
 </body>
