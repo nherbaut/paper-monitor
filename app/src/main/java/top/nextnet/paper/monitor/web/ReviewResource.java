@@ -114,8 +114,12 @@ public class ReviewResource {
         List<Paper> papers = reviewService.papersInLiveScope(reviewEntity);
         Map<Long, ReviewSubmission> submissions = reviewService.submissionsByPaperId(reviewEntity);
         List<ReviewRowView> rows = new ArrayList<>();
+        int analyzedCount = 0;
         for (Paper paper : papers) {
             ReviewSubmission submission = submissions.get(paper.id);
+            if (submission != null) {
+                analyzedCount += 1;
+            }
             rows.add(new ReviewRowView(
                     paper.id,
                     paper.title,
@@ -124,11 +128,29 @@ public class ReviewResource {
                     submission != null,
                     submission == null ? null : submission.updatedAt));
         }
+        int totalCount = rows.size();
+        int remainingCount = Math.max(0, totalCount - analyzedCount);
+        double analyzedRatio = totalCount == 0 ? 0D : (double) analyzedCount / (double) totalCount;
         return review.data("review", reviewEntity)
                 .data("logicalFeed", reviewEntity.logicalFeed)
                 .data("selectedStates", reviewService.selectedStates(reviewEntity))
+                .data("analyzedCount", analyzedCount)
+                .data("remainingCount", remainingCount)
+                .data("totalCount", totalCount)
+                .data("analyzedPercent", Math.round(analyzedRatio * 100.0d))
+                .data("analyzedAngle", analyzedRatio * 360.0d)
                 .data("rows", rows)
                 .data("currentUser", currentUser);
+    }
+
+    @DELETE
+    @Path("/api/reviews/{id}")
+    @Transactional
+    public Response deleteReview(@PathParam("id") Long id) {
+        AppUser currentUser = requireCurrentUser();
+        Review reviewEntity = reviewService.requireReview(id, currentUser);
+        reviewService.deleteReview(reviewEntity);
+        return Response.noContent().build();
     }
 
     @GET
@@ -141,6 +163,7 @@ public class ReviewResource {
         AppUser currentUser = requireCurrentUser();
         Review reviewEntity = reviewService.requireReview(id, currentUser);
         ReviewService.ReviewPaperContext context = reviewService.requireReviewPaper(reviewEntity, paperId);
+        context.paper().viewerCanEdit = logicalFeedAccessService.canAdmin(context.paper().logicalFeed, currentUser);
         Map<String, Object> formSchema = reviewService.formSchema(reviewEntity);
         Map<String, Object> values = reviewService.submissionValues(context.submission());
         return reviewPaper.data("review", reviewEntity)
@@ -148,7 +171,8 @@ public class ReviewResource {
                 .data("savedAt", context.submission() == null ? null : context.submission().updatedAt)
                 .data("formSchemaBase64", encodeBase64(JsonCodec.stringify(formSchema)))
                 .data("valuesBase64", encodeBase64(JsonCodec.stringify(values)))
-                .data("paperSnapshotBase64", encodeBase64(JsonCodec.stringify(reviewService.paperSnapshot(context.paper()))));
+                .data("paperSnapshotBase64", encodeBase64(JsonCodec.stringify(reviewService.paperSnapshot(context.paper()))))
+                .data("notesBase64", encodeBase64(context.paper().notes == null ? "" : context.paper().notes));
     }
 
     @POST

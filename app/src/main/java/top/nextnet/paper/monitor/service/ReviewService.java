@@ -52,6 +52,12 @@ public class ReviewService {
     }
 
     @Transactional
+    public void deleteReview(Review review) {
+        reviewSubmissionRepository.deleteByReview(review);
+        review.delete();
+    }
+
+    @Transactional
     public Review createOrReplaceReview(AppUser owner, LogicalFeed logicalFeed, List<String> selectedStates, String templateId) {
         if (!logicalFeedAccessService.canRead(logicalFeed, owner)) {
             throw new ForbiddenException();

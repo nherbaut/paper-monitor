@@ -34,6 +34,25 @@
             padding: 2rem 0 4rem;
         }
 
+        .title-with-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+
+        .title-icon {
+            display: inline-flex;
+            width: 1.15rem;
+            height: 1.15rem;
+            color: var(--accent);
+            flex: 0 0 auto;
+        }
+
+        .title-icon svg {
+            width: 100%;
+            height: 100%;
+        }
+
         .panel {
             background: color-mix(in srgb, var(--panel) 88%, white);
             border: 1px solid var(--line);
@@ -79,7 +98,7 @@
 <main>
     <header>
         <div class="pill">Paper Activity</div>
-        <h1>Event log</h1>
+        <h1 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2.5h12v11H2v-11Zm1 1v9h10v-9H3Zm1.5 1.5H8v1H4.5V5Zm0 2.5h7v1h-7v-1Zm0 2.5h7v1h-7v-1Z"/></svg></span><span>Event log</span></h1>
         <p class="meta">Recent paper fetches, state transitions, and PDF uploads.</p>
         <p>
             Signed in as <strong>{currentUser.displayLabel}</strong>

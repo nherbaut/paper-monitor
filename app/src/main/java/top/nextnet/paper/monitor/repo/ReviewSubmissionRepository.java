@@ -29,4 +29,8 @@ public class ReviewSubmissionRepository implements PanacheRepository<ReviewSubmi
         }
         return indexed;
     }
+
+    public long deleteByReview(Review review) {
+        return delete("review", review);
+    }
 }

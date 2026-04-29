@@ -20,8 +20,8 @@
             background: linear-gradient(180deg, #fbfcfd 0%, var(--bg) 100%);
             color: var(--ink);
         }
-        main { max-width: 980px; margin: 0 auto; padding: 1.5rem 1rem 2rem; }
-        .hero, .panel, .field-card, .criterion-card {
+        main { max-width: 1380px; margin: 0 auto; padding: 1.5rem 1rem 2rem; }
+        .hero, .panel, .field-card, .criterion-card, .side-card {
             background: var(--panel);
             border: 1px solid var(--line);
             border-radius: 18px;
@@ -59,19 +59,136 @@
         .primary { background: var(--accent); color: #fff; }
         .secondary { background: #fff; color: var(--ink); border-color: var(--line); }
         .danger { background: #fff2f2; color: #8a1f1f; border-color: #f1caca; }
+        .title-with-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+        .title-icon {
+            display: inline-flex;
+            width: 1.2rem;
+            height: 1.2rem;
+            color: var(--accent);
+            flex: 0 0 auto;
+        }
+        .title-icon svg {
+            width: 100%;
+            height: 100%;
+        }
         .status {
             margin-top: 0.85rem;
             min-height: 1.25rem;
             color: var(--muted);
         }
         .preview-shell {
-            margin-top: 1rem;
             padding: 1rem;
             border: 1px dashed rgb(40 90 111 / 0.28);
             border-radius: 16px;
             background:
                 repeating-linear-gradient(-45deg, rgb(40 90 111 / 0.04), rgb(40 90 111 / 0.04) 14px, rgb(255 255 255 / 0.86) 14px, rgb(255 255 255 / 0.86) 28px),
                 linear-gradient(180deg, rgb(249 251 252 / 0.95), rgb(240 245 247 / 0.95));
+        }
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(340px, 0.9fr) minmax(0, 1.4fr);
+            gap: 1rem;
+            align-items: start;
+        }
+        .side-stack {
+            display: grid;
+            gap: 1rem;
+        }
+        .side-card {
+            padding: 1rem;
+        }
+        .side-card h2 {
+            margin: 0 0 0.35rem;
+            font-size: 1.02rem;
+        }
+        .pdf-frame {
+            width: 100%;
+            min-height: 70vh;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: #fff;
+        }
+        .upload-dropzone {
+            display: grid;
+            gap: 0.75rem;
+            padding: 1rem;
+            border: 1px dashed rgb(40 90 111 / 0.34);
+            border-radius: 16px;
+            background: rgb(40 90 111 / 0.04);
+            transition: border-color 120ms ease, background 120ms ease;
+        }
+        .upload-dropzone.drag-over {
+            border-color: var(--accent);
+            background: rgb(40 90 111 / 0.1);
+        }
+        .hidden-file-input {
+            display: none;
+        }
+        .notes-preview,
+        .notes-editor-shell {
+            min-height: 14rem;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: #fff;
+        }
+        .notes-preview {
+            padding: 0.95rem 1rem;
+            overflow: auto;
+        }
+        .notes-preview.hidden,
+        .notes-editor-shell.hidden {
+            display: none;
+        }
+        .notes-editor-shell {
+            position: relative;
+            overflow: hidden;
+        }
+        .notes-highlight,
+        .notes-input {
+            margin: 0;
+            padding: 0.95rem 1rem;
+            font: 0.96rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            tab-size: 4;
+        }
+        .notes-highlight {
+            min-height: 14rem;
+            color: transparent;
+            background: #fcfdfd;
+            pointer-events: none;
+        }
+        .notes-input {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            min-height: 14rem;
+            border: 0;
+            border-radius: 0;
+            resize: vertical;
+            color: var(--ink);
+            background: transparent;
+            caret-color: var(--accent);
+        }
+        .notes-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            margin-top: 0.8rem;
+        }
+        .md-heading {
+            color: #17475f;
+            font-weight: 700;
+        }
+        .md-syntax {
+            color: #9c6b38;
+        }
+        .md-emphasis {
+            color: #6d2f70;
         }
         .preview-badge {
             display: inline-flex;
@@ -112,13 +229,21 @@
             font: inherit;
         }
         textarea { min-height: 6rem; resize: vertical; }
+        @media (max-width: 1100px) {
+            .workspace {
+                grid-template-columns: 1fr;
+            }
+            .pdf-frame {
+                min-height: 28rem;
+            }
+        }
     </style>
 </head>
 <body>
 <main>
     <section class="hero">
         <p class="eyebrow">Review form</p>
-        <h1>{paper.title}</h1>
+        <h1 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 0 1 1 1v10H2V3a1 1 0 0 1 1-1Zm0 1v2h10V3H3Zm0 3v6h10V6H3Zm2 1h6v1H5V7Zm0 2h6v1H5V9Z"/></svg></span><span>{paper.title}</span></h1>
         <p class="meta">Review: <strong>{review.title}</strong></p>
         <p class="meta">{paper.authors ?: 'Unknown authors'} · State: {paper.status}</p>
         <div class="hero-actions">
@@ -132,22 +257,77 @@
         <div class="status" id="status-line">{#if savedAt}Saved at {savedAt}{/if}</div>
     </section>
 
-    <section class="panel">
-        <div class="preview-shell">
-            <span class="preview-badge">Review draft form</span>
-            <div id="form-fields"></div>
+    <section class="workspace">
+        <div class="side-stack">
+            <section class="side-card">
+                <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 1h7l3 3v11H3V1Zm1 1v12h8V5H9V2H4Zm5 0v2h2L9 2Z"/></svg></span><span>Paper PDF</span></h2>
+                {#if paper.uploadedPdfPath}
+                <p class="help">The attached PDF is shown inline here. Uploading from this page updates the same file used in the paper feed view.</p>
+                <iframe class="pdf-frame" src="/papers/{paper.id}/pdf" title="Paper PDF"></iframe>
+                {#else}
+                <p class="help">No PDF is attached to this paper yet.</p>
+                {#if paper.viewerCanEdit}
+                <div class="upload-dropzone" id="pdf-upload-dropzone">
+                    <input class="hidden-file-input" id="pdf-upload-input" type="file" accept="application/pdf">
+                    <p class="meta" id="pdf-upload-label">Drop a PDF here, or choose one from your device. It will also appear in the main paper feed view.</p>
+                    <div class="hero-actions">
+                        <button class="secondary" id="pdf-upload-button" type="button">Choose PDF</button>
+                    </div>
+                </div>
+                {#else}
+                <p class="meta">You need admin access on this paper feed to upload a PDF.</p>
+                {/if}
+                {/if}
+            </section>
+
+            <section class="side-card">
+                <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v12H2V2Zm1 1v10h10V3H3Zm2 1h6v1H5V4Zm0 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Paper notes</span></h2>
+                <p class="help">These notes are the same notes stored with the paper in the main paper feed view.</p>
+                <div class="notes-preview" id="notes-preview"></div>
+                <div class="notes-editor-shell hidden" id="notes-editor-shell">
+                    <pre class="notes-highlight" id="notes-highlight"></pre>
+                    <textarea class="notes-input" id="notes-editor" placeholder="# Notes"></textarea>
+                </div>
+                <div class="notes-actions">
+                    {#if paper.viewerCanEdit}
+                    <button class="secondary" id="notes-edit-button" type="button">Edit notes</button>
+                    {/if}
+                    <span class="meta" id="notes-status">{#if paper.viewerCanEdit}Saved{#else}Read only{/if}</span>
+                </div>
+            </section>
         </div>
+
+        <section class="panel">
+            <div class="preview-shell">
+                <span class="preview-badge title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 0 1 1 1v10H2V3a1 1 0 0 1 1-1Zm0 1v2h10V3H3Zm0 3v6h10V6H3Zm2 1h6v1H5V7Zm0 2h6v1H5V9Z"/></svg></span><span>Review draft form</span></span>
+                <div id="form-fields"></div>
+            </div>
+        </section>
     </section>
 </main>
 <script id="form-schema-base64" type="text/plain">{formSchemaBase64}</script>
 <script id="values-base64" type="text/plain">{valuesBase64}</script>
 <script id="paper-base64" type="text/plain">{paperSnapshotBase64}</script>
+<script id="notes-base64" type="text/plain">{notesBase64}</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.umd.min.js"></script>
 <script>
     const formSchema = JSON.parse(atob(document.getElementById("form-schema-base64").textContent.trim() || "e30="));
     const initialValues = JSON.parse(atob(document.getElementById("values-base64").textContent.trim() || "e30="));
     const paperSnapshot = JSON.parse(atob(document.getElementById("paper-base64").textContent.trim() || "e30="));
+    const initialNotes = atob(document.getElementById("notes-base64").textContent.trim() || "");
     const fieldsContainer = document.getElementById("form-fields");
     const statusLine = document.getElementById("status-line");
+    const notesPreview = document.getElementById("notes-preview");
+    const notesEditorShell = document.getElementById("notes-editor-shell");
+    const notesHighlight = document.getElementById("notes-highlight");
+    const notesEditor = document.getElementById("notes-editor");
+    const notesStatus = document.getElementById("notes-status");
+    const notesEditButton = document.getElementById("notes-edit-button");
+    const pdfUploadDropzone = document.getElementById("pdf-upload-dropzone");
+    const pdfUploadInput = document.getElementById("pdf-upload-input");
+    const pdfUploadButton = document.getElementById("pdf-upload-button");
+    const pdfUploadLabel = document.getElementById("pdf-upload-label");
+    let notesSaveTimer = null;
 
     function flattenOptions(options, prefix = "") {
         const result = [];
@@ -332,6 +512,122 @@
         }
     }
 
+    function highlightMarkdown(value) {
+        let html = escapeHtml(value);
+        html = html.replace(/^(#{1}|#{2}|#{3}|#{4}|#{5}|#{6})\s.*$/gm, "<span class=\"md-heading\">$&</span>");
+        html = html.replace(/(\*\*[^*]+\*\*|__[^_]+__)/g, "<span class=\"md-syntax\">$1</span>");
+        html = html.replace(/(\*[^*\n]+\*|_[^_\n]+_|`[^`\n]+`|~~[^~]+~~)/g, "<span class=\"md-emphasis\">$1</span>");
+        html = html.replace(/^(\s*[-*+] |\s*\d+\. |> )/gm, "<span class=\"md-syntax\">$1</span>");
+        return html;
+    }
+
+    function updateNotesEditorView() {
+        if (!notesHighlight || !notesEditor) {
+            return;
+        }
+        notesHighlight.innerHTML = highlightMarkdown(notesEditor.value) + "\n";
+    }
+
+    function renderNotesPreview() {
+        if (!notesPreview || !notesEditor) {
+            return;
+        }
+        const source = notesEditor.value.trim();
+        if (!source) {
+            notesPreview.innerHTML = "<p class=\"meta\">No notes yet.</p>";
+            return;
+        }
+        notesPreview.innerHTML = window.marked.parse(source);
+    }
+
+    function enterNotesEditMode() {
+        if (!notesEditorShell || !notesPreview || !notesEditor || !notesEditButton) {
+            return;
+        }
+        notesPreview.classList.add("hidden");
+        notesEditorShell.classList.remove("hidden");
+        notesEditButton.textContent = "Preview notes";
+        updateNotesEditorView();
+        notesEditor.focus();
+        const end = notesEditor.value.length;
+        notesEditor.setSelectionRange(end, end);
+    }
+
+    function leaveNotesEditMode() {
+        if (!notesEditorShell || !notesPreview || !notesEditButton) {
+            return;
+        }
+        notesEditorShell.classList.add("hidden");
+        notesPreview.classList.remove("hidden");
+        notesEditButton.textContent = "Edit notes";
+        renderNotesPreview();
+    }
+
+    async function saveNotes() {
+        if (!notesEditor || !notesStatus) {
+            return;
+        }
+        notesStatus.textContent = "Saving...";
+        try {
+            const response = await fetch("/papers/{paper.id}/notes", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+                },
+                body: new URLSearchParams({ notes: notesEditor.value })
+            });
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(message || "Failed to save notes");
+            }
+            notesStatus.textContent = "Saved";
+            renderNotesPreview();
+        } catch (error) {
+            notesStatus.textContent = error.message || "Failed to save notes";
+        }
+    }
+
+    function queueNotesSave() {
+        if (notesSaveTimer) {
+            window.clearTimeout(notesSaveTimer);
+        }
+        updateNotesEditorView();
+        notesSaveTimer = window.setTimeout(saveNotes, 500);
+    }
+
+    function updatePdfUploadLabel() {
+        if (!pdfUploadInput || !pdfUploadLabel) {
+            return;
+        }
+        const file = pdfUploadInput.files && pdfUploadInput.files[0];
+        pdfUploadLabel.textContent = file
+            ? "Ready to upload: " + file.name
+            : "Drop a PDF here, or choose one from your device. It will also appear in the main paper feed view.";
+    }
+
+    async function uploadPdf(file) {
+        if (!file) {
+            return;
+        }
+        statusLine.textContent = "Uploading PDF...";
+        const formData = new FormData();
+        formData.append("pdf", file);
+        try {
+            const response = await fetch("/papers/{paper.id}/pdf", {
+                method: "POST",
+                body: formData
+            });
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(message || "Failed to upload PDF");
+            }
+            statusLine.textContent = "PDF uploaded. Reloading...";
+            window.location.reload();
+        } catch (error) {
+            statusLine.textContent = error.message || "Failed to upload PDF";
+        }
+    }
+
     async function saveForm() {
         statusLine.textContent = "Saving review form...";
         const response = await fetch(`/api/reviews/{review.id}/papers/{paper.id}/submission`, {
@@ -377,6 +673,60 @@
 
     document.getElementById("save-button").addEventListener("click", saveForm);
     document.getElementById("reset-button").addEventListener("click", resetForm);
+    if (notesEditor) {
+        notesEditor.value = initialNotes;
+        updateNotesEditorView();
+        renderNotesPreview();
+        notesEditor.addEventListener("input", queueNotesSave);
+    }
+    if (notesEditButton) {
+        notesEditButton.addEventListener("click", () => {
+            if (notesEditorShell.classList.contains("hidden")) {
+                enterNotesEditMode();
+            } else {
+                leaveNotesEditMode();
+            }
+        });
+    }
+    if (pdfUploadInput) {
+        pdfUploadInput.addEventListener("change", () => {
+            updatePdfUploadLabel();
+            const file = pdfUploadInput.files && pdfUploadInput.files[0];
+            if (file) {
+                uploadPdf(file);
+            }
+        });
+    }
+    if (pdfUploadButton && pdfUploadInput) {
+        pdfUploadButton.addEventListener("click", () => pdfUploadInput.click());
+    }
+    if (pdfUploadDropzone && pdfUploadInput) {
+        ["dragenter", "dragover"].forEach((eventName) => {
+            pdfUploadDropzone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                pdfUploadDropzone.classList.add("drag-over");
+            });
+        });
+        ["dragleave", "drop"].forEach((eventName) => {
+            pdfUploadDropzone.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                pdfUploadDropzone.classList.remove("drag-over");
+            });
+        });
+        pdfUploadDropzone.addEventListener("drop", (event) => {
+            const files = Array.from(event.dataTransfer && event.dataTransfer.files || [])
+                .filter((file) => file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf"));
+            if (!files.length) {
+                statusLine.textContent = "Drop a PDF file.";
+                return;
+            }
+            const transfer = new DataTransfer();
+            transfer.items.add(files[0]);
+            pdfUploadInput.files = transfer.files;
+            updatePdfUploadLabel();
+            uploadPdf(files[0]);
+        });
+    }
     renderForm();
 </script>
 </body>
