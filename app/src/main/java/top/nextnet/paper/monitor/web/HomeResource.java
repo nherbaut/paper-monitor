@@ -98,6 +98,7 @@ public class HomeResource {
     private final NotificationService notificationService;
     private final Instance<CurrentUserContext> currentUserContext;
     private final String baseUrl;
+    private final String paperDataExtractorBaseUrl;
 
     public HomeResource(
             @Location("home") Template home,
@@ -123,7 +124,8 @@ public class HomeResource {
             LogicalFeedAccessService logicalFeedAccessService,
             NotificationService notificationService,
             Instance<CurrentUserContext> currentUserContext,
-            @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl
+            @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl,
+            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "http://localhost:8091") String paperDataExtractorBaseUrl
     ) {
         this.home = home;
         this.admin = admin;
@@ -149,6 +151,7 @@ public class HomeResource {
         this.notificationService = notificationService;
         this.currentUserContext = currentUserContext;
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.trim();
+        this.paperDataExtractorBaseUrl = paperDataExtractorBaseUrl == null ? "http://localhost:8091" : paperDataExtractorBaseUrl.trim();
     }
 
     @GET
@@ -305,6 +308,7 @@ public class HomeResource {
                 .data("currentUser", currentUser)
                 .data("canAdmin", currentUserContext.get().isAdmin())
                 .data("authenticated", currentUser != null)
+                .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
                 .data("shareMode", false)
                 .data("sharedPaper", null)
                 .data("sharedPaperUrl", null);

@@ -239,9 +239,16 @@
         }
 
         .review-state-option {
-            display: flex;
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
             gap: 0.55rem;
-            align-items: start;
+            align-items: center;
+        }
+
+        .review-state-option input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+            padding: 0;
         }
 
         .review-open-link {
@@ -1579,6 +1586,7 @@
                             <p class="meta">States included in the live review scope</p>
                             <div class="review-state-list" id="review-state-list"></div>
                         </div>
+                        <a class="secondary" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Open PDE</a>
                         <button class="secondary" id="review-create-button" type="submit">Create review</button>
                     </form>
                 </div>
