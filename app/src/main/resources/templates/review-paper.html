@@ -142,6 +142,7 @@
 <script id="form-schema-base64" type="text/plain">{formSchemaBase64}</script>
 <script id="values-base64" type="text/plain">{valuesBase64}</script>
 <script id="paper-base64" type="text/plain">{paperSnapshotBase64}</script>
+{#raw}
 <script>
     const formSchema = JSON.parse(atob(document.getElementById("form-schema-base64").textContent.trim() || "e30="));
     const initialValues = JSON.parse(atob(document.getElementById("values-base64").textContent.trim() || "e30="));
@@ -376,5 +377,6 @@
     document.getElementById("reset-button").addEventListener("click", resetForm);
     renderForm();
 </script>
+{/raw}
 </body>
 </html>
