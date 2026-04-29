@@ -736,7 +736,7 @@
             notesPreview.innerHTML = "<p class=\"meta\">No notes yet.</p>";
             return;
         }
-        notesPreview.innerHTML = window.marked.parse(source);
+        notesPreview.innerHTML = marked.parse(source);
     }
 
     function enterNotesEditMode() {
