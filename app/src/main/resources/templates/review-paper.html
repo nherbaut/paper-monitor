@@ -89,6 +89,31 @@
             min-height: 1.25rem;
             color: var(--muted);
         }
+        .paper-metadata {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+        .paper-meta-card {
+            padding: 0.8rem 0.9rem;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: #fbfdff;
+        }
+        .paper-meta-card strong {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-size: 0.82rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .paper-meta-card span,
+        .paper-meta-card a {
+            color: var(--ink);
+            overflow-wrap: anywhere;
+        }
         .preview-shell {
             padding: 1rem;
             border: 1px dashed rgb(40 90 111 / 0.28);
@@ -344,12 +369,37 @@
         <h1 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 0 1 1 1v10H2V3a1 1 0 0 1 1-1Zm0 1v2h10V3H3Zm0 3v6h10V6H3Zm2 1h6v1H5V7Zm0 2h6v1H5V9Z"/></svg></span><span>{paper.title}</span></h1>
         <p class="meta">Review: <strong>{review.title}</strong></p>
         <p class="meta">{paper.authors ?: 'Unknown authors'} · State: {paper.status}</p>
+        <div class="paper-metadata">
+            <div class="paper-meta-card">
+                <strong>Authors</strong>
+                <span>{paper.authors ?: 'Unknown authors'}</span>
+            </div>
+            <div class="paper-meta-card">
+                <strong>Published</strong>
+                <span>{paper.publishedOn ?: 'Unknown date'}</span>
+            </div>
+            <div class="paper-meta-card">
+                <strong>Venue</strong>
+                <span>{paper.publisher ?: 'Unknown venue'}</span>
+            </div>
+            <div class="paper-meta-card">
+                <strong>Source</strong>
+                {#if paper.sourceLink}
+                <a href="{paper.sourceLink}" target="_blank" rel="noreferrer">Open source page</a>
+                {#else}
+                <span>Unavailable</span>
+                {/if}
+            </div>
+        </div>
         <div class="hero-actions">
-            <button class="primary" id="save-button" type="button">Save form</button>
+            <button class="primary" id="save-button" type="button">Save</button>
+            {#if nextPaper}
+            <button class="secondary" id="save-next-button" type="button">Save and Next</button>
+            {/if}
             <button class="danger" id="reset-button" type="button">Reset form</button>
             <a class="link-button secondary" href="/reviews/{review.id}" target="_self">Back to review</a>
             {#if paper.uploadedPdfPath}
-            <a class="link-button secondary" href="/papers/{paper.id}/pdf" target="_blank" rel="noreferrer">Open PDF</a>
+            <a class="link-button secondary" href="/papers/{paper.id}/pdf?disposition=attachment" target="_blank" rel="noreferrer">Download PDF</a>
             {/if}
         </div>
         <div class="status" id="status-line">{#if savedAt}Saved at {savedAt}{/if}</div>
@@ -421,6 +471,7 @@
 <script id="values-base64" type="text/plain">{valuesBase64}</script>
 <script id="paper-base64" type="text/plain">{paperSnapshotBase64}</script>
 <script id="notes-base64" type="text/plain">{notesBase64}</script>
+<script id="next-paper-url" type="text/plain">{#if nextPaper}/reviews/{review.id}/papers/{nextPaper.id}{/if}</script>
 <script type="module">
     import { marked } from "https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.esm.js";
     import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.min.mjs";
@@ -431,6 +482,7 @@
     const initialValues = JSON.parse(atob(document.getElementById("values-base64").textContent.trim() || "e30="));
     const paperSnapshot = JSON.parse(atob(document.getElementById("paper-base64").textContent.trim() || "e30="));
     const initialNotes = atob(document.getElementById("notes-base64").textContent.trim() || "");
+    const nextPaperUrl = document.getElementById("next-paper-url").textContent.trim();
     const fieldsContainer = document.getElementById("form-fields");
     const statusLine = document.getElementById("status-line");
     const notesPreview = document.getElementById("notes-preview");
@@ -449,6 +501,7 @@
     const pdfFullscreenButton = document.getElementById("pdf-fullscreen-button");
     const pdfFullscreenHint = document.getElementById("pdf-fullscreen-hint");
     const saveButton = document.getElementById("save-button");
+    const saveNextButton = document.getElementById("save-next-button");
     let notesSaveTimer = null;
     let currentValues = JSON.parse(JSON.stringify(initialValues));
     let validationErrors = {};
@@ -958,7 +1011,7 @@
         }
     }
 
-    async function saveForm() {
+    async function saveForm(goNext = false) {
         statusLine.textContent = "Saving review form...";
         currentValues = collectValues();
         const response = await fetch(`/api/reviews/{review.id}/papers/{paper.id}/submission`, {
@@ -991,6 +1044,9 @@
         validationErrors = {};
         const payload = await response.json();
         statusLine.textContent = "Saved at " + (payload.updatedAt || "just now");
+        if (goNext && nextPaperUrl) {
+            window.location.href = nextPaperUrl;
+        }
     }
 
     async function resetForm() {
@@ -1018,7 +1074,10 @@
             .replaceAll("\"", "&quot;");
     }
 
-    document.getElementById("save-button").addEventListener("click", saveForm);
+    document.getElementById("save-button").addEventListener("click", () => saveForm(false));
+    if (saveNextButton) {
+        saveNextButton.addEventListener("click", () => saveForm(true));
+    }
     document.getElementById("reset-button").addEventListener("click", resetForm);
     if (notesEditor) {
         notesEditor.value = initialNotes;

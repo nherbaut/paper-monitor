@@ -163,11 +163,20 @@ public class ReviewResource {
         AppUser currentUser = requireCurrentUser();
         Review reviewEntity = reviewService.requireReview(id, currentUser);
         ReviewService.ReviewPaperContext context = reviewService.requireReviewPaper(reviewEntity, paperId);
+        List<Paper> scopedPapers = reviewService.papersInLiveScope(reviewEntity);
+        Paper nextPaper = null;
+        for (int i = 0; i < scopedPapers.size(); i++) {
+            if (scopedPapers.get(i).id.equals(context.paper().id) && i + 1 < scopedPapers.size()) {
+                nextPaper = scopedPapers.get(i + 1);
+                break;
+            }
+        }
         context.paper().viewerCanEdit = logicalFeedAccessService.canAdmin(context.paper().logicalFeed, currentUser);
         Map<String, Object> formSchema = reviewService.formSchema(reviewEntity);
         Map<String, Object> values = reviewService.submissionValues(context.submission());
         return reviewPaper.data("review", reviewEntity)
                 .data("paper", context.paper())
+                .data("nextPaper", nextPaper)
                 .data("savedAt", context.submission() == null ? null : context.submission().updatedAt)
                 .data("formSchemaBase64", encodeBase64(JsonCodec.stringify(formSchema)))
                 .data("valuesBase64", encodeBase64(JsonCodec.stringify(values)))
