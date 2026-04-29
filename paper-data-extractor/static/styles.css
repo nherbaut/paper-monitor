@@ -141,6 +141,222 @@ body.app-shell {
     color: var(--app-muted);
 }
 
+.review-hero-card .card-body {
+    gap: 1.25rem;
+}
+
+.review-upload-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: end;
+    min-width: min(520px, 100%);
+}
+
+.review-hero-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: end;
+}
+
+.review-create-button {
+    white-space: nowrap;
+}
+
+.review-design-strip {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(260px, 320px);
+    gap: 1rem;
+    overflow-x: auto;
+    padding-bottom: 0.35rem;
+}
+
+.review-strip-card {
+    background: rgb(255 255 255 / 0.9);
+}
+
+.saved-review-menu-list {
+    min-width: min(360px, 80vw);
+    max-width: min(420px, 90vw);
+}
+
+.saved-review-scroller {
+    display: grid;
+    gap: 0.5rem;
+    max-height: 20rem;
+    overflow-y: auto;
+    padding-right: 0.2rem;
+}
+
+.saved-review-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid rgb(0 0 0 / 0.08);
+    border-radius: 0.8rem;
+    background: rgb(255 255 255 / 0.88);
+}
+
+.saved-review-name {
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    text-align: left;
+    color: var(--app-ink);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.saved-review-name:hover {
+    color: var(--app-accent);
+}
+
+.model-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.selected-model-dropbox {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+    min-height: 10rem;
+    align-items: start;
+}
+
+.form-preview-panel {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.form-preview-surface {
+    position: relative;
+    padding: 1rem;
+    border: 1px dashed rgb(31 111 120 / 0.3);
+    border-radius: 1rem;
+    background:
+        repeating-linear-gradient(
+            -45deg,
+            rgb(31 111 120 / 0.04),
+            rgb(31 111 120 / 0.04) 16px,
+            rgb(255 255 255 / 0.9) 16px,
+            rgb(255 255 255 / 0.9) 32px
+        ),
+        linear-gradient(180deg, rgb(250 252 252 / 0.95), rgb(241 247 247 / 0.95));
+}
+
+.form-preview-surface::before {
+    content: "Work in progress";
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 0.9rem;
+    padding: 0.2rem 0.55rem;
+    border: 1px solid rgb(31 111 120 / 0.18);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.78);
+    color: var(--app-accent);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.selected-model-dropbox.is-dragover,
+.model-card-grid.is-dragover {
+    border-color: rgb(31 111 120 / 0.35);
+    background: rgb(31 111 120 / 0.08);
+}
+
+.dem-card {
+    position: relative;
+    overflow: hidden;
+    transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.dem-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.8rem 1.8rem rgb(0 0 0 / 0.10);
+}
+
+.dem-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: rgb(31 111 120 / 0.45);
+}
+
+.dem-card.is-selected {
+    border-color: rgb(31 111 120 / 0.35) !important;
+    box-shadow: 0 0.9rem 1.9rem rgb(31 111 120 / 0.18);
+}
+
+.dem-card .card-body {
+    gap: 0.85rem;
+}
+
+.dem-card-header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.dem-card-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    min-width: 0;
+}
+
+.dem-card-grip {
+    color: var(--app-muted);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: grab;
+}
+
+.dem-card-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+    background: rgb(255 255 255 / 0.6);
+    color: var(--app-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.dem-card-meta {
+    display: grid;
+    gap: 0.3rem;
+    min-width: 0;
+}
+
+.dem-card-meta strong {
+    display: block;
+    font-size: 1rem;
+    overflow-wrap: anywhere;
+}
+
+.dem-card-meta span,
+.dem-card-summary {
+    color: var(--app-muted);
+    font-size: 0.85rem;
+    overflow-wrap: anywhere;
+}
+
 .field-grid,
 .compact-grid {
     display: grid;
@@ -271,8 +487,18 @@ details[open] > .optional-section-toggle::after {
     text-align: left;
 }
 
+.menu-divider {
+    height: 1px;
+    background: rgb(0 0 0 / 0.08);
+    margin: 0.1rem 0 0.25rem;
+}
+
 #composed-model-id {
+    display: inline-block;
+    max-width: min(100%, 22rem);
     font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .classification-field .card-body > p,
@@ -310,6 +536,11 @@ details[open] > .optional-section-toggle::after {
 }
 
 @media (max-width: 991.98px) {
+    .review-upload-form,
+    .review-hero-controls {
+        grid-template-columns: 1fr;
+    }
+
     .action-menu,
     .action-menu-list {
         width: 100%;
@@ -327,6 +558,15 @@ details[open] > .optional-section-toggle::after {
     .field-grid,
     .compact-grid,
     .inline-row {
+        grid-template-columns: 1fr;
+    }
+
+    .review-design-strip {
+        grid-auto-columns: minmax(220px, 85vw);
+    }
+
+    .model-card-grid,
+    .selected-model-dropbox {
         grid-template-columns: 1fr;
     }
 }

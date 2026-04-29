@@ -128,6 +128,18 @@ def list_models(directory: Path, source: str) -> list[ModelSummary]:
     models: list[ModelSummary] = []
     for path in sorted(directory.glob("*.yaml")):
         taxonomy = load_yaml(path)
+        dimension_labels = [
+            str(dimension.get("label") or dimension.get("id") or "")
+            for dimension in (taxonomy.get("dimensions") or [])
+            if isinstance(dimension, dict)
+        ]
+        preview_parts = []
+        if dimension_labels:
+            preview_parts.append(f"Dimensions: {', '.join(dimension_labels[:3])}")
+            if len(dimension_labels) > 3:
+                preview_parts[-1] += ", ..."
+        if taxonomy.get("source", {}).get("title"):
+            preview_parts.append(f"Source: {taxonomy['source']['title']}")
         models.append(
             ModelSummary(
                 id=str(taxonomy.get("id") or path.stem),
@@ -135,6 +147,7 @@ def list_models(directory: Path, source: str) -> list[ModelSummary]:
                 source=source,
                 target_entity=taxonomy.get("target_entity"),
                 dimension_count=len(taxonomy.get("dimensions") or []),
+                preview_text=" | ".join(preview_parts) if preview_parts else None,
             )
         )
     return models
@@ -177,6 +190,7 @@ def save_custom_model(taxonomy: dict[str, Any]) -> ModelSummary:
         source="custom",
         target_entity=taxonomy.get("target_entity"),
         dimension_count=len(taxonomy.get("dimensions") or []),
+        preview_text=None,
     )
 
 

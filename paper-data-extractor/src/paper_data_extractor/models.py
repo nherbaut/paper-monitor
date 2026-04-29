@@ -19,6 +19,7 @@ class ModelSummary(BaseModel):
     source: str
     target_entity: str | None = None
     dimension_count: int
+    preview_text: str | None = None
 
 
 class ReviewDesignRequest(BaseModel):

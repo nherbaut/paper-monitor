@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Paper Data Extractor</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css?v=20260428p">
+    <link rel="stylesheet" href="/static/styles.css?v=20260429g">
 </head>
 <body class="app-shell">
 <main class="container-xxl py-4 py-lg-5">
@@ -23,66 +23,79 @@
     </header>
 
     <section id="review-design-view" class="app-view mt-4">
-        <div class="row g-4 align-items-start">
-        <aside class="col-lg-4 col-xl-3">
-            <div class="model-panel card shadow-sm border-0">
+        <section class="paper-card card shadow-sm border-0 review-hero-card">
             <div class="card-body d-grid gap-4">
-            <div>
-            <h2 class="h4 mb-2 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v2H2V2Zm0 5h12v2H2V7Zm0 5h12v2H2v-2Z"/></svg></span><span>Review Designs</span></h2>
-            <p class="help-text">A Review Design selects and composes several Data Extraction Models into one survey-specific extraction design.</p>
-            </div>
-            <div class="panel-block">
-                <h3 class="h6 text-uppercase text-secondary">Create Review Design</h3>
-                <label class="form-label mb-0">Review design title
-                    <span class="help-text">The Review Design id is generated automatically from this title.</span>
-                    <input id="review-design-title" class="form-control" placeholder="Human-AI interaction review">
-                </label>
-            </div>
-            <div class="panel-block">
-                <div class="d-flex align-items-center justify-content-between gap-2">
-                    <h3 class="h6 text-uppercase text-secondary mb-0">Available Data Extraction Models</h3>
-                </div>
-                <form id="custom-upload-form" class="upload-form">
-                    <input id="custom-model-file" class="form-control" type="file" accept=".yaml,.yml">
-                    <button class="btn btn-outline-secondary" type="submit">Upload Data Extraction Model YAML</button>
-                </form>
-                <div id="all-models" class="model-list"></div>
-            </div>
-            <div class="panel-block">
-                <h3 class="h6 text-uppercase text-secondary">Saved Review Designs</h3>
-                <div id="review-designs" class="model-list"></div>
-            </div>
-            <button id="compose-models" class="btn btn-primary w-100" type="button">Create Review Design preview</button>
-            <p id="model-status" class="status-line small mb-0"></p>
-            </div>
-            </div>
-        </aside>
-
-        <section class="work-panel col-lg-8 col-xl-9">
-            <div class="paper-card card shadow-sm border-0">
-                <div class="card-body">
-                <div class="section-title d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+                <div class="d-flex flex-column flex-xl-row justify-content-between gap-4 align-items-xl-end">
                     <div class="min-w-0">
-                        <h2 class="h4 mb-1 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Review Design preview</span></h2>
-                        <p class="help-text">Preview the extraction form generated from the composed Review Design, then download the Review Design instance or its generated artifacts.</p>
+                        <h2 class="h3 mb-2 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v2H2V2Zm0 5h12v2H2V7Zm0 5h12v2H2v-2Z"/></svg></span><span>Review Templates</span></h2>
+                        <p class="help-text mb-0">Create a survey-specific review design by selecting Data Extraction Models, preview the generated review form, and save reusable review templates.</p>
                     </div>
-                    <div class="taxonomy-actions d-flex align-items-center gap-2 flex-wrap justify-content-md-end">
-                        <span id="composed-model-id" class="badge text-bg-light border"></span>
-                        <details class="action-menu">
-                            <summary class="btn btn-outline-secondary">Downloads</summary>
-                            <div class="action-menu-list">
-                                <button id="download-taxonomy" class="btn btn-outline-secondary btn-sm" type="button" disabled>Download Review Design YAML</button>
-                                <button id="download-review-linkml-schema" class="btn btn-outline-secondary btn-sm" type="button" disabled>Download review LinkML schema</button>
-                                <button id="download-review-json-schema" class="btn btn-outline-secondary btn-sm" type="button" disabled>Download review JSON Schema</button>
+                    <div class="d-flex flex-wrap gap-2 align-items-end">
+                        <details class="action-menu saved-review-menu">
+                            <summary class="btn btn-outline-secondary title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1 2 4v3c0 4 2.6 6.6 6 8 3.4-1.4 6-4 6-8V4L8 1Zm0 2.1 4 2v2c0 3-1.8 5-4 6.2-2.2-1.2-4-3.2-4-6.2v-2l4-2ZM7 5h2v3h2l-3 3-3-3h2V5Z"/></svg></span><span>Review Templates</span></summary>
+                            <div class="action-menu-list saved-review-menu-list">
+                                <button id="open-save-review-template" class="btn btn-primary btn-sm" type="button">Save current review template</button>
+                                <div class="menu-divider"></div>
+                                <div id="review-designs" class="saved-review-scroller"></div>
                             </div>
                         </details>
                     </div>
                 </div>
-                <div id="composed-model-titles" class="status-line small mb-3"></div>
-                <div id="dynamic-fields" class="dynamic-fields empty-state">Select Data Extraction Models and create a Review Design preview.</div>
-                </div>
+                <p id="model-status" class="status-line small mb-0"></p>
             </div>
         </section>
+
+        <div class="row g-4 align-items-start mt-1">
+            <section class="col-xl-5">
+                <div class="paper-card card shadow-sm border-0 h-100">
+                    <div class="card-body d-grid gap-3">
+                        <div class="d-flex align-items-center justify-content-between gap-3">
+                            <h3 class="h5 mb-0 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 1h7l3 3v11H3V1Zm1 1v12h8V5H9V2H4Zm5 0v2h2L9 2Z"/></svg></span><span>Data Extraction Models</span></h3>
+                            <span class="small text-secondary">Select one or more cards to compose a review design.</span>
+                        </div>
+                        <div id="all-models" class="model-card-grid"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="work-panel col-xl-7">
+                <div class="paper-card card shadow-sm border-0">
+                    <div class="card-body">
+                    <div class="section-title d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-3">
+                        <div class="min-w-0">
+                            <h2 class="h4 mb-1 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Review Design building</span></h2>
+                            <p class="help-text">Assemble a Review Design by dragging Data Extraction Models into the selected tray, then inspect the draft extraction form generated from the current selection.</p>
+                        </div>
+                        <div class="taxonomy-actions d-flex align-items-center gap-2 flex-wrap justify-content-md-end">
+                            <span id="composed-model-id" class="badge text-bg-light border"></span>
+                            <details class="action-menu">
+                                <summary class="btn btn-outline-secondary">Downloads</summary>
+                                <div class="action-menu-list">
+                                    <button id="download-taxonomy" class="btn btn-outline-secondary btn-sm" type="button" disabled>Download Review Design YAML</button>
+                                    <button id="download-review-linkml-schema" class="btn btn-outline-secondary btn-sm" type="button" disabled>Download review LinkML schema</button>
+                                    <button id="download-review-json-schema" class="btn btn-outline-secondary btn-sm" type="button" disabled>Download review JSON Schema</button>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+                    <div class="dem-dropbox-section">
+                        <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
+                            <h3 class="h6 mb-0 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v2H2V3Zm0 4h12v2H2V7Zm0 4h12v2H2v-2Z"/></svg></span><span>Selected Data Extraction Models</span></h3>
+                            <span class="small text-secondary">Drag cards in or out to update the preview.</span>
+                        </div>
+                        <div id="selected-model-dropbox" class="selected-model-dropbox empty-state">Drag Data Extraction Model cards here to build the Review Design.</div>
+                    </div>
+                    <div id="composed-model-titles" class="status-line small mb-3"></div>
+                    <div class="form-preview-panel">
+                        <div class="d-flex align-items-center justify-content-between gap-3 mb-2">
+                            <h3 class="h6 mb-0 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 0 1 1 1v10H2V3a1 1 0 0 1 1-1Zm0 1v2h10V3H3Zm0 3v6h10V6H3Zm2 1h6v1H5V7Zm0 2h6v1H5V9Z"/></svg></span><span>Data extraction form preview</span></h3>
+                            <span class="small text-secondary">Draft preview generated from the selected Data Extraction Models.</span>
+                        </div>
+                        <div id="dynamic-fields" class="dynamic-fields form-preview-surface empty-state">The draft data extraction form preview will appear here once you select Data Extraction Models.</div>
+                    </div>
+                    </div>
+                </div>
+            </section>
         </div>
     </section>
 
@@ -99,6 +112,7 @@
                     <select id="designer-model-picker" class="form-select designer-load-picker">
                         <option value="">Load model...</option>
                     </select>
+                    <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#import-model-modal">Import Data Extraction Model</button>
                     <details class="action-menu">
                         <summary class="btn btn-outline-secondary">Downloads</summary>
                         <div class="action-menu-list">
@@ -142,7 +156,6 @@
                     </div>
                 </div>
                 </div>
-                </div>
 
                 <div class="col-xl-5">
                 <div class="paper-card card shadow-sm border-0 designer-section h-100">
@@ -184,7 +197,51 @@
         </form>
     </section>
 </main>
+<div class="modal fade" id="import-model-modal" tabindex="-1" aria-labelledby="import-model-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h2 id="import-model-modal-label" class="modal-title h5 mb-0 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1 3 5v8h10V5L8 1Zm0 1.5L11.5 5H9v3H7V5H4.5L8 2.5ZM4 6h3v3h2V6h3v6H4V6Z"/></svg></span><span>Import Data Extraction Model</span></h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="custom-upload-form">
+                <div class="modal-body d-grid gap-3">
+                    <p class="help-text mb-0">Upload a YAML file containing a Data Extraction Model. The imported model will be added to the shared model list.</p>
+                    <label class="form-label mb-0">Data Extraction Model YAML
+                        <input id="custom-model-file" class="form-control mt-2" type="file" accept=".yaml,.yml">
+                    </label>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Import model</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="save-review-template-modal" tabindex="-1" aria-labelledby="save-review-template-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header">
+                <h2 id="save-review-template-modal-label" class="modal-title h5 mb-0 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 1h9.5L15 4.5V14a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1Zm0 1v12h12V5h-3V2H2Zm2 0v4h5V2H4Zm0 7h8v4H4V9Z"/></svg></span><span>Save Review Template</span></h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="save-review-template-form">
+                <div class="modal-body d-grid gap-3">
+                    <p class="help-text mb-0">Provide a name for this reusable Review Template. The template id will be generated automatically from the name.</p>
+                    <label class="form-label mb-0">Review Template name
+                        <input id="save-review-template-title" class="form-control mt-2" placeholder="Human-AI interaction review" required>
+                    </label>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">Save template</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/static/app.js?v=20260428p"></script>
+<script src="/static/app.js?v=20260429g"></script>
 </body>
 </html>

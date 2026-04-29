@@ -5,16 +5,26 @@ let reviewJsonSchema = null;
 let designerBaselineSnapshot = "";
 let designerDirty = false;
 let lastDesignerPickerValue = "";
+let workspaceModels = [];
+let selectedReviewModelIds = [];
+let reviewPreviewRequestId = 0;
 
 const allModels = document.querySelector("#all-models");
 const reviewDesigns = document.querySelector("#review-designs");
-const reviewDesignTitle = document.querySelector("#review-design-title");
 const modelStatus = document.querySelector("#model-status");
-const composeButton = document.querySelector("#compose-models");
+const openSaveReviewTemplateButton = document.querySelector("#open-save-review-template");
+const selectedModelDropbox = document.querySelector("#selected-model-dropbox");
 const downloadTaxonomyButton = document.querySelector("#download-taxonomy");
 const downloadReviewLinkmlSchemaButton = document.querySelector("#download-review-linkml-schema");
 const downloadReviewJsonSchemaButton = document.querySelector("#download-review-json-schema");
 const uploadForm = document.querySelector("#custom-upload-form");
+const importModelModalElement = document.querySelector("#import-model-modal");
+const importModelModal = importModelModalElement ? bootstrap.Modal.getOrCreateInstance(importModelModalElement) : null;
+const customModelFileInput = document.querySelector("#custom-model-file");
+const saveReviewTemplateModalElement = document.querySelector("#save-review-template-modal");
+const saveReviewTemplateModal = saveReviewTemplateModalElement ? bootstrap.Modal.getOrCreateInstance(saveReviewTemplateModalElement) : null;
+const saveReviewTemplateForm = document.querySelector("#save-review-template-form");
+const saveReviewTemplateTitleInput = document.querySelector("#save-review-template-title");
 const dynamicFields = document.querySelector("#dynamic-fields");
 const composedModelId = document.querySelector("#composed-model-id");
 const composedModelTitles = document.querySelector("#composed-model-titles");
@@ -60,66 +70,104 @@ async function loadWorkspace() {
         api("/api/data-extraction-models"),
         api("/api/review-designs")
     ]);
-    renderModelList(allModels, models);
+    workspaceModels = models;
+    const availableIds = new Set(models.map((model) => model.id));
+    selectedReviewModelIds = selectedReviewModelIds.filter((id) => availableIds.has(id));
+    renderModelWorkspace(models);
     renderReviewDesignList(reviewDesigns, designs);
     populateDesignerPicker(models);
-    modelStatus.textContent = `${models.length} Data Extraction Model(s), ${designs.length} Review Design(s) available.`;
+    modelStatus.textContent = `${models.length} Data Extraction Model(s), ${designs.length} Review Template(s) available.`;
 }
 
-function renderModelList(container, models) {
+function renderModelWorkspace(models) {
+    const selectedSet = new Set(selectedReviewModelIds);
+    renderModelGrid(allModels, models.filter((model) => !selectedSet.has(model.id)), false);
+    renderModelGrid(selectedModelDropbox, models.filter((model) => selectedSet.has(model.id)), true);
+    initializeDragSurface(allModels, "available");
+    initializeDragSurface(selectedModelDropbox, "selected");
+    initializeTooltips();
+}
+
+function renderModelGrid(container, models, selected) {
     container.innerHTML = "";
+    container.classList.toggle("empty-state", models.length === 0);
+
     if (models.length === 0) {
-        container.innerHTML = "<p class=\"status-line small mb-0\">No Data Extraction Models yet.</p>";
+        container.textContent = selected
+            ? "Drag Data Extraction Model cards here to build the review design preview."
+            : "No unselected Data Extraction Models available.";
         return;
     }
+
     for (const model of models) {
-        const item = document.createElement("div");
-        item.className = "model-option card border-0 shadow-sm";
-        item.innerHTML = `
-            <div class="card-body d-grid gap-3">
-            <label class="model-option-select form-check mb-0">
-                <input type="checkbox" value="${escapeHtml(model.id)}" data-source="${escapeHtml(model.source)}" data-title="${escapeHtml(model.title)}">
-                <span>
-                    <strong>${escapeHtml(model.title)}</strong>
-                    <span>${escapeHtml(model.id)} · ${model.dimension_count} dimension(s)</span>
-                </span>
-            </label>
+        container.append(renderDemCard(model, selected));
+    }
+}
+
+function renderDemCard(model, selected) {
+    const item = document.createElement("article");
+    const tint = modelTint(model.title || model.id);
+    item.className = `model-option dem-card card border shadow-sm${selected ? " is-selected" : ""}`;
+    item.draggable = true;
+    item.dataset.modelId = model.id;
+    item.dataset.source = model.source;
+    item.style.backgroundColor = tint.background;
+    item.style.borderColor = tint.border;
+    if (model.preview_text) {
+        item.setAttribute("data-bs-toggle", "tooltip");
+        item.setAttribute("data-bs-title", model.preview_text);
+        item.setAttribute("data-bs-placement", "top");
+    }
+    item.innerHTML = `
+        <div class="card-body d-grid">
+            <div class="dem-card-header">
+                <div class="dem-card-label">
+                    <span class="dem-card-grip" aria-hidden="true">⋮⋮</span>
+                    <div class="dem-card-meta">
+                        <strong>${escapeHtml(model.title)}</strong>
+                        <span>${escapeHtml(model.id)} · ${model.dimension_count} dimension(s)</span>
+                    </div>
+                </div>
+                <span class="dem-card-source">${escapeHtml(model.source)}</span>
+            </div>
+            <div class="dem-card-summary">${escapeHtml(model.preview_text || "Drag to include in the current review design preview.")}</div>
             <div class="model-option-actions d-flex flex-wrap gap-2">
                 <button class="btn btn-outline-secondary btn-sm" type="button" data-action="load-model">Load</button>
                 <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete-model">Delete</button>
             </div>
-            </div>
-        `;
-        item.querySelector("[data-action='load-model']").addEventListener("click", async () => {
-            if (!await confirmDiscardDesignerChanges()) {
-                return;
-            }
-            loadModelIntoDesigner(model.source, model.id);
-        });
-        item.querySelector("[data-action='delete-model']").addEventListener("click", () => removeDataExtractionModel(model.source, model.id));
-        container.append(item);
-    }
+        </div>
+    `;
+    item.addEventListener("dragstart", (event) => {
+        event.dataTransfer?.setData("text/plain", model.id);
+        event.dataTransfer?.setData("application/x-dem-source", selected ? "selected" : "available");
+        item.classList.add("opacity-50");
+    });
+    item.addEventListener("dragend", () => item.classList.remove("opacity-50"));
+    item.querySelector("[data-action='load-model']").addEventListener("click", async () => {
+        if (!await confirmDiscardDesignerChanges()) {
+            return;
+        }
+        loadModelIntoDesigner(model.source, model.id);
+    });
+    item.querySelector("[data-action='delete-model']").addEventListener("click", () => removeDataExtractionModel(model.source, model.id));
+    return item;
 }
 
 function renderReviewDesignList(container, designs) {
     container.innerHTML = "";
     if (designs.length === 0) {
-        container.innerHTML = "<p class=\"status-line small mb-0\">No Review Designs yet.</p>";
+        container.innerHTML = "<p class=\"status-line small mb-0\">No Review Templates yet.</p>";
         return;
     }
     for (const design of designs) {
         const item = document.createElement("div");
-        item.className = "model-option card border-0 shadow-sm";
+        item.className = "saved-review-item";
         item.innerHTML = `
-            <div class="card-body d-grid gap-3">
-            <div>
-                <strong>${escapeHtml(design.title)}</strong>
-                <span>${escapeHtml(design.id)} · ${design.selected_model_ids.length} model(s)</span>
-            </div>
-            <div class="model-option-actions d-flex flex-wrap gap-2">
-                <button class="btn btn-outline-secondary btn-sm" type="button" data-action="open-review-design">Open</button>
+            <button class="saved-review-name" type="button" data-action="open-review-design" title="${escapeHtml(design.title)}">
+                ${escapeHtml(design.title)}
+            </button>
+            <div class="model-option-actions d-flex flex-wrap gap-2 justify-content-end">
                 <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete-review-design">Delete</button>
-            </div>
             </div>
         `;
         item.querySelector("[data-action='open-review-design']").addEventListener("click", () => openReviewDesign(design.id));
@@ -129,11 +177,12 @@ function renderReviewDesignList(container, designs) {
 }
 
 function selectedModelIds() {
-    return Array.from(document.querySelectorAll(".model-option-select input:checked")).map((item) => item.value);
+    return [...selectedReviewModelIds];
 }
 
 function selectedModelTitles() {
-    return Array.from(document.querySelectorAll(".model-option-select input:checked")).map((item) => item.dataset.title).filter(Boolean);
+    const byId = new Map(workspaceModels.map((model) => [model.id, model.title]));
+    return selectedReviewModelIds.map((id) => byId.get(id)).filter(Boolean);
 }
 
 function populateDesignerPicker(models) {
@@ -146,11 +195,22 @@ function populateDesignerPicker(models) {
     }
 }
 
-composeButton.addEventListener("click", async () => {
+openSaveReviewTemplateButton.addEventListener("click", () => {
+    const modelIds = selectedModelIds();
+    if (modelIds.length === 0) {
+        modelStatus.textContent = "Select at least one Data Extraction Model.";
+        return;
+    }
+    saveReviewTemplateTitleInput.value = String(currentReviewDesign?.title || buildDraftReviewDesignTitle(modelIds)).trim();
+    saveReviewTemplateModal?.show();
+});
+
+saveReviewTemplateForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
     try {
-        const title = String(reviewDesignTitle.value || "").trim();
+        const title = String(saveReviewTemplateTitleInput.value || "").trim();
         if (!title) {
-            modelStatus.textContent = "Enter a Review Design title.";
+            modelStatus.textContent = "Enter a Review Template name.";
             return;
         }
         const modelIds = selectedModelIds();
@@ -163,9 +223,10 @@ composeButton.addEventListener("click", async () => {
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify({title, model_ids: modelIds})
         });
-        applyReviewDesignPreview(response);
+        applyReviewDesignPreview(response, {saved: true});
         await loadWorkspace();
-        modelStatus.textContent = "Review Design created and preview built.";
+        saveReviewTemplateModal?.hide();
+        modelStatus.textContent = "Review Template saved.";
     } catch (error) {
         modelStatus.textContent = error.message;
     }
@@ -175,7 +236,7 @@ downloadTaxonomyButton.addEventListener("click", () => {
     if (!currentReviewDesign) {
         return;
     }
-    window.location.href = `/api/review-designs/${encodeURIComponent(currentReviewDesign.id)}/download`;
+    downloadTextBlob(yamlStringify(currentReviewDesign), `${currentReviewDesign.id}.yaml`, "text/yaml");
 });
 
 downloadReviewLinkmlSchemaButton.addEventListener("click", () => {
@@ -194,7 +255,7 @@ downloadReviewJsonSchemaButton.addEventListener("click", () => {
 
 uploadForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const file = document.querySelector("#custom-model-file").files[0];
+    const file = customModelFileInput.files[0];
     if (!file) {
         modelStatus.textContent = "Choose a Data Extraction Model YAML file first.";
         return;
@@ -205,6 +266,8 @@ uploadForm.addEventListener("submit", async (event) => {
         await api("/api/models/custom", {method: "POST", body});
         await loadWorkspace();
         modelStatus.textContent = "Data Extraction Model uploaded.";
+        customModelFileInput.value = "";
+        importModelModal?.hide();
     } catch (error) {
         modelStatus.textContent = error.message;
     }
@@ -280,33 +343,38 @@ downloadReviewDesignMetamodelJsonSchemaButton.addEventListener("click", async ()
     downloadJsonBlob(schema, "review-design.schema.json");
 });
 
-function applyReviewDesignPreview(response) {
+function applyReviewDesignPreview(response, options = {}) {
     currentReviewDesign = response.review_design;
     formSchema = response.form_schema;
     reviewLinkmlSchema = response.review_linkml_schema;
     reviewJsonSchema = response.review_json_schema;
-    reviewDesignTitle.value = response.review_design.title || "";
+    selectedReviewModelIds = [...(response.review_design.selected_model_ids || [])];
+    renderModelWorkspace(workspaceModels);
     composedModelId.textContent = response.review_design.id;
-    composedModelTitles.textContent = `Models: ${(response.review_design.selected_model_ids || []).join(", ")}`;
+    composedModelTitles.textContent = `Models: ${selectedModelTitles().join(", ")}`;
     renderClassificationFields(formSchema.fields);
     downloadTaxonomyButton.disabled = false;
     downloadReviewLinkmlSchemaButton.disabled = false;
     downloadReviewJsonSchemaButton.disabled = false;
+    if (!options.saved) {
+        modelStatus.textContent = "Review Design preview updated.";
+    } else {
+        modelStatus.textContent = `Loaded Review Template: ${response.review_design.title}`;
+    }
 }
 
 async function openReviewDesign(reviewDesignId) {
-    modelStatus.textContent = "Loading Review Design...";
+    modelStatus.textContent = "Loading Review Template...";
     try {
         const response = await api(`/api/review-designs/${encodeURIComponent(reviewDesignId)}`);
-        applyReviewDesignPreview(response);
-        modelStatus.textContent = `Loaded Review Design: ${response.review_design.title}`;
+        applyReviewDesignPreview(response, {saved: true});
     } catch (error) {
         modelStatus.textContent = error.message;
     }
 }
 
 async function removeReviewDesign(reviewDesignId) {
-    if (!window.confirm(`Delete Review Design ${reviewDesignId}?`)) {
+    if (!window.confirm(`Delete Review Template ${reviewDesignId}?`)) {
         return;
     }
     try {
@@ -315,7 +383,7 @@ async function removeReviewDesign(reviewDesignId) {
             resetReviewDesignPreview();
         }
         await loadWorkspace();
-        modelStatus.textContent = `Deleted Review Design: ${reviewDesignId}`;
+        modelStatus.textContent = `Deleted Review Template: ${reviewDesignId}`;
     } catch (error) {
         modelStatus.textContent = error.message;
     }
@@ -330,7 +398,9 @@ async function removeDataExtractionModel(source, modelId) {
         if (designerModelPicker.value === `${source}:${modelId}`) {
             designerModelPicker.value = "";
         }
+        selectedReviewModelIds = selectedReviewModelIds.filter((item) => item !== modelId);
         await loadWorkspace();
+        scheduleReviewPreview();
         modelStatus.textContent = `Deleted Data Extraction Model: ${modelId}`;
     } catch (error) {
         modelStatus.textContent = error.message;
@@ -345,10 +415,119 @@ function resetReviewDesignPreview() {
     composedModelId.textContent = "";
     composedModelTitles.textContent = "";
     dynamicFields.classList.add("empty-state");
-    dynamicFields.textContent = "Select Data Extraction Models and create a Review Design preview.";
+    dynamicFields.textContent = "The draft data extraction form preview will appear here once you select Data Extraction Models.";
     downloadTaxonomyButton.disabled = true;
     downloadReviewLinkmlSchemaButton.disabled = true;
     downloadReviewJsonSchemaButton.disabled = true;
+}
+
+function initializeDragSurface(container, mode) {
+    if (container.dataset.dragSurfaceReady === "true") {
+        return;
+    }
+    container.dataset.dragSurfaceReady = "true";
+    container.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        container.classList.add("is-dragover");
+    });
+    container.addEventListener("dragleave", () => {
+        container.classList.remove("is-dragover");
+    });
+    container.addEventListener("drop", (event) => {
+        event.preventDefault();
+        container.classList.remove("is-dragover");
+        const modelId = event.dataTransfer?.getData("text/plain");
+        if (!modelId) {
+            return;
+        }
+        moveReviewModel(modelId, mode === "selected");
+    });
+}
+
+function moveReviewModel(modelId, selected) {
+    const alreadySelected = selectedReviewModelIds.includes(modelId);
+    if (selected && !alreadySelected) {
+        selectedReviewModelIds = [...selectedReviewModelIds, modelId];
+    }
+    if (!selected && alreadySelected) {
+        selectedReviewModelIds = selectedReviewModelIds.filter((item) => item !== modelId);
+    }
+    renderModelWorkspace(workspaceModels);
+    scheduleReviewPreview();
+}
+
+function scheduleReviewPreview() {
+    const modelIds = selectedModelIds();
+    if (modelIds.length === 0) {
+        resetReviewDesignPreview();
+        modelStatus.textContent = "Drag at least one Data Extraction Model into the selected tray.";
+        return;
+    }
+    const title = buildDraftReviewDesignTitle(modelIds);
+    void updateReviewPreview(title, modelIds);
+}
+
+function buildDraftReviewDesignTitle(modelIds) {
+    const titles = modelIds
+        .map((id) => workspaceModels.find((model) => model.id === id)?.title)
+        .filter(Boolean);
+    if (titles.length === 0) {
+        return "Draft review design";
+    }
+    if (titles.length === 1) {
+        return `${titles[0]} review design`;
+    }
+    const primary = titles.slice(0, 2).join(" + ");
+    const suffix = titles.length > 2 ? ` + ${titles.length - 2} more` : "";
+    return `${primary}${suffix} review design`;
+}
+
+async function updateReviewPreview(title, modelIds) {
+    const requestId = ++reviewPreviewRequestId;
+    modelStatus.textContent = "Updating Review Design preview...";
+    try {
+        const response = await api("/api/models/compose", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({title, model_ids: modelIds})
+        });
+        if (requestId !== reviewPreviewRequestId) {
+            return;
+        }
+        applyReviewDesignPreview(response, {saved: false});
+    } catch (error) {
+        if (requestId !== reviewPreviewRequestId) {
+            return;
+        }
+        modelStatus.textContent = error.message;
+    }
+}
+
+function initializeTooltips() {
+    if (!window.bootstrap?.Tooltip) {
+        return;
+    }
+    for (const trigger of document.querySelectorAll('[data-bs-toggle="tooltip"]')) {
+        window.bootstrap.Tooltip.getOrCreateInstance(trigger);
+    }
+}
+
+function modelTint(value) {
+    const hash = stableNumberHash(value);
+    const hue = hash % 360;
+    return {
+        background: `hsl(${hue} 70% 94%)`,
+        border: `hsl(${hue} 38% 78%)`
+    };
+}
+
+function stableNumberHash(value) {
+    let hash = 0;
+    for (const character of String(value || "")) {
+        hash = ((hash << 5) - hash) + character.charCodeAt(0);
+        hash |= 0;
+    }
+    return Math.abs(hash);
 }
 
 async function loadModelIntoDesigner(source, modelId) {
