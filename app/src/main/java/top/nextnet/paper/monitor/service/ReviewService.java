@@ -79,11 +79,11 @@ public class ReviewService {
         review.reviewJsonSchemaJson = JsonCodec.stringify(template.reviewJsonSchema());
         review.reviewLinkmlSchemaJson = JsonCodec.stringify(template.reviewLinkmlSchema());
         Instant now = Instant.now();
+        review.updatedAt = now;
         if (review.createdAt == null) {
             review.createdAt = now;
             reviewRepository.persist(review);
         }
-        review.updatedAt = now;
         return review;
     }
 
