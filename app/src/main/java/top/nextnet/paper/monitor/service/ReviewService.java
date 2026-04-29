@@ -146,14 +146,7 @@ public class ReviewService {
         ReviewSubmission submission = reviewSubmissionRepository.findByReviewAndPaper(review, paper).orElseGet(ReviewSubmission::new);
         submission.review = review;
         submission.paper = paper;
-
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("review_id", review.id);
-        payload.put("review_template_id", review.templateId);
-        payload.put("paper", paperSnapshot(paper));
-        payload.put("values", values == null ? Map.of() : values);
-
-        submission.payloadJson = JsonCodec.stringify(payload);
+        submission.payloadJson = JsonCodec.stringify(submissionInstance(review, paper, values));
         submission.updatedAt = Instant.now();
         if (submission.id == null) {
             reviewSubmissionRepository.persist(submission);
@@ -190,7 +183,25 @@ public class ReviewService {
             return Map.of();
         }
         Map<String, Object> payload = asObjectMap(JsonCodec.parse(submission.payloadJson));
-        return asObjectMap(payload.get("values"));
+        if (payload.containsKey("values")) {
+            return asObjectMap(payload.get("values"));
+        }
+        Map<String, Object> values = new LinkedHashMap<>(payload);
+        values.remove("paper_id");
+        values.remove("taxonomy_id");
+        return values;
+    }
+
+    public Map<String, Object> submissionInstance(Review review, Paper paper, Map<String, Object> values) {
+        Map<String, Object> instance = new LinkedHashMap<>();
+        instance.put("paper_id", String.valueOf(paper.id));
+        instance.put("taxonomy_id", schemaTaxonomyId(review));
+        if (values != null) {
+            for (Map.Entry<String, Object> entry : values.entrySet()) {
+                instance.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return instance;
     }
 
     public List<String> normalizeSelectedStates(LogicalFeed logicalFeed, List<String> selectedStates) {
@@ -214,6 +225,15 @@ public class ReviewService {
         snapshot.put("published_on", paper.publishedOn == null ? null : paper.publishedOn.toString());
         snapshot.put("source_link", paper.sourceLink);
         return snapshot;
+    }
+
+    private String schemaTaxonomyId(Review review) {
+        Map<String, Object> schema = formSchema(review);
+        String formSchemaId = stringValue(schema.get("id"));
+        if (formSchemaId != null && !formSchemaId.isBlank()) {
+            return formSchemaId;
+        }
+        return review.templateId;
     }
 
     private List<String> authorsList(String authors) {
