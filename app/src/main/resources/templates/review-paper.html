@@ -114,12 +114,49 @@
             margin: 0 0 0.35rem;
             font-size: 1.02rem;
         }
+        .side-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            margin-bottom: 0.35rem;
+        }
+        .icon-button {
+            width: 2.5rem;
+            height: 2.5rem;
+            padding: 0;
+            border-radius: 999px;
+        }
         .pdf-frame {
             width: 100%;
             min-height: 70vh;
             border: 1px solid var(--line);
             border-radius: 14px;
             background: #fff;
+        }
+        .pdf-viewer-shell {
+            display: grid;
+            gap: 0.7rem;
+        }
+        .pdf-viewer-shell:fullscreen,
+        .pdf-viewer-shell:-webkit-full-screen {
+            background: #0f1720;
+            padding: 1rem;
+            gap: 1rem;
+        }
+        .pdf-viewer-shell:fullscreen .pdf-frame,
+        .pdf-viewer-shell:-webkit-full-screen .pdf-frame {
+            min-height: calc(100vh - 5rem);
+            border-color: rgb(255 255 255 / 0.18);
+        }
+        .pdf-fullscreen-hint {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+        .pdf-viewer-shell:fullscreen .pdf-fullscreen-hint,
+        .pdf-viewer-shell:-webkit-full-screen .pdf-fullscreen-hint {
+            color: rgb(255 255 255 / 0.82);
         }
         .upload-dropzone {
             display: grid;
@@ -294,10 +331,22 @@
     <section class="workspace">
         <div class="side-stack">
             <section class="side-card">
-                <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 1h7l3 3v11H3V1Zm1 1v12h8V5H9V2H4Zm5 0v2h2L9 2Z"/></svg></span><span>Paper PDF</span></h2>
+                <div class="side-card-header">
+                    <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 1h7l3 3v11H3V1Zm1 1v12h8V5H9V2H4Zm5 0v2h2L9 2Z"/></svg></span><span>Paper PDF</span></h2>
+                    {#if paper.uploadedPdfPath}
+                    <button class="secondary icon-button" id="pdf-fullscreen-button" type="button" aria-label="Toggle PDF fullscreen" title="Fullscreen PDF">
+                        <svg viewBox="0 0 16 16" fill="currentColor" width="16" height="16" aria-hidden="true">
+                            <path d="M2 6V2h4v1H3v3H2Zm8-4h4v4h-1V3h-3V2ZM2 10h1v3h3v1H2v-4Zm11 0h1v4h-4v-1h3v-3Z"/>
+                        </svg>
+                    </button>
+                    {/if}
+                </div>
                 {#if paper.uploadedPdfPath}
-                <p class="help">The attached PDF is shown inline here. Uploading from this page updates the same file used in the paper feed view.</p>
-                <iframe class="pdf-frame" src="/papers/{paper.id}/pdf" title="Paper PDF"></iframe>
+                <div class="pdf-viewer-shell" id="pdf-viewer-shell">
+                    <p class="help">The attached PDF is shown inline here. Uploading from this page updates the same file used in the paper feed view.</p>
+                    <iframe class="pdf-frame" src="/papers/{paper.id}/pdf?disposition=inline" title="Paper PDF"></iframe>
+                    <p class="pdf-fullscreen-hint" id="pdf-fullscreen-hint">Use the fullscreen button to focus on the paper. Press Esc to return.</p>
+                </div>
                 {#else}
                 <p class="help">No PDF is attached to this paper yet.</p>
                 {#if paper.viewerCanEdit}
@@ -361,6 +410,9 @@
     const pdfUploadInput = document.getElementById("pdf-upload-input");
     const pdfUploadButton = document.getElementById("pdf-upload-button");
     const pdfUploadLabel = document.getElementById("pdf-upload-label");
+    const pdfViewerShell = document.getElementById("pdf-viewer-shell");
+    const pdfFullscreenButton = document.getElementById("pdf-fullscreen-button");
+    const pdfFullscreenHint = document.getElementById("pdf-fullscreen-hint");
     const saveButton = document.getElementById("save-button");
     let notesSaveTimer = null;
     let currentValues = JSON.parse(JSON.stringify(initialValues));
@@ -740,6 +792,40 @@
         }
     }
 
+    async function togglePdfFullscreen() {
+        if (!pdfViewerShell) {
+            return;
+        }
+        const fullscreenElement = document.fullscreenElement || document.webkitFullscreenElement;
+        if (fullscreenElement === pdfViewerShell) {
+            if (document.exitFullscreen) {
+                await document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+            return;
+        }
+        if (pdfViewerShell.requestFullscreen) {
+            await pdfViewerShell.requestFullscreen();
+        } else if (pdfViewerShell.webkitRequestFullscreen) {
+            pdfViewerShell.webkitRequestFullscreen();
+        }
+    }
+
+    function syncPdfFullscreenUi() {
+        if (!pdfFullscreenButton) {
+            return;
+        }
+        const isFullscreen = (document.fullscreenElement || document.webkitFullscreenElement) === pdfViewerShell;
+        pdfFullscreenButton.title = isFullscreen ? "Exit fullscreen" : "Fullscreen PDF";
+        pdfFullscreenButton.setAttribute("aria-label", isFullscreen ? "Exit PDF fullscreen" : "Toggle PDF fullscreen");
+        if (pdfFullscreenHint) {
+            pdfFullscreenHint.textContent = isFullscreen
+                ? "Press Esc to return to the review workspace."
+                : "Use the fullscreen button to focus on the paper. Press Esc to return.";
+        }
+    }
+
     async function saveForm() {
         statusLine.textContent = "Saving review form...";
         currentValues = collectValues();
@@ -855,6 +941,12 @@
             updatePdfUploadLabel();
             uploadPdf(files[0]);
         });
+    }
+    if (pdfFullscreenButton) {
+        pdfFullscreenButton.addEventListener("click", togglePdfFullscreen);
+        document.addEventListener("fullscreenchange", syncPdfFullscreenUi);
+        document.addEventListener("webkitfullscreenchange", syncPdfFullscreenUi);
+        syncPdfFullscreenUi();
     }
     fieldsContainer.addEventListener("input", () => {
         if (Object.keys(validationErrors).length > 0) {
