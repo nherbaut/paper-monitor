@@ -2541,7 +2541,8 @@
         workflowStatesForLogicalFeed(logicalFeedId).forEach((state, index) => {
             const label = document.createElement("label");
             label.className = "review-state-option";
-            label.innerHTML = `<input type="checkbox" name="review-selected-state" value="${state}" ${index === 0 ? "checked" : ""}><span>${statusLabel(state)}</span>`;
+            label.innerHTML = "<input type=\"checkbox\" name=\"review-selected-state\" value=\"" + state + "\""
+                + (index === 0 ? " checked" : "") + "><span>" + statusLabel(state) + "</span>";
             reviewStateList.appendChild(label);
         });
 
