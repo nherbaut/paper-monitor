@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Review templates</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css?v=20260430a">
+</head>
+<body class="app-shell">
+<main class="container py-4 py-lg-5">
+    <section class="card border-0 shadow-sm">
+        <div class="card-body d-grid gap-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-lg-end">
+                <div>
+                    <p class="eyebrow">Paper Data Extractor</p>
+                    <h1 class="h2 mb-2">Review templates</h1>
+                    <p class="mb-0 text-secondary">Browse every saved Review Template and access its generated artifacts directly.</p>
+                </div>
+                <div>
+                    <a class="btn btn-outline-secondary" href="/">Open workbench</a>
+                </div>
+            </div>
+
+            {% if reviews %}
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                    <tr>
+                        <th scope="col">Title</th>
+                        <th scope="col">Id</th>
+                        <th scope="col">Models</th>
+                        <th scope="col">Links</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for review in reviews %}
+                    <tr>
+                        <td class="fw-semibold">{{ review.title }}</td>
+                        <td><code>{{ review.id }}</code></td>
+                        <td>{{ (review.selected_model_ids or [])|length }}</td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a class="btn btn-outline-secondary btn-sm" href="/review/{{ review.id }}">Form</a>
+                                <a class="btn btn-outline-secondary btn-sm" href="/review/{{ review.id }}?format=yaml&download=true">YAML</a>
+                                <a class="btn btn-outline-secondary btn-sm" href="/review/{{ review.id }}?format=linkml&download=true">LinkML</a>
+                                <a class="btn btn-outline-secondary btn-sm" href="/review/{{ review.id }}?format=json-schema&download=true">JSON Schema</a>
+                                <a class="btn btn-outline-secondary btn-sm" href="/review/{{ review.id }}?format=rdf&download=true">RDF/XML</a>
+                                <a class="btn btn-outline-secondary btn-sm" href="/review/{{ review.id }}/shacl?download=true">SHACL</a>
+                                <a class="btn btn-outline-secondary btn-sm" href="/review/{{ review.id }}?format=owl&download=true">OWL/XML</a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-light border mb-0">No Review Templates are available yet.</div>
+            {% endif %}
+        </div>
+    </section>
+</main>
+</body>
+</html>

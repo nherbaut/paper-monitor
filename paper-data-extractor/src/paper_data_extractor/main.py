@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import yaml
@@ -19,7 +20,12 @@ from paper_data_extractor.models import (
     ReviewDesignSummary,
 )
 from paper_data_extractor.paths import CONTRIBUTED_MODELS_DIR, CUSTOM_MODELS_DIR, PROJECT_ROOT, ensure_data_dirs
-from paper_data_extractor.review_schema import compile_review_schema_artifacts
+from paper_data_extractor.review_schema import (
+    compile_review_schema_artifacts,
+    review_linkml_schema_to_owl_xml,
+    review_linkml_schema_to_rdf_xml,
+    review_linkml_schema_to_shacl_ttl,
+)
 from paper_data_extractor.review_designs import (
     create_review_design,
     delete_review_design,
@@ -51,6 +57,11 @@ templates = Jinja2Templates(directory=PROJECT_ROOT / "templates")
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(request, "index.html")
+
+
+@app.get("/reviews", response_class=HTMLResponse)
+def reviews_index(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, "reviews.html", {"reviews": list_review_designs()})
 
 
 @app.get("/health")
@@ -160,6 +171,92 @@ def download_review_design(review_design_id: str) -> PlainTextResponse:
     )
 
 
+@app.get("/review/{review_id}")
+def review_template_endpoint(
+    review_id: str,
+    request: Request,
+    format: str | None = None,
+    download: bool = False,
+) -> Response:
+    preview = review_design_to_preview(load_review_design(review_id))
+    selected_format = resolve_review_format(request, format)
+    filename_base = slug_filename(preview["review_design"]["id"])
+
+    if selected_format == "html":
+        if download:
+            raise HTTPException(status_code=400, detail="HTML review form preview is not a downloadable artifact.")
+        return templates.TemplateResponse(
+            request,
+            "review_template.html",
+            {
+                "review_design": preview["review_design"],
+                "form_schema": preview["form_schema"],
+                "taxonomy_download_url": review_artifact_url(review_id, "yaml", download=True),
+                "linkml_download_url": review_artifact_url(review_id, "linkml", download=True),
+                "json_schema_download_url": review_artifact_url(review_id, "json-schema", download=True),
+                "rdf_download_url": review_artifact_url(review_id, "rdf", download=True),
+                "owl_download_url": review_artifact_url(review_id, "owl", download=True),
+                "shacl_download_url": review_artifact_url(review_id, "shacl", download=True),
+            },
+        )
+    if selected_format == "yaml":
+        return artifact_response(
+            yaml_text(preview["review_design"]),
+            "text/yaml",
+            f"{filename_base}.yaml",
+            download,
+        )
+    if selected_format == "linkml":
+        return artifact_response(
+            yaml_text(preview["review_linkml_schema"]),
+            "text/linkml",
+            f"{filename_base}.review.linkml.yaml",
+            download,
+        )
+    if selected_format == "json-schema":
+        return artifact_response(
+            json.dumps(preview["review_json_schema"], indent=2, sort_keys=True),
+            "application/schema+json",
+            f"{filename_base}.review.schema.json",
+            download,
+        )
+    if selected_format == "rdf":
+        return artifact_response(
+            review_linkml_schema_to_rdf_xml(preview["review_linkml_schema"]),
+            "application/rdf+xml",
+            f"{filename_base}.review.rdf",
+            download,
+            extra_headers={"Link": f'<{review_artifact_url(review_id, "shacl", download=True)}>; rel="describedby"; type="text/turtle"'},
+        )
+    if selected_format == "owl":
+        return artifact_response(
+            review_linkml_schema_to_owl_xml(preview["review_linkml_schema"]),
+            "application/owl+xml",
+            f"{filename_base}.review.owl",
+            download,
+        )
+    if selected_format == "shacl":
+        return artifact_response(
+            review_linkml_schema_to_shacl_ttl(preview["review_linkml_schema"]),
+            "text/turtle",
+            f"{filename_base}.review.shacl.ttl",
+            download,
+        )
+    raise HTTPException(status_code=406, detail=f"Unsupported review artifact format: {selected_format}")
+
+
+@app.get("/review/{review_id}/shacl")
+def review_template_shacl(review_id: str, download: bool = False) -> Response:
+    preview = review_design_to_preview(load_review_design(review_id))
+    filename_base = slug_filename(preview["review_design"]["id"])
+    return artifact_response(
+        review_linkml_schema_to_shacl_ttl(preview["review_linkml_schema"]),
+        "text/turtle",
+        f"{filename_base}.review.shacl.ttl",
+        download,
+    )
+
+
 @app.delete("/api/review-designs/{review_design_id}", status_code=204)
 def remove_review_design(review_design_id: str) -> Response:
     delete_review_design(review_design_id)
@@ -214,3 +311,48 @@ def run() -> None:
     import uvicorn
 
     uvicorn.run("paper_data_extractor.main:app", host="0.0.0.0", port=8091, reload=True)
+
+
+def resolve_review_format(request: Request, requested_format: str | None) -> str:
+    if requested_format:
+        normalized = requested_format.strip().lower()
+        if normalized in {"json", "json-schema", "schema"}:
+            return "json-schema"
+        return normalized
+
+    accept = (request.headers.get("accept") or "").lower()
+    if "application/owl+xml" in accept:
+        return "owl"
+    if "application/rdf+xml" in accept:
+        return "rdf"
+    if "application/schema+json" in accept:
+        return "json-schema"
+    if "text/linkml" in accept:
+        return "linkml"
+    if "text/yaml" in accept or "application/yaml" in accept or "application/x-yaml" in accept:
+        return "yaml"
+    return "html"
+
+
+def artifact_response(
+    content: str,
+    media_type: str,
+    filename: str,
+    download: bool,
+    extra_headers: dict[str, str] | None = None,
+) -> Response:
+    headers = dict(extra_headers or {})
+    if download:
+        headers["Content-Disposition"] = f'attachment; filename="{filename}"'
+    return Response(content=content, media_type=media_type, headers=headers)
+
+
+def review_artifact_url(review_id: str, artifact_format: str, download: bool = False) -> str:
+    if artifact_format == "shacl":
+        return f"/review/{review_id}/shacl" + ("?download=true" if download else "")
+    suffix = "&download=true" if download else ""
+    return f"/review/{review_id}?format={artifact_format}{suffix}"
+
+
+def slug_filename(value: str) -> str:
+    return "".join(character if character.isalnum() or character in {"-", "_", "."} else "-" for character in value)

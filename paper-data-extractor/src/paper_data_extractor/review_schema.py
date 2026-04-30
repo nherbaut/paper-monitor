@@ -5,7 +5,12 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from linkml import LOCAL_METAMODEL_LDCONTEXT_FILE, LOCAL_TYPES_LDCONTEXT_FILE
+from linkml.generators.jsonldgen import JSONLDGenerator
 from linkml.generators.jsonschemagen import JsonSchemaGenerator
+from linkml.generators.owlgen import OwlSchemaGenerator
+from linkml.generators.shaclgen import ShaclGenerator
+from rdflib import Graph
 
 from paper_data_extractor.paths import GENERATED_SCHEMAS_DIR
 from paper_data_extractor.taxonomy import dump_yaml, slugify
@@ -188,6 +193,25 @@ def review_linkml_schema_to_json_schema(schema: dict[str, Any], top_class: str =
     return json.loads(generator.serialize())
 
 
+def review_linkml_schema_to_owl_xml(schema: dict[str, Any]) -> str:
+    schema_path = save_review_linkml_schema(schema)
+    return OwlSchemaGenerator(str(schema_path), format="xml").serialize()
+
+
+def review_linkml_schema_to_shacl_ttl(schema: dict[str, Any]) -> str:
+    schema_path = save_review_linkml_schema(schema)
+    return ShaclGenerator(str(schema_path), format="ttl").serialize()
+
+
+def review_linkml_schema_to_rdf_xml(schema: dict[str, Any]) -> str:
+    schema_path = save_review_linkml_schema(schema)
+    jsonld = json.loads(JSONLDGenerator(str(schema_path), format="jsonld").serialize(context=[f"file://{LOCAL_METAMODEL_LDCONTEXT_FILE}"]))
+    jsonld["@context"] = [_localize_jsonld_context_entry(entry) for entry in jsonld.get("@context") or []]
+    graph = Graph()
+    graph.parse(data=json.dumps(jsonld), format="json-ld", base=_schema_base(schema_path), prefix=True)
+    return graph.serialize(format="xml")
+
+
 def compile_review_schema_artifacts(taxonomy: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
     linkml_schema = taxonomy_to_review_linkml_schema(taxonomy)
     json_schema = review_linkml_schema_to_json_schema(linkml_schema)
@@ -209,3 +233,15 @@ def save_review_json_schema(linkml_schema: dict[str, Any], json_schema: dict[str
 
 def remove_empty(value: dict[str, Any]) -> dict[str, Any]:
     return {key: item for key, item in value.items() if item not in (None, "", [], {})}
+
+
+def _localize_jsonld_context_entry(entry: Any) -> Any:
+    if entry == "https://w3id.org/linkml/meta.context.jsonld":
+        return f"file://{LOCAL_METAMODEL_LDCONTEXT_FILE}"
+    if entry == "https://w3id.org/linkml/types.context.jsonld":
+        return f"file://{LOCAL_TYPES_LDCONTEXT_FILE}"
+    return entry
+
+
+def _schema_base(schema_path: Path) -> str:
+    return str(schema_path.parent.as_uri()) + "/"

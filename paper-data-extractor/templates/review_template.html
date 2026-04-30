@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ review_design.title }} · Review form</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css?v=20260430a">
+</head>
+<body class="app-shell">
+{% macro render_taxa(values, depth=0) %}
+    {% if values %}
+    <ul class="list-group list-group-flush border rounded-3">
+        {% for value in values %}
+        <li class="list-group-item">
+            <div class="d-flex flex-column gap-1">
+                <div class="d-flex align-items-start gap-2">
+                    <span class="badge text-bg-light border mt-1">{{ value["id"] }}</span>
+                    <div class="min-w-0">
+                        <div class="fw-semibold">{{ value["label"] }}</div>
+                        {% if value["description"] %}
+                        <div class="small text-secondary">{{ value["description"] }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if value["criteria"] %}
+                <div class="ms-4">
+                    <div class="small fw-semibold text-uppercase text-secondary mb-2">Criteria</div>
+                    <div class="d-grid gap-2">
+                        {% for criterion in value["criteria"] %}
+                        <label class="form-label mb-0">
+                            <span class="d-block fw-medium">{{ criterion["label"] or criterion["id"] }}</span>
+                            {% if criterion["question"] %}
+                            <span class="help-text d-block">{{ criterion["question"] }}</span>
+                            {% endif %}
+                            <input class="form-control" type="text" placeholder="{{ criterion["scale"] or 'value' }}" disabled>
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if value["children"] %}
+                <div class="ms-4">
+                    {{ render_taxa(value["children"], depth + 1) }}
+                </div>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+{% endmacro %}
+{% macro render_field(field) %}
+    <article class="card border-0 shadow-sm">
+        <div class="card-body d-grid gap-3">
+            <div>
+                <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                    <h2 class="h5 mb-0">{{ field["label"] }}</h2>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <span class="badge text-bg-light border">{{ field["id"] }}</span>
+                        <span class="badge text-bg-light border">{{ field["cardinality"] }}</span>
+                        {% if field["required"] %}
+                        <span class="badge text-bg-danger-subtle border border-danger-subtle text-danger-emphasis">Required</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% if field["description"] %}
+                <p class="text-secondary small mb-0 mt-2">{{ field["description"] }}</p>
+                {% endif %}
+            </div>
+            {% if field["values"] %}
+            <label class="form-label mb-0">
+                <span class="d-block fw-medium">Selection preview</span>
+                {% if field["cardinality"] == "multiple" %}
+                <div class="d-grid gap-2 mt-2">
+                    {% for value in field["values"] %}
+                    <label class="form-check">
+                        <input class="form-check-input" type="checkbox" disabled>
+                        <span class="form-check-label">{{ value["label"] }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <select class="form-select mt-2" disabled>
+                    <option>{{ field["label"] }}</option>
+                    {% for value in field["values"] %}
+                    <option>{{ value["label"] }}</option>
+                    {% endfor %}
+                </select>
+                {% endif %}
+            </label>
+            {{ render_taxa(field["values"]) }}
+            {% elif field["value_type"] == "numeric" %}
+            <label class="form-label mb-0">
+                <span class="d-block fw-medium">Value preview</span>
+                <input class="form-control mt-2" type="number" disabled>
+            </label>
+            {% else %}
+            <label class="form-label mb-0">
+                <span class="d-block fw-medium">Value preview</span>
+                <input class="form-control mt-2" type="text" disabled>
+            </label>
+            {% endif %}
+            {% if field["subdimensions"] %}
+            <div class="d-grid gap-3 ms-lg-3">
+                {% for subdimension in field["subdimensions"] %}
+                {{ render_field(subdimension) }}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </article>
+{% endmacro %}
+<main class="container py-4 py-lg-5">
+    <section class="card border-0 shadow-sm">
+        <div class="card-body d-grid gap-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+                <div class="min-w-0">
+                    <p class="eyebrow">Review template</p>
+                    <h1 class="h2 mb-2">{{ review_design.title }}</h1>
+                    <p class="mb-0 text-secondary">Standalone HTML preview of the review form generated from this Review Template.</p>
+                </div>
+                <div class="d-flex flex-wrap gap-2 align-items-start justify-content-lg-end">
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ taxonomy_download_url }}">Review Design YAML</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ linkml_download_url }}">LinkML schema</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ json_schema_download_url }}">JSON Schema</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ rdf_download_url }}">RDF/XML</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ shacl_download_url }}">SHACL</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ owl_download_url }}">OWL/XML</a>
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <span class="badge text-bg-light border">{{ review_design.id }}</span>
+                <span class="badge text-bg-light border">{{ review_design.target_entity or "paper" }}</span>
+                <span class="badge text-bg-light border">{{ (review_design.selected_model_ids or [])|length }} model(s)</span>
+            </div>
+            <section class="d-grid gap-3">
+                {% for field in form_schema.fields %}
+                {{ render_field(field) }}
+                {% endfor %}
+            </section>
+        </div>
+    </section>
+</main>
+</body>
+</html>

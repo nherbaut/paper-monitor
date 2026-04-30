@@ -3591,7 +3591,7 @@
         notesStatus.textContent = "Editing...";
         updateNotesEditorView();
         window.clearTimeout(notesSaveTimer);
-        notesSaveTimer = window.setTimeout(saveNotes, 500);
+        notesSaveTimer = window.setTimeout(saveNotes, 2000);
     };
 
     const insertTextAtCursor = (text) => {

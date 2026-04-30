@@ -142,11 +142,9 @@
         }
         .preview-shell {
             padding: 1rem;
-            border: 1px dashed rgb(40 90 111 / 0.28);
+            border: 1px solid var(--line);
             border-radius: 16px;
-            background:
-                repeating-linear-gradient(-45deg, rgb(40 90 111 / 0.04), rgb(40 90 111 / 0.04) 14px, rgb(255 255 255 / 0.86) 14px, rgb(255 255 255 / 0.86) 28px),
-                linear-gradient(180deg, rgb(249 251 252 / 0.95), rgb(240 245 247 / 0.95));
+            background: #fff;
         }
         .workspace {
             display: grid;
@@ -472,7 +470,7 @@
                 <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v12H2V2Zm1 1v10h10V3H3Zm2 1h6v1H5V4Zm0 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Paper notes</span></h2>
                 <p class="help">These notes are the same notes stored with the paper in the main paper feed view.</p>
                 <div class="notes-preview" id="notes-preview"></div>
-                <div class="notes-editor-shell hidden" id="notes-editor-shell">
+                <div class="notes-editor notes-editor-shell hidden" id="notes-editor-shell">
                     <pre class="notes-highlight" id="notes-highlight"></pre>
                     <textarea class="notes-input" id="notes-editor" placeholder="# Notes"></textarea>
                 </div>
@@ -487,7 +485,7 @@
 
         <section class="panel">
             <div class="preview-shell">
-                <span class="preview-badge title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 0 1 1 1v10H2V3a1 1 0 0 1 1-1Zm0 1v2h10V3H3Zm0 3v6h10V6H3Zm2 1h6v1H5V7Zm0 2h6v1H5V9Z"/></svg></span><span>Review draft form</span></span>
+                <span class="preview-badge title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 0 1 1 1v10H2V3a1 1 0 0 1 1-1Zm0 1v2h10V3H3Zm0 3v6h10V6H3Zm2 1h6v1H5V7Zm0 2h6v1H5V9Z"/></svg></span><span>Paper review</span></span>
                 <div id="form-fields"></div>
             </div>
         </section>
@@ -921,7 +919,7 @@
             window.clearTimeout(notesSaveTimer);
         }
         updateNotesEditorView();
-        notesSaveTimer = window.setTimeout(saveNotes, 500);
+        notesSaveTimer = window.setTimeout(saveNotes, 2000);
     }
 
     function updatePdfUploadLabel() {

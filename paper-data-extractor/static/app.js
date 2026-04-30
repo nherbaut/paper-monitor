@@ -15,8 +15,12 @@ const modelStatus = document.querySelector("#model-status");
 const openSaveReviewTemplateButton = document.querySelector("#open-save-review-template");
 const selectedModelDropbox = document.querySelector("#selected-model-dropbox");
 const downloadTaxonomyButton = document.querySelector("#download-taxonomy");
+const downloadReviewHtmlButton = document.querySelector("#download-review-html");
 const downloadReviewLinkmlSchemaButton = document.querySelector("#download-review-linkml-schema");
 const downloadReviewJsonSchemaButton = document.querySelector("#download-review-json-schema");
+const downloadReviewRdfButton = document.querySelector("#download-review-rdf");
+const downloadReviewShaclButton = document.querySelector("#download-review-shacl");
+const downloadReviewOwlButton = document.querySelector("#download-review-owl");
 const uploadForm = document.querySelector("#custom-upload-form");
 const importModelModalElement = document.querySelector("#import-model-modal");
 const importModelModal = importModelModalElement ? bootstrap.Modal.getOrCreateInstance(importModelModalElement) : null;
@@ -236,21 +240,49 @@ downloadTaxonomyButton.addEventListener("click", () => {
     if (!currentReviewDesign) {
         return;
     }
-    downloadTextBlob(yamlStringify(currentReviewDesign), `${currentReviewDesign.id}.yaml`, "text/yaml");
+    window.location.href = reviewArtifactUrl(currentReviewDesign.id, "yaml", true);
+});
+
+downloadReviewHtmlButton.addEventListener("click", () => {
+    if (!currentReviewDesign) {
+        return;
+    }
+    window.open(reviewArtifactUrl(currentReviewDesign.id, "html"), "_blank", "noopener");
 });
 
 downloadReviewLinkmlSchemaButton.addEventListener("click", () => {
     if (!currentReviewDesign || !reviewLinkmlSchema) {
         return;
     }
-    downloadTextBlob(yamlStringify(reviewLinkmlSchema), `${currentReviewDesign.id}.review.linkml.yaml`, "text/yaml");
+    window.location.href = reviewArtifactUrl(currentReviewDesign.id, "linkml", true);
 });
 
 downloadReviewJsonSchemaButton.addEventListener("click", () => {
     if (!currentReviewDesign || !reviewJsonSchema) {
         return;
     }
-    downloadJsonBlob(reviewJsonSchema, `${currentReviewDesign.id}.review.schema.json`);
+    window.location.href = reviewArtifactUrl(currentReviewDesign.id, "json-schema", true);
+});
+
+downloadReviewRdfButton.addEventListener("click", () => {
+    if (!currentReviewDesign) {
+        return;
+    }
+    window.location.href = reviewArtifactUrl(currentReviewDesign.id, "rdf", true);
+});
+
+downloadReviewShaclButton.addEventListener("click", () => {
+    if (!currentReviewDesign) {
+        return;
+    }
+    window.location.href = reviewArtifactUrl(currentReviewDesign.id, "shacl", true);
+});
+
+downloadReviewOwlButton.addEventListener("click", () => {
+    if (!currentReviewDesign) {
+        return;
+    }
+    window.location.href = reviewArtifactUrl(currentReviewDesign.id, "owl", true);
 });
 
 uploadForm.addEventListener("submit", async (event) => {
@@ -354,8 +386,12 @@ function applyReviewDesignPreview(response, options = {}) {
     composedModelTitles.textContent = `Models: ${selectedModelTitles().join(", ")}`;
     renderClassificationFields(formSchema.fields);
     downloadTaxonomyButton.disabled = false;
+    downloadReviewHtmlButton.disabled = false;
     downloadReviewLinkmlSchemaButton.disabled = false;
     downloadReviewJsonSchemaButton.disabled = false;
+    downloadReviewRdfButton.disabled = false;
+    downloadReviewShaclButton.disabled = false;
+    downloadReviewOwlButton.disabled = false;
     if (!options.saved) {
         modelStatus.textContent = "Review Design preview updated.";
     } else {
@@ -1267,6 +1303,20 @@ function yamlScalar(value) {
 
 function downloadJsonBlob(value, filename) {
     downloadTextBlob(JSON.stringify(value, null, 2), filename, "application/json");
+}
+
+function reviewArtifactUrl(reviewId, format, download = false) {
+    const params = new URLSearchParams();
+    if (format && format !== "html") {
+        params.set("format", format);
+    }
+    if (download) {
+        params.set("download", "true");
+    }
+    if (format === "shacl") {
+        return `/review/${encodeURIComponent(reviewId)}/shacl${params.toString() ? `?${params}` : ""}`;
+    }
+    return `/review/${encodeURIComponent(reviewId)}${params.toString() ? `?${params}` : ""}`;
 }
 
 function downloadTextBlob(text, filename, type) {
