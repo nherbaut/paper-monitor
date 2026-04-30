@@ -3102,32 +3102,34 @@
         article.dataset.paperNotes = record.paperNotes || "";
         article.dataset.paperIsNew = record.paperIsNew ? "true" : "false";
         article.dataset.paperIsFresh = record.paperIsFresh ? "true" : "false";
-        article.innerHTML = `
-            <div class="card-feed-row">
-                <div class="pill">${escapeHtml(record.logicalFeedName || "")}</div>
-                ${(record.paperIsNew || record.paperIsFresh) ? `
-                <div class="paper-status-badges">
-                    ${record.paperIsNew ? '<span class="paper-status-badge new-badge">New</span>' : ''}
-                    ${record.paperIsFresh ? '<span class="paper-status-badge fresh-badge">Fresh</span>' : ''}
-                </div>` : ""}
-            </div>
-            <div class="card-header">
-                <div class="card-title-wrap">
-                    <h3 class="paper-title">${escapeHtml(record.paperTitle || "")}</h3>
-                </div>
-                <div class="pdf-presence ${record.pdfUrl ? "has-pdf" : ""}" title="${record.pdfUrl ? "PDF attached" : "No PDF attached"}">
-                    <span aria-hidden="true">${record.pdfUrl ? "📄" : "○"}</span>
-                </div>
-            </div>
-            <p class="meta paper-meta">
-                ${escapeHtml(record.paperAuthors || "Unknown authors")}<br>
-                ${escapeHtml(record.paperVenue || "Unknown venue")}<br>
-                Published: ${escapeHtml(record.paperPublishedOn || "unknown")}<br>
-                From feed: ${escapeHtml(record.paperFeedName || "")}
-            </p>
-            ${(record.paperSummary || "").trim() ? `<p class="paper-summary">${escapeHtml(record.paperSummary || "")}</p>` : ""}
-            <p>${paperCardLinksHtml(record)}</p>
-        `;
+        article.innerHTML =
+            '<div class="card-feed-row">'
+                + '<div class="pill">' + escapeHtml(record.logicalFeedName || "") + '</div>'
+                + ((record.paperIsNew || record.paperIsFresh)
+                    ? '<div class="paper-status-badges">'
+                        + (record.paperIsNew ? '<span class="paper-status-badge new-badge">New</span>' : '')
+                        + (record.paperIsFresh ? '<span class="paper-status-badge fresh-badge">Fresh</span>' : '')
+                    + '</div>'
+                    : '')
+            + '</div>'
+            + '<div class="card-header">'
+                + '<div class="card-title-wrap">'
+                    + '<h3 class="paper-title">' + escapeHtml(record.paperTitle || "") + '</h3>'
+                + '</div>'
+                + '<div class="pdf-presence ' + (record.pdfUrl ? 'has-pdf' : '') + '" title="' + (record.pdfUrl ? 'PDF attached' : 'No PDF attached') + '">'
+                    + '<span aria-hidden="true">' + (record.pdfUrl ? '📄' : '○') + '</span>'
+                + '</div>'
+            + '</div>'
+            + '<p class="meta paper-meta">'
+                + escapeHtml(record.paperAuthors || "Unknown authors") + '<br>'
+                + escapeHtml(record.paperVenue || "Unknown venue") + '<br>'
+                + 'Published: ' + escapeHtml(record.paperPublishedOn || "unknown") + '<br>'
+                + 'From feed: ' + escapeHtml(record.paperFeedName || "")
+            + '</p>'
+            + (((record.paperSummary || "").trim())
+                ? '<p class="paper-summary">' + escapeHtml(record.paperSummary || "") + '</p>'
+                : '')
+            + '<p>' + paperCardLinksHtml(record) + '</p>';
         renderCardSearchHighlights(article);
         return article;
     };
@@ -3135,13 +3137,13 @@
     const paperCardLinksHtml = (record) => {
         const links = [];
         if (record.pdfUrl) {
-            links.push(`<a href="${escapeHtml(record.pdfUrl)}" target="_blank" rel="noreferrer">PDF</a>`);
+            links.push('<a href="' + escapeHtml(record.pdfUrl) + '" target="_blank" rel="noreferrer">PDF</a>');
         }
         if (record.paperSourceLink && !record.paperSourceLink.startsWith("upload:")) {
-            links.push(`<a href="${escapeHtml(record.paperSourceLink)}" target="_blank" rel="noreferrer">Source</a>`);
+            links.push('<a href="' + escapeHtml(record.paperSourceLink) + '" target="_blank" rel="noreferrer">Source</a>');
         }
         if (record.paperOpenAccessLink) {
-            links.push(`<a href="${escapeHtml(record.paperOpenAccessLink)}" target="_blank" rel="noreferrer">Open access</a>`);
+            links.push('<a href="' + escapeHtml(record.paperOpenAccessLink) + '" target="_blank" rel="noreferrer">Open access</a>');
         }
         return links.join(" | ");
     };
