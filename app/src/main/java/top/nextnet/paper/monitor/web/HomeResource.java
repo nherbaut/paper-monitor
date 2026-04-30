@@ -294,17 +294,8 @@ public class HomeResource {
         List<LogicalFeed> adminLogicalFeeds = logicalFeeds.stream()
                 .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
                 .toList();
-        List<Paper> papers = new ArrayList<>(paperRepository.findAllForReader());
-        if (paperId != null && papers.stream().noneMatch((paper) -> paper.id.equals(paperId))) {
-            paperRepository.findForReader(paperId).ifPresent((paper) -> papers.add(0, paper));
-        }
-        papers.removeIf((paper) -> !logicalFeedAccessService.canRead(paper.logicalFeed, currentUser));
-        populatePaperBadges(papers);
-        for (Paper paper : papers) {
-            paper.viewerCanEdit = logicalFeedAccessService.canAdmin(paper.logicalFeed, currentUser);
-        }
         populatePaperCounts(logicalFeeds);
-        return home.data("recentPapers", papers)
+        return home.data("recentPapers", List.of())
                 .data("initialPaperId", paperId)
                 .data("initialLogicalFeedId", logicalFeedId)
                 .data("logicalFeeds", logicalFeeds)
@@ -316,6 +307,24 @@ public class HomeResource {
                 .data("shareMode", false)
                 .data("sharedPaper", null)
                 .data("sharedPaperUrl", null);
+    }
+
+    @GET
+    @Path("/api/papers/browser")
+    @Transactional
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<Map<String, Object>> browserPapers() {
+        AppUser currentUser = currentUserContext.get().user();
+        if (currentUser == null) {
+            throw new NotFoundException();
+        }
+        List<Paper> papers = new ArrayList<>(paperRepository.findAllForReader());
+        papers.removeIf((paper) -> !logicalFeedAccessService.canRead(paper.logicalFeed, currentUser));
+        populatePaperBadges(papers);
+        for (Paper paper : papers) {
+            paper.viewerCanEdit = logicalFeedAccessService.canAdmin(paper.logicalFeed, currentUser);
+        }
+        return papers.stream().map(this::paperBrowserItem).toList();
     }
 
     @GET
@@ -1892,6 +1901,30 @@ public class HomeResource {
                     ? normalizeBaseUrl() + "/share/feed/" + ensurePublicShareToken(logicalFeed)
                     : null;
         }
+    }
+
+    private Map<String, Object> paperBrowserItem(Paper paper) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", paper.id);
+        item.put("logicalFeedName", paper.logicalFeed != null ? paper.logicalFeed.name : "");
+        item.put("logicalFeedId", paper.logicalFeed != null ? paper.logicalFeed.id : null);
+        item.put("paperStatus", paper.status != null ? paper.status : "NEW");
+        item.put("paperTopStatus", paper.topLevelStatus());
+        item.put("pdfUrl", paper.uploadedPdfPath != null ? "/papers/" + paper.id + "/pdf" : "");
+        item.put("paperTitle", paper.title);
+        item.put("paperAuthors", paper.authors != null ? paper.authors : "Unknown authors");
+        item.put("paperPublishedOn", paper.publishedOn != null ? paper.publishedOn : "unknown");
+        item.put("paperVenue", paper.publisher != null ? paper.publisher : "Unknown venue");
+        item.put("paperFeedName", paper.feed != null ? paper.feed.name : "");
+        item.put("paperSummary", paper.summary != null ? paper.summary : "");
+        item.put("paperSourceLink", paper.sourceLink != null ? paper.sourceLink : "");
+        item.put("paperOpenAccessLink", paper.openAccessLink != null ? paper.openAccessLink : "");
+        item.put("paperTags", paper.tagsToken());
+        item.put("paperCanEditTags", paper.viewerCanEdit);
+        item.put("paperNotes", paper.notes != null ? paper.notes : "");
+        item.put("paperIsNew", paper.newBadge);
+        item.put("paperIsFresh", paper.freshBadge);
+        return item;
     }
 
     private String ensurePublicShareToken(LogicalFeed logicalFeed) {

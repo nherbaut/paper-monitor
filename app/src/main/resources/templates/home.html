@@ -1654,6 +1654,7 @@
         </div>
         <div class="reader-layout">
             <div class="stack paper-list" id="paper-list">
+                {#if shareMode}
                 {#for paper in recentPapers}
                 <article class="card drop-target selectable"
                          data-logical-feed-name="{paper.logicalFeed.name}"
@@ -1726,6 +1727,9 @@
                 {/for}
                 {#if recentPapers.isEmpty}
                 <p class="meta">No papers stored yet. Create a feed and poll it.</p>
+                {/if}
+                {#else}
+                <p class="meta" id="paper-list-empty">Loading papers...</p>
                 {/if}
                 <div class="load-more-row hidden" id="search-load-more-row">
                     <button class="secondary" id="search-load-more" type="button">Load 10 more</button>
@@ -1805,7 +1809,8 @@
 <div id="reader-bootstrap"
      data-initial-paper-id="{initialPaperId ?: ''}"
      data-initial-logical-feed-id="{initialLogicalFeedId ?: ''}"
-     data-authenticated="{#if authenticated}true{#else}false{/if}"></div>
+     data-authenticated="{#if authenticated}true{#else}false{/if}"
+     data-share-mode="{#if shareMode}true{#else}false{/if}"></div>
 <script type="module">
     import { marked } from "https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.esm.js";
     import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.min.mjs";
@@ -1820,7 +1825,8 @@
     const mobileStateTabs = document.getElementById("mobile-state-tabs");
     const lastSeenElement = document.getElementById("last-seen-logical-feed");
     const latestPaperCard = document.querySelector("[data-logical-feed-name]");
-    const paperCards = document.querySelectorAll("[data-paper-id]");
+    let paperRecords = [];
+    let papersLoaded = false;
     const logicalFeedFilter = document.getElementById("logical-feed-filter");
     const doiImportLogicalFeed = document.getElementById("doi-import-logical-feed");
     const reviewMenu = document.getElementById("review-menu");
@@ -1931,9 +1937,13 @@
     const initialPaperId = readerBootstrap?.dataset.initialPaperId || "";
     const initialLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || "";
     const authenticated = readerBootstrap?.dataset.authenticated === "true";
+    const shareMode = readerBootstrap?.dataset.shareMode === "true";
     let notesCollapsed = false;
     let pdfResizeObserver = null;
     let lastPdfFrameWidth = 0;
+
+    const allPaperCards = () => Array.from(document.querySelectorAll("[data-paper-id]"));
+    const paperRecordById = (paperId) => paperRecords.find((record) => String(record.id) === String(paperId)) || null;
 
     const isMobileViewport = () => window.innerWidth <= 720;
 
@@ -2337,6 +2347,35 @@
 
     const setPaperTags = (card, tags) => {
         card.dataset.paperTags = tags.join("|");
+        const record = paperRecordById(card.dataset.paperId);
+        if (record) {
+            record.paperTags = tags.join("|");
+        }
+    };
+
+    const parsePaperTagsFromRecord = (record) => {
+        const token = record?.paperTags || "";
+        if (!token) {
+            return [];
+        }
+        return token.split("|").map((value) => value.trim()).filter(Boolean);
+    };
+
+    const tagFilterKeysForRecord = (record) => {
+        const keys = new Set(parsePaperTagsFromRecord(record));
+        keys.add("state:" + (record.paperTopStatus || normalizeStatus(record.paperStatus)));
+        if (record.pdfUrl) {
+            keys.add("has-pdf");
+        }
+        return keys;
+    };
+
+    const tagFilterMatchesRecord = (record, keys) => {
+        if (!keys.length) {
+            return true;
+        }
+        const recordKeys = tagFilterKeysForRecord(record);
+        return keys.every((key) => recordKeys.has(key));
     };
 
     const workflowTreeForLogicalFeed = (logicalFeedId) => {
@@ -2473,12 +2512,27 @@
         ].some((value) => normalizedSearchText(value).includes(query));
     };
 
+    const stateSearchMatchesRecord = (record, query) => {
+        if (!query) {
+            return true;
+        }
+        return [
+            record.paperTitle,
+            record.paperSummary,
+            record.paperAuthors,
+            record.paperVenue
+        ].some((value) => normalizedSearchText(value).includes(query));
+    };
+
     const currentFeedCards = () => {
         const selectedLogicalFeedId = logicalFeedFilter.value;
         if (!selectedLogicalFeedId) {
             return [];
         }
-        return Array.from(paperCards).filter((card) => card.dataset.logicalFeedId === selectedLogicalFeedId);
+        if (shareMode) {
+            return allPaperCards().filter((card) => card.dataset.logicalFeedId === selectedLogicalFeedId);
+        }
+        return paperRecords.filter((record) => String(record.logicalFeedId) === String(selectedLogicalFeedId));
     };
 
     const tagCandidatesForCurrentFeed = () => {
@@ -2490,7 +2544,8 @@
         });
         entries.set("has-pdf", { key: "has-pdf", label: "Has PDF", secondary: true });
         cards.forEach((card) => {
-            parsePaperTags(card).forEach((tag) => {
+            const tags = shareMode ? parsePaperTags(card) : parsePaperTagsFromRecord(card);
+            tags.forEach((tag) => {
                 if (!entries.has(tag)) {
                     entries.set(tag, { key: tag, label: tag, secondary: false });
                 }
@@ -2518,7 +2573,7 @@
     };
 
     const findCardByPaperId = (paperId) => {
-        return Array.from(paperCards).find((card) => card.dataset.paperId === paperId) || null;
+        return allPaperCards().find((card) => card.dataset.paperId === paperId) || null;
     };
 
     const refreshLogicalFeedOptionLabel = (option) => {
@@ -2642,7 +2697,9 @@
                 } else {
                     filterKeys = [...filterKeys, candidate.key];
                 }
-                const count = cards.filter((card) => tagFilterMatchesCard(card, filterKeys)).length;
+                const count = cards.filter((card) => shareMode
+                    ? tagFilterMatchesCard(card, filterKeys)
+                    : tagFilterMatchesRecord(card, filterKeys)).length;
                 return { ...candidate, count };
             })
             .sort((left, right) => (right.count - left.count) || left.label.localeCompare(right.label));
@@ -2669,7 +2726,9 @@
             tagBadgeList.appendChild(button);
         });
 
-        const matchingCount = cards.filter((card) => tagFilterMatchesCard(card, selectedTagFilters)).length;
+        const matchingCount = cards.filter((card) => shareMode
+            ? tagFilterMatchesCard(card, selectedTagFilters)
+            : tagFilterMatchesRecord(card, selectedTagFilters)).length;
         tagBrowserMeta.textContent = selectedTagFilters.length
             ? matchingCount + " paper(s) match " + selectedTagFilters.map(specialTagLabel).join(", ")
             : cards.length + " paper(s) in this paper feed.";
@@ -2677,11 +2736,19 @@
 
     const feedTagSuggestions = (logicalFeedId, currentPaperId = null) => {
         const suggestions = new Set();
-        Array.from(paperCards)
-            .filter((card) => card.dataset.logicalFeedId === logicalFeedId && card.dataset.paperId !== currentPaperId)
-            .forEach((card) => {
-                parsePaperTags(card).forEach((tag) => suggestions.add(tag));
-            });
+        if (shareMode) {
+            allPaperCards()
+                .filter((card) => card.dataset.logicalFeedId === logicalFeedId && card.dataset.paperId !== currentPaperId)
+                .forEach((card) => {
+                    parsePaperTags(card).forEach((tag) => suggestions.add(tag));
+                });
+        } else {
+            paperRecords
+                .filter((record) => String(record.logicalFeedId) === String(logicalFeedId) && String(record.id) !== String(currentPaperId))
+                .forEach((record) => {
+                    parsePaperTagsFromRecord(record).forEach((tag) => suggestions.add(tag));
+                });
+        }
         return Array.from(suggestions).sort((left, right) => left.localeCompare(right));
     };
 
@@ -3013,7 +3080,314 @@
         }
     };
 
+    const renderPaperCardElement = (record) => {
+        const article = document.createElement("article");
+        article.className = "card drop-target selectable";
+        article.dataset.logicalFeedName = record.logicalFeedName || "";
+        article.dataset.logicalFeedId = record.logicalFeedId == null ? "" : String(record.logicalFeedId);
+        article.dataset.paperStatus = record.paperStatus || "NEW";
+        article.dataset.paperTopStatus = record.paperTopStatus || normalizeStatus(record.paperStatus);
+        article.dataset.paperId = String(record.id);
+        article.dataset.pdfUrl = record.pdfUrl || "";
+        article.dataset.paperTitle = record.paperTitle || "";
+        article.dataset.paperAuthors = record.paperAuthors || "Unknown authors";
+        article.dataset.paperPublishedOn = record.paperPublishedOn || "unknown";
+        article.dataset.paperVenue = record.paperVenue || "Unknown venue";
+        article.dataset.paperFeedName = record.paperFeedName || "";
+        article.dataset.paperSummary = record.paperSummary || "";
+        article.dataset.paperSourceLink = record.paperSourceLink || "";
+        article.dataset.paperOpenAccessLink = record.paperOpenAccessLink || "";
+        article.dataset.paperTags = record.paperTags || "";
+        article.dataset.paperCanEditTags = record.paperCanEditTags ? "true" : "false";
+        article.dataset.paperNotes = record.paperNotes || "";
+        article.dataset.paperIsNew = record.paperIsNew ? "true" : "false";
+        article.dataset.paperIsFresh = record.paperIsFresh ? "true" : "false";
+        article.innerHTML = `
+            <div class="card-feed-row">
+                <div class="pill">${escapeHtml(record.logicalFeedName || "")}</div>
+                ${(record.paperIsNew || record.paperIsFresh) ? `
+                <div class="paper-status-badges">
+                    ${record.paperIsNew ? '<span class="paper-status-badge new-badge">New</span>' : ''}
+                    ${record.paperIsFresh ? '<span class="paper-status-badge fresh-badge">Fresh</span>' : ''}
+                </div>` : ""}
+            </div>
+            <div class="card-header">
+                <div class="card-title-wrap">
+                    <h3 class="paper-title">${escapeHtml(record.paperTitle || "")}</h3>
+                </div>
+                <div class="pdf-presence ${record.pdfUrl ? "has-pdf" : ""}" title="${record.pdfUrl ? "PDF attached" : "No PDF attached"}">
+                    <span aria-hidden="true">${record.pdfUrl ? "📄" : "○"}</span>
+                </div>
+            </div>
+            <p class="meta paper-meta">
+                ${escapeHtml(record.paperAuthors || "Unknown authors")}<br>
+                ${escapeHtml(record.paperVenue || "Unknown venue")}<br>
+                Published: ${escapeHtml(record.paperPublishedOn || "unknown")}<br>
+                From feed: ${escapeHtml(record.paperFeedName || "")}
+            </p>
+            ${(record.paperSummary || "").trim() ? `<p class="paper-summary">${escapeHtml(record.paperSummary || "")}</p>` : ""}
+            <p>${paperCardLinksHtml(record)}</p>
+        `;
+        renderCardSearchHighlights(article);
+        return article;
+    };
+
+    const paperCardLinksHtml = (record) => {
+        const links = [];
+        if (record.pdfUrl) {
+            links.push(`<a href="${escapeHtml(record.pdfUrl)}" target="_blank" rel="noreferrer">PDF</a>`);
+        }
+        if (record.paperSourceLink && !record.paperSourceLink.startsWith("upload:")) {
+            links.push(`<a href="${escapeHtml(record.paperSourceLink)}" target="_blank" rel="noreferrer">Source</a>`);
+        }
+        if (record.paperOpenAccessLink) {
+            links.push(`<a href="${escapeHtml(record.paperOpenAccessLink)}" target="_blank" rel="noreferrer">Open access</a>`);
+        }
+        return links.join(" | ");
+    };
+
+    const bindPaperCard = (card) => {
+        const paperId = card.dataset.paperId;
+
+        card.addEventListener("click", (event) => {
+            if (suppressCardClick) {
+                suppressCardClick = false;
+                return;
+            }
+            if (cardDragState) {
+                return;
+            }
+            if (event.target.closest("a")) {
+                return;
+            }
+            if (card.dataset.pdfUrl) {
+                showPdfForCard(card);
+                return;
+            }
+            focusPaperCard(card);
+        });
+
+        card.addEventListener("mousedown", (event) => {
+            if (event.button !== 0 || event.target.closest("a")) {
+                return;
+            }
+            beginPaperStatusDrag(card, event, card);
+        });
+
+        card.addEventListener("touchstart", (event) => {
+            if (event.touches.length !== 1 || event.target.closest("a")) {
+                return;
+            }
+            const touch = event.touches[0];
+            activeTouchStatusDrag = {
+                target: "card",
+                paperId,
+                startX: touch.clientX,
+                startY: touch.clientY,
+                captured: false
+            };
+            beginPaperStatusDragAtPoint(card, touch.clientX, touch.clientY, card);
+        }, { passive: true });
+
+        ["dragenter", "dragover"].forEach((eventName) => {
+            card.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                card.classList.add("dragover");
+            });
+        });
+
+        ["dragleave", "dragend", "drop"].forEach((eventName) => {
+            card.addEventListener(eventName, (event) => {
+                event.preventDefault();
+                card.classList.remove("dragover");
+            });
+        });
+
+        card.addEventListener("drop", (event) => {
+            const files = event.dataTransfer.files;
+            if (!files || files.length === 0) {
+                return;
+            }
+            uploadPdfForPaper(paperId, files[0], card);
+        });
+    };
+
+    const filteredPaperRecords = () => {
+        const selectedLogicalFeedId = logicalFeedFilter.value;
+        const normalizedQuery = normalizedSearchText(stateSearchQuery);
+        return paperRecords.filter((record) => {
+            const feedMatches = activePrimaryTab === "tags"
+                ? Boolean(selectedLogicalFeedId) && String(record.logicalFeedId) === String(selectedLogicalFeedId)
+                : (!selectedLogicalFeedId || String(record.logicalFeedId) === String(selectedLogicalFeedId));
+            if (!feedMatches) {
+                return false;
+            }
+            if (activePrimaryTab === "tags") {
+                return tagFilterMatchesRecord(record, selectedTagFilters);
+            }
+            const stateMatches = activeStatusTab == null || record.paperTopStatus === activeStatusTab;
+            if (!stateMatches) {
+                return false;
+            }
+            return stateSearchMatchesRecord(record, normalizedQuery);
+        });
+    };
+
+    const renderPaginatedPaperList = () => {
+        const filtered = filteredPaperRecords();
+        if (selectedPaperId) {
+            const selectedIndex = filtered.findIndex((record) => String(record.id) === String(selectedPaperId));
+            if (selectedIndex >= 0) {
+                stateSearchVisibleLimit = Math.max(stateSearchVisibleLimit, selectedIndex + 1);
+            }
+        }
+        const visible = filtered.slice(0, stateSearchVisibleLimit);
+        paperList.innerHTML = "";
+        if (!visible.length) {
+            const message = document.createElement("p");
+            message.className = "meta";
+            message.textContent = papersLoaded ? "No papers match the current filters." : "Loading papers...";
+            paperList.appendChild(message);
+        } else {
+            visible.forEach((record) => {
+                const card = renderPaperCardElement(record);
+                paperList.appendChild(card);
+                bindPaperCard(card);
+            });
+        }
+        paperList.appendChild(searchLoadMoreRow);
+        const hasMore = filtered.length > visible.length;
+        searchLoadMoreRow.classList.toggle("hidden", !hasMore);
+        const activeCard = selectedPaperCard();
+        if (activeCard) {
+            activeCard.classList.add("active");
+        }
+        return { filtered, visible, hasMore };
+    };
+
+    const maybeLoadMoreVisiblePapers = () => {
+        if (shareMode || !papersLoaded) {
+            return;
+        }
+        const hasMore = filteredPaperRecords().length > stateSearchVisibleLimit;
+        if (!hasMore) {
+            return;
+        }
+        const nearBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 240;
+        if (!nearBottom) {
+            return;
+        }
+        stateSearchVisibleLimit += 10;
+        applyLogicalFeedFilter();
+    };
+
     const applyLogicalFeedFilter = () => {
+        if (!shareMode) {
+            const selectedLogicalFeedId = logicalFeedFilter.value;
+            const availableTabs = selectedWorkflowStates();
+            const availableCounts = selectedWorkflowCounts();
+
+            if (availableTabs.length === 0) {
+                activeStatusTab = null;
+            } else if (!availableTabs.includes(activeStatusTab)) {
+                activeStatusTab = availableTabs[0];
+            }
+
+            const filtered = filteredPaperRecords();
+            const selectedStillVisible = filtered.some((record) => String(record.id) === String(selectedPaperId));
+            if (selectedPaperId && !selectedStillVisible) {
+                closeViewer();
+            }
+
+            statusTabsContainer.innerHTML = "";
+            if (mobileStateTabs) {
+                mobileStateTabs.innerHTML = "";
+            }
+            availableTabs.forEach((status) => {
+                const tab = document.createElement("button");
+                tab.type = "button";
+                tab.className = "reader-tab" + (activePrimaryTab === "state" && status === activeStatusTab ? " active" : "");
+                tab.textContent = statusLabel(status) + " (" + (availableCounts[status] || 0) + ")";
+                const activateTab = () => {
+                    activePrimaryTab = "state";
+                    activeStatusTab = status;
+                    stateSearchVisibleLimit = 10;
+                    applyLogicalFeedFilter();
+                };
+                tab.addEventListener("click", activateTab);
+                statusTabsContainer.appendChild(tab);
+                if (mobileStateTabs) {
+                    const mobileTab = document.createElement("button");
+                    mobileTab.type = "button";
+                    mobileTab.className = "secondary";
+                    mobileTab.textContent = tab.textContent;
+                    mobileTab.addEventListener("click", () => {
+                        activateTab();
+                        if (mobileStateMenu) {
+                            mobileStateMenu.open = false;
+                        }
+                    });
+                    mobileStateTabs.appendChild(mobileTab);
+                }
+            });
+
+            const tagsTab = document.createElement("button");
+            tagsTab.type = "button";
+            tagsTab.className = "reader-tab" + (activePrimaryTab === "tags" ? " active" : "");
+            tagsTab.textContent = "Tags";
+            tagsTab.addEventListener("click", () => {
+                activePrimaryTab = "tags";
+                stateSearchVisibleLimit = 10;
+                applyLogicalFeedFilter();
+            });
+            statusTabsContainer.appendChild(tagsTab);
+            if (mobileStateTabs) {
+                const mobileTagsTab = document.createElement("button");
+                mobileTagsTab.type = "button";
+                mobileTagsTab.className = "secondary";
+                mobileTagsTab.textContent = "Tags";
+                mobileTagsTab.addEventListener("click", () => {
+                    activePrimaryTab = "tags";
+                    stateSearchVisibleLimit = 10;
+                    applyLogicalFeedFilter();
+                    if (mobileStateMenu) {
+                        mobileStateMenu.open = false;
+                    }
+                });
+                mobileStateTabs.appendChild(mobileTagsTab);
+            }
+
+            if (mobileStateMenuSummary) {
+                mobileStateMenuSummary.textContent = activePrimaryTab === "tags"
+                    ? "Tags"
+                    : activeStatusTab
+                        ? statusLabel(activeStatusTab) + " (" + (availableCounts[activeStatusTab] || 0) + ")"
+                        : "States";
+            }
+
+            renderTagBrowser();
+            readerSearch.classList.toggle("hidden", activePrimaryTab !== "state" || Boolean(selectedPaperId));
+            const { hasMore } = renderPaginatedPaperList();
+            searchLoadMoreRow.classList.toggle("hidden", !hasMore);
+
+            const exportDisabled = !selectedLogicalFeedId || (activePrimaryTab === "state" && !activeStatusTab);
+            exportTabButton.classList.toggle("disabled", exportDisabled);
+            exportTabButton.title = exportDisabled ? "Select a paper feed before exporting." : "Export";
+            exportFormatButtons.forEach((button) => {
+                button.disabled = exportDisabled;
+            });
+            const activeCard = selectedPaperCard();
+            if (activeCard) {
+                populatePaperViewMeta(activeCard);
+                if (selectedContentKind !== "pdf") {
+                    renderPaperCardPreview(activeCard);
+                }
+            }
+            renderReviewLauncher();
+            updatePaperFeedHeading();
+            return;
+        }
+
         const selectedLogicalFeedId = logicalFeedFilter.value;
         let activeCardStillVisible = false;
         const availableTabs = selectedWorkflowStates();
@@ -3028,7 +3402,7 @@
             activeStatusTab = availableTabs[0];
         }
 
-        paperCards.forEach((card) => {
+        allPaperCards().forEach((card) => {
             renderCardSearchHighlights(card);
             const feedMatches = activePrimaryTab === "tags"
                 ? Boolean(selectedLogicalFeedId) && card.dataset.logicalFeedId === selectedLogicalFeedId
@@ -3050,7 +3424,7 @@
 
         if (isStateSearchActive) {
             const visibleSearchCards = new Set(matchingSearchCards.slice(0, stateSearchVisibleLimit));
-            paperCards.forEach((card) => {
+            allPaperCards().forEach((card) => {
                 const visible = visibleSearchCards.has(card);
                 card.hidden = !visible;
                 if (visible && card.dataset.paperId === selectedPaperId) {
@@ -3162,7 +3536,7 @@
         currentPdfPageTexts = [];
         currentZoom = 1;
         currentRenderToken += 1;
-        paperCards.forEach((item) => item.classList.remove("active"));
+        allPaperCards().forEach((item) => item.classList.remove("active"));
         pdfFrame.innerHTML = "";
         contentPanelLabel.textContent = "";
         pdfPanelTitle.textContent = "Select a paper";
@@ -3196,7 +3570,7 @@
     };
 
     const visiblePaperCards = () => {
-        return Array.from(paperCards).filter((card) => !card.hidden);
+        return allPaperCards().filter((card) => !card.hidden);
     };
 
     const movePaperSelection = (direction) => {
@@ -3216,7 +3590,7 @@
 
     const focusPaperCard = (card) => {
         clearKeyboardStatePicker();
-        paperCards.forEach((item) => item.classList.remove("active"));
+        allPaperCards().forEach((item) => item.classList.remove("active"));
         card.classList.add("active");
         selectedPaperId = card.dataset.paperId;
         markPaperViewed(selectedPaperId, card);
@@ -3323,6 +3697,11 @@
         await updatePaperStatus(card.dataset.paperId, nextStatus);
         card.dataset.paperStatus = nextStatus;
         card.dataset.paperTopStatus = nextStatus.includes("/") ? nextStatus.split("/")[0] : nextStatus;
+        const record = paperRecordById(card.dataset.paperId);
+        if (record) {
+            record.paperStatus = nextStatus;
+            record.paperTopStatus = nextStatus.includes("/") ? nextStatus.split("/")[0] : nextStatus;
+        }
         syncPaperStatusCounts(card, normalizeStatus(previousStatus), nextStatus);
         if (selectedPaperId === card.dataset.paperId && activeStatusTab !== nextStatus) {
             closeViewer();
@@ -3466,7 +3845,7 @@
             return;
         }
         clearKeyboardStatePicker();
-        paperCards.forEach((item) => item.classList.remove("active"));
+        allPaperCards().forEach((item) => item.classList.remove("active"));
         card.classList.add("active");
         selectedPaperId = card.dataset.paperId;
         markPaperViewed(selectedPaperId, card);
@@ -3576,9 +3955,13 @@
                 throw new Error(message || "Failed to save notes");
             }
 
-            const activeCard = Array.from(paperCards).find((card) => card.dataset.paperId === selectedPaperId);
+            const activeCard = allPaperCards().find((card) => card.dataset.paperId === selectedPaperId);
             if (activeCard) {
                 activeCard.dataset.paperNotes = notesEditor.value;
+            }
+            const record = paperRecordById(selectedPaperId);
+            if (record) {
+                record.paperNotes = notesEditor.value;
             }
             renderNotesPreview();
             notesStatus.textContent = "Saved";
@@ -3805,6 +4188,10 @@
             throw new Error(message || "Failed to remove PDF");
         }
         card.dataset.pdfUrl = "";
+        const record = paperRecordById(card.dataset.paperId);
+        if (record) {
+            record.pdfUrl = "";
+        }
         const pdfPresence = card.querySelector(".pdf-presence");
         if (pdfPresence) {
             pdfPresence.classList.remove("has-pdf");
@@ -3835,6 +4222,10 @@
             throw new Error(message || "Failed to import remote PDF");
         }
         card.dataset.pdfUrl = "/papers/" + card.dataset.paperId + "/pdf";
+        const record = paperRecordById(card.dataset.paperId);
+        if (record) {
+            record.pdfUrl = "/papers/" + card.dataset.paperId + "/pdf";
+        }
         const pdfPresence = card.querySelector(".pdf-presence");
         if (pdfPresence) {
             pdfPresence.classList.add("has-pdf");
@@ -3844,72 +4235,7 @@
         showPdfForCard(card);
     };
 
-    paperCards.forEach((card) => {
-        const paperId = card.dataset.paperId;
-
-        card.addEventListener("click", (event) => {
-            if (suppressCardClick) {
-                suppressCardClick = false;
-                return;
-            }
-            if (cardDragState) {
-                return;
-            }
-            if (event.target.closest("a")) {
-                return;
-            }
-            if (card.dataset.pdfUrl) {
-                showPdfForCard(card);
-                return;
-            }
-            focusPaperCard(card);
-        });
-
-        card.addEventListener("mousedown", (event) => {
-            if (event.button !== 0 || event.target.closest("a")) {
-                return;
-            }
-
-            beginPaperStatusDrag(card, event, card);
-        });
-
-        card.addEventListener("touchstart", (event) => {
-            if (event.touches.length !== 1 || event.target.closest("a")) {
-                return;
-            }
-            const touch = event.touches[0];
-            activeTouchStatusDrag = {
-                target: "card",
-                paperId,
-                startX: touch.clientX,
-                startY: touch.clientY,
-                captured: false
-            };
-            beginPaperStatusDragAtPoint(card, touch.clientX, touch.clientY, card);
-        }, { passive: true });
-
-        ["dragenter", "dragover"].forEach((eventName) => {
-            card.addEventListener(eventName, (event) => {
-                event.preventDefault();
-                card.classList.add("dragover");
-            });
-        });
-
-        ["dragleave", "dragend", "drop"].forEach((eventName) => {
-            card.addEventListener(eventName, (event) => {
-                event.preventDefault();
-                card.classList.remove("dragover");
-            });
-        });
-
-        card.addEventListener("drop", (event) => {
-            const files = event.dataTransfer.files;
-            if (!files || files.length === 0) {
-                return;
-            }
-            uploadPdfForPaper(paperId, files[0], card);
-        });
-    });
+    allPaperCards().forEach(bindPaperCard);
 
     window.addEventListener("mousemove", (event) => {
         updatePaperStatusDrag(event.clientX, event.clientY);
@@ -4675,6 +5001,26 @@
         });
     }
 
+    const loadBrowserPapers = async () => {
+        if (shareMode || !authenticated) {
+            return;
+        }
+        const response = await fetch("/api/papers/browser", {
+            headers: { Accept: "application/json" }
+        });
+        const body = await response.text();
+        if (!response.ok) {
+            throw new Error(body || "Failed to load papers.");
+        }
+        paperRecords = JSON.parse(body);
+        papersLoaded = true;
+        const firstRecord = paperRecords[0];
+        if (firstRecord?.logicalFeedName) {
+            window.localStorage.setItem(storageKey, firstRecord.logicalFeedName);
+            renderLastSeenLogicalFeed(firstRecord.logicalFeedName);
+        }
+    };
+
     installPdfWidthObserver();
 
     const triggerTabExport = (kind, format) => {
@@ -4709,10 +5055,29 @@
             event.preventDefault();
         }
     });
+    window.addEventListener("scroll", () => {
+        maybeLoadMoreVisiblePapers();
+    }, { passive: true });
     await loadReviewWorkspace();
-    applyLogicalFeedFilter();
+    let browserPapersReady = shareMode;
+    if (!shareMode) {
+        try {
+            await loadBrowserPapers();
+            browserPapersReady = true;
+        } catch (error) {
+            papersLoaded = true;
+            paperList.innerHTML = "<p class=\"meta\">" + escapeHtml(error.message || "Failed to load papers.") + "</p>";
+            paperList.appendChild(searchLoadMoreRow);
+        }
+    }
+    if (browserPapersReady) {
+        applyLogicalFeedFilter();
+    }
     applyLayoutState();
-    openInitialPaper();
+    if (browserPapersReady) {
+        openInitialPaper();
+        maybeLoadMoreVisiblePapers();
+    }
 
 </script>
 </body>
