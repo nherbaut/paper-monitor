@@ -1,0 +1,582 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ review_design.title }} · Review graph</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css?v=20260430a">
+    <style>
+        .graph-shell {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 22rem;
+            gap: 1rem;
+        }
+
+        .graph-panel,
+        .detail-panel {
+            min-height: 70vh;
+        }
+
+        .graph-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .graph-filter-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem 1rem;
+            align-items: center;
+        }
+
+        .graph-filter-row label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            font-size: 0.95rem;
+        }
+
+        #review-graph-canvas {
+            width: 100%;
+            height: 62vh;
+            min-height: 34rem;
+            border-radius: 1rem;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            background:
+                radial-gradient(circle at top left, rgba(13, 110, 253, 0.08), transparent 28%),
+                linear-gradient(180deg, rgba(248, 249, 250, 0.94), rgba(255, 255, 255, 0.98));
+        }
+
+        .graph-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .graph-legend .badge {
+            font-weight: 500;
+        }
+
+        .detail-panel {
+            display: grid;
+            gap: 1rem;
+            align-content: start;
+        }
+
+        .detail-block {
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 1rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.82);
+        }
+
+        .detail-list {
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .detail-list dt {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: #6c757d;
+            margin-bottom: 0.2rem;
+        }
+
+        .detail-list dd {
+            margin: 0;
+        }
+
+        .detail-empty {
+            color: #6c757d;
+        }
+
+        .graph-note {
+            font-size: 0.92rem;
+            color: #6c757d;
+        }
+
+        @media (max-width: 1200px) {
+            .graph-shell {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .graph-panel,
+            .detail-panel {
+                min-height: auto;
+            }
+        }
+    </style>
+</head>
+<body class="app-shell">
+<main class="container-xxl py-4 py-lg-5">
+    <section class="card border-0 shadow-sm">
+        <div class="card-body d-grid gap-4">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+                <div class="min-w-0">
+                    <p class="eyebrow">Review graph</p>
+                    <h1 class="h2 mb-2">{{ review_design.title }}</h1>
+                    <p class="mb-0 text-secondary">Interactive graph of the saved review, its selected source models, and the composed survey taxonomy.</p>
+                </div>
+                <div class="d-flex flex-wrap gap-2 align-items-start justify-content-lg-end">
+                    <a class="btn btn-outline-secondary btn-sm" href="/reviews">All reviews</a>
+                    <a class="btn btn-primary btn-sm" href="{{ form_url }}">Form view</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ taxonomy_download_url }}">Review Design YAML</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ linkml_download_url }}">LinkML schema</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ json_schema_download_url }}">JSON Schema</a>
+                </div>
+            </div>
+
+            <div class="d-flex flex-wrap gap-2">
+                <span class="badge text-bg-light border">{{ review_design.id }}</span>
+                <span class="badge text-bg-light border">{{ review_design.target_entity or "paper" }}</span>
+                <span class="badge text-bg-light border">{{ (review_design.selected_model_ids or [])|length }} model(s)</span>
+            </div>
+
+            <div class="graph-shell">
+                <section class="graph-panel d-grid gap-3">
+                    <div class="graph-toolbar">
+                        <div class="graph-filter-row">
+                            <label><input checked id="toggle-source-models" type="checkbox">Source models</label>
+                            <label><input checked id="toggle-composed-model" type="checkbox">Composed survey</label>
+                            <label><input checked id="toggle-scales" type="checkbox">Scales</label>
+                            <label><input checked id="toggle-criteria" type="checkbox">Criteria</label>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <input class="form-control form-control-sm" id="graph-search" type="search" placeholder="Find node by label or id">
+                            <button class="btn btn-outline-secondary btn-sm" id="graph-fit" type="button">Fit</button>
+                        </div>
+                    </div>
+
+                    <div class="graph-legend">
+                        <span class="badge rounded-pill text-bg-primary">Review</span>
+                        <span class="badge rounded-pill text-bg-info">Model</span>
+                        <span class="badge rounded-pill text-bg-success">Dimension</span>
+                        <span class="badge rounded-pill text-bg-warning">Taxon</span>
+                        <span class="badge rounded-pill text-bg-secondary">Criterion</span>
+                        <span class="badge rounded-pill text-bg-dark">Scale</span>
+                        <span class="badge rounded-pill text-bg-light border">Scale value</span>
+                    </div>
+
+                    <div id="review-graph-canvas" aria-label="Review graph"></div>
+                    <p class="graph-note mb-0">Drag to pan, scroll to zoom, click a node to inspect it. Search highlights matching nodes and fades the rest.</p>
+                </section>
+
+                <aside class="detail-panel">
+                    <div class="detail-block">
+                        <h2 class="h5 mb-3">Selected node</h2>
+                        <div id="detail-empty" class="detail-empty">Select any node in the graph to inspect its details.</div>
+                        <dl id="detail-list" class="detail-list d-none mb-0"></dl>
+                    </div>
+                    <div class="detail-block">
+                        <h2 class="h6 mb-2">Graph scope</h2>
+                        <p class="mb-0 text-secondary">The graph starts at the review template node, branches into each selected source model, and also shows the composed survey used to generate the review form.</p>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </section>
+</main>
+
+<script id="review-graph-data" type="application/json">{{ review_design|tojson }}</script>
+<script id="review-graph-models" type="application/json">{{ selected_models|tojson }}</script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape@3.33.1/dist/cytoscape.min.js"></script>
+<script>
+    const reviewDesign = JSON.parse(document.getElementById("review-graph-data").textContent);
+    const selectedModels = JSON.parse(document.getElementById("review-graph-models").textContent);
+
+    const detailEmpty = document.getElementById("detail-empty");
+    const detailList = document.getElementById("detail-list");
+    const graphSearch = document.getElementById("graph-search");
+    const graphFitButton = document.getElementById("graph-fit");
+    const toggleSourceModels = document.getElementById("toggle-source-models");
+    const toggleComposedModel = document.getElementById("toggle-composed-model");
+    const toggleScales = document.getElementById("toggle-scales");
+    const toggleCriteria = document.getElementById("toggle-criteria");
+
+    const graphElements = [];
+    const knownNodeIds = new Set();
+    const knownEdgeIds = new Set();
+
+    const slug = (value) => String(value || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "node";
+
+    const addNode = (id, data) => {
+        if (knownNodeIds.has(id)) {
+            return;
+        }
+        knownNodeIds.add(id);
+        graphElements.push({ data: { id, ...data } });
+    };
+
+    const addEdge = (id, source, target, data = {}) => {
+        if (knownEdgeIds.has(id) || !knownNodeIds.has(source) || !knownNodeIds.has(target)) {
+            return;
+        }
+        knownEdgeIds.add(id);
+        graphElements.push({ data: { id, source, target, ...data } });
+    };
+
+    const joinPath = (items) => items.filter(Boolean).join(" / ");
+
+    const plainText = (value) => {
+        if (value === null || value === undefined) {
+            return "";
+        }
+        if (Array.isArray(value)) {
+            return value.map((item) => plainText(item)).filter(Boolean).join(", ");
+        }
+        if (typeof value === "object") {
+            return "";
+        }
+        return String(value);
+    };
+
+    const addScaleBranch = (contextId, scaleRef, scaleMap, branchPrefix) => {
+        const scale = scaleMap.get(scaleRef);
+        if (!scale) {
+            return;
+        }
+        const scaleNodeId = `${branchPrefix}:scale:${slug(scale.id)}`;
+        addNode(scaleNodeId, {
+            label: scale.id,
+            type: "scale",
+            branch: branchPrefix,
+            category: "scale",
+            description: `Scale type: ${plainText(scale.scale_type) || "unknown"}`,
+            scale_type: plainText(scale.scale_type),
+            scale_id: plainText(scale.id),
+            scale_values: plainText((scale.scale_values || []).map((item) => item.label || item.value)),
+        });
+        addEdge(`${contextId}->${scaleNodeId}`, contextId, scaleNodeId, {
+            label: "uses scale",
+            relation: "uses_scale",
+            branch: branchPrefix,
+            category: "scale-edge"
+        });
+        (scale.scale_values || []).forEach((value, index) => {
+            const valueNodeId = `${scaleNodeId}:value:${index}:${slug(value.value || value.label)}`;
+            addNode(valueNodeId, {
+                label: value.label || value.value || `Value ${index + 1}`,
+                type: "scale_value",
+                branch: branchPrefix,
+                category: "scale",
+                description: plainText(value.description),
+                value: plainText(value.value),
+                path: joinPath([plainText(scale.id), plainText(value.label || value.value)]),
+            });
+            addEdge(`${scaleNodeId}->${valueNodeId}`, scaleNodeId, valueNodeId, {
+                label: "value",
+                relation: "has_scale_value",
+                branch: branchPrefix,
+                category: "scale-edge"
+            });
+        });
+    };
+
+    const addCriterionBranch = (criterion, parentNodeId, pathParts, scaleMap, branchPrefix, index) => {
+        const criterionId = `${parentNodeId}:criterion:${index}:${slug(criterion.id || criterion.label)}`;
+        addNode(criterionId, {
+            label: criterion.label || criterion.id || `Criterion ${index + 1}`,
+            type: "criterion",
+            branch: branchPrefix,
+            category: "criterion",
+            question: plainText(criterion.question),
+            scale: plainText(criterion.scale),
+            required: criterion.required ? "yes" : "no",
+            path: joinPath([...pathParts, criterion.label || criterion.id]),
+            description: plainText(criterion.question),
+        });
+        addEdge(`${parentNodeId}->${criterionId}`, parentNodeId, criterionId, {
+            label: "criterion",
+            relation: "has_criterion",
+            branch: branchPrefix,
+            category: "criterion-edge"
+        });
+        if (criterion.scale) {
+            addScaleBranch(criterionId, criterion.scale, scaleMap, branchPrefix);
+        }
+    };
+
+    const addTaxonBranch = (taxon, parentNodeId, pathParts, scaleMap, branchPrefix, index) => {
+        const taxonId = `${parentNodeId}:taxon:${index}:${slug(taxon.id || taxon.label)}`;
+        addNode(taxonId, {
+            label: taxon.label || taxon.id || `Taxon ${index + 1}`,
+            type: "taxon",
+            branch: branchPrefix,
+            category: "taxon",
+            description: plainText(taxon.description),
+            path: joinPath([...pathParts, taxon.label || taxon.id]),
+        });
+        addEdge(`${parentNodeId}->${taxonId}`, parentNodeId, taxonId, {
+            label: "taxon",
+            relation: "has_value",
+            branch: branchPrefix,
+            category: "taxonomy-edge"
+        });
+        (taxon.criteria || []).forEach((criterion, criterionIndex) => {
+            addCriterionBranch(criterion, taxonId, [...pathParts, taxon.label || taxon.id], scaleMap, branchPrefix, criterionIndex);
+        });
+        (taxon.children || []).forEach((child, childIndex) => {
+            addTaxonBranch(child, taxonId, [...pathParts, taxon.label || taxon.id], scaleMap, branchPrefix, childIndex);
+        });
+    };
+
+    const addDimensionBranch = (dimension, parentNodeId, pathParts, scaleMap, branchPrefix, index) => {
+        const dimensionId = `${parentNodeId}:dimension:${index}:${slug(dimension.id || dimension.label)}`;
+        addNode(dimensionId, {
+            label: dimension.label || dimension.id || `Dimension ${index + 1}`,
+            type: "dimension",
+            branch: branchPrefix,
+            category: "dimension",
+            description: plainText(dimension.description),
+            value_type: plainText(dimension.value_type),
+            cardinality: plainText(dimension.cardinality),
+            required: dimension.required ? "yes" : "no",
+            path: joinPath([...pathParts, dimension.label || dimension.id]),
+        });
+        addEdge(`${parentNodeId}->${dimensionId}`, parentNodeId, dimensionId, {
+            label: "dimension",
+            relation: "has_dimension",
+            branch: branchPrefix,
+            category: "taxonomy-edge"
+        });
+        (dimension.values || []).forEach((taxon, taxonIndex) => {
+            addTaxonBranch(taxon, dimensionId, [...pathParts, dimension.label || dimension.id], scaleMap, branchPrefix, taxonIndex);
+        });
+        (dimension.subdimensions || []).forEach((subdimension, subdimensionIndex) => {
+            addDimensionBranch(subdimension, dimensionId, [...pathParts, dimension.label || dimension.id], scaleMap, branchPrefix, subdimensionIndex);
+        });
+    };
+
+    const addModelBranch = (model, parentNodeId, kind) => {
+        const branchPrefix = kind === "source_model" ? `source:${slug(model.id)}` : `composed:${slug(model.id)}`;
+        const modelNodeId = `${branchPrefix}:model`;
+        const descriptionParts = [];
+        if (model.target_entity) {
+            descriptionParts.push(`Target entity: ${model.target_entity}`);
+        }
+        if (model.source?.title) {
+            descriptionParts.push(`Source: ${model.source.title}`);
+        }
+        addNode(modelNodeId, {
+            label: model.title || model.id,
+            type: kind,
+            branch: branchPrefix,
+            category: kind === "source_model" ? "source" : "composed",
+            description: descriptionParts.join(" | "),
+            model_id: plainText(model.id),
+            target_entity: plainText(model.target_entity),
+            path: plainText(model.title || model.id),
+        });
+        addEdge(`${parentNodeId}->${modelNodeId}`, parentNodeId, modelNodeId, {
+            label: kind === "source_model" ? "selected model" : "composed survey",
+            relation: kind === "source_model" ? "selected_model" : "composed_model",
+            branch: branchPrefix,
+            category: "model-edge"
+        });
+
+        const scaleMap = new Map((model.scales || []).map((scale) => [scale.id, scale]));
+        (model.dimensions || []).forEach((dimension, dimensionIndex) => {
+            addDimensionBranch(dimension, modelNodeId, [model.title || model.id], scaleMap, branchPrefix, dimensionIndex);
+        });
+        if (kind === "composed_model") {
+            (model.scales || []).forEach((scale) => {
+                addScaleBranch(modelNodeId, scale.id, scaleMap, branchPrefix);
+            });
+        }
+    };
+
+    const reviewNodeId = `review:${slug(reviewDesign.id)}`;
+    addNode(reviewNodeId, {
+        label: reviewDesign.title,
+        type: "review",
+        branch: "review",
+        category: "review",
+        description: `Review template ${reviewDesign.id}`,
+        review_id: plainText(reviewDesign.id),
+        target_entity: plainText(reviewDesign.target_entity || "paper"),
+    });
+
+    selectedModels.forEach((model) => addModelBranch(model, reviewNodeId, "source_model"));
+    if (reviewDesign.composed_model) {
+        addModelBranch(reviewDesign.composed_model, reviewNodeId, "composed_model");
+    }
+
+    const cy = cytoscape({
+        container: document.getElementById("review-graph-canvas"),
+        elements: graphElements,
+        layout: {
+            name: "breadthfirst",
+            directed: true,
+            padding: 28,
+            spacingFactor: 1.15,
+            roots: [reviewNodeId],
+        },
+        minZoom: 0.2,
+        maxZoom: 2.4,
+        wheelSensitivity: 0.18,
+        style: [
+            {
+                selector: "node",
+                style: {
+                    "background-color": "#6c757d",
+                    label: "data(label)",
+                    color: "#1f2328",
+                    "font-size": 11,
+                    "text-wrap": "wrap",
+                    "text-max-width": 120,
+                    "text-valign": "center",
+                    "text-halign": "center",
+                    "border-width": 1.25,
+                    "border-color": "#ffffff",
+                    "width": 34,
+                    "height": 34,
+                    "overlay-opacity": 0,
+                }
+            },
+            {
+                selector: "edge",
+                style: {
+                    width: 1.6,
+                    "line-color": "#c7ced6",
+                    "target-arrow-color": "#c7ced6",
+                    "target-arrow-shape": "triangle",
+                    "curve-style": "bezier",
+                    "arrow-scale": 0.85,
+                }
+            },
+            { selector: 'node[type = "review"]', style: { "background-color": "#0d6efd", "width": 52, "height": 52, color: "#ffffff", "font-size": 13 } },
+            { selector: 'node[type = "source_model"]', style: { "background-color": "#0dcaf0", "shape": "round-rectangle", "width": 48, "height": 40 } },
+            { selector: 'node[type = "composed_model"]', style: { "background-color": "#6610f2", color: "#ffffff", "shape": "round-rectangle", "width": 54, "height": 42 } },
+            { selector: 'node[type = "dimension"]', style: { "background-color": "#198754", "shape": "round-rectangle", color: "#ffffff" } },
+            { selector: 'node[type = "taxon"]', style: { "background-color": "#ffc107", "shape": "diamond" } },
+            { selector: 'node[type = "criterion"]', style: { "background-color": "#6c757d", color: "#ffffff", "shape": "hexagon" } },
+            { selector: 'node[type = "scale"]', style: { "background-color": "#212529", color: "#ffffff", "shape": "ellipse" } },
+            { selector: 'node[type = "scale_value"]', style: { "background-color": "#f8f9fa", "border-color": "#6c757d", "shape": "ellipse" } },
+            { selector: ".hidden-by-filter", style: { display: "none" } },
+            { selector: ".faded", style: { opacity: 0.14 } },
+            { selector: ".match", style: { "border-color": "#dc3545", "border-width": 4, opacity: 1 } },
+            { selector: ":selected", style: { "border-color": "#dc3545", "border-width": 4 } },
+        ]
+    });
+
+    const renderNodeDetails = (node) => {
+        if (!node) {
+            detailEmpty.classList.remove("d-none");
+            detailList.classList.add("d-none");
+            detailList.innerHTML = "";
+            return;
+        }
+        const entries = [
+            ["Label", node.data("label")],
+            ["Type", node.data("type")],
+            ["Path", node.data("path")],
+            ["Description", node.data("description")],
+            ["Target entity", node.data("target_entity")],
+            ["Value type", node.data("value_type")],
+            ["Cardinality", node.data("cardinality")],
+            ["Required", node.data("required")],
+            ["Question", node.data("question")],
+            ["Scale", node.data("scale") || node.data("scale_id")],
+            ["Scale type", node.data("scale_type")],
+            ["Scale values", node.data("scale_values")],
+            ["Value", node.data("value")],
+            ["Review id", node.data("review_id")],
+            ["Model id", node.data("model_id")],
+        ].filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "");
+
+        detailList.innerHTML = entries.map(([label, value]) => `
+            <div>
+                <dt>${label}</dt>
+                <dd>${String(value)
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")}</dd>
+            </div>
+        `).join("");
+        detailEmpty.classList.add("d-none");
+        detailList.classList.remove("d-none");
+    };
+
+    const refreshVisibility = () => {
+        cy.nodes().removeClass("hidden-by-filter");
+        cy.edges().removeClass("hidden-by-filter");
+
+        if (!toggleSourceModels.checked) {
+            cy.nodes().filter((node) => String(node.data("branch") || "").startsWith("source:")).addClass("hidden-by-filter");
+            cy.edges().filter((edge) => String(edge.data("branch") || "").startsWith("source:")).addClass("hidden-by-filter");
+        }
+        if (!toggleComposedModel.checked) {
+            cy.nodes().filter((node) => String(node.data("branch") || "").startsWith("composed:")).addClass("hidden-by-filter");
+            cy.edges().filter((edge) => String(edge.data("branch") || "").startsWith("composed:")).addClass("hidden-by-filter");
+        }
+        if (!toggleScales.checked) {
+            cy.nodes('[type = "scale"], [type = "scale_value"]').addClass("hidden-by-filter");
+            cy.edges('[category = "scale-edge"]').addClass("hidden-by-filter");
+        }
+        if (!toggleCriteria.checked) {
+            cy.nodes('[type = "criterion"]').addClass("hidden-by-filter");
+            cy.edges('[category = "criterion-edge"]').addClass("hidden-by-filter");
+        }
+
+        cy.edges().forEach((edge) => {
+            if (edge.source().hasClass("hidden-by-filter") || edge.target().hasClass("hidden-by-filter")) {
+                edge.addClass("hidden-by-filter");
+            }
+        });
+    };
+
+    const refreshSearch = () => {
+        const query = String(graphSearch.value || "").trim().toLowerCase();
+        cy.elements().removeClass("faded match");
+        if (!query) {
+            return;
+        }
+        const matches = cy.nodes().filter((node) => {
+            const haystack = [
+                node.data("label"),
+                node.data("type"),
+                node.data("path"),
+                node.data("description"),
+                node.data("model_id"),
+                node.data("review_id"),
+            ].join(" ").toLowerCase();
+            return haystack.includes(query);
+        });
+        cy.elements().addClass("faded");
+        matches.removeClass("faded").addClass("match");
+        matches.connectedEdges().removeClass("faded");
+        matches.connectedEdges().connectedNodes().removeClass("faded");
+    };
+
+    [toggleSourceModels, toggleComposedModel, toggleScales, toggleCriteria].forEach((control) => {
+        control.addEventListener("change", () => {
+            refreshVisibility();
+            refreshSearch();
+        });
+    });
+
+    graphSearch.addEventListener("input", refreshSearch);
+    graphFitButton.addEventListener("click", () => cy.fit(cy.elements(':visible'), 36));
+
+    cy.on("tap", "node", (event) => renderNodeDetails(event.target));
+    cy.on("tap", (event) => {
+        if (event.target === cy) {
+            cy.elements().unselect();
+            renderNodeDetails(null);
+        }
+    });
+
+    refreshVisibility();
+    cy.fit(cy.elements(':visible'), 36);
+    renderNodeDetails(null);
+</script>
+</body>
+</html>
