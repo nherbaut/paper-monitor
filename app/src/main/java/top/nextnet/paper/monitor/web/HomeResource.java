@@ -279,15 +279,17 @@ public class HomeResource {
     @Transactional
     public TemplateInstance index(
             @jakarta.ws.rs.QueryParam("paperId") Long paperId,
-            @jakarta.ws.rs.QueryParam("logicalFeedId") Long logicalFeedId
+            @jakarta.ws.rs.QueryParam("logicalFeedId") Long logicalFeedId,
+            @QueryParam("info") String info,
+            @QueryParam("error") String error
     ) {
         AppUser currentUser = currentUserContext.get().user();
         if (currentUser == null) {
             return login.data("returnTo", "/")
                     .data("oidcEnabled", oidcService.isEnabled())
                     .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0)
-                    .data("infoMessage", null)
-                    .data("errorMessage", null);
+                    .data("infoMessage", normalize(info))
+                    .data("errorMessage", normalize(error));
         }
         List<LogicalFeed> logicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser);
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
@@ -305,6 +307,8 @@ public class HomeResource {
                 .data("canAdmin", currentUserContext.get().isAdmin())
                 .data("authenticated", currentUser != null)
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
+                .data("infoMessage", normalize(info))
+                .data("errorMessage", normalize(error))
                 .data("shareMode", false)
                 .data("sharedPaper", null)
                 .data("sharedPaperUrl", null);
@@ -747,24 +751,44 @@ public class HomeResource {
         }
 
         List<Paper> importedPapers = new ArrayList<>();
-        List<Paper> existingPapers = new ArrayList<>();
+        List<String> importedDois = new ArrayList<>();
+        List<String> existingDois = new ArrayList<>();
+        List<String> failedDois = new ArrayList<>();
+        Paper existingTarget = null;
         for (String normalizedDoi : normalizedDois) {
-            Paper paper = importPaperFromNormalizedDoi(logicalFeed, normalizedDoi, pdf, importedPapers.isEmpty());
-            if (paper == null) {
-                Paper existing = paperRepository.findByLogicalFeedAndSourceLink(logicalFeed, normalizedDoiSourceLink(normalizedDoi))
-                        .orElseThrow(() -> new WebApplicationException("Existing paper lookup failed", Response.Status.INTERNAL_SERVER_ERROR));
-                existingPapers.add(existing);
-                continue;
+            try {
+                Paper paper = importPaperFromNormalizedDoi(logicalFeed, normalizedDoi, pdf, importedPapers.isEmpty());
+                if (paper == null) {
+                    Paper existing = paperRepository.findByLogicalFeedAndSourceLink(logicalFeed, normalizedDoiSourceLink(normalizedDoi))
+                            .orElseThrow(() -> new WebApplicationException("Existing paper lookup failed", Response.Status.INTERNAL_SERVER_ERROR));
+                    existingDois.add(normalizedDoi);
+                    if (existingTarget == null) {
+                        existingTarget = existing;
+                    }
+                    continue;
+                }
+                importedPapers.add(paper);
+                importedDois.add(normalizedDoi);
+            } catch (WebApplicationException e) {
+                failedDois.add(formatDoiFailure(normalizedDoi, e));
             }
-            importedPapers.add(paper);
         }
-        paperGitSyncService.syncLogicalFeed(logicalFeed);
+        if (!importedPapers.isEmpty()) {
+            paperGitSyncService.syncLogicalFeed(logicalFeed);
+        }
 
-        if (normalizedDois.size() == 1) {
-            Paper target = importedPapers.isEmpty() ? existingPapers.get(0) : importedPapers.get(0);
-            return seeOther("/?paperId=" + target.id + "&logicalFeedId=" + logicalFeed.id);
+        String location = singleDoiRedirect(logicalFeed.id, normalizedDois.size() == 1
+                ? importedPapers.isEmpty() ? existingTarget : importedPapers.get(0)
+                : null);
+        String infoMessage = buildDoiImportInfoMessage(importedDois, existingDois);
+        String errorMessage = buildDoiImportErrorMessage(failedDois);
+        if (infoMessage != null) {
+            location = appendQueryParam(location, "info", infoMessage);
         }
-        return seeOther("/?logicalFeedId=" + logicalFeed.id);
+        if (errorMessage != null) {
+            location = appendQueryParam(location, "error", errorMessage);
+        }
+        return seeOther(location);
     }
 
     @GET
@@ -1742,6 +1766,40 @@ public class HomeResource {
         } catch (IOException e) {
             throw new WebApplicationException(e.getMessage(), Response.Status.BAD_GATEWAY);
         }
+    }
+
+    private String buildDoiImportInfoMessage(List<String> importedDois, List<String> existingDois) {
+        List<String> parts = new ArrayList<>();
+        if (!importedDois.isEmpty()) {
+            parts.add("Imported DOIs: " + String.join(", ", importedDois));
+        }
+        if (!existingDois.isEmpty()) {
+            parts.add("Already present DOIs: " + String.join(", ", existingDois));
+        }
+        return parts.isEmpty() ? null : String.join(" | ", parts);
+    }
+
+    private String buildDoiImportErrorMessage(List<String> failedDois) {
+        return failedDois.isEmpty() ? null : "Failed DOIs: " + String.join("; ", failedDois);
+    }
+
+    private String formatDoiFailure(String doi, WebApplicationException exception) {
+        String message = normalize(exception.getMessage());
+        if (message == null && exception.getResponse() != null) {
+            message = normalize(exception.getResponse().getStatusInfo().getReasonPhrase());
+        }
+        return message == null ? doi : doi + " (" + message + ")";
+    }
+
+    private String singleDoiRedirect(Long logicalFeedId, Paper targetPaper) {
+        if (targetPaper != null) {
+            return "/?paperId=" + targetPaper.id + "&logicalFeedId=" + logicalFeedId;
+        }
+        return "/?logicalFeedId=" + logicalFeedId;
+    }
+
+    private String appendQueryParam(String location, String key, String value) {
+        return location + (location.contains("?") ? "&" : "?") + key + "=" + urlEncode(value);
     }
 
     private Paper importPaperFromNormalizedDoi(LogicalFeed logicalFeed, String normalizedDoi, FileUpload pdf, boolean attachPdf) {

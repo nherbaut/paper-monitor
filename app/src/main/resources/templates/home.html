@@ -147,6 +147,25 @@
             flex-wrap: wrap;
         }
 
+        .message {
+            margin: 0 0 1rem;
+            padding: 0.8rem 0.9rem;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: color-mix(in srgb, var(--panel) 86%, white);
+        }
+
+        .message.error {
+            border-color: #d7a18e;
+            color: #7b2f18;
+            background: rgba(247, 226, 219, 0.86);
+        }
+
+        body.dark-mode .message.error {
+            color: #f2c1af;
+            background: rgba(104, 45, 30, 0.44);
+        }
+
         .status-controls {
             display: flex;
             align-items: end;
@@ -1549,6 +1568,12 @@
 </div>
 <main>
     <p class="meta hidden" id="last-seen-logical-feed">No paper feed seen yet.</p>
+    {#if infoMessage}
+    <p class="message">{infoMessage}</p>
+    {/if}
+    {#if errorMessage}
+    <p class="message error">{errorMessage}</p>
+    {/if}
 
     <section class="panel panel-wide status {#if shareMode && !authenticated}share-anon-hidden{/if}">
         <div class="status-controls">
