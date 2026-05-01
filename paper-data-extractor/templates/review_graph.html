@@ -143,7 +143,7 @@
                         <div class="graph-filter-row">
                             <label for="graph-layout">Layout</label>
                             <select class="form-select form-select-sm" id="graph-layout" style="width: auto;">
-                                <option value="cose-bilkent">Force-directed</option>
+                                <option value="cose">Force-directed</option>
                                 <option value="breadthfirst">Tree</option>
                                 <option value="concentric">Concentric</option>
                                 <option value="circle">Circle</option>
@@ -192,10 +192,7 @@
 <script id="review-graph-data" type="application/json">{{ review_design|tojson }}</script>
 <script id="review-graph-models" type="application/json">{{ selected_models|tojson }}</script>
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.33.1/dist/cytoscape.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/cytoscape-cose-bilkent@4.1.0/cytoscape-cose-bilkent.js"></script>
 <script>
-    cytoscape.use(cytoscapeCoseBilkent);
-
     const reviewDesign = JSON.parse(document.getElementById("review-graph-data").textContent);
     const selectedModels = JSON.parse(document.getElementById("review-graph-models").textContent);
 
@@ -411,7 +408,7 @@
 
     selectedModels.forEach((model) => addModelBranch(model, reviewNodeId, "source_model"));
 
-    const currentLayoutName = () => graphLayoutSelect?.value || "cose-bilkent";
+    const currentLayoutName = () => graphLayoutSelect?.value || "cose";
 
     const layoutConfig = (name) => {
         if (name === "breadthfirst") {
@@ -468,15 +465,19 @@
             };
         }
         return {
-            name: "cose-bilkent",
+            name: "cose",
             padding: 40,
-            nodeRepulsion: 18000,
+            nodeRepulsion: 220000,
             idealEdgeLength: 140,
-            edgeElasticity: 0.08,
-            nestingFactor: 0.9,
+            edgeElasticity: 80,
             gravity: 0.2,
-            tile: true,
+            numIter: 1600,
+            initialTemp: 120,
+            coolingFactor: 0.95,
+            minTemp: 1.0,
             randomize: false,
+            componentSpacing: 100,
+            fit: false,
             animate: false,
         };
     };
