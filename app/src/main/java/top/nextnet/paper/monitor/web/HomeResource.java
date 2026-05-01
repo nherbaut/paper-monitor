@@ -32,6 +32,7 @@ import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -740,50 +741,30 @@ public class HomeResource {
     ) {
         AppUser currentUser = requireCurrentUser();
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, currentUser);
-        String normalizedDoi = normalizeDoiInput(doi);
-        String sourceLink = normalizedDoiSourceLink(normalizedDoi);
-
-        Paper existing = paperRepository.findByLogicalFeedAndSourceLink(logicalFeed, sourceLink).orElse(null);
-        if (existing != null) {
-            return seeOther("/?paperId=" + existing.id);
+        List<String> normalizedDois = normalizeDoiInputs(doi);
+        if (normalizedDois.size() > 1 && pdf != null && pdf.fileName() != null && !pdf.fileName().isBlank()) {
+            throw new WebApplicationException("Attach a PDF only when importing a single DOI", Response.Status.BAD_REQUEST);
         }
 
-        DoiMetadataService.DoiMetadata metadata = fetchDoiMetadata(normalizedDoi);
-
-        Paper paper = new Paper();
-        paper.title = normalize(metadata.title());
-        if (paper.title == null) {
-            throw new WebApplicationException("DOI metadata did not return a title", Response.Status.BAD_GATEWAY);
-        }
-        paper.sourceLink = metadata.doiUrl() == null ? sourceLink : metadata.doiUrl();
-        paper.openAccessLink = normalize(metadata.openAccessUrl());
-        paper.summary = normalize(metadata.summary());
-        paper.authors = normalize(metadata.authors());
-        paper.publisher = normalize(metadata.publisher());
-        paper.publishedOn = metadata.publishedOn();
-        paper.status = logicalFeed.initialPaperStatus();
-        paper.discoveredAt = Instant.now();
-        paper.feed = getOrCreateDoiImportFeed(logicalFeed);
-        paper.logicalFeed = logicalFeed;
-        if (pdf != null && pdf.fileName() != null && !pdf.fileName().isBlank()) {
-            PaperStorageService.StoredPdf storedPdf;
-            try {
-                storedPdf = paperStorageService.storePdf(pdf);
-            } catch (IllegalArgumentException e) {
-                throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
-            } catch (Exception e) {
-                throw new WebApplicationException("Failed to store PDF", Response.Status.INTERNAL_SERVER_ERROR);
+        List<Paper> importedPapers = new ArrayList<>();
+        List<Paper> existingPapers = new ArrayList<>();
+        for (String normalizedDoi : normalizedDois) {
+            Paper paper = importPaperFromNormalizedDoi(logicalFeed, normalizedDoi, pdf, importedPapers.isEmpty());
+            if (paper == null) {
+                Paper existing = paperRepository.findByLogicalFeedAndSourceLink(logicalFeed, normalizedDoiSourceLink(normalizedDoi))
+                        .orElseThrow(() -> new WebApplicationException("Existing paper lookup failed", Response.Status.INTERNAL_SERVER_ERROR));
+                existingPapers.add(existing);
+                continue;
             }
-            paper.uploadedPdfPath = storedPdf.storedPath();
-            paper.uploadedPdfFileName = storedPdf.originalFileName();
-        }
-        paperRepository.persist(paper);
-        paperEventService.log(paper, "FETCH", "Imported from DOI " + normalizedDoi);
-        if (paper.uploadedPdfFileName != null) {
-            paperEventService.log(paper, "PDF_UPLOADED", "Attached PDF " + paper.uploadedPdfFileName);
+            importedPapers.add(paper);
         }
         paperGitSyncService.syncLogicalFeed(logicalFeed);
-        return seeOther("/?paperId=" + paper.id);
+
+        if (normalizedDois.size() == 1) {
+            Paper target = importedPapers.isEmpty() ? existingPapers.get(0) : importedPapers.get(0);
+            return seeOther("/?paperId=" + target.id + "&logicalFeedId=" + logicalFeed.id);
+        }
+        return seeOther("/?logicalFeedId=" + logicalFeed.id);
     }
 
     @GET
@@ -1728,7 +1709,23 @@ public class HomeResource {
     }
 
     private String normalizeDoiInput(String doi) {
-        return normalizeRequired(doi, "DOI is required");
+        return normalizeDoiInputs(doi).get(0);
+    }
+
+    private List<String> normalizeDoiInputs(String doi) {
+        String normalized = normalizeRequired(doi, "DOI is required");
+        String[] parts = normalized.split("[,\\s]+");
+        Set<String> normalizedDois = new LinkedHashSet<>();
+        for (String part : parts) {
+            String candidate = normalize(part);
+            if (candidate != null) {
+                normalizedDois.add(candidate);
+            }
+        }
+        if (normalizedDois.isEmpty()) {
+            throw new WebApplicationException("DOI is required", Response.Status.BAD_REQUEST);
+        }
+        return List.copyOf(normalizedDois);
     }
 
     private String normalizedDoiSourceLink(String normalizedDoi) {
@@ -1745,6 +1742,49 @@ public class HomeResource {
         } catch (IOException e) {
             throw new WebApplicationException(e.getMessage(), Response.Status.BAD_GATEWAY);
         }
+    }
+
+    private Paper importPaperFromNormalizedDoi(LogicalFeed logicalFeed, String normalizedDoi, FileUpload pdf, boolean attachPdf) {
+        String sourceLink = normalizedDoiSourceLink(normalizedDoi);
+        Paper existing = paperRepository.findByLogicalFeedAndSourceLink(logicalFeed, sourceLink).orElse(null);
+        if (existing != null) {
+            return null;
+        }
+
+        DoiMetadataService.DoiMetadata metadata = fetchDoiMetadata(normalizedDoi);
+        Paper paper = new Paper();
+        paper.title = normalize(metadata.title());
+        if (paper.title == null) {
+            throw new WebApplicationException("DOI metadata did not return a title", Response.Status.BAD_GATEWAY);
+        }
+        paper.sourceLink = metadata.doiUrl() == null ? sourceLink : metadata.doiUrl();
+        paper.openAccessLink = normalize(metadata.openAccessUrl());
+        paper.summary = normalize(metadata.summary());
+        paper.authors = normalize(metadata.authors());
+        paper.publisher = normalize(metadata.publisher());
+        paper.publishedOn = metadata.publishedOn();
+        paper.status = logicalFeed.initialPaperStatus();
+        paper.discoveredAt = Instant.now();
+        paper.feed = getOrCreateDoiImportFeed(logicalFeed);
+        paper.logicalFeed = logicalFeed;
+        if (attachPdf && pdf != null && pdf.fileName() != null && !pdf.fileName().isBlank()) {
+            PaperStorageService.StoredPdf storedPdf;
+            try {
+                storedPdf = paperStorageService.storePdf(pdf);
+            } catch (IllegalArgumentException e) {
+                throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+            } catch (Exception e) {
+                throw new WebApplicationException("Failed to store PDF", Response.Status.INTERNAL_SERVER_ERROR);
+            }
+            paper.uploadedPdfPath = storedPdf.storedPath();
+            paper.uploadedPdfFileName = storedPdf.originalFileName();
+        }
+        paperRepository.persist(paper);
+        paperEventService.log(paper, "FETCH", "Imported from DOI " + normalizedDoi);
+        if (paper.uploadedPdfFileName != null) {
+            paperEventService.log(paper, "PDF_UPLOADED", "Attached PDF " + paper.uploadedPdfFileName);
+        }
+        return paper;
     }
 
     private String csvField(Object value) {

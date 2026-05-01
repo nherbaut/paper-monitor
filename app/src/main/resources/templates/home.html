@@ -1601,7 +1601,8 @@
                             <option value="{logicalFeed.id}">{logicalFeed.name}</option>
                             {/for}
                         </select>
-                        <input type="text" id="manual-import-doi" name="doi" placeholder="10.1007/978-981-95-5015-9_14" required>
+                        <input type="text" id="manual-import-doi" name="doi" placeholder="10.1007/978-981-95-5015-9_14, 10.1145/1234567.1234568" required>
+                        <p class="meta">Enter one DOI, or paste several separated by commas, spaces, or new lines.</p>
                         <div class="manual-import-actions">
                             <button class="secondary" id="manual-import-fetch" type="button">Fetch metadata</button>
                         </div>
@@ -2034,6 +2035,14 @@
             : "Drop a PDF here, or select one from your device.";
     };
 
+    const parseManualImportDois = () => {
+        const rawValue = manualImportDoi?.value || "";
+        return Array.from(new Set(rawValue
+            .split(/[,\s]+/)
+            .map((value) => value.trim())
+            .filter(Boolean)));
+    };
+
     const resetManualImportPreview = () => {
         if (manualImportPreview) {
             manualImportPreview.classList.add("hidden");
@@ -2050,6 +2059,31 @@
             manualImportPdf.value = "";
         }
         updateManualImportFileLabel();
+    };
+
+    const syncManualImportControls = () => {
+        const dois = parseManualImportDois();
+        const isBatch = dois.length > 1;
+        if (manualImportFetch) {
+            manualImportFetch.disabled = false;
+            manualImportFetch.textContent = isBatch ? "Preview first DOI" : "Fetch metadata";
+        }
+        if (manualImportSubmit) {
+            manualImportSubmit.textContent = isBatch ? "Import " + dois.length + " papers" : "Import paper";
+            manualImportSubmit.disabled = isBatch ? !dois.length : manualImportSubmit.disabled;
+            manualImportSubmit.classList.toggle("hidden", !isBatch);
+        }
+        if (manualImportDropzone) {
+            manualImportDropzone.classList.toggle("hidden", isBatch || manualImportPreview?.classList.contains("hidden"));
+            manualImportDropzone.classList.remove("drag-over");
+        }
+        if (manualImportPdf) {
+            if (isBatch) {
+                manualImportPdf.value = "";
+            }
+        }
+        updateManualImportFileLabel();
+        return { dois, isBatch };
     };
 
     const renderManualImportPreview = (metadata) => {
@@ -2081,6 +2115,7 @@
         manualImportDropzone.classList.remove("hidden");
         manualImportSubmit.classList.remove("hidden");
         manualImportSubmit.disabled = false;
+        syncManualImportControls();
     };
 
     const tryAutoFetchManualImportPdf = async (metadata) => {
@@ -4847,11 +4882,16 @@
             && Array.from(doiImportLogicalFeed.options).some((option) => option.value === logicalFeedFilter.value)) {
         doiImportLogicalFeed.value = logicalFeedFilter.value;
     }
+    syncManualImportControls();
 
     if (manualImportDoi) {
         manualImportDoi.addEventListener("input", () => {
             setManualImportStatus("");
             resetManualImportPreview();
+            const { dois, isBatch } = syncManualImportControls();
+            if (isBatch) {
+                setManualImportStatus("Batch import ready for " + dois.length + " DOIs. PDF attachment is available only for single DOI imports.");
+            }
         });
     }
 
@@ -4892,15 +4932,20 @@
 
     if (manualImportFetch && manualImportDoi) {
         manualImportFetch.addEventListener("click", async () => {
-            const doi = manualImportDoi.value.trim();
-            if (!doi) {
+            const { dois, isBatch } = syncManualImportControls();
+            if (!dois.length) {
                 setManualImportStatus("Enter a DOI first.", true);
                 resetManualImportPreview();
                 return;
             }
+            const doi = dois[0];
             manualImportFetch.disabled = true;
-            setManualImportStatus("Fetching metadata...");
             resetManualImportPreview();
+            if (isBatch) {
+                setManualImportStatus("Previewing the first DOI. Submitting will import all " + dois.length + " DOIs without a PDF attachment.");
+            } else {
+                setManualImportStatus("Fetching metadata...");
+            }
             try {
                 const response = await fetch("/papers/import-doi/preview?doi=" + encodeURIComponent(doi), {
                     headers: { Accept: "application/json" }
@@ -4911,6 +4956,10 @@
                 }
                 const metadata = JSON.parse(body);
                 renderManualImportPreview(metadata);
+                if (isBatch) {
+                    setManualImportStatus("Preview loaded for the first DOI. Submitting will import all " + dois.length + " DOIs.");
+                    return;
+                }
                 const fetchedPdf = await tryAutoFetchManualImportPdf(metadata);
                 if (!fetchedPdf) {
                     setManualImportStatus(metadata.openAccessUrl
@@ -4922,6 +4971,21 @@
                 resetManualImportPreview();
             } finally {
                 manualImportFetch.disabled = false;
+            }
+        });
+    }
+
+    if (manualImportForm) {
+        manualImportForm.addEventListener("submit", (event) => {
+            const { dois, isBatch } = syncManualImportControls();
+            if (!dois.length) {
+                event.preventDefault();
+                setManualImportStatus("Enter at least one DOI.", true);
+                return;
+            }
+            if (isBatch && manualImportPdf?.files?.length) {
+                event.preventDefault();
+                setManualImportStatus("Remove the PDF attachment before importing multiple DOIs.", true);
             }
         });
     }
