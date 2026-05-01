@@ -120,7 +120,7 @@
                 <div class="min-w-0">
                     <p class="eyebrow">Review graph</p>
                     <h1 class="h2 mb-2">{{ review_design.title }}</h1>
-                    <p class="mb-0 text-secondary">Interactive graph of the saved review, its selected source models, and the composed survey taxonomy.</p>
+                    <p class="mb-0 text-secondary">Interactive graph of the saved review and its selected source models.</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2 align-items-start justify-content-lg-end">
                     <a class="btn btn-outline-secondary btn-sm" href="/reviews">All reviews</a>
@@ -142,7 +142,6 @@
                     <div class="graph-toolbar">
                         <div class="graph-filter-row">
                             <label><input checked id="toggle-source-models" type="checkbox">Source models</label>
-                            <label><input checked id="toggle-composed-model" type="checkbox">Composed survey</label>
                             <label><input checked id="toggle-scales" type="checkbox">Scales</label>
                             <label><input checked id="toggle-criteria" type="checkbox">Criteria</label>
                         </div>
@@ -163,7 +162,7 @@
                     </div>
 
                     <div id="review-graph-canvas" aria-label="Review graph"></div>
-                    <p class="graph-note mb-0">Drag to pan, scroll to zoom, click a node to inspect it. Search highlights matching nodes and fades the rest.</p>
+                    <p class="graph-note mb-0">Drag to pan, scroll to zoom, click a node to inspect it, and double-click or double-tap a container node to fold or unfold its subtree.</p>
                 </section>
 
                 <aside class="detail-panel">
@@ -174,7 +173,7 @@
                     </div>
                     <div class="detail-block">
                         <h2 class="h6 mb-2">Graph scope</h2>
-                        <p class="mb-0 text-secondary">The graph starts at the review template node, branches into each selected source model, and also shows the composed survey used to generate the review form.</p>
+                        <p class="mb-0 text-secondary">The graph starts at the review template node, then branches into each selected source model and its dimensions, taxa, criteria, and scales.</p>
                     </div>
                 </aside>
             </div>
@@ -194,7 +193,6 @@
     const graphSearch = document.getElementById("graph-search");
     const graphFitButton = document.getElementById("graph-fit");
     const toggleSourceModels = document.getElementById("toggle-source-models");
-    const toggleComposedModel = document.getElementById("toggle-composed-model");
     const toggleScales = document.getElementById("toggle-scales");
     const toggleCriteria = document.getElementById("toggle-criteria");
 
@@ -243,7 +241,7 @@
         if (!scale) {
             return;
         }
-        const scaleNodeId = `${branchPrefix}:scale:${slug(scale.id)}`;
+        const scaleNodeId = `${contextId}:scale:${slug(scale.id)}`;
         addNode(scaleNodeId, {
             label: scale.id,
             type: "scale",
@@ -356,7 +354,7 @@
     };
 
     const addModelBranch = (model, parentNodeId, kind) => {
-        const branchPrefix = kind === "source_model" ? `source:${slug(model.id)}` : `composed:${slug(model.id)}`;
+        const branchPrefix = `source:${slug(model.id)}`;
         const modelNodeId = `${branchPrefix}:model`;
         const descriptionParts = [];
         if (model.target_entity) {
@@ -367,17 +365,17 @@
         }
         addNode(modelNodeId, {
             label: model.title || model.id,
-            type: kind,
+            type: "source_model",
             branch: branchPrefix,
-            category: kind === "source_model" ? "source" : "composed",
+            category: "source",
             description: descriptionParts.join(" | "),
             model_id: plainText(model.id),
             target_entity: plainText(model.target_entity),
             path: plainText(model.title || model.id),
         });
         addEdge(`${parentNodeId}->${modelNodeId}`, parentNodeId, modelNodeId, {
-            label: kind === "source_model" ? "selected model" : "composed survey",
-            relation: kind === "source_model" ? "selected_model" : "composed_model",
+            label: "selected model",
+            relation: "selected_model",
             branch: branchPrefix,
             category: "model-edge"
         });
@@ -386,11 +384,6 @@
         (model.dimensions || []).forEach((dimension, dimensionIndex) => {
             addDimensionBranch(dimension, modelNodeId, [model.title || model.id], scaleMap, branchPrefix, dimensionIndex);
         });
-        if (kind === "composed_model") {
-            (model.scales || []).forEach((scale) => {
-                addScaleBranch(modelNodeId, scale.id, scaleMap, branchPrefix);
-            });
-        }
     };
 
     const reviewNodeId = `review:${slug(reviewDesign.id)}`;
@@ -405,9 +398,6 @@
     });
 
     selectedModels.forEach((model) => addModelBranch(model, reviewNodeId, "source_model"));
-    if (reviewDesign.composed_model) {
-        addModelBranch(reviewDesign.composed_model, reviewNodeId, "composed_model");
-    }
 
     const cy = cytoscape({
         container: document.getElementById("review-graph-canvas"),
@@ -427,17 +417,18 @@
                 selector: "node",
                 style: {
                     "background-color": "#6c757d",
-                    label: "data(label)",
+                    label: "data(displayLabel)",
                     color: "#1f2328",
                     "font-size": 11,
                     "text-wrap": "wrap",
-                    "text-max-width": 120,
+                    "text-max-width": 180,
                     "text-valign": "center",
                     "text-halign": "center",
                     "border-width": 1.25,
                     "border-color": "#ffffff",
-                    "width": 34,
-                    "height": 34,
+                    "width": "label",
+                    "height": "label",
+                    "padding": "10px",
                     "overlay-opacity": 0,
                 }
             },
@@ -453,18 +444,36 @@
                 }
             },
             { selector: 'node[type = "review"]', style: { "background-color": "#0d6efd", "width": 52, "height": 52, color: "#ffffff", "font-size": 13 } },
-            { selector: 'node[type = "source_model"]', style: { "background-color": "#0dcaf0", "shape": "round-rectangle", "width": 48, "height": 40 } },
-            { selector: 'node[type = "composed_model"]', style: { "background-color": "#6610f2", color: "#ffffff", "shape": "round-rectangle", "width": 54, "height": 42 } },
+            { selector: 'node[type = "source_model"]', style: { "background-color": "#0dcaf0", "shape": "round-rectangle" } },
             { selector: 'node[type = "dimension"]', style: { "background-color": "#198754", "shape": "round-rectangle", color: "#ffffff" } },
-            { selector: 'node[type = "taxon"]', style: { "background-color": "#ffc107", "shape": "diamond" } },
-            { selector: 'node[type = "criterion"]', style: { "background-color": "#6c757d", color: "#ffffff", "shape": "hexagon" } },
-            { selector: 'node[type = "scale"]', style: { "background-color": "#212529", color: "#ffffff", "shape": "ellipse" } },
-            { selector: 'node[type = "scale_value"]', style: { "background-color": "#f8f9fa", "border-color": "#6c757d", "shape": "ellipse" } },
+            { selector: 'node[type = "taxon"]', style: { "background-color": "#ffc107", "shape": "round-rectangle" } },
+            { selector: 'node[type = "criterion"]', style: { "background-color": "#6c757d", color: "#ffffff", "shape": "round-rectangle" } },
+            { selector: 'node[type = "scale"]', style: { "background-color": "#212529", color: "#ffffff", "shape": "round-rectangle" } },
+            { selector: 'node[type = "scale_value"]', style: { "background-color": "#f8f9fa", "border-color": "#6c757d", "shape": "round-rectangle" } },
             { selector: ".hidden-by-filter", style: { display: "none" } },
+            { selector: ".hidden-by-collapse", style: { display: "none" } },
             { selector: ".faded", style: { opacity: 0.14 } },
             { selector: ".match", style: { "border-color": "#dc3545", "border-width": 4, opacity: 1 } },
             { selector: ":selected", style: { "border-color": "#dc3545", "border-width": 4 } },
         ]
+    });
+
+    const collapsibleTypes = new Set(["source_model", "dimension", "taxon", "criterion", "scale"]);
+
+    const updateNodeDisplayLabel = (node) => {
+        const label = String(node.data("label") || "");
+        if (!node.data("collapsible")) {
+            node.data("displayLabel", label);
+            return;
+        }
+        node.data("displayLabel", `${node.data("collapsed") ? "▸" : "▾"} ${label}`);
+    };
+
+    cy.nodes().forEach((node) => {
+        const collapsible = collapsibleTypes.has(String(node.data("type") || "")) && node.outgoers("edge").length > 0;
+        node.data("collapsible", collapsible);
+        node.data("collapsed", false);
+        updateNodeDisplayLabel(node);
     });
 
     const renderNodeDetails = (node) => {
@@ -488,6 +497,7 @@
             ["Scale type", node.data("scale_type")],
             ["Scale values", node.data("scale_values")],
             ["Value", node.data("value")],
+            ["Folded", node.data("collapsible") ? (node.data("collapsed") ? "yes" : "no") : ""],
             ["Review id", node.data("review_id")],
             ["Model id", node.data("model_id")],
         ].filter(([, value]) => value !== undefined && value !== null && String(value).trim() !== "");
@@ -507,15 +517,13 @@
 
     const refreshVisibility = () => {
         cy.nodes().removeClass("hidden-by-filter");
+        cy.nodes().removeClass("hidden-by-collapse");
         cy.edges().removeClass("hidden-by-filter");
+        cy.edges().removeClass("hidden-by-collapse");
 
         if (!toggleSourceModels.checked) {
             cy.nodes().filter((node) => String(node.data("branch") || "").startsWith("source:")).addClass("hidden-by-filter");
             cy.edges().filter((edge) => String(edge.data("branch") || "").startsWith("source:")).addClass("hidden-by-filter");
-        }
-        if (!toggleComposedModel.checked) {
-            cy.nodes().filter((node) => String(node.data("branch") || "").startsWith("composed:")).addClass("hidden-by-filter");
-            cy.edges().filter((edge) => String(edge.data("branch") || "").startsWith("composed:")).addClass("hidden-by-filter");
         }
         if (!toggleScales.checked) {
             cy.nodes('[type = "scale"], [type = "scale_value"]').addClass("hidden-by-filter");
@@ -529,6 +537,23 @@
         cy.edges().forEach((edge) => {
             if (edge.source().hasClass("hidden-by-filter") || edge.target().hasClass("hidden-by-filter")) {
                 edge.addClass("hidden-by-filter");
+            }
+        });
+
+        const hideDescendants = (node) => {
+            node.outgoers("edge").forEach((edge) => {
+                const target = edge.target();
+                edge.addClass("hidden-by-collapse");
+                if (!target.hasClass("hidden-by-collapse")) {
+                    target.addClass("hidden-by-collapse");
+                    hideDescendants(target);
+                }
+            });
+        };
+
+        cy.nodes().forEach((node) => {
+            if (node.data("collapsed")) {
+                hideDescendants(node);
             }
         });
     };
@@ -556,7 +581,7 @@
         matches.connectedEdges().connectedNodes().removeClass("faded");
     };
 
-    [toggleSourceModels, toggleComposedModel, toggleScales, toggleCriteria].forEach((control) => {
+    [toggleSourceModels, toggleScales, toggleCriteria].forEach((control) => {
         control.addEventListener("change", () => {
             refreshVisibility();
             refreshSearch();
@@ -566,9 +591,43 @@
     graphSearch.addEventListener("input", refreshSearch);
     graphFitButton.addEventListener("click", () => cy.fit(cy.elements(':visible'), 36));
 
-    cy.on("tap", "node", (event) => renderNodeDetails(event.target));
+    const toggleCollapse = (node) => {
+        if (!node.data("collapsible")) {
+            return;
+        }
+        node.data("collapsed", !node.data("collapsed"));
+        updateNodeDisplayLabel(node);
+        refreshVisibility();
+        refreshSearch();
+        renderNodeDetails(node);
+    };
+
+    let tappedNodeId = null;
+    let tappedNodeTimer = null;
+
+    cy.on("tap", "node", (event) => {
+        const node = event.target;
+        if (tappedNodeId === node.id()) {
+            window.clearTimeout(tappedNodeTimer);
+            tappedNodeId = null;
+            tappedNodeTimer = null;
+            toggleCollapse(node);
+            return;
+        }
+        tappedNodeId = node.id();
+        tappedNodeTimer = window.setTimeout(() => {
+            tappedNodeId = null;
+            tappedNodeTimer = null;
+            renderNodeDetails(node);
+        }, 220);
+    });
     cy.on("tap", (event) => {
         if (event.target === cy) {
+            if (tappedNodeTimer) {
+                window.clearTimeout(tappedNodeTimer);
+                tappedNodeTimer = null;
+                tappedNodeId = null;
+            }
             cy.elements().unselect();
             renderNodeDetails(null);
         }
