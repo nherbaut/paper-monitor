@@ -191,6 +191,7 @@ def review_template_endpoint(
             {
                 "review_design": preview["review_design"],
                 "form_schema": preview["form_schema"],
+                "graph_url": f"/review/{review_id}/graph",
                 "taxonomy_download_url": review_artifact_url(review_id, "yaml", download=True),
                 "linkml_download_url": review_artifact_url(review_id, "linkml", download=True),
                 "json_schema_download_url": review_artifact_url(review_id, "json-schema", download=True),
@@ -254,6 +255,25 @@ def review_template_shacl(review_id: str, download: bool = False) -> Response:
         "text/turtle",
         f"{filename_base}.review.shacl.ttl",
         download,
+    )
+
+
+@app.get("/review/{review_id}/graph", response_class=HTMLResponse)
+def review_graph_endpoint(review_id: str, request: Request) -> HTMLResponse:
+    loaded = load_review_design(review_id)
+    preview = review_design_to_preview(loaded)
+    selected_models = [load_model(model_id) for model_id in loaded.get("selected_model_ids") or []]
+    return templates.TemplateResponse(
+        request,
+        "review_graph.html",
+        {
+            "review_design": preview["review_design"],
+            "selected_models": selected_models,
+            "form_url": f"/review/{review_id}",
+            "taxonomy_download_url": review_artifact_url(review_id, "yaml", download=True),
+            "linkml_download_url": review_artifact_url(review_id, "linkml", download=True),
+            "json_schema_download_url": review_artifact_url(review_id, "json-schema", download=True),
+        },
     )
 
 
