@@ -141,6 +141,14 @@
                 <section class="graph-panel d-grid gap-3">
                     <div class="graph-toolbar">
                         <div class="graph-filter-row">
+                            <label for="graph-layout">Layout</label>
+                            <select class="form-select form-select-sm" id="graph-layout" style="width: auto;">
+                                <option value="cose-bilkent">Force-directed</option>
+                                <option value="breadthfirst">Tree</option>
+                                <option value="concentric">Concentric</option>
+                                <option value="circle">Circle</option>
+                                <option value="grid">Grid</option>
+                            </select>
                             <label><input checked id="toggle-source-models" type="checkbox">Source models</label>
                             <label><input checked id="toggle-scales" type="checkbox">Scales</label>
                             <label><input checked id="toggle-criteria" type="checkbox">Criteria</label>
@@ -184,7 +192,10 @@
 <script id="review-graph-data" type="application/json">{{ review_design|tojson }}</script>
 <script id="review-graph-models" type="application/json">{{ selected_models|tojson }}</script>
 <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.33.1/dist/cytoscape.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/cytoscape-cose-bilkent@4.1.0/cytoscape-cose-bilkent.js"></script>
 <script>
+    cytoscape.use(cytoscapeCoseBilkent);
+
     const reviewDesign = JSON.parse(document.getElementById("review-graph-data").textContent);
     const selectedModels = JSON.parse(document.getElementById("review-graph-models").textContent);
 
@@ -192,6 +203,7 @@
     const detailList = document.getElementById("detail-list");
     const graphSearch = document.getElementById("graph-search");
     const graphFitButton = document.getElementById("graph-fit");
+    const graphLayoutSelect = document.getElementById("graph-layout");
     const toggleSourceModels = document.getElementById("toggle-source-models");
     const toggleScales = document.getElementById("toggle-scales");
     const toggleCriteria = document.getElementById("toggle-criteria");
@@ -236,12 +248,12 @@
         return String(value);
     };
 
-    const addScaleBranch = (contextId, scaleRef, scaleMap, branchPrefix) => {
+    const addScaleBranch = (contextId, scaleRef, scaleMap, branchPrefix, ownerNodeId) => {
         const scale = scaleMap.get(scaleRef);
         if (!scale) {
             return;
         }
-        const scaleNodeId = `${contextId}:scale:${slug(scale.id)}`;
+        const scaleNodeId = `${ownerNodeId}:scale:${slug(scale.id)}`;
         addNode(scaleNodeId, {
             label: scale.id,
             type: "scale",
@@ -278,7 +290,7 @@
         });
     };
 
-    const addCriterionBranch = (criterion, parentNodeId, pathParts, scaleMap, branchPrefix, index) => {
+    const addCriterionBranch = (criterion, parentNodeId, pathParts, scaleMap, branchPrefix, ownerNodeId, index) => {
         const criterionId = `${parentNodeId}:criterion:${index}:${slug(criterion.id || criterion.label)}`;
         addNode(criterionId, {
             label: criterion.label || criterion.id || `Criterion ${index + 1}`,
@@ -298,11 +310,11 @@
             category: "criterion-edge"
         });
         if (criterion.scale) {
-            addScaleBranch(criterionId, criterion.scale, scaleMap, branchPrefix);
+            addScaleBranch(criterionId, criterion.scale, scaleMap, branchPrefix, ownerNodeId);
         }
     };
 
-    const addTaxonBranch = (taxon, parentNodeId, pathParts, scaleMap, branchPrefix, index) => {
+    const addTaxonBranch = (taxon, parentNodeId, pathParts, scaleMap, branchPrefix, ownerNodeId, index) => {
         const taxonId = `${parentNodeId}:taxon:${index}:${slug(taxon.id || taxon.label)}`;
         addNode(taxonId, {
             label: taxon.label || taxon.id || `Taxon ${index + 1}`,
@@ -319,14 +331,14 @@
             category: "taxonomy-edge"
         });
         (taxon.criteria || []).forEach((criterion, criterionIndex) => {
-            addCriterionBranch(criterion, taxonId, [...pathParts, taxon.label || taxon.id], scaleMap, branchPrefix, criterionIndex);
+            addCriterionBranch(criterion, taxonId, [...pathParts, taxon.label || taxon.id], scaleMap, branchPrefix, ownerNodeId, criterionIndex);
         });
         (taxon.children || []).forEach((child, childIndex) => {
-            addTaxonBranch(child, taxonId, [...pathParts, taxon.label || taxon.id], scaleMap, branchPrefix, childIndex);
+            addTaxonBranch(child, taxonId, [...pathParts, taxon.label || taxon.id], scaleMap, branchPrefix, ownerNodeId, childIndex);
         });
     };
 
-    const addDimensionBranch = (dimension, parentNodeId, pathParts, scaleMap, branchPrefix, index) => {
+    const addDimensionBranch = (dimension, parentNodeId, pathParts, scaleMap, branchPrefix, ownerNodeId, index) => {
         const dimensionId = `${parentNodeId}:dimension:${index}:${slug(dimension.id || dimension.label)}`;
         addNode(dimensionId, {
             label: dimension.label || dimension.id || `Dimension ${index + 1}`,
@@ -346,10 +358,10 @@
             category: "taxonomy-edge"
         });
         (dimension.values || []).forEach((taxon, taxonIndex) => {
-            addTaxonBranch(taxon, dimensionId, [...pathParts, dimension.label || dimension.id], scaleMap, branchPrefix, taxonIndex);
+            addTaxonBranch(taxon, dimensionId, [...pathParts, dimension.label || dimension.id], scaleMap, branchPrefix, ownerNodeId, taxonIndex);
         });
         (dimension.subdimensions || []).forEach((subdimension, subdimensionIndex) => {
-            addDimensionBranch(subdimension, dimensionId, [...pathParts, dimension.label || dimension.id], scaleMap, branchPrefix, subdimensionIndex);
+            addDimensionBranch(subdimension, dimensionId, [...pathParts, dimension.label || dimension.id], scaleMap, branchPrefix, ownerNodeId, subdimensionIndex);
         });
     };
 
@@ -382,7 +394,7 @@
 
         const scaleMap = new Map((model.scales || []).map((scale) => [scale.id, scale]));
         (model.dimensions || []).forEach((dimension, dimensionIndex) => {
-            addDimensionBranch(dimension, modelNodeId, [model.title || model.id], scaleMap, branchPrefix, dimensionIndex);
+            addDimensionBranch(dimension, modelNodeId, [model.title || model.id], scaleMap, branchPrefix, modelNodeId, dimensionIndex);
         });
     };
 
@@ -399,16 +411,80 @@
 
     selectedModels.forEach((model) => addModelBranch(model, reviewNodeId, "source_model"));
 
+    const currentLayoutName = () => graphLayoutSelect?.value || "cose-bilkent";
+
+    const layoutConfig = (name) => {
+        if (name === "breadthfirst") {
+            return {
+                name: "breadthfirst",
+                directed: true,
+                padding: 40,
+                spacingFactor: 1.7,
+                avoidOverlap: true,
+                roots: [reviewNodeId],
+                animate: false,
+            };
+        }
+        if (name === "concentric") {
+            return {
+                name: "concentric",
+                padding: 40,
+                spacingFactor: 1.15,
+                avoidOverlap: true,
+                minNodeSpacing: 24,
+                concentric: (node) => {
+                    const weights = {
+                        review: 6,
+                        source_model: 5,
+                        dimension: 4,
+                        taxon: 3,
+                        criterion: 2,
+                        scale: 1,
+                        scale_value: 0,
+                    };
+                    return weights[node.data("type")] ?? 0;
+                },
+                levelWidth: () => 1,
+                animate: false,
+            };
+        }
+        if (name === "circle") {
+            return {
+                name: "circle",
+                padding: 50,
+                spacingFactor: 1.25,
+                avoidOverlap: true,
+                animate: false,
+            };
+        }
+        if (name === "grid") {
+            return {
+                name: "grid",
+                padding: 40,
+                avoidOverlap: true,
+                avoidOverlapPadding: 28,
+                condense: false,
+                animate: false,
+            };
+        }
+        return {
+            name: "cose-bilkent",
+            padding: 40,
+            nodeRepulsion: 18000,
+            idealEdgeLength: 140,
+            edgeElasticity: 0.08,
+            nestingFactor: 0.9,
+            gravity: 0.2,
+            tile: true,
+            randomize: false,
+            animate: false,
+        };
+    };
+
     const cy = cytoscape({
         container: document.getElementById("review-graph-canvas"),
         elements: graphElements,
-        layout: {
-            name: "breadthfirst",
-            directed: true,
-            padding: 28,
-            spacingFactor: 1.15,
-            roots: [reviewNodeId],
-        },
+        layout: layoutConfig(currentLayoutName()),
         minZoom: 0.2,
         maxZoom: 2.4,
         wheelSensitivity: 0.18,
@@ -540,22 +616,34 @@
             }
         });
 
-        const hideDescendants = (node) => {
-            node.outgoers("edge").forEach((edge) => {
-                const target = edge.target();
-                edge.addClass("hidden-by-collapse");
-                if (!target.hasClass("hidden-by-collapse")) {
-                    target.addClass("hidden-by-collapse");
-                    hideDescendants(target);
-                }
-            });
-        };
-
+        const collapseQueue = [];
         cy.nodes().forEach((node) => {
-            if (node.data("collapsed")) {
-                hideDescendants(node);
+            if (node.data("collapsed") && !node.hasClass("hidden-by-filter")) {
+                collapseQueue.push(...node.outgoers("edge").filter((edge) => !edge.hasClass("hidden-by-filter")).toArray());
             }
         });
+
+        while (collapseQueue.length) {
+            const edge = collapseQueue.shift();
+            if (edge.hasClass("hidden-by-filter") || edge.hasClass("hidden-by-collapse")) {
+                continue;
+            }
+            edge.addClass("hidden-by-collapse");
+
+            const target = edge.target();
+            const remainingIncoming = target.incomers("edge").filter((incoming) =>
+                !incoming.hasClass("hidden-by-filter") && !incoming.hasClass("hidden-by-collapse")).length;
+            if (remainingIncoming > 0) {
+                continue;
+            }
+
+            target.addClass("hidden-by-collapse");
+            target.outgoers("edge").forEach((outgoing) => {
+                if (!outgoing.hasClass("hidden-by-filter") && !outgoing.hasClass("hidden-by-collapse")) {
+                    collapseQueue.push(outgoing);
+                }
+            });
+        }
     };
 
     const refreshSearch = () => {
@@ -585,7 +673,15 @@
         control.addEventListener("change", () => {
             refreshVisibility();
             refreshSearch();
+            cy.layout(layoutConfig(currentLayoutName())).run();
         });
+    });
+
+    graphLayoutSelect?.addEventListener("change", () => {
+        cy.layout(layoutConfig(currentLayoutName())).run();
+        refreshVisibility();
+        refreshSearch();
+        cy.fit(cy.elements(':visible'), 36);
     });
 
     graphSearch.addEventListener("input", refreshSearch);
@@ -599,6 +695,7 @@
         updateNodeDisplayLabel(node);
         refreshVisibility();
         refreshSearch();
+        cy.layout(layoutConfig(currentLayoutName())).run();
         renderNodeDetails(node);
     };
 
@@ -633,8 +730,16 @@
         }
     });
 
-    refreshVisibility();
-    cy.fit(cy.elements(':visible'), 36);
+    const runGraphLayout = () => {
+        cy.style().update();
+        cy.layout(layoutConfig(currentLayoutName())).run();
+        refreshVisibility();
+        refreshSearch();
+        cy.resize();
+        cy.fit(cy.elements(':visible'), 36);
+    };
+
+    runGraphLayout();
     renderNodeDetails(null);
 </script>
 </body>
