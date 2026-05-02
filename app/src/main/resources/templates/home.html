@@ -212,6 +212,23 @@
             background: color-mix(in srgb, var(--panel-quiet) 92%, white);
         }
 
+        .feed-dashboard-stat-button {
+            width: 100%;
+            text-align: left;
+            color: inherit;
+            cursor: pointer;
+        }
+
+        .feed-dashboard-stat-button:not(:disabled):hover {
+            border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+            background: color-mix(in srgb, var(--panel-quiet) 82%, var(--accent) 18%);
+        }
+
+        .feed-dashboard-stat-button:disabled {
+            cursor: default;
+            opacity: 1;
+        }
+
         .feed-dashboard-stat strong,
         .feed-dashboard-stat span {
             display: block;
@@ -1796,10 +1813,12 @@
                         <span class="meta meta-with-icon"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 2.5h8.5L14 5v8.5H3v-11Zm1 1v9h9V5.41L11.09 3.5H4Zm2 2h4v1H6v-1Zm0 2.5h4v1H6V8Zm0 2.5h3v1H6v-1Z"/></svg><span>Papers</span></span>
                         <strong>{logicalFeed.totalPaperCount}</strong>
                     </div>
-                    <div class="feed-dashboard-stat">
+                    <button class="feed-dashboard-stat feed-dashboard-stat-button" type="button"
+                            data-open-new-papers="{logicalFeed.id}"
+                            {#if logicalFeed.recentNewPaperCount == 0}disabled title="No new papers in the last 7 days."{/if}>
                         <span class="meta meta-with-icon"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 2 9.8 5.6 14 6.2l-3 2.9.7 4.1L8 11.3l-3.7 1.9.7-4.1-3-2.9 4.2-.6L8 2Z"/></svg><span>New papers</span></span>
                         <strong>{logicalFeed.recentNewPaperCount}</strong>
-                    </div>
+                    </button>
                 </div>
                 <div class="feed-dashboard-actions">
                     <button class="secondary button-with-icon" type="button" data-open-feed="{logicalFeed.id}"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 3h5l1 1h6v8.5A1.5 1.5 0 0 1 12.5 14h-9A1.5 1.5 0 0 1 2 12.5V3Z"/></svg><span>Open paper feed</span></button>
@@ -2635,6 +2654,9 @@
         if (record.pdfUrl) {
             keys.add("has-pdf");
         }
+        if (record.paperIsNew) {
+            keys.add("new-papers");
+        }
         return keys;
     };
 
@@ -2741,6 +2763,9 @@
         if (key === "has-pdf") {
             return "Has PDF";
         }
+        if (key === "new-papers") {
+            return "New papers";
+        }
         if (key.startsWith("state:")) {
             return statusLabel(key.slice("state:".length));
         }
@@ -2752,6 +2777,9 @@
         keys.add("state:" + (card.dataset.paperTopStatus || normalizeStatus(card.dataset.paperStatus)));
         if (card.dataset.pdfUrl) {
             keys.add("has-pdf");
+        }
+        if (card.dataset.paperIsNew === "true") {
+            keys.add("new-papers");
         }
         return keys;
     };
@@ -2811,6 +2839,9 @@
             entries.set("state:" + state, { key: "state:" + state, label: statusLabel(state), secondary: true });
         });
         entries.set("has-pdf", { key: "has-pdf", label: "Has PDF", secondary: true });
+        if (cards.some((card) => (shareMode ? card.dataset.paperIsNew === "true" : card.paperIsNew))) {
+            entries.set("new-papers", { key: "new-papers", label: "New papers", secondary: true });
+        }
         cards.forEach((card) => {
             const tags = shareMode ? parsePaperTags(card) : parsePaperTagsFromRecord(card);
             tags.forEach((tag) => {
@@ -5208,51 +5239,16 @@
     });
 
     Array.from(logicalFeedFilter?.options || []).forEach(refreshLogicalFeedOptionLabel);
-    const syncSelectedLogicalFeed = () => {
-        selectedTagFilters = [];
-        stateSearchVisibleLimit = 10;
-        renderExportStateOptions();
-        renderFrontPagePanels();
-        if (!doiImportLogicalFeed) {
-            renderReviewLauncher();
-            return logicalFeedFilter?.value || "";
+    const openLogicalFeed = async (logicalFeedId, options = {}) => {
+        if (!logicalFeedFilter) {
+            return;
         }
-        const selectedFeedId = logicalFeedFilter.value;
-        if (selectedFeedId && Array.from(doiImportLogicalFeed.options).some((option) => option.value === selectedFeedId)) {
-            doiImportLogicalFeed.value = selectedFeedId;
-        }
-        renderReviewLauncher();
-        return selectedFeedId;
-    };
-    if (doiImportLogicalFeed && logicalFeedFilter.value
-            && Array.from(doiImportLogicalFeed.options).some((option) => option.value === logicalFeedFilter.value)) {
-        doiImportLogicalFeed.value = logicalFeedFilter.value;
-    }
-    feedDashboard?.querySelectorAll("[data-open-feed]").forEach((button) => {
-        button.addEventListener("click", () => {
-            const logicalFeedId = button.dataset.openFeed;
-            if (!logicalFeedFilter || !logicalFeedId) {
-                return;
-            }
-            logicalFeedFilter.value = logicalFeedId;
-            logicalFeedFilter.dispatchEvent(new Event("change"));
-            browserReaderSection?.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
-    });
-    feedDashboard?.querySelectorAll(".feed-dashboard-card-menu").forEach((menu) => {
-        menu.addEventListener("toggle", () => {
-            if (!menu.open) {
-                return;
-            }
-            feedDashboard.querySelectorAll(".feed-dashboard-card-menu").forEach((otherMenu) => {
-                if (otherMenu !== menu) {
-                    otherMenu.open = false;
-                }
-            });
-        });
-    });
-    logicalFeedFilter?.addEventListener("change", async () => {
+        logicalFeedFilter.value = logicalFeedId ? String(logicalFeedId) : "";
         const selectedFeedId = syncSelectedLogicalFeed();
+        selectedTagFilters = Array.isArray(options.tagFilters) ? [...options.tagFilters] : [];
+        if (options.primaryTab) {
+            activePrimaryTab = options.primaryTab;
+        }
         if (!selectedFeedId && browserReaderSection && !shareMode) {
             browserReaderSection.classList.add("hidden");
             paperRecords = [];
@@ -5277,6 +5273,67 @@
             browserReaderSection.classList.remove("hidden");
         }
         applyLogicalFeedFilter();
+        if (options.scroll) {
+            browserReaderSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+    };
+
+    const syncSelectedLogicalFeed = () => {
+        selectedTagFilters = [];
+        stateSearchVisibleLimit = 10;
+        renderExportStateOptions();
+        renderFrontPagePanels();
+        if (!doiImportLogicalFeed) {
+            renderReviewLauncher();
+            return logicalFeedFilter?.value || "";
+        }
+        const selectedFeedId = logicalFeedFilter.value;
+        if (selectedFeedId && Array.from(doiImportLogicalFeed.options).some((option) => option.value === selectedFeedId)) {
+            doiImportLogicalFeed.value = selectedFeedId;
+        }
+        renderReviewLauncher();
+        return selectedFeedId;
+    };
+    if (doiImportLogicalFeed && logicalFeedFilter.value
+            && Array.from(doiImportLogicalFeed.options).some((option) => option.value === logicalFeedFilter.value)) {
+        doiImportLogicalFeed.value = logicalFeedFilter.value;
+    }
+    feedDashboard?.querySelectorAll("[data-open-feed]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            const logicalFeedId = button.dataset.openFeed;
+            if (!logicalFeedFilter || !logicalFeedId) {
+                return;
+            }
+            await openLogicalFeed(logicalFeedId, { scroll: true });
+        });
+    });
+    feedDashboard?.querySelectorAll("[data-open-new-papers]").forEach((button) => {
+        button.addEventListener("click", async () => {
+            const logicalFeedId = button.dataset.openNewPapers;
+            if (!logicalFeedFilter || !logicalFeedId) {
+                return;
+            }
+            await openLogicalFeed(logicalFeedId, {
+                primaryTab: "tags",
+                tagFilters: ["new-papers"],
+                scroll: true
+            });
+        });
+    });
+    feedDashboard?.querySelectorAll(".feed-dashboard-card-menu").forEach((menu) => {
+        menu.addEventListener("toggle", () => {
+            if (!menu.open) {
+                return;
+            }
+            feedDashboard.querySelectorAll(".feed-dashboard-card-menu").forEach((otherMenu) => {
+                if (otherMenu !== menu) {
+                    otherMenu.open = false;
+                }
+            });
+        });
+    });
+    logicalFeedFilter?.addEventListener("change", async () => {
+        await openLogicalFeed(logicalFeedFilter.value);
     });
     syncManualImportControls();
 
