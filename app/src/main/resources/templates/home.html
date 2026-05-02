@@ -178,6 +178,7 @@
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
             gap: 1rem;
+            align-items: stretch;
         }
 
         .feed-dashboard-card {
@@ -188,6 +189,9 @@
             border-radius: 18px;
             background: color-mix(in srgb, var(--panel) 90%, white);
             box-shadow: 0 10px 24px rgba(77, 56, 38, 0.06);
+            position: relative;
+            min-width: 0;
+            align-content: start;
         }
 
         .feed-dashboard-card h3,
@@ -247,11 +251,19 @@
         }
 
         .feed-dashboard-card-title {
-            display: inline-flex;
-            align-items: center;
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr);
+            align-items: start;
             gap: 0.55rem;
             min-height: 3.2rem;
             line-height: 1.35;
+            width: 100%;
+            min-width: 0;
+        }
+
+        .feed-dashboard-card-title span {
+            min-width: 0;
+            overflow-wrap: anywhere;
         }
 
         .feed-dashboard-card-menu summary {
@@ -2884,7 +2896,7 @@
             }
             const existing = reviewForLogicalFeed(logicalFeedId);
             if (existing) {
-                target.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-open-live-review=\"" + existing.id + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M8 2.5 14 5.5v5L8 13.5l-6-3v-5l6-3Zm0 1.1L3.2 6 8 8.4 12.8 6 8 3.6Zm-5 3.2v3l4.5 2.2v-3L3 6.8Zm5.5 5.2 4.5-2.2v-3L8.5 9v3Z\"/></svg><span>Open live review</span></button>";
+                target.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-open-live-review=\"" + existing.id + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M8 2.5 14 5.5v5L8 13.5l-6-3v-5l6-3Zm0 1.1L3.2 6 8 8.4 12.8 6 8 3.6Zm-5 3.2v3l4.5 2.2v-3L3 6.8Zm5.5 5.2 4.5-2.2v-3L8.5 9v3Z\"/></svg><span>Open survey</span></button>";
                 const openReviewButton = target.querySelector("[data-open-live-review]");
                 openReviewButton?.addEventListener("click", () => {
                     window.location.href = "/reviews/" + existing.id;
@@ -2911,7 +2923,15 @@
                 }
                 return;
             }
-            target.innerHTML = "";
+            if (adminTarget) {
+                target.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-open-create-review-card=\"" + logicalFeedId + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M7.5 2h1v5.5H14v1H8.5V14h-1V8.5H2v-1h5.5V2Z\"/></svg><span>Create survey</span></button>";
+                const createSurveyButton = target.querySelector("[data-open-create-review-card]");
+                createSurveyButton?.addEventListener("click", () => {
+                    openReviewCreateModal(logicalFeedId);
+                });
+            } else {
+                target.innerHTML = "";
+            }
             if (adminTarget) {
                 adminTarget.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-open-create-review=\"" + logicalFeedId + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M7.5 2h1v5.5H14v1H8.5V14h-1V8.5H2v-1h5.5V2Z\"/></svg><span>Create review</span></button>";
                 const createButton = adminTarget.querySelector("[data-open-create-review]");
