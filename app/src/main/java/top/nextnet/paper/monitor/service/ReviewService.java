@@ -61,6 +61,17 @@ public class ReviewService {
     }
 
     @Transactional
+    public void deleteReviewsForLogicalFeed(LogicalFeed logicalFeed) {
+        if (logicalFeed == null) {
+            return;
+        }
+        for (Review review : reviewRepository.findByLogicalFeed(logicalFeed)) {
+            reviewSubmissionRepository.deleteByReview(review);
+            review.delete();
+        }
+    }
+
+    @Transactional
     public Review createOrReplaceReview(AppUser owner, LogicalFeed logicalFeed, List<String> selectedStates, String templateId) {
         if (!logicalFeedAccessService.canRead(logicalFeed, owner)) {
             throw new ForbiddenException();

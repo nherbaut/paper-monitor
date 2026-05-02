@@ -69,6 +69,7 @@ import top.nextnet.paper.monitor.service.PaperEventService;
 import top.nextnet.paper.monitor.service.PaperGitSyncService;
 import top.nextnet.paper.monitor.service.PaperPdfImportService;
 import top.nextnet.paper.monitor.service.PaperStorageService;
+import top.nextnet.paper.monitor.service.ReviewService;
 import top.nextnet.paper.monitor.service.TtsService;
 import top.nextnet.paper.monitor.service.WorkflowStateConfig;
 
@@ -99,6 +100,7 @@ public class HomeResource {
     private final LogicalFeedAccessService logicalFeedAccessService;
     private final MarkdownConversionService markdownConversionService;
     private final NotificationService notificationService;
+    private final ReviewService reviewService;
     private final Instance<CurrentUserContext> currentUserContext;
     private final String baseUrl;
     private final String paperDataExtractorBaseUrl;
@@ -126,6 +128,7 @@ public class HomeResource {
             OidcService oidcService,
             LogicalFeedAccessService logicalFeedAccessService,
             MarkdownConversionService markdownConversionService,
+            ReviewService reviewService,
             NotificationService notificationService,
             Instance<CurrentUserContext> currentUserContext,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl,
@@ -153,6 +156,7 @@ public class HomeResource {
         this.oidcService = oidcService;
         this.logicalFeedAccessService = logicalFeedAccessService;
         this.markdownConversionService = markdownConversionService;
+        this.reviewService = reviewService;
         this.notificationService = notificationService;
         this.currentUserContext = currentUserContext;
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.trim();
@@ -995,6 +999,7 @@ public class HomeResource {
     public Response deleteLogicalFeed(@jakarta.ws.rs.PathParam("id") Long id) {
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
         if (logicalFeed != null) {
+            reviewService.deleteReviewsForLogicalFeed(logicalFeed);
             logicalFeed.delete();
         }
         return seeOther("/admin");
