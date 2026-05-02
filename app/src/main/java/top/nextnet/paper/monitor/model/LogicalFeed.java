@@ -75,6 +75,12 @@ public class LogicalFeed extends PanacheEntityBase {
     @Transient
     public boolean viewerCanAdmin;
 
+    @Transient
+    public long totalPaperCount;
+
+    @Transient
+    public long recentNewPaperCount;
+
     public List<String> workflowStateList() {
         return workflowConfig().leafStates();
     }

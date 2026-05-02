@@ -298,6 +298,7 @@ public class HomeResource {
                 .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
                 .toList();
         populatePaperCounts(logicalFeeds);
+        populateLogicalFeedDashboardStats(logicalFeeds);
         return home.data("recentPapers", List.of())
                 .data("initialPaperId", paperId)
                 .data("initialLogicalFeedId", logicalFeedId)
@@ -318,13 +319,16 @@ public class HomeResource {
     @Path("/api/papers/browser")
     @Transactional
     @Produces(MediaType.APPLICATION_JSON)
-    public List<Map<String, Object>> browserPapers() {
+    public List<Map<String, Object>> browserPapers(@QueryParam("logicalFeedId") Long logicalFeedId) {
         AppUser currentUser = currentUserContext.get().user();
         if (currentUser == null) {
             throw new NotFoundException();
         }
-        List<Paper> papers = new ArrayList<>(paperRepository.findAllForReader());
-        papers.removeIf((paper) -> !logicalFeedAccessService.canRead(paper.logicalFeed, currentUser));
+        if (logicalFeedId == null) {
+            return List.of();
+        }
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireReadableLogicalFeed(logicalFeedId, currentUser);
+        List<Paper> papers = new ArrayList<>(paperRepository.findAllForReader(logicalFeed));
         populatePaperBadges(papers);
         for (Paper paper : papers) {
             paper.viewerCanEdit = logicalFeedAccessService.canAdmin(paper.logicalFeed, currentUser);
@@ -351,6 +355,7 @@ public class HomeResource {
         List<LogicalFeed> logicalFeeds = List.of(paper.logicalFeed);
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
         populatePaperCounts(logicalFeeds);
+        populateLogicalFeedDashboardStats(logicalFeeds);
         populatePaperBadges(List.of(paper));
         paper.viewerCanEdit = logicalFeedAccessService.canAdmin(paper.logicalFeed, currentUser);
         List<LogicalFeed> adminLogicalFeeds = paper.viewerCanEdit ? logicalFeeds : List.of();
@@ -384,6 +389,7 @@ public class HomeResource {
         ensurePublicShareToken(logicalFeed);
         populateLogicalFeedAccessFlags(List.of(logicalFeed), currentUser);
         populatePaperCounts(List.of(logicalFeed));
+        populateLogicalFeedDashboardStats(List.of(logicalFeed));
         List<Paper> papers = new ArrayList<>(paperRepository.findAllForExport(logicalFeed));
         populatePaperBadges(papers);
         for (Paper paper : papers) {
@@ -1988,6 +1994,48 @@ public class HomeResource {
                         .mapToLong(Map.Entry::getValue)
                         .sum();
                 logicalFeed.paperCountsByState.put(state, count);
+            }
+            logicalFeed.totalPaperCount = logicalFeed.paperCountsByState.values().stream()
+                    .mapToLong(Long::longValue)
+                    .sum();
+        }
+    }
+
+    private void populateLogicalFeedDashboardStats(List<LogicalFeed> logicalFeeds) {
+        Map<Long, LogicalFeed> logicalFeedById = logicalFeeds.stream()
+                .collect(java.util.stream.Collectors.toMap((logicalFeed) -> logicalFeed.id, (logicalFeed) -> logicalFeed));
+        List<Paper> papers = paperRepository.findAllForLogicalFeedIds(new ArrayList<>(logicalFeedById.keySet()));
+        Instant newThreshold = Instant.now().minus(7, ChronoUnit.DAYS);
+        Map<Long, List<top.nextnet.paper.monitor.model.PaperEvent>> eventsByPaperId = paperEventRepository.findByPaperIds(
+                papers.stream().map((paper) -> paper.id).toList());
+        for (LogicalFeed logicalFeed : logicalFeeds) {
+            logicalFeed.recentNewPaperCount = 0L;
+        }
+        for (Paper paper : papers) {
+            if (paper.logicalFeed == null || paper.discoveredAt == null || paper.discoveredAt.isBefore(newThreshold)) {
+                continue;
+            }
+            if (!"NEW".equals(paper.topLevelStatus())) {
+                continue;
+            }
+            if (paper.feed == null || paper.feed.url == null
+                    || paper.feed.url.startsWith("upload://")
+                    || paper.feed.url.startsWith("doi://")) {
+                continue;
+            }
+            boolean userStateChanged = false;
+            for (top.nextnet.paper.monitor.model.PaperEvent event : eventsByPaperId.getOrDefault(paper.id, List.of())) {
+                if ("STATE_CHANGED".equals(event.type) && (event.details == null || !event.details.contains("(git)"))) {
+                    userStateChanged = true;
+                    break;
+                }
+            }
+            if (userStateChanged) {
+                continue;
+            }
+            LogicalFeed logicalFeed = logicalFeedById.get(paper.logicalFeed.id);
+            if (logicalFeed != null) {
+                logicalFeed.recentNewPaperCount += 1L;
             }
         }
     }

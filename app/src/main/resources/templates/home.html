@@ -174,6 +174,62 @@
             min-width: 0;
         }
 
+        .feed-dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .feed-dashboard-card {
+            display: grid;
+            gap: 0.9rem;
+            padding: 1.15rem;
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            background: color-mix(in srgb, var(--panel) 90%, white);
+            box-shadow: 0 10px 24px rgba(77, 56, 38, 0.06);
+        }
+
+        .feed-dashboard-card h3,
+        .feed-dashboard-card p {
+            margin: 0;
+        }
+
+        .feed-dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.65rem;
+        }
+
+        .feed-dashboard-stat {
+            padding: 0.75rem 0.8rem;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: color-mix(in srgb, var(--panel-quiet) 92%, white);
+        }
+
+        .feed-dashboard-stat strong,
+        .feed-dashboard-stat span {
+            display: block;
+        }
+
+        .feed-dashboard-stat strong {
+            font-size: 1.35rem;
+            line-height: 1.1;
+        }
+
+        .feed-dashboard-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+        }
+
+        .feed-dashboard-review {
+            min-height: 2.6rem;
+            display: flex;
+            align-items: center;
+        }
+
         .export-menu {
             position: relative;
         }
@@ -1501,7 +1557,7 @@
 <body>
 <div class="topbar">
     <div class="topbar-title">
-        <h1 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v2H2V2Zm0 4h12v10H2V6Zm1 1v8h10V7H3Zm2 1h6v1H5V8Zm0 3h6v1H5v-1Z"/></svg></span><span>Paper Monitor</span></h1>
+        <h1 class="title-with-icon"><a href="/" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 0.55rem;"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v2H2V2Zm0 4h12v10H2V6Zm1 1v8h10V7H3Zm2 1h6v1H5V8Zm0 3h6v1H5v-1Z"/></svg></span><span>Paper Monitor</span></a></h1>
     </div>
     <nav class="topbar-actions" aria-label="Primary">
         <details class="inline-menu topbar-menu">
@@ -1580,7 +1636,7 @@
             <div class="status-field">
                 <label class="meta" for="logical-feed-filter">Paper feed</label>
                 <select id="logical-feed-filter">
-                    <option value="">All paper feeds</option>
+                    <option value="">Select paper feed</option>
                     {#for logicalFeed in logicalFeeds}
                     <option value="{logicalFeed.id}"
                             data-feed-name="{logicalFeed.name}"
@@ -1658,8 +1714,45 @@
     </section>
     {/if}
 
+    {#if authenticated && !logicalFeeds.isEmpty}
     <section class="panel panel-wide">
-        <h2 id="paper-feed-heading" class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm2 3h8v2H4V7Zm-2 3h12v2H2v-2Z"/></svg></span><span>All paper feeds</span></h2>
+        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm1 3h10v6H3V7Zm1 1v4h8V8H4Z"/></svg></span><span>Your surveys</span></h2>
+        <p class="meta">Choose a paper feed to open its papers and review workspace.</p>
+        <div class="feed-dashboard" id="feed-dashboard">
+            {#for logicalFeed in logicalFeeds}
+            <article class="feed-dashboard-card"
+                     data-feed-card
+                     data-logical-feed-id="{logicalFeed.id}"
+                     data-logical-feed-name="{logicalFeed.name}"
+                     data-review-action-target="feed-review-action-{logicalFeed.id}">
+                <div>
+                    <h3>{logicalFeed.name}</h3>
+                    <p class="meta">{logicalFeed.paperCountsSummary}</p>
+                </div>
+                <div class="feed-dashboard-stats">
+                    <div class="feed-dashboard-stat">
+                        <span class="meta">Papers</span>
+                        <strong>{logicalFeed.totalPaperCount}</strong>
+                    </div>
+                    <div class="feed-dashboard-stat">
+                        <span class="meta">New papers</span>
+                        <strong>{logicalFeed.recentNewPaperCount}</strong>
+                    </div>
+                </div>
+                <div class="feed-dashboard-actions">
+                    <button class="secondary" type="button" data-open-feed="{logicalFeed.id}">Open paper feed</button>
+                    <div class="feed-dashboard-review" id="feed-review-action-{logicalFeed.id}">
+                        <span class="meta">Loading review…</span>
+                    </div>
+                </div>
+            </article>
+            {/for}
+        </div>
+    </section>
+    {/if}
+
+    <section class="panel panel-wide {#if authenticated && !shareMode && !initialLogicalFeedId}hidden{/if}" id="browser-reader-section">
+        <h2 id="paper-feed-heading" class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm2 3h8v2H4V7Zm-2 3h12v2H2v-2Z"/></svg></span><span>Paper feed reader</span></h2>
         <details class="mobile-state-menu {#if shareMode && !authenticated}share-anon-hidden{/if}" id="mobile-state-menu">
             <summary class="secondary" id="mobile-state-menu-summary">States</summary>
             <div class="stack" id="mobile-state-tabs"></div>
@@ -1881,6 +1974,8 @@
     const exportTabButton = document.getElementById("export-tab-button");
     const exportTabMenu = document.getElementById("export-tab-menu");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
+    const feedDashboard = document.getElementById("feed-dashboard");
+    const browserReaderSection = document.getElementById("browser-reader-section");
     const paperFeedHeading = document.getElementById("paper-feed-heading");
     const tagBrowser = document.getElementById("tag-browser");
     const tagBadgeList = document.getElementById("tag-badge-list");
@@ -1957,6 +2052,7 @@
     let selectedTagFilters = [];
     let reviewTemplates = [];
     let reviewSummaries = [];
+    let loadedLogicalFeedId = shareMode ? String(readerBootstrap?.dataset.initialLogicalFeedId || "") : "";
     const themeStorageKey = "paper-monitor.theme";
     const notesCollapsedStorageKey = "paper-monitor.notes-collapsed";
     const KEYBOARD_STATUS_TOAST_MS = 2200;
@@ -2650,6 +2746,36 @@
         return reviewSummaries.find((review) => String(review.logicalFeedId) === String(logicalFeedId)) || null;
     };
 
+    const renderFeedDashboardReviewActions = () => {
+        if (!feedDashboard) {
+            return;
+        }
+        feedDashboard.querySelectorAll("[data-feed-card]").forEach((card) => {
+            const logicalFeedId = card.dataset.logicalFeedId;
+            const targetId = card.dataset.reviewActionTarget;
+            const target = targetId ? document.getElementById(targetId) : null;
+            if (!target) {
+                return;
+            }
+            const existing = reviewForLogicalFeed(logicalFeedId);
+            if (existing) {
+                target.innerHTML = "<a class=\"secondary\" href=\"/reviews/" + existing.id + "\">Open live review</a>";
+                return;
+            }
+            target.innerHTML = "<button class=\"secondary\" type=\"button\" data-create-review-feed=\"" + logicalFeedId + "\">Create live review</button>";
+            const createButton = target.querySelector("[data-create-review-feed]");
+            createButton?.addEventListener("click", () => {
+                if (logicalFeedFilter) {
+                    logicalFeedFilter.value = logicalFeedId;
+                }
+                renderReviewLauncher();
+                if (reviewMenu) {
+                    reviewMenu.open = true;
+                }
+            });
+        });
+    };
+
     const selectedReviewStates = () => {
         return Array.from(reviewStateList?.querySelectorAll("input[name='review-selected-state']:checked") || [])
             .map((input) => input.value);
@@ -2726,6 +2852,7 @@
             }
         }
         renderReviewLauncher();
+        renderFeedDashboardReviewActions();
     };
 
     const renderTagBrowser = () => {
@@ -4889,24 +5016,61 @@
     });
 
     Array.from(logicalFeedFilter.options).forEach(refreshLogicalFeedOptionLabel);
-    logicalFeedFilter.addEventListener("change", applyLogicalFeedFilter);
-    logicalFeedFilter.addEventListener("change", () => {
+    const syncSelectedLogicalFeed = () => {
         selectedTagFilters = [];
         stateSearchVisibleLimit = 10;
         if (!doiImportLogicalFeed) {
             renderReviewLauncher();
-            return;
+            return logicalFeedFilter?.value || "";
         }
         const selectedFeedId = logicalFeedFilter.value;
         if (selectedFeedId && Array.from(doiImportLogicalFeed.options).some((option) => option.value === selectedFeedId)) {
             doiImportLogicalFeed.value = selectedFeedId;
         }
         renderReviewLauncher();
-    });
+        return selectedFeedId;
+    };
     if (doiImportLogicalFeed && logicalFeedFilter.value
             && Array.from(doiImportLogicalFeed.options).some((option) => option.value === logicalFeedFilter.value)) {
         doiImportLogicalFeed.value = logicalFeedFilter.value;
     }
+    feedDashboard?.querySelectorAll("[data-open-feed]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const logicalFeedId = button.dataset.openFeed;
+            if (!logicalFeedFilter || !logicalFeedId) {
+                return;
+            }
+            logicalFeedFilter.value = logicalFeedId;
+            logicalFeedFilter.dispatchEvent(new Event("change"));
+            browserReaderSection?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+    });
+    logicalFeedFilter.addEventListener("change", async () => {
+        const selectedFeedId = syncSelectedLogicalFeed();
+        if (!selectedFeedId && browserReaderSection && !shareMode) {
+            browserReaderSection.classList.add("hidden");
+            paperRecords = [];
+            papersLoaded = false;
+            closeViewer();
+            renderPaginatedPaperList();
+            return;
+        }
+        if (!shareMode && selectedFeedId && String(loadedLogicalFeedId) !== String(selectedFeedId)) {
+            try {
+                await loadBrowserPapers(selectedFeedId);
+                loadedLogicalFeedId = selectedFeedId;
+            } catch (error) {
+                papersLoaded = true;
+                paperRecords = [];
+                paperList.innerHTML = "<p class=\"meta\">" + escapeHtml(error.message || "Failed to load papers.") + "</p>";
+                paperList.appendChild(searchLoadMoreRow);
+            }
+        }
+        if (browserReaderSection && (!shareMode || selectedFeedId)) {
+            browserReaderSection.classList.remove("hidden");
+        }
+        applyLogicalFeedFilter();
+    });
     syncManualImportControls();
 
     if (manualImportDoi) {
@@ -5092,11 +5256,16 @@
         });
     }
 
-    const loadBrowserPapers = async () => {
+    const loadBrowserPapers = async (logicalFeedId) => {
         if (shareMode || !authenticated) {
             return;
         }
-        const response = await fetch("/api/papers/browser", {
+        if (!logicalFeedId) {
+            paperRecords = [];
+            papersLoaded = false;
+            return;
+        }
+        const response = await fetch("/api/papers/browser?logicalFeedId=" + encodeURIComponent(logicalFeedId), {
             headers: { Accept: "application/json" }
         });
         const body = await response.text();
@@ -5106,9 +5275,10 @@
         paperRecords = JSON.parse(body);
         papersLoaded = true;
         const firstRecord = paperRecords[0];
-        if (firstRecord?.logicalFeedName) {
-            window.localStorage.setItem(storageKey, firstRecord.logicalFeedName);
-            renderLastSeenLogicalFeed(firstRecord.logicalFeedName);
+        const feedName = firstRecord?.logicalFeedName || logicalFeedFilter?.selectedOptions?.[0]?.dataset?.feedName;
+        if (feedName) {
+            window.localStorage.setItem(storageKey, feedName);
+            renderLastSeenLogicalFeed(feedName);
         }
     };
 
@@ -5152,13 +5322,24 @@
     await loadReviewWorkspace();
     let browserPapersReady = shareMode;
     if (!shareMode) {
-        try {
-            await loadBrowserPapers();
-            browserPapersReady = true;
-        } catch (error) {
-            papersLoaded = true;
-            paperList.innerHTML = "<p class=\"meta\">" + escapeHtml(error.message || "Failed to load papers.") + "</p>";
-            paperList.appendChild(searchLoadMoreRow);
+        const requestedLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || logicalFeedFilter.value;
+        if (requestedLogicalFeedId) {
+            logicalFeedFilter.value = requestedLogicalFeedId;
+            syncSelectedLogicalFeed();
+            try {
+                await loadBrowserPapers(requestedLogicalFeedId);
+                loadedLogicalFeedId = requestedLogicalFeedId;
+                browserPapersReady = true;
+                browserReaderSection?.classList.remove("hidden");
+            } catch (error) {
+                papersLoaded = true;
+                paperList.innerHTML = "<p class=\"meta\">" + escapeHtml(error.message || "Failed to load papers.") + "</p>";
+                paperList.appendChild(searchLoadMoreRow);
+            }
+        } else {
+            paperRecords = [];
+            papersLoaded = false;
+            renderPaginatedPaperList();
         }
     }
     if (browserPapersReady) {
