@@ -30,6 +30,15 @@ public class ReviewSubmissionRepository implements PanacheRepository<ReviewSubmi
         return indexed;
     }
 
+    public List<ReviewSubmission> findByReview(Review review) {
+        return find("""
+                select submission from ReviewSubmission submission
+                join fetch submission.paper
+                where submission.review = ?1
+                order by submission.updatedAt desc, submission.id desc
+                """, review).list();
+    }
+
     public long deleteByReview(Review review) {
         return delete("review", review);
     }

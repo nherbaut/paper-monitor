@@ -1710,7 +1710,7 @@
                     </div>
                 </div>
                 <div class="feed-dashboard-actions">
-                    <button class="secondary" type="button" data-open-feed="{logicalFeed.id}">Open paper feed</button>
+                    <button class="secondary" type="button" data-open-feed="{logicalFeed.id}" data-open-feed-label>Open paper feed</button>
                     <div class="feed-dashboard-review" id="feed-review-action-{logicalFeed.id}">
                         <span class="meta">Loading review…</span>
                     </div>
@@ -2793,13 +2793,20 @@
             const logicalFeedId = card.dataset.logicalFeedId;
             const targetId = card.dataset.reviewActionTarget;
             const target = targetId ? document.getElementById(targetId) : null;
+            const openFeedButton = card.querySelector("[data-open-feed-label]");
             if (!target) {
                 return;
             }
             const existing = reviewForLogicalFeed(logicalFeedId);
             if (existing) {
+                if (openFeedButton) {
+                    openFeedButton.textContent = "Open live review";
+                }
                 target.innerHTML = "<a class=\"secondary\" href=\"/reviews/" + existing.id + "\">Open live review</a>";
                 return;
+            }
+            if (openFeedButton) {
+                openFeedButton.textContent = "Open paper feed";
             }
             target.innerHTML = "<button class=\"secondary\" type=\"button\" data-create-review-feed=\"" + logicalFeedId + "\">Create live review</button>";
             const createButton = target.querySelector("[data-create-review-feed]");
@@ -5075,6 +5082,11 @@
         button.addEventListener("click", () => {
             const logicalFeedId = button.dataset.openFeed;
             if (!logicalFeedFilter || !logicalFeedId) {
+                return;
+            }
+            const existingReview = reviewForLogicalFeed(logicalFeedId);
+            if (existingReview) {
+                window.location.href = "/reviews/" + existingReview.id;
                 return;
             }
             logicalFeedFilter.value = logicalFeedId;

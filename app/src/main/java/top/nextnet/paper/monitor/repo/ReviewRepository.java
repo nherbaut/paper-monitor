@@ -24,6 +24,15 @@ public class ReviewRepository implements PanacheRepository<Review> {
                 """, owner).list();
     }
 
+    public List<Review> findByLogicalFeed(LogicalFeed logicalFeed) {
+        return find("""
+                select review from Review review
+                join fetch review.owner
+                where review.logicalFeed = ?1
+                order by review.updatedAt desc, review.id desc
+                """, logicalFeed).list();
+    }
+
     public Optional<Review> findReadableById(Long id, AppUser owner) {
         return find("""
                 select review from Review review

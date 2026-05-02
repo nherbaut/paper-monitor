@@ -20,8 +20,12 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import top.nextnet.paper.monitor.model.Feed;
 import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.model.Paper;
+import top.nextnet.paper.monitor.model.Review;
+import top.nextnet.paper.monitor.model.ReviewSubmission;
 import top.nextnet.paper.monitor.repo.FeedRepository;
 import top.nextnet.paper.monitor.repo.PaperRepository;
+import top.nextnet.paper.monitor.repo.ReviewRepository;
+import top.nextnet.paper.monitor.repo.ReviewSubmissionRepository;
 
 @ApplicationScoped
 public class PaperGitSyncService {
@@ -38,6 +42,8 @@ public class PaperGitSyncService {
     private final PaperStorageService paperStorageService;
     private final PaperEventService paperEventService;
     private final DoiMetadataService doiMetadataService;
+    private final ReviewRepository reviewRepository;
+    private final ReviewSubmissionRepository reviewSubmissionRepository;
 
     public PaperGitSyncService(
             @ConfigProperty(name = "paper-monitor.git.root", defaultValue = "git-remotes") String gitRoot,
@@ -46,7 +52,9 @@ public class PaperGitSyncService {
             FeedRepository feedRepository,
             PaperStorageService paperStorageService,
             PaperEventService paperEventService,
-            DoiMetadataService doiMetadataService
+            DoiMetadataService doiMetadataService,
+            ReviewRepository reviewRepository,
+            ReviewSubmissionRepository reviewSubmissionRepository
     ) {
         this.gitRoot = Path.of(gitRoot).toAbsolutePath().normalize();
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
@@ -55,6 +63,8 @@ public class PaperGitSyncService {
         this.paperStorageService = paperStorageService;
         this.paperEventService = paperEventService;
         this.doiMetadataService = doiMetadataService;
+        this.reviewRepository = reviewRepository;
+        this.reviewSubmissionRepository = reviewSubmissionRepository;
     }
 
     public void syncLogicalFeeds(List<LogicalFeed> logicalFeeds) {
@@ -95,6 +105,7 @@ public class PaperGitSyncService {
             runGit(repoPath, "config", "http.uploadpack", "true");
             writeReadme(repoPath, logicalFeed);
             ensureStateDirectories(repoPath, logicalFeed);
+            Files.createDirectories(repoPath.resolve("reviews"));
             commitIfNeeded(repoPath, MANAGED_COMMIT_PREFIX + " Initialize logical feed mirror");
             logicalFeed.lastProcessedGitCommit = resolveHead(repoPath);
         }
@@ -295,6 +306,7 @@ public class PaperGitSyncService {
     private void exportWorkingTree(LogicalFeed logicalFeed, Path repoPath) throws IOException {
         ensureStateDirectories(repoPath, logicalFeed);
         clearManagedPdfFiles(repoPath, logicalFeed);
+        clearManagedReviewFiles(repoPath);
         writeReadme(repoPath, logicalFeed);
         for (String state : logicalFeed.workflowStateList()) {
             Path stateDirectory = repoPath.resolve(pathForState(state));
@@ -310,6 +322,7 @@ public class PaperGitSyncService {
                 Files.copy(source, stateDirectory.resolve(repoFileName(paper)), StandardCopyOption.REPLACE_EXISTING);
             }
         }
+        exportReviewSubmissions(logicalFeed, repoPath);
         commitIfNeeded(repoPath, MANAGED_COMMIT_PREFIX + " Sync logical feed " + logicalFeed.name);
     }
 
@@ -337,12 +350,42 @@ public class PaperGitSyncService {
         }
     }
 
+    private void clearManagedReviewFiles(Path repoPath) throws IOException {
+        Path reviewsDirectory = repoPath.resolve("reviews");
+        if (!Files.exists(reviewsDirectory)) {
+            return;
+        }
+        try (var stream = Files.walk(reviewsDirectory)) {
+            for (Path path : stream.sorted((left, right) -> right.getNameCount() - left.getNameCount()).toList()) {
+                if (path.equals(reviewsDirectory)) {
+                    continue;
+                }
+                Files.deleteIfExists(path);
+            }
+        }
+    }
+
+    private void exportReviewSubmissions(LogicalFeed logicalFeed, Path repoPath) throws IOException {
+        Path reviewsDirectory = repoPath.resolve("reviews");
+        Files.createDirectories(reviewsDirectory);
+        for (Review review : reviewRepository.findByLogicalFeed(logicalFeed)) {
+            Path reviewDirectory = reviewsDirectory.resolve(reviewDirectoryName(review));
+            Files.createDirectories(reviewDirectory);
+            for (ReviewSubmission submission : reviewSubmissionRepository.findByReview(review)) {
+                Files.writeString(
+                        reviewDirectory.resolve(reviewSubmissionFileName(submission)),
+                        JsonCodec.stringify(reviewSubmissionPayload(review, submission)));
+            }
+        }
+    }
+
     private void writeReadme(Path repoPath, LogicalFeed logicalFeed) throws IOException {
         String content = "# PDF mirror\n\n"
                 + "Logical feed: " + logicalFeed.name + "\n\n"
                 + "Each workflow leaf state is represented by a directory path in the repository.\n"
                 + "Managed PDF files use the pattern `paper-<id>--<name>.pdf`.\n"
                 + "Managed notes files use the pattern `paper-<id>--<name>.md`.\n"
+                + "Managed review submissions are exported under `reviews/review-<id>--<title>/paper-<id>--<title>.json`.\n"
                 + "Editing a managed notes file updates the paper notes in the application.\n"
                 + "Moving a managed PDF between state directories changes the paper state.\n"
                 + "Moving a managed notes file between state directories changes the paper state.\n"
@@ -497,6 +540,55 @@ public class PaperGitSyncService {
 
     private String repoNotesFileName(Paper paper) {
         return "paper-" + paper.id + "--" + repoSafeTitleBaseName(paper) + ".md";
+    }
+
+    private String reviewDirectoryName(Review review) {
+        return "review-" + review.id + "--" + sanitizeFileName(review.title);
+    }
+
+    private String reviewSubmissionFileName(ReviewSubmission submission) {
+        return "paper-" + submission.paper.id + "--" + repoSafeTitleBaseName(submission.paper) + ".json";
+    }
+
+    private Map<String, Object> reviewSubmissionPayload(Review review, ReviewSubmission submission) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("review_id", String.valueOf(review.id));
+        payload.put("review_title", review.title);
+        payload.put("review_template_id", review.templateId);
+        payload.put("review_template_title", review.templateTitle);
+        payload.put("paper_id", String.valueOf(submission.paper.id));
+        payload.put("paper_title", submission.paper.title);
+        payload.put("paper_status", submission.paper.status);
+        payload.put("logical_feed_id", String.valueOf(review.logicalFeed.id));
+        payload.put("logical_feed_name", review.logicalFeed.name);
+        payload.put("owner", review.owner == null ? null : review.owner.displayLabel());
+        payload.put("updated_at", submission.updatedAt == null ? null : submission.updatedAt.toString());
+        payload.put("values", submissionValues(submission));
+        payload.put("submission", submissionInstance(submission));
+        return payload;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> submissionInstance(ReviewSubmission submission) {
+        if (submission == null || submission.payloadJson == null || submission.payloadJson.isBlank()) {
+            return Map.of();
+        }
+        Object parsed = JsonCodec.parse(submission.payloadJson);
+        if (!(parsed instanceof Map<?, ?> map)) {
+            return Map.of();
+        }
+        Map<String, Object> copy = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : map.entrySet()) {
+            copy.put(String.valueOf(entry.getKey()), entry.getValue());
+        }
+        return copy;
+    }
+
+    private Map<String, Object> submissionValues(ReviewSubmission submission) {
+        Map<String, Object> payload = new LinkedHashMap<>(submissionInstance(submission));
+        payload.remove("paper_id");
+        payload.remove("taxonomy_id");
+        return payload;
     }
 
     private String repoSafeTitleBaseName(Paper paper) {

@@ -36,6 +36,7 @@ import top.nextnet.paper.monitor.service.JsonCodec;
 import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
 import top.nextnet.paper.monitor.service.MarkdownConversionService;
 import top.nextnet.paper.monitor.service.PaperDataExtractorService;
+import top.nextnet.paper.monitor.service.PaperGitSyncService;
 import top.nextnet.paper.monitor.service.ReviewReportService;
 import top.nextnet.paper.monitor.service.ReviewService;
 
@@ -51,6 +52,7 @@ public class ReviewResource {
     private final ReviewReportService reviewReportService;
     private final MarkdownConversionService markdownConversionService;
     private final PaperDataExtractorService paperDataExtractorService;
+    private final PaperGitSyncService paperGitSyncService;
 
     public ReviewResource(
             @Location("review") Template review,
@@ -60,7 +62,8 @@ public class ReviewResource {
             ReviewService reviewService,
             ReviewReportService reviewReportService,
             MarkdownConversionService markdownConversionService,
-            PaperDataExtractorService paperDataExtractorService
+            PaperDataExtractorService paperDataExtractorService,
+            PaperGitSyncService paperGitSyncService
     ) {
         this.review = review;
         this.reviewPaper = reviewPaper;
@@ -70,6 +73,7 @@ public class ReviewResource {
         this.reviewReportService = reviewReportService;
         this.markdownConversionService = markdownConversionService;
         this.paperDataExtractorService = paperDataExtractorService;
+        this.paperGitSyncService = paperGitSyncService;
     }
 
     @GET
@@ -203,7 +207,9 @@ public class ReviewResource {
     public Response deleteReview(@PathParam("id") Long id) {
         AppUser currentUser = requireCurrentUser();
         Review reviewEntity = reviewService.requireReview(id, currentUser);
+        LogicalFeed logicalFeed = reviewEntity.logicalFeed;
         reviewService.deleteReview(reviewEntity);
+        paperGitSyncService.syncLogicalFeed(logicalFeed);
         return Response.noContent().build();
     }
 
@@ -254,6 +260,7 @@ public class ReviewResource {
         Map<String, Object> values = objectMap(payload == null ? null : payload.get("values"));
         try {
             ReviewSubmission submission = reviewService.saveSubmission(reviewEntity, context.paper(), values);
+            paperGitSyncService.syncLogicalFeed(reviewEntity.logicalFeed);
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("saved", true);
             response.put("updatedAt", submission.updatedAt.toString());
@@ -279,6 +286,7 @@ public class ReviewResource {
         Review reviewEntity = reviewService.requireReview(id, currentUser);
         ReviewService.ReviewPaperContext context = reviewService.requireReviewPaper(reviewEntity, paperId);
         reviewService.resetSubmission(reviewEntity, context.paper());
+        paperGitSyncService.syncLogicalFeed(reviewEntity.logicalFeed);
         return Map.of("reset", true);
     }
 
