@@ -864,6 +864,7 @@ public class HomeResource {
     public Response exportTab(
             @jakarta.ws.rs.QueryParam("logicalFeedId") Long logicalFeedId,
             @jakarta.ws.rs.QueryParam("status") String status,
+            @jakarta.ws.rs.QueryParam("statuses") String statuses,
             @jakarta.ws.rs.QueryParam("tags") String tags,
             @DefaultValue("report") @jakarta.ws.rs.QueryParam("kind") String kind,
             @DefaultValue("md") @jakarta.ws.rs.QueryParam("format") String format
@@ -875,9 +876,9 @@ public class HomeResource {
         String normalizedKind = normalizeExportKind(kind);
         String normalizedFormat = normalizeExportFormat(format, normalizedKind);
         List<String> normalizedTags = normalizeExportTags(tags);
-        String normalizedStatus = normalizeNullableExportStatus(logicalFeed, status);
-        List<Paper> papers = selectPapersForExport(logicalFeed, normalizedStatus, normalizedTags);
-        String filterLabel = exportFilterLabel(normalizedStatus, normalizedTags);
+        List<String> normalizedStatuses = normalizeNullableExportStatuses(logicalFeed, statuses, status);
+        List<Paper> papers = selectPapersForExport(logicalFeed, normalizedStatuses, normalizedTags);
+        String filterLabel = exportFilterLabel(normalizedStatuses, normalizedTags);
         String baseFileName = slug(logicalFeed.name) + "-" + slug(filterLabel) + "-" + normalizedKind;
 
         try {
@@ -913,8 +914,8 @@ public class HomeResource {
                             "attachment; filename=\"" + baseFileName + "." + normalizedFormat + "\"")
                     .build();
         } catch (IOException e) {
-            Log.errorf(e, "Tab export failed for logicalFeedId=%d status=%s tags=%s kind=%s format=%s",
-                    logicalFeed.id, normalizedStatus, normalizedTags, normalizedKind, normalizedFormat);
+            Log.errorf(e, "Tab export failed for logicalFeedId=%d statuses=%s tags=%s kind=%s format=%s",
+                    logicalFeed.id, normalizedStatuses, normalizedTags, normalizedKind, normalizedFormat);
             return Response.status(Response.Status.BAD_GATEWAY)
                     .type(MediaType.TEXT_PLAIN)
                     .entity(e.getMessage())
@@ -1872,18 +1873,32 @@ public class HomeResource {
         return "\"" + text.replace("\"", "\"\"") + "\"";
     }
 
-    private String normalizeNullableExportStatus(LogicalFeed logicalFeed, String status) {
-        String normalized = normalize(status);
-        if (normalized == null) {
-            return null;
+    private List<String> normalizeNullableExportStatuses(LogicalFeed logicalFeed, String statuses, String fallbackStatus) {
+        String raw = normalize(statuses);
+        if (raw == null) {
+            String fallback = normalize(fallbackStatus);
+            if (fallback == null) {
+                return List.of();
+            }
+            raw = fallback;
         }
-        String normalizedStatus = normalizePaperStatus(normalized);
-        if (logicalFeed.workflowStateList().contains(normalizedStatus)
-                || logicalFeed.topLevelWorkflowStateList().contains(normalizedStatus)) {
-            return normalizedStatus;
+        List<String> normalizedStatuses = new ArrayList<>();
+        for (String part : raw.split(",")) {
+            String normalized = normalize(part);
+            if (normalized == null) {
+                continue;
+            }
+            String normalizedStatus = normalizePaperStatus(normalized);
+            if (!logicalFeed.workflowStateList().contains(normalizedStatus)
+                    && !logicalFeed.topLevelWorkflowStateList().contains(normalizedStatus)) {
+                throw new WebApplicationException("status must belong to the selected logical feed workflow",
+                        Response.Status.BAD_REQUEST);
+            }
+            if (!normalizedStatuses.contains(normalizedStatus)) {
+                normalizedStatuses.add(normalizedStatus);
+            }
         }
-        throw new WebApplicationException("status must belong to the selected logical feed workflow",
-                Response.Status.BAD_REQUEST);
+        return normalizedStatuses;
     }
 
     private List<String> normalizeExportTags(String tags) {
@@ -1903,7 +1918,7 @@ public class HomeResource {
                 .toList();
     }
 
-    private List<Paper> selectPapersForExport(LogicalFeed logicalFeed, String status, List<String> tags) {
+    private List<Paper> selectPapersForExport(LogicalFeed logicalFeed, List<String> statuses, List<String> tags) {
         List<Paper> papers = paperRepository.findAllForExport(logicalFeed);
         if (!tags.isEmpty()) {
             return papers.stream()
@@ -1912,12 +1927,12 @@ public class HomeResource {
                             .thenComparing(paper -> paper.discoveredAt, Comparator.reverseOrder()))
                     .toList();
         }
-        if (status == null) {
+        if (statuses == null || statuses.isEmpty()) {
             return papers;
         }
         return papers.stream()
                 .filter(paper -> paper.status != null
-                        && (paper.status.equals(status) || paper.status.startsWith(status + "/")))
+                        && statuses.stream().anyMatch((status) -> paper.status.equals(status) || paper.status.startsWith(status + "/")))
                 .toList();
     }
 
@@ -1930,11 +1945,17 @@ public class HomeResource {
         return tags.stream().allMatch(keys::contains);
     }
 
-    private String exportFilterLabel(String status, List<String> tags) {
+    private String exportFilterLabel(List<String> statuses, List<String> tags) {
         if (!tags.isEmpty()) {
             return "tags-" + String.join("-", tags);
         }
-        return status == null ? "all-papers" : status.toLowerCase();
+        if (statuses == null || statuses.isEmpty()) {
+            return "all-papers";
+        }
+        return statuses.stream()
+                .map(String::toLowerCase)
+                .sorted()
+                .collect(java.util.stream.Collectors.joining("-"));
     }
 
     private byte[] exportCurrentPapersArchive(LogicalFeed logicalFeed, String filterLabel, List<Paper> papers) throws IOException {
