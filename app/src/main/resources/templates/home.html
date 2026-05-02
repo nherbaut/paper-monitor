@@ -246,6 +246,12 @@
             flex: 1 1 auto;
         }
 
+        .feed-dashboard-card-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+        }
+
         .feed-dashboard-card-menu summary {
             padding: 0.55rem 0.75rem;
         }
@@ -254,6 +260,21 @@
             min-height: 0;
             display: flex;
             align-items: center;
+        }
+
+        .button-with-icon,
+        .meta-with-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+
+        .button-with-icon svg,
+        .meta-with-icon svg,
+        .feed-dashboard-card-title svg {
+            width: 0.95rem;
+            height: 0.95rem;
+            flex: 0 0 auto;
         }
 
         .export-menu {
@@ -1740,17 +1761,17 @@
                      data-logical-feed-name="{logicalFeed.name}"
                      data-review-action-target="feed-review-action-{logicalFeed.id}">
                 <div class="feed-dashboard-card-header">
-                    <h3>{logicalFeed.name}</h3>
+                    <h3 class="feed-dashboard-card-title"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 4h12v2H2V4Zm1 3h10v6H3V7Zm1 1v4h8V8H4Z"/></svg><span>{logicalFeed.name}</span></h3>
                     {#if logicalFeed.viewerCanAdmin}
                     <details class="inline-menu feed-dashboard-card-menu">
-                        <summary class="secondary" title="Feed actions">Manage</summary>
+                        <summary class="secondary button-with-icon" title="Feed actions"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 8a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 3 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 8 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 13 8Z"/></svg><span>Manage</span></summary>
                         <div class="inline-menu-panel">
-                            <button class="secondary" type="button" data-open-create-review="{logicalFeed.id}">Create review</button>
+                            <div data-card-review-admin="{logicalFeed.id}"></div>
                             <form action="/logical-feeds/{logicalFeed.id}/archive" method="post" onsubmit="return window.confirm('Archive this paper feed? It will disappear from the front page and RSS polling will stop.');">
-                                <button class="secondary" type="submit">Archive feed</button>
+                                <button class="secondary button-with-icon" type="submit"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.5 3h11v1h-11V3Zm1 2h9v8h-9V5Zm2 1v6h5V6h-5Z"/></svg><span>Archive feed</span></button>
                             </form>
                             <form action="/logical-feeds/{logicalFeed.id}/delete" method="post" onsubmit="return window.confirm('Delete this paper feed? This action cannot be undone.');">
-                                <button class="secondary" type="submit">Delete feed</button>
+                                <button class="secondary button-with-icon" type="submit"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5.5 2h5l.5 1.5H14V4.5H2V3.5h3L5.5 2Zm-1 3h7l-.5 8h-6L4.5 5Z"/></svg><span>Delete feed</span></button>
                             </form>
                         </div>
                     </details>
@@ -1758,16 +1779,16 @@
                 </div>
                 <div class="feed-dashboard-stats">
                     <div class="feed-dashboard-stat">
-                        <span class="meta">Papers</span>
+                        <span class="meta meta-with-icon"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 2.5h8.5L14 5v8.5H3v-11Zm1 1v9h9V5.41L11.09 3.5H4Zm2 2h4v1H6v-1Zm0 2.5h4v1H6V8Zm0 2.5h3v1H6v-1Z"/></svg><span>Papers</span></span>
                         <strong>{logicalFeed.totalPaperCount}</strong>
                     </div>
                     <div class="feed-dashboard-stat">
-                        <span class="meta">New papers</span>
+                        <span class="meta meta-with-icon"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 2 9.8 5.6 14 6.2l-3 2.9.7 4.1L8 11.3l-3.7 1.9.7-4.1-3-2.9 4.2-.6L8 2Z"/></svg><span>New papers</span></span>
                         <strong>{logicalFeed.recentNewPaperCount}</strong>
                     </div>
                 </div>
                 <div class="feed-dashboard-actions">
-                    <button class="secondary" type="button" data-open-feed="{logicalFeed.id}">Open paper feed</button>
+                    <button class="secondary button-with-icon" type="button" data-open-feed="{logicalFeed.id}"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 3h5l1 1h6v8.5A1.5 1.5 0 0 1 12.5 14h-9A1.5 1.5 0 0 1 2 12.5V3Z"/></svg><span>Open paper feed</span></button>
                     <div class="feed-dashboard-review" id="feed-review-action-{logicalFeed.id}"></div>
                 </div>
             </article>
@@ -2854,15 +2875,44 @@
             const logicalFeedId = card.dataset.logicalFeedId;
             const targetId = card.dataset.reviewActionTarget;
             const target = targetId ? document.getElementById(targetId) : null;
+            const adminTarget = card.querySelector("[data-card-review-admin]");
             if (!target) {
                 return;
             }
             const existing = reviewForLogicalFeed(logicalFeedId);
             if (existing) {
-                target.innerHTML = "<a class=\"secondary\" href=\"/reviews/" + existing.id + "\">Open live review</a>";
+                target.innerHTML = "<a class=\"secondary button-with-icon\" href=\"/reviews/" + existing.id + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M8 2.5 14 5.5v5L8 13.5l-6-3v-5l6-3Zm0 1.1L3.2 6 8 8.4 12.8 6 8 3.6Zm-5 3.2v3l4.5 2.2v-3L3 6.8Zm5.5 5.2 4.5-2.2v-3L8.5 9v3Z\"/></svg><span>Open live review</span></a>";
+                if (adminTarget) {
+                    adminTarget.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-delete-review-feed=\"" + logicalFeedId + "\" data-review-id=\"" + existing.id + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M5.5 2h5l.5 1.5H14V4.5H2V3.5h3L5.5 2Zm-1 3h7l-.5 8h-6L4.5 5Z\"/></svg><span>Delete review</span></button>";
+                    const deleteButton = adminTarget.querySelector("[data-delete-review-feed]");
+                    deleteButton?.addEventListener("click", async () => {
+                        deleteButton.closest("details")?.removeAttribute("open");
+                        if (!window.confirm("Delete this review?")) {
+                            return;
+                        }
+                        try {
+                            const response = await fetch("/api/reviews/" + existing.id, { method: "DELETE" });
+                            if (!response.ok) {
+                                const body = await response.text();
+                                throw new Error(body || "Failed to delete review.");
+                            }
+                            await loadReviewWorkspace();
+                        } catch (error) {
+                            window.alert(error.message || "Failed to delete review.");
+                        }
+                    });
+                }
                 return;
             }
             target.innerHTML = "";
+            if (adminTarget) {
+                adminTarget.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-open-create-review=\"" + logicalFeedId + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M7.5 2h1v5.5H14v1H8.5V14h-1V8.5H2v-1h5.5V2Z\"/></svg><span>Create review</span></button>";
+                const createButton = adminTarget.querySelector("[data-open-create-review]");
+                createButton?.addEventListener("click", () => {
+                    createButton.closest("details")?.removeAttribute("open");
+                    openReviewCreateModal(logicalFeedId);
+                });
+            }
         });
     };
 
@@ -5154,10 +5204,16 @@
             browserReaderSection?.scrollIntoView({ behavior: "smooth", block: "start" });
         });
     });
-    feedDashboard?.querySelectorAll("[data-open-create-review]").forEach((button) => {
-        button.addEventListener("click", () => {
-            button.closest("details")?.removeAttribute("open");
-            openReviewCreateModal(button.dataset.openCreateReview);
+    feedDashboard?.querySelectorAll(".feed-dashboard-card-menu").forEach((menu) => {
+        menu.addEventListener("toggle", () => {
+            if (!menu.open) {
+                return;
+            }
+            feedDashboard.querySelectorAll(".feed-dashboard-card-menu").forEach((otherMenu) => {
+                if (otherMenu !== menu) {
+                    otherMenu.open = false;
+                }
+            });
         });
     });
     logicalFeedFilter?.addEventListener("change", async () => {
