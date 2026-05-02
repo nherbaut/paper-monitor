@@ -98,6 +98,9 @@ public class FeedPollingService {
         if (feed == null || feed.url == null) {
             return false;
         }
+        if (feed.logicalFeed != null && feed.logicalFeed.archived) {
+            return false;
+        }
         return feed.url.startsWith("http://") || feed.url.startsWith("https://");
     }
 

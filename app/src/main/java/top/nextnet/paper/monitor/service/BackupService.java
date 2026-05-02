@@ -230,6 +230,7 @@ public class BackupService {
             item.put("lastProcessedGitCommit", logicalFeed.lastProcessedGitCommit);
             item.put("publicReadable", logicalFeed.publicReadable);
             item.put("notifyOnNewRssPapers", logicalFeed.notifyOnNewRssPapers);
+            item.put("archived", logicalFeed.archived);
             item.put("publicShareToken", logicalFeed.publicShareToken);
             item.put("ownerId", logicalFeed.owner == null ? null : logicalFeed.owner.id);
             logicalFeeds.add(item);
@@ -378,6 +379,7 @@ public class BackupService {
             logicalFeed.notifyOnNewRssPapers = item.containsKey("notifyOnNewRssPapers")
                     ? boolValue(item.get("notifyOnNewRssPapers"))
                     : true;
+            logicalFeed.archived = item.containsKey("archived") && boolValue(item.get("archived"));
             logicalFeed.publicShareToken = stringValue(item.get("publicShareToken"));
             logicalFeed.owner = usersByOldId.get(longValue(item.get("ownerId")));
             logicalFeedRepository.persist(logicalFeed);

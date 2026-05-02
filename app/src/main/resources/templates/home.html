@@ -224,6 +224,16 @@
             gap: 0.65rem;
         }
 
+        .feed-dashboard-admin {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.65rem;
+        }
+
+        .feed-dashboard-admin form {
+            margin: 0;
+        }
+
         .feed-dashboard-review {
             min-height: 2.6rem;
             display: flex;
@@ -385,6 +395,30 @@
             display: flex;
             flex-wrap: wrap;
             gap: 0.6rem;
+        }
+
+        .dashboard-tools {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .dashboard-tools-grid {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+        }
+
+        .dashboard-tool-card {
+            display: grid;
+            gap: 0.85rem;
+            padding: 1rem;
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: color-mix(in srgb, var(--panel-quiet) 94%, white);
+        }
+
+        .dashboard-tool-card > * {
+            margin: 0;
         }
 
         .inline-spinner {
@@ -1631,81 +1665,18 @@
     <p class="message error">{errorMessage}</p>
     {/if}
 
-    <section class="panel panel-wide status {#if shareMode && !authenticated}share-anon-hidden{/if}">
-        <div class="status-controls">
-            <div class="status-field">
-                <label class="meta" for="logical-feed-filter">Paper feed</label>
-                <select id="logical-feed-filter">
-                    <option value="">Select paper feed</option>
-                    {#for logicalFeed in logicalFeeds}
-                    <option value="{logicalFeed.id}"
-                            data-feed-name="{logicalFeed.name}"
-                            data-workflow-states="{logicalFeed.workflowStatesToken}"
-                            data-workflow-tree='{logicalFeed.workflowTreeJson}'
-                            data-state-counts="{logicalFeed.paperCountsToken}">{logicalFeed.readerLabel}</option>
-                    {/for}
-                </select>
-            </div>
-            {#if authenticated}
-            <details class="export-menu" id="review-menu">
-                <summary class="secondary title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Review</span></summary>
-                <div class="export-menu-panel review-panel">
-                    <p class="meta" id="review-menu-status">Select a paper feed to create or open its review.</p>
-                    <div class="stack hidden" id="review-existing-block">
-                        <p class="meta" id="review-existing-summary"></p>
-                        <div class="manual-import-actions">
-                            <a class="secondary" id="review-open-link" href="#">Go to review</a>
-                            <button class="secondary" id="review-delete-button" type="button">Delete review</button>
-                        </div>
-                    </div>
-                    <form class="stack hidden" id="review-create-form">
-                        <label class="meta" for="review-template-select">Review template</label>
-                        <select id="review-template-select" name="templateId" required>
-                            <option value="">Loading templates...</option>
-                        </select>
-                        <div>
-                            <p class="meta">States included in the live review scope</p>
-                            <div class="review-state-list" id="review-state-list"></div>
-                        </div>
-                        <a class="secondary" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Open PDE</a>
-                        <button class="secondary" id="review-create-button" type="submit">Create review</button>
-                    </form>
-                </div>
-            </details>
-            <details class="export-menu">
-                <summary class="secondary title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1 3 5v8h10V5L8 1Zm0 1.5L11.5 5H9v3H7V5H4.5L8 2.5ZM4 6h3v3h2V6h3v6H4V6Z"/></svg></span><span>Manual import</span></summary>
-                <div class="export-menu-panel manual-import-panel">
-                    <form action="/papers/import-doi" class="manual-import-form" enctype="multipart/form-data" id="manual-import-form" method="post">
-                        <select name="logicalFeedId" id="doi-import-logical-feed" required>
-                            <option value="">Select paper feed</option>
-                            {#for logicalFeed in adminLogicalFeeds}
-                            <option value="{logicalFeed.id}">{logicalFeed.name}</option>
-                            {/for}
-                        </select>
-                        <input type="text" id="manual-import-doi" name="doi" placeholder="10.1007/978-981-95-5015-9_14, 10.1145/1234567.1234568" required>
-                        <p class="meta">Enter one DOI, or paste several separated by commas, spaces, or new lines.</p>
-                        <div class="manual-import-actions">
-                            <button class="secondary" id="manual-import-fetch" type="button">Fetch metadata</button>
-                        </div>
-                        <p class="meta hidden" id="manual-import-status"></p>
-                        <section class="manual-import-preview hidden" id="manual-import-preview" aria-live="polite">
-                            <h3 id="manual-import-preview-title"></h3>
-                            <p class="meta" id="manual-import-preview-meta"></p>
-                            <p class="manual-import-preview-summary" id="manual-import-preview-summary"></p>
-                            <p class="meta" id="manual-import-preview-links"></p>
-                        </section>
-                        <section class="manual-import-dropzone hidden" id="manual-import-dropzone">
-                            <input class="hidden" id="manual-import-pdf" name="pdf" type="file" accept="application/pdf">
-                            <p class="meta" id="manual-import-file-label">Drop a PDF here, or select one from your device.</p>
-                            <button class="secondary" id="manual-import-file-button" type="button">Choose PDF</button>
-                        </section>
-                        <button class="secondary hidden" id="manual-import-submit" type="submit">Import paper</button>
-                    </form>
-                </div>
-            </details>
-            {/if}
-        </div>
-    </section>
+    <div class="hidden" aria-hidden="true">
+        <select id="logical-feed-filter" tabindex="-1">
+            <option value="">Select paper feed</option>
+            {#for logicalFeed in logicalFeeds}
+            <option value="{logicalFeed.id}"
+                    data-feed-name="{logicalFeed.name}"
+                    data-workflow-states="{logicalFeed.workflowStatesToken}"
+                    data-workflow-tree='{logicalFeed.workflowTreeJson}'
+                    data-state-counts="{logicalFeed.paperCountsToken}">{logicalFeed.readerLabel}</option>
+            {/for}
+        </select>
+    </div>
 
     {#if authenticated && logicalFeeds.isEmpty}
     <section class="panel panel-wide getting-started-callout">
@@ -1727,7 +1698,6 @@
                      data-review-action-target="feed-review-action-{logicalFeed.id}">
                 <div>
                     <h3>{logicalFeed.name}</h3>
-                    <p class="meta">{logicalFeed.paperCountsSummary}</p>
                 </div>
                 <div class="feed-dashboard-stats">
                     <div class="feed-dashboard-stat">
@@ -1745,8 +1715,76 @@
                         <span class="meta">Loading review…</span>
                     </div>
                 </div>
+                {#if logicalFeed.viewerCanAdmin}
+                <div class="feed-dashboard-admin">
+                    <form action="/logical-feeds/{logicalFeed.id}/archive" method="post" onsubmit="return window.confirm('Archive this paper feed? It will disappear from the front page and RSS polling will stop.');">
+                        <button class="secondary" type="submit">Archive feed</button>
+                    </form>
+                </div>
+                {/if}
             </article>
             {/for}
+        </div>
+    </section>
+    {/if}
+
+    {#if authenticated}
+    <section class="panel panel-wide dashboard-tools" id="dashboard-tools">
+        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Selected feed tools</span></h2>
+        <div class="dashboard-tools-grid">
+            <section class="dashboard-tool-card">
+                <p class="meta" id="review-menu-status">Select a paper feed to create or open its review.</p>
+                <div class="stack hidden" id="review-existing-block">
+                    <p class="meta" id="review-existing-summary"></p>
+                    <div class="manual-import-actions">
+                        <a class="secondary review-open-link" id="review-open-link" href="#">Open live review</a>
+                        <button class="secondary" id="review-delete-button" type="button">Delete review</button>
+                    </div>
+                </div>
+                <form class="stack hidden" id="review-create-form">
+                    <label class="meta" for="review-template-select">Review template</label>
+                    <select id="review-template-select" name="templateId" required>
+                        <option value="">Loading templates...</option>
+                    </select>
+                    <div>
+                        <p class="meta">States included in the live review scope</p>
+                        <div class="review-state-list" id="review-state-list"></div>
+                    </div>
+                    <div class="manual-import-actions">
+                        <a class="secondary" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Open PDE</a>
+                        <button class="secondary" id="review-create-button" type="submit">Create review</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="dashboard-tool-card">
+                <form action="/papers/import-doi" class="manual-import-form" enctype="multipart/form-data" id="manual-import-form" method="post">
+                    <select name="logicalFeedId" id="doi-import-logical-feed" required>
+                        <option value="">Select paper feed</option>
+                        {#for logicalFeed in adminLogicalFeeds}
+                        <option value="{logicalFeed.id}">{logicalFeed.name}</option>
+                        {/for}
+                    </select>
+                    <input type="text" id="manual-import-doi" name="doi" placeholder="10.1007/978-981-95-5015-9_14, 10.1145/1234567.1234568" required>
+                    <p class="meta">Enter one DOI, or paste several separated by commas, spaces, or new lines.</p>
+                    <div class="manual-import-actions">
+                        <button class="secondary" id="manual-import-fetch" type="button">Fetch metadata</button>
+                    </div>
+                    <p class="meta hidden" id="manual-import-status"></p>
+                    <section class="manual-import-preview hidden" id="manual-import-preview" aria-live="polite">
+                        <h3 id="manual-import-preview-title"></h3>
+                        <p class="meta" id="manual-import-preview-meta"></p>
+                        <p class="manual-import-preview-summary" id="manual-import-preview-summary"></p>
+                        <p class="meta" id="manual-import-preview-links"></p>
+                    </section>
+                    <section class="manual-import-dropzone hidden" id="manual-import-dropzone">
+                        <input class="hidden" id="manual-import-pdf" name="pdf" type="file" accept="application/pdf">
+                        <p class="meta" id="manual-import-file-label">Drop a PDF here, or select one from your device.</p>
+                        <button class="secondary" id="manual-import-file-button" type="button">Choose PDF</button>
+                    </section>
+                    <button class="secondary hidden" id="manual-import-submit" type="submit">Import paper</button>
+                </form>
+            </section>
         </div>
     </section>
     {/if}
@@ -1975,6 +2013,7 @@
     const exportTabMenu = document.getElementById("export-tab-menu");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
     const feedDashboard = document.getElementById("feed-dashboard");
+    const dashboardTools = document.getElementById("dashboard-tools");
     const browserReaderSection = document.getElementById("browser-reader-section");
     const paperFeedHeading = document.getElementById("paper-feed-heading");
     const tagBrowser = document.getElementById("tag-browser");
@@ -2052,7 +2091,6 @@
     let selectedTagFilters = [];
     let reviewTemplates = [];
     let reviewSummaries = [];
-    let loadedLogicalFeedId = shareMode ? String(readerBootstrap?.dataset.initialLogicalFeedId || "") : "";
     const themeStorageKey = "paper-monitor.theme";
     const notesCollapsedStorageKey = "paper-monitor.notes-collapsed";
     const KEYBOARD_STATUS_TOAST_MS = 2200;
@@ -2060,6 +2098,7 @@
     const initialLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || "";
     const authenticated = readerBootstrap?.dataset.authenticated === "true";
     const shareMode = readerBootstrap?.dataset.shareMode === "true";
+    let loadedLogicalFeedId = shareMode ? String(readerBootstrap?.dataset.initialLogicalFeedId || "") : "";
     let notesCollapsed = false;
     let pdfResizeObserver = null;
     let lastPdfFrameWidth = 0;
@@ -2769,9 +2808,7 @@
                     logicalFeedFilter.value = logicalFeedId;
                 }
                 renderReviewLauncher();
-                if (reviewMenu) {
-                    reviewMenu.open = true;
-                }
+                dashboardTools?.scrollIntoView({ behavior: "smooth", block: "start" });
             });
         });
     };
@@ -5015,7 +5052,7 @@
         applyTheme(nextTheme);
     });
 
-    Array.from(logicalFeedFilter.options).forEach(refreshLogicalFeedOptionLabel);
+    Array.from(logicalFeedFilter?.options || []).forEach(refreshLogicalFeedOptionLabel);
     const syncSelectedLogicalFeed = () => {
         selectedTagFilters = [];
         stateSearchVisibleLimit = 10;
@@ -5045,7 +5082,7 @@
             browserReaderSection?.scrollIntoView({ behavior: "smooth", block: "start" });
         });
     });
-    logicalFeedFilter.addEventListener("change", async () => {
+    logicalFeedFilter?.addEventListener("change", async () => {
         const selectedFeedId = syncSelectedLogicalFeed();
         if (!selectedFeedId && browserReaderSection && !shareMode) {
             browserReaderSection.classList.add("hidden");
@@ -5175,14 +5212,6 @@
             if (isBatch && manualImportPdf?.files?.length) {
                 event.preventDefault();
                 setManualImportStatus("Remove the PDF attachment before importing multiple DOIs.", true);
-            }
-        });
-    }
-
-    if (reviewMenu) {
-        reviewMenu.addEventListener("toggle", () => {
-            if (reviewMenu.open) {
-                renderReviewLauncher();
             }
         });
     }

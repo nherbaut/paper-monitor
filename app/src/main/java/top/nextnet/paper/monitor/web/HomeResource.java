@@ -291,7 +291,9 @@ public class HomeResource {
                     .data("infoMessage", normalize(info))
                     .data("errorMessage", normalize(error));
         }
-        List<LogicalFeed> logicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser);
+        List<LogicalFeed> logicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser).stream()
+                .filter((logicalFeed) -> !logicalFeed.archived)
+                .toList();
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
         paperGitSyncService.syncLogicalFeeds(logicalFeeds);
         List<LogicalFeed> adminLogicalFeeds = logicalFeeds.stream()
@@ -313,6 +315,15 @@ public class HomeResource {
                 .data("shareMode", false)
                 .data("sharedPaper", null)
                 .data("sharedPaperUrl", null);
+    }
+
+    @POST
+    @Path("/logical-feeds/{id}/archive")
+    @Transactional
+    public Response archiveLogicalFeed(@jakarta.ws.rs.PathParam("id") Long id) {
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
+        logicalFeed.archived = true;
+        return seeOther("/?info=" + urlEncode("Archived paper feed: " + logicalFeed.name));
     }
 
     @GET
