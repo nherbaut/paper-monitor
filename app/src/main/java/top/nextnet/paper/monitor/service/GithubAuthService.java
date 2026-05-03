@@ -110,6 +110,7 @@ public class GithubAuthService {
                 stringValue(userInfo.get("login")),
                 firstNonBlank(stringValue(userInfo.get("name")), stringValue(userInfo.get("login"))),
                 verifiedEmail.email());
+        authService.storeGithubAccessToken(user, accessToken);
         return new GithubLoginResult(user, sanitizeReturnTo(loginRequest.returnTo));
     }
 

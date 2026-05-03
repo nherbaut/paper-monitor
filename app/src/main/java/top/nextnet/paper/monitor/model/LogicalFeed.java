@@ -12,6 +12,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Transient;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +42,20 @@ public class LogicalFeed extends PanacheEntityBase {
     @Column(length = 64)
     public String lastProcessedGitCommit;
 
+    @Column(length = 255)
+    public String githubRepoOwner;
+
+    @Column(length = 255)
+    public String githubRepoName;
+
+    @Column(length = 255)
+    public String githubRepoBranch;
+
+    @Column(length = 64)
+    public String githubLastPushedCommit;
+
+    public Instant githubLastPushedAt;
+
     @Column(nullable = false)
     public boolean publicReadable;
 
@@ -56,6 +71,10 @@ public class LogicalFeed extends PanacheEntityBase {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn
     public AppUser owner;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn
+    public AppUser githubSyncUser;
 
     @OneToMany(mappedBy = "logicalFeed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     public List<Feed> feeds = new ArrayList<>();
@@ -74,6 +93,12 @@ public class LogicalFeed extends PanacheEntityBase {
 
     @Transient
     public String gitSyncError;
+
+    @Transient
+    public String githubRepoUrl;
+
+    @Transient
+    public String githubSyncError;
 
     @Transient
     public boolean viewerCanAdmin;
@@ -137,5 +162,10 @@ public class LogicalFeed extends PanacheEntityBase {
 
     public boolean isOwnedBy(AppUser user) {
         return user != null && owner != null && owner.id != null && owner.id.equals(user.id);
+    }
+
+    public boolean hasGithubRepo() {
+        return githubRepoOwner != null && !githubRepoOwner.isBlank()
+                && githubRepoName != null && !githubRepoName.isBlank();
     }
 }

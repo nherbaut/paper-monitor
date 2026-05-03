@@ -230,6 +230,12 @@ public class BackupService {
             item.put("workflowStates", logicalFeed.workflowStates);
             item.put("gitRepoToken", logicalFeed.gitRepoToken);
             item.put("lastProcessedGitCommit", logicalFeed.lastProcessedGitCommit);
+            item.put("githubRepoOwner", logicalFeed.githubRepoOwner);
+            item.put("githubRepoName", logicalFeed.githubRepoName);
+            item.put("githubRepoBranch", logicalFeed.githubRepoBranch);
+            item.put("githubLastPushedCommit", logicalFeed.githubLastPushedCommit);
+            item.put("githubLastPushedAt", logicalFeed.githubLastPushedAt == null ? null : logicalFeed.githubLastPushedAt.toString());
+            item.put("githubSyncUserId", logicalFeed.githubSyncUser == null ? null : logicalFeed.githubSyncUser.id);
             item.put("publicReadable", logicalFeed.publicReadable);
             item.put("notifyOnNewRssPapers", logicalFeed.notifyOnNewRssPapers);
             item.put("archived", logicalFeed.archived);
@@ -379,6 +385,11 @@ public class BackupService {
             logicalFeed.workflowStates = stringValue(item.get("workflowStates"));
             logicalFeed.gitRepoToken = stringValue(item.get("gitRepoToken"));
             logicalFeed.lastProcessedGitCommit = stringValue(item.get("lastProcessedGitCommit"));
+            logicalFeed.githubRepoOwner = stringValue(item.get("githubRepoOwner"));
+            logicalFeed.githubRepoName = stringValue(item.get("githubRepoName"));
+            logicalFeed.githubRepoBranch = stringValue(item.get("githubRepoBranch"));
+            logicalFeed.githubLastPushedCommit = stringValue(item.get("githubLastPushedCommit"));
+            logicalFeed.githubLastPushedAt = instantValue(item.get("githubLastPushedAt"));
             logicalFeed.publicReadable = boolValue(item.get("publicReadable"));
             logicalFeed.notifyOnNewRssPapers = item.containsKey("notifyOnNewRssPapers")
                     ? boolValue(item.get("notifyOnNewRssPapers"))
@@ -386,6 +397,7 @@ public class BackupService {
             logicalFeed.archived = item.containsKey("archived") && boolValue(item.get("archived"));
             logicalFeed.publicShareToken = stringValue(item.get("publicShareToken"));
             logicalFeed.owner = usersByOldId.get(longValue(item.get("ownerId")));
+            logicalFeed.githubSyncUser = usersByOldId.get(longValue(item.get("githubSyncUserId")));
             logicalFeedRepository.persist(logicalFeed);
             logicalFeedsByOldId.put(longValue(item.get("id")), logicalFeed);
         }

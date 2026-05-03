@@ -61,6 +61,7 @@ import top.nextnet.paper.monitor.service.CurrentUserContext;
 import top.nextnet.paper.monitor.service.DoiMetadataService;
 import top.nextnet.paper.monitor.service.FeedPollingService;
 import top.nextnet.paper.monitor.service.GithubAuthService;
+import top.nextnet.paper.monitor.service.GithubRepositoryService;
 import top.nextnet.paper.monitor.service.JsonCodec;
 import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
 import top.nextnet.paper.monitor.service.MarkdownConversionService;
@@ -99,6 +100,7 @@ public class HomeResource {
     private final AuthService authService;
     private final OidcService oidcService;
     private final GithubAuthService githubAuthService;
+    private final GithubRepositoryService githubRepositoryService;
     private final LogicalFeedAccessService logicalFeedAccessService;
     private final MarkdownConversionService markdownConversionService;
     private final NotificationService notificationService;
@@ -129,6 +131,7 @@ public class HomeResource {
             AuthService authService,
             OidcService oidcService,
             GithubAuthService githubAuthService,
+            GithubRepositoryService githubRepositoryService,
             LogicalFeedAccessService logicalFeedAccessService,
             MarkdownConversionService markdownConversionService,
             ReviewService reviewService,
@@ -158,6 +161,7 @@ public class HomeResource {
         this.authService = authService;
         this.oidcService = oidcService;
         this.githubAuthService = githubAuthService;
+        this.githubRepositoryService = githubRepositoryService;
         this.logicalFeedAccessService = logicalFeedAccessService;
         this.markdownConversionService = markdownConversionService;
         this.reviewService = reviewService;
@@ -501,7 +505,8 @@ public class HomeResource {
                 .data("canAdmin", currentUserContext.get().isAdmin())
                 .data("allUsers", authService.allUsers())
                 .data("userManagementUsers", currentUserContext.get().isAdmin() ? authService.allUsers() : List.of(currentUser))
-                .data("oidcEnabled", oidcService.isEnabled());
+                .data("oidcEnabled", oidcService.isEnabled())
+                .data("githubEnabled", githubAuthService.isEnabled());
     }
 
     @GET
@@ -1034,6 +1039,32 @@ public class HomeResource {
             return seeOther("/admin");
         } catch (WebApplicationException e) {
             return rethrowOrPlainText(e);
+        }
+    }
+
+    @POST
+    @Path("/logical-feeds/{id}/github/create")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response createLogicalFeedGithubRepository(
+            @jakarta.ws.rs.PathParam("id") Long id,
+            @RestForm("repoName") String repoName,
+            @RestForm("branch") String branch,
+            @RestForm("privateRepo") String privateRepo
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, currentUser);
+        try {
+            githubRepositoryService.createRepositoryForLogicalFeed(
+                    currentUser,
+                    logicalFeed,
+                    repoName,
+                    privateRepo != null,
+                    branch);
+            paperGitSyncService.syncLogicalFeed(logicalFeed);
+            return seeOther("/admin?info=" + urlEncode("Created GitHub repository for paper feed: " + logicalFeed.name) + "#feeds");
+        } catch (IllegalArgumentException | IOException e) {
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#feeds");
         }
     }
 

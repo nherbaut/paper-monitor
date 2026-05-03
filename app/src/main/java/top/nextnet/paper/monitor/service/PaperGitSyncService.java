@@ -44,6 +44,7 @@ public class PaperGitSyncService {
     private final DoiMetadataService doiMetadataService;
     private final ReviewRepository reviewRepository;
     private final ReviewSubmissionRepository reviewSubmissionRepository;
+    private final GithubRepositoryService githubRepositoryService;
 
     public PaperGitSyncService(
             @ConfigProperty(name = "paper-monitor.git.root", defaultValue = "git-remotes") String gitRoot,
@@ -54,7 +55,8 @@ public class PaperGitSyncService {
             PaperEventService paperEventService,
             DoiMetadataService doiMetadataService,
             ReviewRepository reviewRepository,
-            ReviewSubmissionRepository reviewSubmissionRepository
+            ReviewSubmissionRepository reviewSubmissionRepository,
+            GithubRepositoryService githubRepositoryService
     ) {
         this.gitRoot = Path.of(gitRoot).toAbsolutePath().normalize();
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
@@ -65,6 +67,7 @@ public class PaperGitSyncService {
         this.doiMetadataService = doiMetadataService;
         this.reviewRepository = reviewRepository;
         this.reviewSubmissionRepository = reviewSubmissionRepository;
+        this.githubRepositoryService = githubRepositoryService;
     }
 
     public void syncLogicalFeeds(List<LogicalFeed> logicalFeeds) {
@@ -88,6 +91,7 @@ public class PaperGitSyncService {
             importCommittedChanges(logicalFeed, repoPath);
             exportWorkingTree(logicalFeed, repoPath);
             logicalFeed.gitRepoUrl = repoUrl(logicalFeed.gitRepoToken);
+            logicalFeed.githubRepoUrl = githubRepositoryService.repoWebUrl(logicalFeed);
         } catch (IOException e) {
             logicalFeed.gitSyncError = "Git mirror sync failed: " + e.getMessage();
             Log.errorf(e, "Failed to sync git export for %s", logicalFeed.name);
@@ -324,6 +328,7 @@ public class PaperGitSyncService {
         }
         exportReviewSubmissions(logicalFeed, repoPath);
         commitIfNeeded(repoPath, MANAGED_COMMIT_PREFIX + " Sync logical feed " + logicalFeed.name);
+        githubRepositoryService.pushIfConfigured(logicalFeed, repoPath, resolveHead(repoPath));
     }
 
     private void ensureStateDirectories(Path repoPath, LogicalFeed logicalFeed) throws IOException {

@@ -326,6 +326,16 @@ public class AuthService {
         });
     }
 
+    @Transactional
+    public void storeGithubAccessToken(AppUser user, String accessToken) {
+        if (user == null || accessToken == null || accessToken.isBlank()) {
+            return;
+        }
+        UserSettings settings = ensureSettings(user);
+        settings.githubAccessToken = accessToken.trim();
+        settings.githubAccessTokenUpdatedAt = Instant.now();
+    }
+
     public NewCookie loginCookie(String token) {
         return new NewCookie.Builder(sessionCookieName)
                 .value(token)

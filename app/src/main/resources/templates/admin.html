@@ -399,6 +399,9 @@
                         {#if logicalFeed.gitRepoUrl}
                         <br><span class="meta">Git: <a href="{logicalFeed.gitRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.gitRepoUrl}</a></span>
                         {/if}
+                        {#if logicalFeed.githubRepoUrl}
+                        <br><span class="meta">GitHub: <a href="{logicalFeed.githubRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.githubRepoOwner}/{logicalFeed.githubRepoName}</a> ({logicalFeed.githubRepoBranch ?: 'main'})</span>
+                        {/if}
                         {#if logicalFeed.publicReadable && logicalFeed.publicUrl}
                         <br><span class="meta">Public: <a href="{logicalFeed.publicUrl}" target="_blank" rel="noreferrer">{logicalFeed.publicUrl}</a></span>
                         {/if}
@@ -441,6 +444,20 @@
                                 </select>
                                 <button type="submit">Grant access</button>
                             </form>
+                            {#if logicalFeed.githubRepoUrl}
+                            <p class="meta">GitHub sync target: <a href="{logicalFeed.githubRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.githubRepoOwner}/{logicalFeed.githubRepoName}</a><br>Branch: {logicalFeed.githubRepoBranch ?: 'main'}</p>
+                            {#else if githubEnabled && currentUser.githubLogin && ttsSettings.hasGithubAccessToken}
+                            <form action="/logical-feeds/{logicalFeed.id}/github/create" method="post">
+                                <input type="text" name="repoName" value="paper-monitor-{logicalFeed.name}" required>
+                                <div class="two-columns">
+                                    <input type="text" name="branch" value="main" placeholder="Branch name">
+                                    <label><input type="checkbox" name="privateRepo" checked> Private repo</label>
+                                </div>
+                                <button type="submit">Create GitHub repo under @{currentUser.githubLogin}</button>
+                            </form>
+                            {#else if githubEnabled}
+                            <p class="meta">Sign in with GitHub first to create a repository for this paper feed.</p>
+                            {/if}
                             {#for grant in logicalFeed.accessGrants}
                             <form action="/logical-feeds/{logicalFeed.id}/share/{grant.user.id}/delete" method="post">
                                 <button class="secondary" type="submit">Revoke {grant.user.displayLabel}</button>

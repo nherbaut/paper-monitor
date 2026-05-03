@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
+import java.time.Instant;
 
 @Entity
 public class UserSettings extends PanacheEntityBase {
@@ -25,6 +26,11 @@ public class UserSettings extends PanacheEntityBase {
     public String voice;
 
     public Double speedMultiplier;
+
+    @Column(length = 2048)
+    public String githubAccessToken;
+
+    public Instant githubAccessTokenUpdatedAt;
 
     public double effectiveSpeedMultiplier() {
         if (speedMultiplier == null || speedMultiplier <= 0) {
@@ -47,5 +53,9 @@ public class UserSettings extends PanacheEntityBase {
 
     public boolean speed15Selected() {
         return Double.compare(effectiveSpeedMultiplier(), 1.5d) == 0;
+    }
+
+    public boolean hasGithubAccessToken() {
+        return githubAccessToken != null && !githubAccessToken.isBlank();
     }
 }
