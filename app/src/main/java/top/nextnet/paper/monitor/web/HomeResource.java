@@ -60,6 +60,7 @@ import top.nextnet.paper.monitor.service.BackupService;
 import top.nextnet.paper.monitor.service.CurrentUserContext;
 import top.nextnet.paper.monitor.service.DoiMetadataService;
 import top.nextnet.paper.monitor.service.FeedPollingService;
+import top.nextnet.paper.monitor.service.GithubAuthService;
 import top.nextnet.paper.monitor.service.JsonCodec;
 import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
 import top.nextnet.paper.monitor.service.MarkdownConversionService;
@@ -97,6 +98,7 @@ public class HomeResource {
     private final BackupService backupService;
     private final AuthService authService;
     private final OidcService oidcService;
+    private final GithubAuthService githubAuthService;
     private final LogicalFeedAccessService logicalFeedAccessService;
     private final MarkdownConversionService markdownConversionService;
     private final NotificationService notificationService;
@@ -126,6 +128,7 @@ public class HomeResource {
             BackupService backupService,
             AuthService authService,
             OidcService oidcService,
+            GithubAuthService githubAuthService,
             LogicalFeedAccessService logicalFeedAccessService,
             MarkdownConversionService markdownConversionService,
             ReviewService reviewService,
@@ -154,6 +157,7 @@ public class HomeResource {
         this.backupService = backupService;
         this.authService = authService;
         this.oidcService = oidcService;
+        this.githubAuthService = githubAuthService;
         this.logicalFeedAccessService = logicalFeedAccessService;
         this.markdownConversionService = markdownConversionService;
         this.reviewService = reviewService;
@@ -173,6 +177,7 @@ public class HomeResource {
     ) {
         return login.data("returnTo", safeReturnTo(returnTo))
                 .data("oidcEnabled", oidcService.isEnabled())
+                .data("githubEnabled", githubAuthService.isEnabled())
                 .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0)
                 .data("infoMessage", normalize(info))
                 .data("errorMessage", normalize(error));
@@ -266,6 +271,43 @@ public class HomeResource {
     }
 
     @GET
+    @Path("/auth/github/start")
+    @Transactional
+    public Response startGithubLogin(@QueryParam("returnTo") String returnTo) {
+        try {
+            return Response.status(Response.Status.SEE_OTHER)
+                    .header(HttpHeaders.LOCATION, githubAuthService.startLogin(returnTo).toString())
+                    .build();
+        } catch (IOException e) {
+            return Response.status(Response.Status.SERVICE_UNAVAILABLE)
+                    .type(MediaType.TEXT_PLAIN)
+                    .entity(e.getMessage())
+                    .build();
+        }
+    }
+
+    @GET
+    @Path("/auth/github/callback")
+    @Transactional
+    public Response finishGithubLogin(
+            @QueryParam("state") String state,
+            @QueryParam("code") String code
+    ) {
+        try {
+            GithubAuthService.GithubLoginResult loginResult = githubAuthService.finishLogin(state, code);
+            if (!loginResult.user().isApproved()) {
+                return seeOther("/login?info=" + urlEncode("GitHub sign-in succeeded. Your account now awaits admin approval."));
+            }
+            return loginResponse(loginResult.user(), loginResult.returnTo());
+        } catch (IOException | IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_GATEWAY)
+                    .type(MediaType.TEXT_PLAIN)
+                    .entity(e.getMessage())
+                    .build();
+        }
+    }
+
+    @GET
     @Path("/logout")
     @Transactional
     public Response logout() {
@@ -291,6 +333,7 @@ public class HomeResource {
         if (currentUser == null) {
             return login.data("returnTo", "/")
                     .data("oidcEnabled", oidcService.isEnabled())
+                    .data("githubEnabled", githubAuthService.isEnabled())
                     .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0)
                     .data("infoMessage", normalize(info))
                     .data("errorMessage", normalize(error));

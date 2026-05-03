@@ -246,6 +246,55 @@ public class AuthService {
     }
 
     @Transactional
+    public AppUser upsertGithubUser(String githubUserId, String githubLogin, String displayName, String email) {
+        String normalizedGithubUserId = normalizeRequired(githubUserId, "GitHub user id is required");
+        String normalizedGithubLogin = fallback(normalize(githubLogin), "github-" + normalizedGithubUserId);
+        String normalizedEmail = normalize(email);
+
+        AppUser user = appUserRepository.findByGithubUserId(normalizedGithubUserId).orElse(null);
+        boolean created = false;
+        if (user == null && normalizedEmail != null) {
+            user = appUserRepository.findByEmail(normalizedEmail).orElse(null);
+        }
+        if (user == null) {
+            user = new AppUser();
+            user.authProvider = "GITHUB";
+            user.username = uniqueUsername(normalizedGithubLogin);
+            user.displayName = fallback(normalize(displayName), normalizedGithubLogin);
+            user.email = normalizedEmail;
+            user.admin = false;
+            user.approved = false;
+            created = true;
+        }
+
+        if (user.githubUserId != null && !normalizedGithubUserId.equals(user.githubUserId)) {
+            throw new IllegalArgumentException("This account is already linked to a different GitHub identity");
+        }
+        user.githubUserId = normalizedGithubUserId;
+        user.githubLogin = normalizedGithubLogin;
+        if (user.displayName == null || user.displayName.isBlank()) {
+            user.displayName = fallback(normalize(displayName), normalizedGithubLogin);
+        }
+        if (user.email == null || user.email.isBlank()) {
+            user.email = normalizedEmail;
+        }
+        user.emailVerified = true;
+        if (user.emailVerifiedAt == null) {
+            user.emailVerifiedAt = Instant.now();
+        }
+        user.emailVerificationToken = null;
+        user.lastLoginAt = Instant.now();
+        if (created) {
+            appUserRepository.persist(user);
+        }
+        ensureSettings(user);
+        if (created) {
+            notificationService.sendPendingSignupNotification(appUserRepository.findAdminUsersWithEmail(), user, adminUsersUrl());
+        }
+        return user;
+    }
+
+    @Transactional
     public UserSession createSession(AppUser user) {
         userSessionRepository.deleteExpired();
         UserSession session = new UserSession();
@@ -393,6 +442,17 @@ public class AuthService {
 
     private String fallback(String first, String second) {
         return first == null || first.isBlank() ? second : first;
+    }
+
+    private String uniqueUsername(String base) {
+        String normalizedBase = fallback(normalize(base), "github-user").toLowerCase();
+        String candidate = normalizedBase;
+        int suffix = 2;
+        while (appUserRepository.findByUsername(candidate).isPresent()) {
+            candidate = normalizedBase + "-" + suffix;
+            suffix += 1;
+        }
+        return candidate;
     }
 
     private String verificationUrl(String token) {

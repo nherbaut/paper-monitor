@@ -17,8 +17,16 @@ public class AppUserRepository implements PanacheRepository<AppUser> {
         return find("oidcIssuer = ?1 and oidcSubject = ?2", issuer, subject).firstResultOptional();
     }
 
+    public Optional<AppUser> findByGithubUserId(String githubUserId) {
+        return find("githubUserId", githubUserId).firstResultOptional();
+    }
+
     public Optional<AppUser> findByEmail(String email) {
         return find("lower(email) = ?1", email.toLowerCase()).firstResultOptional();
+    }
+
+    public Optional<AppUser> findByUsername(String username) {
+        return find("lower(username) = ?1", username.toLowerCase()).firstResultOptional();
     }
 
     public Optional<AppUser> findByEmailVerificationToken(String token) {

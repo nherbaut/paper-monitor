@@ -86,7 +86,7 @@
 <main>
     <section class="panel">
         <h1>Sign in to Paper Monitor</h1>
-        <p class="meta">Use a local account or delegate authentication to your OIDC provider.</p>
+        <p class="meta">Use a local account, GitHub, or delegate authentication to your OIDC provider.</p>
         {#if infoMessage}
         <p class="message">{infoMessage}</p>
         {/if}
@@ -102,6 +102,12 @@
             <input type="password" name="password" placeholder="Password" required>
             <button type="submit">Sign in with local account</button>
         </form>
+        {#if githubEnabled}
+        <form action="/auth/github/start" method="get">
+            <input type="hidden" name="returnTo" value="{returnTo}">
+            <button class="secondary" type="submit">Sign in with GitHub</button>
+        </form>
+        {/if}
         {#if oidcEnabled}
         <form action="/auth/oidc/start" method="get">
             <input type="hidden" name="returnTo" value="{returnTo}">
@@ -110,7 +116,7 @@
         {/if}
         {#if !bootstrapLocalAdmin}
         <p class="divider">New account</p>
-        <p class="meta">Local signup requires email verification and admin approval before access is enabled.</p>
+        <p class="meta">Local signup requires email verification and admin approval. GitHub sign-in also needs admin approval the first time.</p>
         <form action="/signup/local" method="post">
             <input type="text" name="username" placeholder="Username" required>
             <input type="text" name="displayName" placeholder="Display name">

@@ -18,7 +18,8 @@ import java.util.List;
 
 @Entity
 @Table(uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"oidcIssuer", "oidcSubject"})
+        @UniqueConstraint(columnNames = {"oidcIssuer", "oidcSubject"}),
+        @UniqueConstraint(columnNames = {"githubUserId"})
 })
 public class AppUser extends PanacheEntityBase {
 
@@ -43,6 +44,12 @@ public class AppUser extends PanacheEntityBase {
 
     @Column(length = 255)
     public String oidcSubject;
+
+    @Column(length = 255)
+    public String githubUserId;
+
+    @Column(length = 255)
+    public String githubLogin;
 
     @Column(length = 255)
     public String passwordSalt;
@@ -94,6 +101,14 @@ public class AppUser extends PanacheEntityBase {
 
     public boolean isEmailVerified() {
         return emailVerified;
+    }
+
+    public boolean isGithubAccount() {
+        return "GITHUB".equals(authProvider);
+    }
+
+    public boolean hasGithubLogin() {
+        return githubUserId != null && !githubUserId.isBlank();
     }
 
     public boolean isApproved() {

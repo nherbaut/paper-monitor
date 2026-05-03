@@ -589,7 +589,7 @@
             <label><input type="checkbox" name="admin"> Paper admin</label>
             <button type="submit">Create local user</button>
         </form>
-        <p class="meta">Self-registered users stay blocked until their email is verified and a paper admin approves them here.</p>
+        <p class="meta">Self-registered local users stay blocked until their email is verified and a paper admin approves them here. First-time GitHub sign-ins also wait for paper admin approval.</p>
         {#else}
         <p class="meta">Only paper admins can create, update, delete users, or grant the global admin role.</p>
         {/if}
@@ -601,6 +601,7 @@
                 {user.displayLabel}
                 {#if user.email}<br>{user.email}{/if}
                 <br>Provider: {user.authProvider}
+                {#if user.githubLogin}<br>GitHub: @{user.githubLogin}{/if}
             </p>
             <div class="status-row">
                 <span class="status-badge {#if user.emailVerified}good{#else}warn{/if}">

@@ -188,6 +188,8 @@ public class BackupService {
             item.put("authProvider", user.authProvider);
             item.put("oidcIssuer", user.oidcIssuer);
             item.put("oidcSubject", user.oidcSubject);
+            item.put("githubUserId", user.githubUserId);
+            item.put("githubLogin", user.githubLogin);
             item.put("passwordSalt", user.passwordSalt);
             item.put("passwordHash", user.passwordHash);
             item.put("admin", user.admin);
@@ -341,6 +343,8 @@ public class BackupService {
             user.authProvider = stringValue(item.get("authProvider"));
             user.oidcIssuer = stringValue(item.get("oidcIssuer"));
             user.oidcSubject = stringValue(item.get("oidcSubject"));
+            user.githubUserId = stringValue(item.get("githubUserId"));
+            user.githubLogin = stringValue(item.get("githubLogin"));
             user.passwordSalt = stringValue(item.get("passwordSalt"));
             user.passwordHash = stringValue(item.get("passwordHash"));
             user.admin = boolValue(item.get("admin"));

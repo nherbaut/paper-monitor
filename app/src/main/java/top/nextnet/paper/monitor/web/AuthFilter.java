@@ -34,6 +34,8 @@ public class AuthFilter implements ContainerRequestFilter {
             "signup",
             "auth/oidc/start",
             "auth/oidc/callback",
+            "auth/github/start",
+            "auth/github/callback",
             "logout");
 
     @Inject
