@@ -95,6 +95,20 @@
             min-width: 0;
         }
 
+        .message {
+            margin: 0 0 1rem;
+            padding: 0.8rem 0.9rem;
+            border-radius: 12px;
+            border: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.78);
+        }
+
+        .message.error {
+            border-color: #d7a18e;
+            color: #7b2f18;
+            background: rgba(247, 226, 219, 0.86);
+        }
+
         h1, h2, h3 {
             font-weight: 600;
             letter-spacing: 0.02em;
@@ -315,6 +329,12 @@
             | <a href="/logout">Logout</a>
         </p>
     </header>
+    {#if infoMessage}
+    <p class="message">{infoMessage}</p>
+    {/if}
+    {#if errorMessage}
+    <p class="message error">{errorMessage}</p>
+    {/if}
 
     <div class="settings-layout">
         <aside class="settings-sidebar" aria-label="Admin sections">
@@ -456,7 +476,7 @@
                                 <button type="submit">Create GitHub repo under @{currentUser.githubLogin}</button>
                             </form>
                             {#else if githubEnabled}
-                            <p class="meta">Sign in with GitHub first to create a repository for this paper feed.</p>
+                            <p class="meta">Sign in with GitHub first to grant repository access before creating a repository for this paper feed.</p>
                             {/if}
                             {#for grant in logicalFeed.accessGrants}
                             <form action="/logical-feeds/{logicalFeed.id}/share/{grant.user.id}/delete" method="post">

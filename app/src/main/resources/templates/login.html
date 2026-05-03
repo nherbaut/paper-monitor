@@ -87,6 +87,9 @@
     <section class="panel">
         <h1>Sign in to Paper Monitor</h1>
         <p class="meta">Use a local account, GitHub, or delegate authentication to your OIDC provider.</p>
+        {#if githubEnabled}
+        <p class="meta">GitHub sign-in grants Paper Monitor access to create and push to repositories you approve for export.</p>
+        {/if}
         {#if infoMessage}
         <p class="message">{infoMessage}</p>
         {/if}

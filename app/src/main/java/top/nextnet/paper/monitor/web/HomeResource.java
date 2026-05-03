@@ -474,7 +474,10 @@ public class HomeResource {
     @GET
     @Path("/admin")
     @Transactional
-    public TemplateInstance admin() {
+    public TemplateInstance admin(
+            @QueryParam("info") String info,
+            @QueryParam("error") String error
+    ) {
         AppUser currentUser = requireCurrentUser();
         List<LogicalFeed> readableLogicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser);
         List<Long> readableLogicalFeedIds = readableLogicalFeeds.stream().map((feed) -> feed.id).toList();
@@ -506,7 +509,9 @@ public class HomeResource {
                 .data("allUsers", authService.allUsers())
                 .data("userManagementUsers", currentUserContext.get().isAdmin() ? authService.allUsers() : List.of(currentUser))
                 .data("oidcEnabled", oidcService.isEnabled())
-                .data("githubEnabled", githubAuthService.isEnabled());
+                .data("githubEnabled", githubAuthService.isEnabled())
+                .data("infoMessage", normalize(info))
+                .data("errorMessage", normalize(error));
     }
 
     @GET

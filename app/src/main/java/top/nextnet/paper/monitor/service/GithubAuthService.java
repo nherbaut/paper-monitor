@@ -45,7 +45,7 @@ public class GithubAuthService {
             AuthService authService,
             @ConfigProperty(name = "paper-monitor.auth.github.client-id", defaultValue = "") String clientId,
             @ConfigProperty(name = "paper-monitor.auth.github.client-secret", defaultValue = "") String clientSecret,
-            @ConfigProperty(name = "paper-monitor.auth.github.scopes", defaultValue = "read:user user:email") String scopes,
+            @ConfigProperty(name = "paper-monitor.auth.github.scopes", defaultValue = "read:user user:email repo") String scopes,
             @ConfigProperty(name = "paper-monitor.auth.github.enabled", defaultValue = "false") boolean enabled,
             @ConfigProperty(name = "paper-monitor.auth.github.web-base-url", defaultValue = DEFAULT_WEB_BASE_URL) String githubWebBaseUrl,
             @ConfigProperty(name = "paper-monitor.auth.github.api-base-url", defaultValue = DEFAULT_API_BASE_URL) String githubApiBaseUrl,
@@ -55,7 +55,7 @@ public class GithubAuthService {
         this.authService = authService;
         this.clientId = clientId == null ? "" : clientId.trim();
         this.clientSecret = clientSecret == null ? "" : clientSecret.trim();
-        this.scopes = scopes == null ? "read:user user:email" : scopes.trim();
+        this.scopes = scopes == null ? "read:user user:email repo" : scopes.trim();
         this.enabled = enabled;
         this.githubWebBaseUrl = trimTrailingSlash(githubWebBaseUrl, DEFAULT_WEB_BASE_URL);
         this.githubApiBaseUrl = trimTrailingSlash(githubApiBaseUrl, DEFAULT_API_BASE_URL);
