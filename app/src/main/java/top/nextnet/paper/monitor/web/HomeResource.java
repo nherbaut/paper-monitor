@@ -295,8 +295,17 @@ public class HomeResource {
     @Transactional
     public Response finishGithubLogin(
             @QueryParam("state") String state,
-            @QueryParam("code") String code
+            @QueryParam("code") String code,
+            @QueryParam("installation_id") String installationId,
+            @QueryParam("setup_action") String setupAction
     ) {
+        if ((state == null || state.isBlank()) && setupAction != null && !setupAction.isBlank()) {
+            String info = "install".equalsIgnoreCase(setupAction)
+                    ? "GitHub App installation completed. Sign in with GitHub again to refresh Paper Monitor access."
+                    : "GitHub App installation updated. Sign in with GitHub again to refresh Paper Monitor access.";
+            AppUser currentUser = currentUserContext.get().user();
+            return seeOther((currentUser == null ? "/login" : "/admin") + "?info=" + urlEncode(info));
+        }
         try {
             GithubAuthService.GithubLoginResult loginResult = githubAuthService.finishLogin(state, code);
             if (!loginResult.user().isApproved()) {
