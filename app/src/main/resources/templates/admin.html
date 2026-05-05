@@ -185,6 +185,82 @@
             flex-wrap: wrap;
         }
 
+        .stack-layout {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .management-intro {
+            margin-bottom: 1rem;
+        }
+
+        .management-card {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.64);
+            padding: 1rem;
+        }
+
+        .management-card summary {
+            cursor: pointer;
+            font-weight: 600;
+            list-style: none;
+        }
+
+        .management-card summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .management-card summary::before {
+            content: "▸";
+            display: inline-block;
+            margin-right: 0.55rem;
+            color: var(--accent);
+            transition: transform 0.16s ease;
+        }
+
+        .management-card[open] summary::before {
+            transform: rotate(90deg);
+        }
+
+        .management-card-body {
+            margin-top: 1rem;
+            display: grid;
+            gap: 1rem;
+        }
+
+        .management-card-header {
+            display: grid;
+            gap: 0.2rem;
+        }
+
+        .management-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .management-meta-box {
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.72);
+            padding: 0.85rem;
+        }
+
+        .management-actions {
+            display: grid;
+            gap: 0.85rem;
+        }
+
+        .management-actions form,
+        .management-actions .toolbar {
+            margin: 0;
+        }
+
+        .management-actions .toolbar form {
+            display: inline-flex;
+        }
+
         .poll-slider {
             display: grid;
             gap: 0.45rem;
@@ -385,219 +461,220 @@
 
     <section class="settings-panel hidden" data-settings-panel="feeds">
         <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm2 3h8v2H4V7Zm-2 3h12v2H2v-2Z"/></svg></span><span>Paper Feed Management</span></h2>
-        <div class="two-columns">
-            <form action="/logical-feeds" method="post">
-                <h3>Create paper feed</h3>
-                <input type="text" name="name" placeholder="Paper feed name" required>
-                <textarea name="description" placeholder="Optional description"></textarea>
-                <textarea name="workflowStates" required></textarea>
-                <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
-                <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Email owner and feed admins when RSS adds papers to the default state</label>
-                <button type="submit">Create paper feed</button>
-            </form>
-            <div>
-                <p class="meta">You can rename paper feeds, update their YAML workflow, and delegate read or admin access to other users.</p>
-                <p class="meta">Backups exported from this page are scoped to the paper feeds you can read or administer.</p>
-            </div>
+        <div class="management-intro">
+            <p class="meta">You can rename paper feeds, update their YAML workflow, connect a GitHub repository, and delegate read or admin access to other users.</p>
+            <p class="meta">Backups exported from this page are scoped to the paper feeds you can read or administer.</p>
         </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Paper feed</th>
-                    <th>Owner</th>
-                    <th>Workflow</th>
-                    <th>Access</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {#for logicalFeed in logicalFeeds}
-                <tr>
-                    <td>
-                        <strong>{logicalFeed.name}</strong><br>
+        <div class="stack-layout">
+            <details class="management-card" open>
+                <summary>Create paper feed</summary>
+                <div class="management-card-body">
+                    <form action="/logical-feeds" method="post">
+                        <input type="text" name="name" placeholder="Paper feed name" required>
+                        <textarea name="description" placeholder="Optional description"></textarea>
+                        <textarea name="workflowStates" required></textarea>
+                        <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
+                        <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Email owner and feed admins when RSS adds papers to the default state</label>
+                        <button type="submit">Create paper feed</button>
+                    </form>
+                </div>
+            </details>
+            {#for logicalFeed in logicalFeeds}
+            <details class="management-card">
+                <summary>{logicalFeed.name}</summary>
+                <div class="management-card-body">
+                    <div class="management-card-header">
+                        <strong>{logicalFeed.name}</strong>
                         <span class="meta">{logicalFeed.description ?: 'No description'}</span>
-                        {#if logicalFeed.gitRepoUrl}
-                        <br><span class="meta">Git: <a href="{logicalFeed.gitRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.gitRepoUrl}</a></span>
-                        {/if}
+                    </div>
+                    <div class="management-meta-grid">
+                        <div class="management-meta-box">
+                            <strong>Ownership</strong>
+                            <p class="meta">Owner: {logicalFeed.owner.displayLabel}</p>
+                            <p class="meta">Workflow: {logicalFeed.workflowStatesToken}</p>
+                        </div>
+                        <div class="management-meta-box">
+                            <strong>Links</strong>
+                            <p class="meta">{#if logicalFeed.gitRepoUrl}Git: <a href="{logicalFeed.gitRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.gitRepoUrl}</a>{#else}Git mirror pending{/if}</p>
+                            <p class="meta">{#if logicalFeed.githubRepoUrl}GitHub: <a href="{logicalFeed.githubRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.githubRepoOwner}/{logicalFeed.githubRepoName}</a> ({logicalFeed.githubRepoBranch ?: 'main'}){#else}GitHub not connected{/if}</p>
+                            <p class="meta">{#if logicalFeed.publicReadable && logicalFeed.publicUrl}Public: <a href="{logicalFeed.publicUrl}" target="_blank" rel="noreferrer">{logicalFeed.publicUrl}</a>{#else}Public sharing disabled{/if}</p>
+                        </div>
+                        <div class="management-meta-box">
+                            <strong>Access</strong>
+                            {#if logicalFeed.accessGrants.isEmpty}
+                            <p class="meta">No delegated access</p>
+                            {#else}
+                            {#for grant in logicalFeed.accessGrants}
+                            <p class="meta">{grant.user.displayLabel} ({grant.role})</p>
+                            {/for}
+                            {/if}
+                        </div>
+                    </div>
+                    {#if logicalFeed.viewerCanAdmin}
+                    <div class="management-actions">
+                        <form action="/logical-feeds/{logicalFeed.id}/update" method="post">
+                            <input type="text" name="name" value="{logicalFeed.name}" required>
+                            <textarea name="description">{logicalFeed.description}</textarea>
+                            <textarea name="workflowStates" required>{logicalFeed.workflowStatesText}</textarea>
+                            <label><input type="checkbox" name="publicReadable" {#if logicalFeed.publicReadable}checked{/if}> Public read-only feed</label>
+                            <label><input type="checkbox" name="notifyOnNewRssPapers" {#if logicalFeed.notifyOnNewRssPapers}checked{/if}> Email owner and feed admins when RSS adds papers to the default state</label>
+                            <button type="submit">Save paper feed</button>
+                        </form>
+                        <form action="/logical-feeds/{logicalFeed.id}/share" method="post">
+                            <select name="userId" required>
+                                <option value="">Select user</option>
+                                {#for user in allUsers}
+                                {#if user.id != logicalFeed.owner.id && user.active}
+                                <option value="{user.id}">{user.displayLabel} {#if user.email}({user.email}){/if}</option>
+                                {/if}
+                                {/for}
+                            </select>
+                            <select name="role" required>
+                                <option value="READ">Read-only</option>
+                                <option value="ADMIN">Admin</option>
+                            </select>
+                            <button type="submit">Grant access</button>
+                        </form>
                         {#if logicalFeed.githubRepoUrl}
-                        <br><span class="meta">GitHub: <a href="{logicalFeed.githubRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.githubRepoOwner}/{logicalFeed.githubRepoName}</a> ({logicalFeed.githubRepoBranch ?: 'main'})</span>
-                        {/if}
-                        {#if logicalFeed.publicReadable && logicalFeed.publicUrl}
-                        <br><span class="meta">Public: <a href="{logicalFeed.publicUrl}" target="_blank" rel="noreferrer">{logicalFeed.publicUrl}</a></span>
-                        {/if}
-                    </td>
-                    <td>{logicalFeed.owner.displayLabel}</td>
-                    <td><span class="meta">{logicalFeed.workflowStatesToken}</span></td>
-                    <td>
-                        {#if logicalFeed.accessGrants.isEmpty}
-                        <span class="meta">No delegated access</span>
+                        <p class="meta">GitHub sync target: <a href="{logicalFeed.githubRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.githubRepoOwner}/{logicalFeed.githubRepoName}</a><br>Branch: {logicalFeed.githubRepoBranch ?: 'main'}</p>
+                        {#else if githubEnabled && githubInstallationAuthConfigured && currentUser.githubLogin && ttsSettings.hasGithubAccessToken}
+                        <p class="meta">1. Create the repository on GitHub yourself. 2. Install the GitHub App on only that repository. 3. Connect it here.</p>
+                        <p class="meta"><a href="{githubAppInstallUrl}" target="_blank" rel="noreferrer">Install the Paper Monitor GitHub App</a></p>
+                        {#if githubRepositoryChoicesError}
+                        <p class="meta">{githubRepositoryChoicesError}</p>
+                        {#else if githubRepositoryChoices.isEmpty}
+                        <p class="meta">No repositories are currently accessible through your GitHub App installations.</p>
                         {#else}
-                        {#for grant in logicalFeed.accessGrants}
-                        <div class="meta">{grant.user.displayLabel} ({grant.role})</div>
-                        {/for}
+                        <form action="/logical-feeds/{logicalFeed.id}/github/connect" method="post">
+                            <select name="repositorySelection" required>
+                                <option value="">Select installed repository</option>
+                                {#for repo in githubRepositoryChoices}
+                                <option value="{repo.selectionValue}">{repo.fullName} ({repo.installationAccountLogin})</option>
+                                {/for}
+                            </select>
+                            <input type="text" name="branch" value="main" placeholder="Branch name">
+                            <button type="submit">Connect GitHub repository</button>
+                        </form>
                         {/if}
-                    </td>
-                    <td>
-                        {#if logicalFeed.viewerCanAdmin}
-                        <details>
-                            <summary>Manage</summary>
-                            <form action="/logical-feeds/{logicalFeed.id}/update" method="post">
-                                <input type="text" name="name" value="{logicalFeed.name}" required>
-                                <textarea name="description">{logicalFeed.description}</textarea>
-                                <textarea name="workflowStates" required>{logicalFeed.workflowStatesText}</textarea>
-                                <label><input type="checkbox" name="publicReadable" {#if logicalFeed.publicReadable}checked{/if}> Public read-only feed</label>
-                                <label><input type="checkbox" name="notifyOnNewRssPapers" {#if logicalFeed.notifyOnNewRssPapers}checked{/if}> Email owner and feed admins when RSS adds papers to the default state</label>
-                                <button type="submit">Save paper feed</button>
-                            </form>
-                            <form action="/logical-feeds/{logicalFeed.id}/share" method="post">
-                                <select name="userId" required>
-                                    <option value="">Select user</option>
-                                    {#for user in allUsers}
-                                    {#if user.id != logicalFeed.owner.id && user.active}
-                                    <option value="{user.id}">{user.displayLabel} {#if user.email}({user.email}){/if}</option>
-                                    {/if}
-                                    {/for}
-                                </select>
-                                <select name="role" required>
-                                    <option value="READ">Read-only</option>
-                                    <option value="ADMIN">Admin</option>
-                                </select>
-                                <button type="submit">Grant access</button>
-                            </form>
-                            {#if logicalFeed.githubRepoUrl}
-                            <p class="meta">GitHub sync target: <a href="{logicalFeed.githubRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.githubRepoOwner}/{logicalFeed.githubRepoName}</a><br>Branch: {logicalFeed.githubRepoBranch ?: 'main'}</p>
-                            {#else if githubEnabled && githubInstallationAuthConfigured && currentUser.githubLogin && ttsSettings.hasGithubAccessToken}
-                            <p class="meta">1. Create the repository on GitHub yourself. 2. Install the GitHub App on only that repository. 3. Connect it here.</p>
-                            <p class="meta"><a href="{githubAppInstallUrl}" target="_blank" rel="noreferrer">Install the Paper Monitor GitHub App</a></p>
-                            {#if githubRepositoryChoicesError}
-                            <p class="meta">{githubRepositoryChoicesError}</p>
-                            {#else if githubRepositoryChoices.isEmpty}
-                            <p class="meta">No repositories are currently accessible through your GitHub App installations.</p>
-                            {#else}
-                            <form action="/logical-feeds/{logicalFeed.id}/github/connect" method="post">
-                                <select name="repositorySelection" required>
-                                    <option value="">Select installed repository</option>
-                                    {#for repo in githubRepositoryChoices}
-                                    <option value="{repo.selectionValue}">{repo.fullName} ({repo.installationAccountLogin})</option>
-                                    {/for}
-                                </select>
-                                <input type="text" name="branch" value="main" placeholder="Branch name">
-                                <button type="submit">Connect GitHub repository</button>
-                            </form>
-                            {/if}
-                            {#else if githubEnabled}
-                            <p class="meta">Sign in with GitHub and install the GitHub App on a repository before connecting it here.</p>
-                            {#else}
-                            <p class="meta">GitHub integration is disabled on this server.</p>
-                            {/if}
+                        {#else if githubEnabled}
+                        <p class="meta">Sign in with GitHub and install the GitHub App on a repository before connecting it here.</p>
+                        {#else}
+                        <p class="meta">GitHub integration is disabled on this server.</p>
+                        {/if}
+                        {#if !logicalFeed.accessGrants.isEmpty}
+                        <div class="toolbar">
                             {#for grant in logicalFeed.accessGrants}
                             <form action="/logical-feeds/{logicalFeed.id}/share/{grant.user.id}/delete" method="post">
                                 <button class="secondary" type="submit">Revoke {grant.user.displayLabel}</button>
                             </form>
                             {/for}
-                            <form action="/logical-feeds/{logicalFeed.id}/delete" method="post">
-                                <button class="secondary" type="submit">Delete paper feed</button>
-                            </form>
-                        </details>
-                        {#else}
-                        <span class="meta">Read-only</span>
+                        </div>
                         {/if}
-                    </td>
-                </tr>
-                {/for}
-            </tbody>
-        </table>
+                        <form action="/logical-feeds/{logicalFeed.id}/delete" method="post">
+                            <button class="secondary" type="submit">Delete paper feed</button>
+                        </form>
+                    </div>
+                    {#else}
+                    <p class="meta">Read-only</p>
+                    {/if}
+                </div>
+            </details>
+            {/for}
+        </div>
     </section>
 
     <section class="settings-panel hidden" data-settings-panel="rss">
         <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 11a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-1-4a6 6 0 0 1 6 6H6a4 4 0 0 0-4-4V7Zm0-4a10 10 0 0 1 10 10h-2A8 8 0 0 0 2 5V3Z"/></svg></span><span>RSS Feed Management</span></h2>
-        <div class="two-columns">
-            <form action="/feeds" method="post">
-                <h3>Create RSS feed</h3>
-                <input type="text" name="name" placeholder="RSS feed name" required>
-                <input type="url" name="url" placeholder="https://example.com/feed.xml" required>
-                <div class="poll-slider">
-                    <input type="range" min="0" max="2" step="1" value="0" data-poll-slider>
-                    <input type="hidden" name="pollIntervalMinutes" value="1440" data-poll-minutes>
-                    <div class="poll-slider-output">
-                        <span>Daily</span>
-                        <strong data-poll-label>Daily</strong>
-                    </div>
-                </div>
-                <input type="text" name="defaultPaperStatus" placeholder="Optional default imported state">
-                <select name="logicalFeedId" required>
-                    <option value="">Attach to paper feed</option>
-                    {#for logicalFeed in adminLogicalFeeds}
-                    <option value="{logicalFeed.id}">{logicalFeed.name}</option>
-                    {/for}
-                </select>
-                <button type="submit">Create RSS feed</button>
-            </form>
-            <div class="meta">
-                Only paper feeds where you have admin access are available for RSS creation and editing.
-            </div>
+        <div class="management-intro">
+            <p class="meta">Only paper feeds where you have admin access are available for RSS creation and editing.</p>
         </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Name</th>
-                    <th>Paper feed</th>
-                    <th>Polling</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                {#for feed in feeds}
-                <tr>
-                    <td>{feed.name}</td>
-                    <td>{feed.logicalFeed.name}</td>
-                    <td>{feed.pollIntervalMinutes} min</td>
-                    <td class="meta">
-                        Default state: {feed.defaultPaperStatus ?: feed.logicalFeed.initialPaperStatus}<br>
-                        Last poll: {feed.lastPolledAt ?: 'never'}<br>
-                        {#if feed.lastError}Last error: {feed.lastError}{/if}
-                    </td>
-                    <td>
-                        {#if feed.logicalFeed.viewerCanAdmin}
-                        <details>
-                            <summary>Manage</summary>
-                            <form action="/feeds/{feed.id}/update" method="post">
-                                <input type="text" name="name" value="{feed.name}" required>
-                                <input type="url" name="url" value="{feed.url}" required>
-                                <div class="poll-slider">
-                                    <input type="range" min="0" max="2" step="1" value="0" data-poll-slider data-poll-stored-minutes="{feed.pollIntervalMinutes}">
-                                    <input type="hidden" name="pollIntervalMinutes" value="1440" data-poll-minutes>
-                                    <div class="poll-slider-output">
-                                        <span>Daily</span>
-                                        <strong data-poll-label>Daily</strong>
-                                    </div>
-                                </div>
-                                <input type="text" name="defaultPaperStatus" value="{feed.defaultPaperStatus}" placeholder="Optional default imported state">
-                                <select name="logicalFeedId" required>
-                                    {#for logicalFeed in adminLogicalFeeds}
-                                    <option value="{logicalFeed.id}" {#if logicalFeed.id == feed.logicalFeed.id}selected{/if}>{logicalFeed.name}</option>
-                                    {/for}
-                                </select>
-                                <button type="submit">Save RSS feed</button>
-                            </form>
-                            <div class="toolbar">
-                                <form action="/feeds/{feed.id}/poll" method="post">
-                                    <button type="submit">Poll now</button>
-                                </form>
-                                <form action="/feeds/{feed.id}/delete" method="post">
-                                    <button class="secondary" type="submit">Delete</button>
-                                </form>
+        <div class="stack-layout">
+            <details class="management-card" open>
+                <summary>Create RSS feed</summary>
+                <div class="management-card-body">
+                    <form action="/feeds" method="post">
+                        <input type="text" name="name" placeholder="RSS feed name" required>
+                        <input type="url" name="url" placeholder="https://example.com/feed.xml" required>
+                        <div class="poll-slider">
+                            <input type="range" min="0" max="2" step="1" value="0" data-poll-slider>
+                            <input type="hidden" name="pollIntervalMinutes" value="1440" data-poll-minutes>
+                            <div class="poll-slider-output">
+                                <span>Daily</span>
+                                <strong data-poll-label>Daily</strong>
                             </div>
-                        </details>
-                        {#else}
-                        <span class="meta">Read-only</span>
-                        {/if}
-                    </td>
-                </tr>
-                {/for}
-            </tbody>
-        </table>
+                        </div>
+                        <input type="text" name="defaultPaperStatus" placeholder="Optional default imported state">
+                        <select name="logicalFeedId" required>
+                            <option value="">Attach to paper feed</option>
+                            {#for logicalFeed in adminLogicalFeeds}
+                            <option value="{logicalFeed.id}">{logicalFeed.name}</option>
+                            {/for}
+                        </select>
+                        <button type="submit">Create RSS feed</button>
+                    </form>
+                </div>
+            </details>
+            {#for feed in feeds}
+            <details class="management-card">
+                <summary>{feed.name}</summary>
+                <div class="management-card-body">
+                    <div class="management-card-header">
+                        <strong>{feed.name}</strong>
+                        <span class="meta">{feed.logicalFeed.name}</span>
+                    </div>
+                    <div class="management-meta-grid">
+                        <div class="management-meta-box">
+                            <strong>Attachment</strong>
+                            <p class="meta">Paper feed: {feed.logicalFeed.name}</p>
+                            <p class="meta">Default state: {feed.defaultPaperStatus ?: feed.logicalFeed.initialPaperStatus}</p>
+                        </div>
+                        <div class="management-meta-box">
+                            <strong>Polling</strong>
+                            <p class="meta">Every {feed.pollIntervalMinutes} min</p>
+                            <p class="meta">Last poll: {feed.lastPolledAt ?: 'never'}</p>
+                        </div>
+                        <div class="management-meta-box">
+                            <strong>Status</strong>
+                            <p class="meta">{#if feed.lastError}Last error: {feed.lastError}{#else}No polling error recorded{/if}</p>
+                        </div>
+                    </div>
+                    {#if feed.logicalFeed.viewerCanAdmin}
+                    <div class="management-actions">
+                        <form action="/feeds/{feed.id}/update" method="post">
+                            <input type="text" name="name" value="{feed.name}" required>
+                            <input type="url" name="url" value="{feed.url}" required>
+                            <div class="poll-slider">
+                                <input type="range" min="0" max="2" step="1" value="0" data-poll-slider data-poll-stored-minutes="{feed.pollIntervalMinutes}">
+                                <input type="hidden" name="pollIntervalMinutes" value="1440" data-poll-minutes>
+                                <div class="poll-slider-output">
+                                    <span>Daily</span>
+                                    <strong data-poll-label>Daily</strong>
+                                </div>
+                            </div>
+                            <input type="text" name="defaultPaperStatus" value="{feed.defaultPaperStatus}" placeholder="Optional default imported state">
+                            <select name="logicalFeedId" required>
+                                {#for logicalFeed in adminLogicalFeeds}
+                                <option value="{logicalFeed.id}" {#if logicalFeed.id == feed.logicalFeed.id}selected{/if}>{logicalFeed.name}</option>
+                                {/for}
+                            </select>
+                            <button type="submit">Save RSS feed</button>
+                        </form>
+                        <div class="toolbar">
+                            <form action="/feeds/{feed.id}/poll" method="post">
+                                <button type="submit">Poll now</button>
+                            </form>
+                            <form action="/feeds/{feed.id}/delete" method="post">
+                                <button class="secondary" type="submit">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                    {#else}
+                    <p class="meta">Read-only</p>
+                    {/if}
+                </div>
+            </details>
+            {/for}
+        </div>
     </section>
 
     <section class="settings-panel hidden" data-settings-panel="tts">
