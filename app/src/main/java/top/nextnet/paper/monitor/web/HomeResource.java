@@ -1094,6 +1094,16 @@ public class HomeResource {
     }
 
     @POST
+    @Path("/logical-feeds/{id}/github/disconnect")
+    @Transactional
+    public Response disconnectLogicalFeedGithubRepository(@jakarta.ws.rs.PathParam("id") Long id) {
+        AppUser currentUser = requireCurrentUser();
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, currentUser);
+        githubRepositoryService.disconnectRepositoryFromLogicalFeed(logicalFeed);
+        return seeOther("/admin?info=" + urlEncode("Disconnected GitHub repository from paper feed: " + logicalFeed.name) + "#feeds");
+    }
+
+    @POST
     @Path("/logical-feeds/{id}/delete")
     @Transactional
     public Response deleteLogicalFeed(@jakarta.ws.rs.PathParam("id") Long id) {

@@ -537,6 +537,9 @@
                         </form>
                         {#if logicalFeed.githubRepoUrl}
                         <p class="meta">GitHub sync target: <a href="{logicalFeed.githubRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.githubRepoOwner}/{logicalFeed.githubRepoName}</a><br>Branch: {logicalFeed.githubRepoBranch ?: 'main'}</p>
+                        <form action="/logical-feeds/{logicalFeed.id}/github/disconnect" method="post">
+                            <button class="secondary" type="submit">Disconnect GitHub repository</button>
+                        </form>
                         {#else if githubEnabled && githubInstallationAuthConfigured && currentUser.githubLogin && ttsSettings.hasGithubAccessToken}
                         <p class="meta">1. Create the repository on GitHub yourself. 2. Install the GitHub App on only that repository. 3. Connect it here.</p>
                         <p class="meta"><a href="{githubAppInstallUrl}" target="_blank" rel="noreferrer">Install the Paper Monitor GitHub App</a></p>

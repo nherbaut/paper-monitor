@@ -135,6 +135,23 @@ public class GithubRepositoryService {
     }
 
     @Transactional
+    public void disconnectRepositoryFromLogicalFeed(LogicalFeed logicalFeed) {
+        if (logicalFeed == null) {
+            return;
+        }
+        logicalFeed.githubInstallationId = null;
+        logicalFeed.githubRepoId = null;
+        logicalFeed.githubRepoOwner = null;
+        logicalFeed.githubRepoName = null;
+        logicalFeed.githubRepoBranch = null;
+        logicalFeed.githubSyncUser = null;
+        logicalFeed.githubLastPushedCommit = null;
+        logicalFeed.githubLastPushedAt = null;
+        logicalFeed.githubRepoUrl = null;
+        logicalFeed.githubSyncError = null;
+    }
+
+    @Transactional
     public void pushIfConfigured(LogicalFeed logicalFeed, Path repoPath, String headCommit) throws IOException {
         if (logicalFeed == null || !logicalFeed.hasGithubRepo()) {
             return;
