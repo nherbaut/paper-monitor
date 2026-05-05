@@ -261,6 +261,25 @@
             display: inline-flex;
         }
 
+        .checkbox-grid {
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .checkbox-grid label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
+            width: fit-content;
+        }
+
+        .checkbox-grid input[type="checkbox"] {
+            width: 1rem;
+            height: 1rem;
+            padding: 0;
+            margin: 0;
+        }
+
         .poll-slider {
             display: grid;
             gap: 0.45rem;
@@ -718,7 +737,63 @@
             <label><input type="checkbox" name="admin"> Paper admin</label>
             <button type="submit">Create local user</button>
         </form>
-        <p class="meta">Self-registered local users stay blocked until their email is verified and a paper admin approves them here. First-time GitHub sign-ins also wait for paper admin approval.</p>
+        <p class="meta">Self-registered local users always verify their email first. Admin approval for new local or GitHub users can be bypassed per email domain below.</p>
+
+        <details class="management-card" open>
+            <summary>Email Domain Policies</summary>
+            <div class="management-card-body">
+                <p class="meta">Add domain-specific signup rules. Domains without a rule can still create accounts and are not auto-approved.</p>
+                <form action="/admin/domain-policies" method="post" class="management-card">
+                    <div class="management-card-body">
+                        <div class="management-card-header">
+                            <strong>Create domain rule</strong>
+                            <span class="meta">Use a bare domain like <code>example.org</code>.</span>
+                        </div>
+                        <input type="text" name="domain" placeholder="example.org" required>
+                        <div class="checkbox-grid">
+                            <label><input type="checkbox" name="canCreateAccounts" checked> Users from this domain can create accounts</label>
+                            <label><input type="checkbox" name="autoApprove"> Users from this domain are auto-approved</label>
+                        </div>
+                        <button type="submit">Add domain rule</button>
+                    </div>
+                </form>
+
+                {#if emailDomainPolicies.isEmpty}
+                <p class="meta">No domain-specific account rules configured yet.</p>
+                {#else}
+                <div class="stack-layout">
+                    {#for policy in emailDomainPolicies}
+                    <details class="management-card">
+                        <summary>{policy.domain}</summary>
+                        <div class="management-card-body">
+                            <div class="status-row">
+                                <span class="status-badge {#if policy.canCreateAccounts}good{#else}warn{/if}">
+                                    {#if policy.canCreateAccounts}Signup allowed{#else}Signup blocked{/if}
+                                </span>
+                                <span class="status-badge {#if policy.autoApprove}good{#else}warn{/if}">
+                                    {#if policy.autoApprove}Auto-approved{#else}Manual approval{/if}
+                                </span>
+                            </div>
+                            <form action="/admin/domain-policies/{policy.id}/update" method="post">
+                                <input type="text" name="domain" value="{policy.domain}" required>
+                                <div class="checkbox-grid">
+                                    <label><input type="checkbox" name="canCreateAccounts" {#if policy.canCreateAccounts}checked{/if}> Users from this domain can create accounts</label>
+                                    <label><input type="checkbox" name="autoApprove" {#if policy.autoApprove}checked{/if}> Users from this domain are auto-approved</label>
+                                </div>
+                                <div class="toolbar">
+                                    <button type="submit">Save domain rule</button>
+                                </div>
+                            </form>
+                            <form action="/admin/domain-policies/{policy.id}/delete" method="post" onsubmit="return confirm('Delete the email domain rule for {policy.domain}?');">
+                                <button class="secondary" type="submit">Delete domain rule</button>
+                            </form>
+                        </div>
+                    </details>
+                    {/for}
+                </div>
+                {/if}
+            </div>
+        </details>
         {#else}
         <p class="meta">Only paper admins can create, update, delete users, or grant the global admin role.</p>
         {/if}

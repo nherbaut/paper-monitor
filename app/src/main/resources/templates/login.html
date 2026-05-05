@@ -119,7 +119,7 @@
         {/if}
         {#if !bootstrapLocalAdmin}
         <p class="divider">New account</p>
-        <p class="meta">Local signup requires email verification and admin approval. GitHub sign-in also needs admin approval the first time.</p>
+        <p class="meta">Local signup always requires email verification. Admin approval for new local or GitHub users depends on the email-domain rules configured by your paper admins.</p>
         <form action="/signup/local" method="post">
             <input type="text" name="username" placeholder="Username" required>
             <input type="text" name="displayName" placeholder="Display name">

@@ -34,7 +34,7 @@ public class AuthService {
     private final UserSessionRepository userSessionRepository;
     private final UserSettingsRepository userSettingsRepository;
     private final NotificationService notificationService;
-    private final SystemSettingsService systemSettingsService;
+    private final EmailDomainPolicyService emailDomainPolicyService;
     private final SecureRandom secureRandom = new SecureRandom();
     private final String sessionCookieName;
     private final long sessionTtlDays;
@@ -47,7 +47,7 @@ public class AuthService {
             UserSessionRepository userSessionRepository,
             UserSettingsRepository userSettingsRepository,
             NotificationService notificationService,
-            SystemSettingsService systemSettingsService,
+            EmailDomainPolicyService emailDomainPolicyService,
             @ConfigProperty(name = "paper-monitor.auth.session.cookie-name", defaultValue = "paper_monitor_session") String sessionCookieName,
             @ConfigProperty(name = "paper-monitor.auth.session.ttl-days", defaultValue = "30") long sessionTtlDays,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl
@@ -58,7 +58,7 @@ public class AuthService {
         this.userSessionRepository = userSessionRepository;
         this.userSettingsRepository = userSettingsRepository;
         this.notificationService = notificationService;
-        this.systemSettingsService = systemSettingsService;
+        this.emailDomainPolicyService = emailDomainPolicyService;
         this.sessionCookieName = sessionCookieName;
         this.sessionTtlDays = sessionTtlDays;
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.trim();
@@ -139,6 +139,10 @@ public class AuthService {
         if (appUserRepository.findByEmail(normalizedEmail).isPresent()) {
             throw new IllegalArgumentException("An account with this email already exists");
         }
+        EmailDomainPolicyService.DomainSignupPolicy domainPolicy = emailDomainPolicyService.resolveForEmail(normalizedEmail);
+        if (!domainPolicy.canCreateAccounts()) {
+            throw new IllegalArgumentException("Self-registration is disabled for email addresses from " + domainPolicy.domain());
+        }
         AppUser user = new AppUser();
         user.username = normalizedUsername;
         user.displayName = normalize(displayName);
@@ -146,7 +150,7 @@ public class AuthService {
         user.authProvider = "LOCAL";
         user.admin = false;
         user.emailVerified = false;
-        user.approved = !systemSettingsService.requireAdminApprovalForNewUsers();
+        user.approved = domainPolicy.autoApprove();
         user.approvedAt = user.approved ? Instant.now() : null;
         user.emailVerificationToken = randomToken(32);
         setPassword(user, normalizeRequired(password, "Password is required"));
@@ -263,13 +267,17 @@ public class AuthService {
             user = appUserRepository.findByEmail(normalizedEmail).orElse(null);
         }
         if (user == null) {
+            EmailDomainPolicyService.DomainSignupPolicy domainPolicy = emailDomainPolicyService.resolveForEmail(normalizedEmail);
+            if (!domainPolicy.canCreateAccounts()) {
+                throw new IllegalArgumentException("Self-registration is disabled for email addresses from " + domainPolicy.domain());
+            }
             user = new AppUser();
             user.authProvider = "GITHUB";
             user.username = uniqueUsername(normalizedGithubLogin);
             user.displayName = fallback(normalize(displayName), normalizedGithubLogin);
             user.email = normalizedEmail;
             user.admin = false;
-            user.approved = !systemSettingsService.requireAdminApprovalForNewUsers();
+            user.approved = domainPolicy.autoApprove();
             user.approvedAt = user.approved ? Instant.now() : null;
             created = true;
         }

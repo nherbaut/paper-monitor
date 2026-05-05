@@ -59,6 +59,7 @@ import top.nextnet.paper.monitor.service.AuthService;
 import top.nextnet.paper.monitor.service.BackupService;
 import top.nextnet.paper.monitor.service.CurrentUserContext;
 import top.nextnet.paper.monitor.service.DoiMetadataService;
+import top.nextnet.paper.monitor.service.EmailDomainPolicyService;
 import top.nextnet.paper.monitor.service.FeedPollingService;
 import top.nextnet.paper.monitor.service.GithubAuthService;
 import top.nextnet.paper.monitor.service.GithubRepositoryService;
@@ -91,6 +92,7 @@ public class HomeResource {
     private final AppUserRepository appUserRepository;
     private final FeedPollingService feedPollingService;
     private final DoiMetadataService doiMetadataService;
+    private final EmailDomainPolicyService emailDomainPolicyService;
     private final PaperEventService paperEventService;
     private final PaperGitSyncService paperGitSyncService;
     private final PaperPdfImportService paperPdfImportService;
@@ -122,6 +124,7 @@ public class HomeResource {
             AppUserRepository appUserRepository,
             FeedPollingService feedPollingService,
             DoiMetadataService doiMetadataService,
+            EmailDomainPolicyService emailDomainPolicyService,
             PaperEventService paperEventService,
             PaperGitSyncService paperGitSyncService,
             PaperPdfImportService paperPdfImportService,
@@ -152,6 +155,7 @@ public class HomeResource {
         this.appUserRepository = appUserRepository;
         this.feedPollingService = feedPollingService;
         this.doiMetadataService = doiMetadataService;
+        this.emailDomainPolicyService = emailDomainPolicyService;
         this.paperEventService = paperEventService;
         this.paperGitSyncService = paperGitSyncService;
         this.paperPdfImportService = paperPdfImportService;
@@ -218,8 +222,11 @@ public class HomeResource {
             @RestForm("password") String password
     ) {
         try {
-            authService.signUpLocal(username, displayName, email, password);
-            return seeOther("/login?info=" + urlEncode("Check your email to verify your account, then wait for admin approval"));
+            AppUser user = authService.signUpLocal(username, displayName, email, password);
+            String info = user.approved
+                    ? "Check your email to verify your account. Once verified, you can sign in."
+                    : "Check your email to verify your account, then wait for admin approval.";
+            return seeOther("/login?info=" + urlEncode(info));
         } catch (IllegalArgumentException e) {
             return seeOther("/login?error=" + urlEncode(e.getMessage()));
         }
@@ -518,6 +525,7 @@ public class HomeResource {
         return admin.data("logicalFeeds", logicalFeeds)
                 .data("adminLogicalFeeds", adminLogicalFeeds)
                 .data("feeds", feeds)
+                .data("emailDomainPolicies", emailDomainPolicyService.all())
                 .data("ttsSettings", getOrCreateUserSettings())
                 .data("ttsVoices", ttsVoices)
                 .data("ttsVoicesError", ttsVoicesError)
@@ -534,6 +542,60 @@ public class HomeResource {
                 .data("githubEnabled", githubAuthService.isEnabled())
                 .data("infoMessage", normalize(info))
                 .data("errorMessage", normalize(error));
+    }
+
+    @POST
+    @Path("/admin/domain-policies")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response createEmailDomainPolicy(
+            @RestForm("domain") String domain,
+            @RestForm("canCreateAccounts") String canCreateAccounts,
+            @RestForm("autoApprove") String autoApprove
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        requireAdminUser(currentUser);
+        try {
+            emailDomainPolicyService.create(domain, isChecked(canCreateAccounts), isChecked(autoApprove));
+            return seeOther("/admin?info=" + urlEncode("Email domain rule created") + "#users");
+        } catch (IllegalArgumentException e) {
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#users");
+        }
+    }
+
+    @POST
+    @Path("/admin/domain-policies/{id}/update")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response updateEmailDomainPolicy(
+            @jakarta.ws.rs.PathParam("id") Long id,
+            @RestForm("domain") String domain,
+            @RestForm("canCreateAccounts") String canCreateAccounts,
+            @RestForm("autoApprove") String autoApprove
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        requireAdminUser(currentUser);
+        try {
+            emailDomainPolicyService.update(id, domain, isChecked(canCreateAccounts), isChecked(autoApprove));
+            return seeOther("/admin?info=" + urlEncode("Email domain rule updated") + "#users");
+        } catch (IllegalArgumentException e) {
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#users");
+        }
+    }
+
+    @POST
+    @Path("/admin/domain-policies/{id}/delete")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response deleteEmailDomainPolicy(@jakarta.ws.rs.PathParam("id") Long id) {
+        AppUser currentUser = requireCurrentUser();
+        requireAdminUser(currentUser);
+        try {
+            emailDomainPolicyService.delete(id);
+            return seeOther("/admin?info=" + urlEncode("Email domain rule deleted") + "#users");
+        } catch (IllegalArgumentException e) {
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#users");
+        }
     }
 
     @GET
@@ -2227,5 +2289,15 @@ public class HomeResource {
             logicalFeed.publicShareToken = UUID.randomUUID().toString();
         }
         return logicalFeed.publicShareToken;
+    }
+
+    private void requireAdminUser(AppUser user) {
+        if (user == null || !user.isAdmin()) {
+            throw new WebApplicationException("Admin access is required", Response.Status.FORBIDDEN);
+        }
+    }
+
+    private boolean isChecked(String value) {
+        return value != null && !value.isBlank() && !"false".equalsIgnoreCase(value);
     }
 }
