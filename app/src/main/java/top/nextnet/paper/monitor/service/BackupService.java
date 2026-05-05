@@ -233,6 +233,8 @@ public class BackupService {
             item.put("githubRepoOwner", logicalFeed.githubRepoOwner);
             item.put("githubRepoName", logicalFeed.githubRepoName);
             item.put("githubRepoBranch", logicalFeed.githubRepoBranch);
+            item.put("githubInstallationId", logicalFeed.githubInstallationId);
+            item.put("githubRepoId", logicalFeed.githubRepoId);
             item.put("githubLastPushedCommit", logicalFeed.githubLastPushedCommit);
             item.put("githubLastPushedAt", logicalFeed.githubLastPushedAt == null ? null : logicalFeed.githubLastPushedAt.toString());
             item.put("githubSyncUserId", logicalFeed.githubSyncUser == null ? null : logicalFeed.githubSyncUser.id);
@@ -388,6 +390,8 @@ public class BackupService {
             logicalFeed.githubRepoOwner = stringValue(item.get("githubRepoOwner"));
             logicalFeed.githubRepoName = stringValue(item.get("githubRepoName"));
             logicalFeed.githubRepoBranch = stringValue(item.get("githubRepoBranch"));
+            logicalFeed.githubInstallationId = longValue(item.get("githubInstallationId"));
+            logicalFeed.githubRepoId = longValue(item.get("githubRepoId"));
             logicalFeed.githubLastPushedCommit = stringValue(item.get("githubLastPushedCommit"));
             logicalFeed.githubLastPushedAt = instantValue(item.get("githubLastPushedAt"));
             logicalFeed.publicReadable = boolValue(item.get("publicReadable"));

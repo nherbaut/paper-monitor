@@ -466,17 +466,29 @@
                             </form>
                             {#if logicalFeed.githubRepoUrl}
                             <p class="meta">GitHub sync target: <a href="{logicalFeed.githubRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.githubRepoOwner}/{logicalFeed.githubRepoName}</a><br>Branch: {logicalFeed.githubRepoBranch ?: 'main'}</p>
-                            {#else if githubEnabled && currentUser.githubLogin && ttsSettings.hasGithubAccessToken}
-                            <form action="/logical-feeds/{logicalFeed.id}/github/create" method="post">
-                                <input type="text" name="repoName" value="paper-monitor-{logicalFeed.name}" required>
-                                <div class="two-columns">
-                                    <input type="text" name="branch" value="main" placeholder="Branch name">
-                                    <label><input type="checkbox" name="privateRepo" checked> Private repo</label>
-                                </div>
-                                <button type="submit">Create GitHub repo under @{currentUser.githubLogin}</button>
+                            {#else if githubEnabled && githubInstallationAuthConfigured && currentUser.githubLogin && ttsSettings.hasGithubAccessToken}
+                            <p class="meta">1. Create the repository on GitHub yourself. 2. Install the GitHub App on only that repository. 3. Connect it here.</p>
+                            <p class="meta"><a href="{githubAppInstallUrl}" target="_blank" rel="noreferrer">Install the Paper Monitor GitHub App</a></p>
+                            {#if githubRepositoryChoicesError}
+                            <p class="meta">{githubRepositoryChoicesError}</p>
+                            {#else if githubRepositoryChoices.isEmpty}
+                            <p class="meta">No repositories are currently accessible through your GitHub App installations.</p>
+                            {#else}
+                            <form action="/logical-feeds/{logicalFeed.id}/github/connect" method="post">
+                                <select name="repositorySelection" required>
+                                    <option value="">Select installed repository</option>
+                                    {#for repo in githubRepositoryChoices}
+                                    <option value="{repo.selectionValue}">{repo.fullName} ({repo.installationAccountLogin})</option>
+                                    {/for}
+                                </select>
+                                <input type="text" name="branch" value="main" placeholder="Branch name">
+                                <button type="submit">Connect GitHub repository</button>
                             </form>
+                            {/if}
                             {#else if githubEnabled}
-                            <p class="meta">Sign in with GitHub first to grant repository access before creating a repository for this paper feed.</p>
+                            <p class="meta">Sign in with GitHub and install the GitHub App on a repository before connecting it here.</p>
+                            {#else}
+                            <p class="meta">GitHub integration is disabled on this server.</p>
                             {/if}
                             {#for grant in logicalFeed.accessGrants}
                             <form action="/logical-feeds/{logicalFeed.id}/share/{grant.user.id}/delete" method="post">

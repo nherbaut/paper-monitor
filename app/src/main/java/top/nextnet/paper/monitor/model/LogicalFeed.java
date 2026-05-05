@@ -51,6 +51,10 @@ public class LogicalFeed extends PanacheEntityBase {
     @Column(length = 255)
     public String githubRepoBranch;
 
+    public Long githubInstallationId;
+
+    public Long githubRepoId;
+
     @Column(length = 64)
     public String githubLastPushedCommit;
 

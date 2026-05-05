@@ -501,10 +501,19 @@ public class HomeResource {
         List<Feed> feeds = logicalFeedAccessService.readableFeeds(currentUser);
         List<String> ttsVoices = List.of();
         String ttsVoicesError = null;
+        List<GithubRepositoryService.GithubRepositoryChoice> githubRepositoryChoices = List.of();
+        String githubRepositoryChoicesError = null;
         try {
             ttsVoices = ttsService.availableVoices();
         } catch (IOException e) {
             ttsVoicesError = e.getMessage();
+        }
+        if (githubAuthService.isEnabled() && currentUser.hasGithubLogin()) {
+            try {
+                githubRepositoryChoices = githubRepositoryService.accessibleRepositories(currentUser);
+            } catch (IOException | IllegalArgumentException e) {
+                githubRepositoryChoicesError = e.getMessage();
+            }
         }
         return admin.data("logicalFeeds", logicalFeeds)
                 .data("adminLogicalFeeds", adminLogicalFeeds)
@@ -512,6 +521,10 @@ public class HomeResource {
                 .data("ttsSettings", getOrCreateUserSettings())
                 .data("ttsVoices", ttsVoices)
                 .data("ttsVoicesError", ttsVoicesError)
+                .data("githubAppInstallUrl", githubRepositoryService.appInstallUrl())
+                .data("githubInstallationAuthConfigured", githubRepositoryService.isInstallationAuthConfigured())
+                .data("githubRepositoryChoices", githubRepositoryChoices)
+                .data("githubRepositoryChoicesError", githubRepositoryChoicesError)
                 .data("recentPapers", paperRepository.findRecent(30))
                 .data("currentUser", currentUser)
                 .data("canAdmin", currentUserContext.get().isAdmin())
@@ -1057,26 +1070,24 @@ public class HomeResource {
     }
 
     @POST
-    @Path("/logical-feeds/{id}/github/create")
+    @Path("/logical-feeds/{id}/github/connect")
     @Transactional
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    public Response createLogicalFeedGithubRepository(
+    public Response connectLogicalFeedGithubRepository(
             @jakarta.ws.rs.PathParam("id") Long id,
-            @RestForm("repoName") String repoName,
-            @RestForm("branch") String branch,
-            @RestForm("privateRepo") String privateRepo
+            @RestForm("repositorySelection") String repositorySelection,
+            @RestForm("branch") String branch
     ) {
         AppUser currentUser = requireCurrentUser();
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, currentUser);
         try {
-            githubRepositoryService.createRepositoryForLogicalFeed(
+            githubRepositoryService.connectRepositoryToLogicalFeed(
                     currentUser,
                     logicalFeed,
-                    repoName,
-                    privateRepo != null,
+                    repositorySelection,
                     branch);
             paperGitSyncService.syncLogicalFeed(logicalFeed);
-            return seeOther("/admin?info=" + urlEncode("Created GitHub repository for paper feed: " + logicalFeed.name) + "#feeds");
+            return seeOther("/admin?info=" + urlEncode("Connected GitHub repository for paper feed: " + logicalFeed.name) + "#feeds");
         } catch (IllegalArgumentException | IOException e) {
             return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#feeds");
         }
