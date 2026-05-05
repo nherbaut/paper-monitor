@@ -34,6 +34,7 @@ public class AuthService {
     private final UserSessionRepository userSessionRepository;
     private final UserSettingsRepository userSettingsRepository;
     private final NotificationService notificationService;
+    private final SystemSettingsService systemSettingsService;
     private final SecureRandom secureRandom = new SecureRandom();
     private final String sessionCookieName;
     private final long sessionTtlDays;
@@ -46,6 +47,7 @@ public class AuthService {
             UserSessionRepository userSessionRepository,
             UserSettingsRepository userSettingsRepository,
             NotificationService notificationService,
+            SystemSettingsService systemSettingsService,
             @ConfigProperty(name = "paper-monitor.auth.session.cookie-name", defaultValue = "paper_monitor_session") String sessionCookieName,
             @ConfigProperty(name = "paper-monitor.auth.session.ttl-days", defaultValue = "30") long sessionTtlDays,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl
@@ -56,6 +58,7 @@ public class AuthService {
         this.userSessionRepository = userSessionRepository;
         this.userSettingsRepository = userSettingsRepository;
         this.notificationService = notificationService;
+        this.systemSettingsService = systemSettingsService;
         this.sessionCookieName = sessionCookieName;
         this.sessionTtlDays = sessionTtlDays;
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.trim();
@@ -143,13 +146,16 @@ public class AuthService {
         user.authProvider = "LOCAL";
         user.admin = false;
         user.emailVerified = false;
-        user.approved = false;
+        user.approved = !systemSettingsService.requireAdminApprovalForNewUsers();
+        user.approvedAt = user.approved ? Instant.now() : null;
         user.emailVerificationToken = randomToken(32);
         setPassword(user, normalizeRequired(password, "Password is required"));
         appUserRepository.persist(user);
         ensureSettings(user);
         notificationService.sendSignupVerificationEmail(user, verificationUrl(user.emailVerificationToken));
-        notificationService.sendPendingSignupNotification(appUserRepository.findAdminUsersWithEmail(), user, adminUsersUrl());
+        if (!user.approved) {
+            notificationService.sendPendingSignupNotification(appUserRepository.findAdminUsersWithEmail(), user, adminUsersUrl());
+        }
         return user;
     }
 
@@ -263,7 +269,8 @@ public class AuthService {
             user.displayName = fallback(normalize(displayName), normalizedGithubLogin);
             user.email = normalizedEmail;
             user.admin = false;
-            user.approved = false;
+            user.approved = !systemSettingsService.requireAdminApprovalForNewUsers();
+            user.approvedAt = user.approved ? Instant.now() : null;
             created = true;
         }
 
@@ -288,7 +295,7 @@ public class AuthService {
             appUserRepository.persist(user);
         }
         ensureSettings(user);
-        if (created) {
+        if (created && !user.approved) {
             notificationService.sendPendingSignupNotification(appUserRepository.findAdminUsersWithEmail(), user, adminUsersUrl());
         }
         return user;
