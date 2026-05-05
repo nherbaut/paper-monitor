@@ -58,6 +58,7 @@ import top.nextnet.paper.monitor.repo.PaperRepository;
 import top.nextnet.paper.monitor.service.AuthService;
 import top.nextnet.paper.monitor.service.BackupService;
 import top.nextnet.paper.monitor.service.CurrentUserContext;
+import top.nextnet.paper.monitor.service.DefaultSignupPolicyService;
 import top.nextnet.paper.monitor.service.DoiMetadataService;
 import top.nextnet.paper.monitor.service.EmailDomainPolicyService;
 import top.nextnet.paper.monitor.service.FeedPollingService;
@@ -92,6 +93,7 @@ public class HomeResource {
     private final AppUserRepository appUserRepository;
     private final FeedPollingService feedPollingService;
     private final DoiMetadataService doiMetadataService;
+    private final DefaultSignupPolicyService defaultSignupPolicyService;
     private final EmailDomainPolicyService emailDomainPolicyService;
     private final PaperEventService paperEventService;
     private final PaperGitSyncService paperGitSyncService;
@@ -124,6 +126,7 @@ public class HomeResource {
             AppUserRepository appUserRepository,
             FeedPollingService feedPollingService,
             DoiMetadataService doiMetadataService,
+            DefaultSignupPolicyService defaultSignupPolicyService,
             EmailDomainPolicyService emailDomainPolicyService,
             PaperEventService paperEventService,
             PaperGitSyncService paperGitSyncService,
@@ -155,6 +158,7 @@ public class HomeResource {
         this.appUserRepository = appUserRepository;
         this.feedPollingService = feedPollingService;
         this.doiMetadataService = doiMetadataService;
+        this.defaultSignupPolicyService = defaultSignupPolicyService;
         this.emailDomainPolicyService = emailDomainPolicyService;
         this.paperEventService = paperEventService;
         this.paperGitSyncService = paperGitSyncService;
@@ -525,6 +529,7 @@ public class HomeResource {
         return admin.data("logicalFeeds", logicalFeeds)
                 .data("adminLogicalFeeds", adminLogicalFeeds)
                 .data("feeds", feeds)
+                .data("defaultSignupPolicy", defaultSignupPolicyService.get())
                 .data("emailDomainPolicies", emailDomainPolicyService.all())
                 .data("ttsSettings", getOrCreateUserSettings())
                 .data("ttsVoices", ttsVoices)
@@ -542,6 +547,20 @@ public class HomeResource {
                 .data("githubEnabled", githubAuthService.isEnabled())
                 .data("infoMessage", normalize(info))
                 .data("errorMessage", normalize(error));
+    }
+
+    @POST
+    @Path("/admin/default-signup-policy")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response updateDefaultSignupPolicy(
+            @RestForm("canCreateAccounts") String canCreateAccounts,
+            @RestForm("autoApprove") String autoApprove
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        requireAdminUser(currentUser);
+        defaultSignupPolicyService.update(isChecked(canCreateAccounts), isChecked(autoApprove));
+        return seeOther("/admin?info=" + urlEncode("Default signup policy updated") + "#users");
     }
 
     @POST
@@ -780,6 +799,18 @@ public class HomeResource {
         try {
             authService.approveUser(id);
             return seeOther("/admin#users");
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
+    }
+
+    @POST
+    @Path("/admin/users/{id}/resend-verification")
+    @Transactional
+    public Response resendUserVerificationEmail(@jakarta.ws.rs.PathParam("id") Long id) {
+        try {
+            AppUser user = authService.resendVerificationEmail(id);
+            return seeOther("/admin?info=" + urlEncode("Verification email resent to " + user.displayLabel()) + "#users");
         } catch (IllegalArgumentException e) {
             throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
         }

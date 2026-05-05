@@ -40,10 +40,13 @@ public class NotificationService {
     }
 
     public void sendSignupVerificationEmail(AppUser target, String verificationUrl) {
+        String approvalLine = target != null && target.approved
+                ? "After verification, you can sign in right away."
+                : "After verification, an administrator still needs to approve your account before sign-in is enabled.";
         sendText(target == null ? null : target.email,
                 "Verify your Paper Monitor email",
                 "Welcome to Paper Monitor.\n\nVerify your email address by opening:\n" + verificationUrl
-                        + "\n\nAfter verification, an administrator still needs to approve your account before sign-in is enabled.");
+                        + "\n\n" + approvalLine);
     }
 
     public void sendPendingSignupNotification(Collection<AppUser> admins, AppUser pendingUser, String adminUrl) {

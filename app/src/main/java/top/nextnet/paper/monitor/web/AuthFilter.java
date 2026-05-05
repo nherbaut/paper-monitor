@@ -105,6 +105,7 @@ public class AuthFilter implements ContainerRequestFilter {
         return path.equals("admin/export")
                 || path.equals("admin/import")
                 || path.equals("admin/local-users")
+                || path.equals("admin/default-signup-policy")
                 || path.equals("admin/domain-policies")
                 || path.startsWith("admin/domain-policies/")
                 || path.startsWith("admin/users/");

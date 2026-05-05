@@ -187,6 +187,23 @@ public class AuthService {
     }
 
     @Transactional
+    public AppUser resendVerificationEmail(Long userId) {
+        AppUser user = appUserRepository.findByIdOptional(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        if (user.isEmailVerified()) {
+            throw new IllegalArgumentException("This user's email address is already verified");
+        }
+        if (user.email == null || user.email.isBlank()) {
+            throw new IllegalArgumentException("This user does not have an email address to verify");
+        }
+        if (user.emailVerificationToken == null || user.emailVerificationToken.isBlank()) {
+            user.emailVerificationToken = randomToken(32);
+        }
+        notificationService.sendSignupVerificationEmail(user, verificationUrl(user.emailVerificationToken));
+        return user;
+    }
+
+    @Transactional
     public AppUser updateUser(Long userId, String displayName, String email, boolean admin, String password) {
         AppUser user = appUserRepository.findByIdOptional(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));

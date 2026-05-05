@@ -742,7 +742,28 @@
         <details class="management-card" open>
             <summary>Email Domain Policies</summary>
             <div class="management-card-body">
-                <p class="meta">Add domain-specific signup rules. Domains without a rule can still create accounts and are not auto-approved.</p>
+                <p class="meta">Specific domain rules override the default signup policy below. If no domain rule matches, Paper Monitor uses the default policy.</p>
+                <form action="/admin/default-signup-policy" method="post" class="management-card">
+                    <div class="management-card-body">
+                        <div class="management-card-header">
+                            <strong>Default policy for unmatched email domains</strong>
+                            <span class="meta">This applies whenever an email address does not match any rule below.</span>
+                        </div>
+                        <div class="status-row">
+                            <span class="status-badge {#if defaultSignupPolicy.canCreateAccounts}good{#else}warn{/if}">
+                                {#if defaultSignupPolicy.canCreateAccounts}Signup allowed{#else}Signup blocked{/if}
+                            </span>
+                            <span class="status-badge {#if defaultSignupPolicy.autoApprove}good{#else}warn{/if}">
+                                {#if defaultSignupPolicy.autoApprove}Auto-approved{#else}Manual approval{/if}
+                            </span>
+                        </div>
+                        <div class="checkbox-grid">
+                            <label><input type="checkbox" name="canCreateAccounts" {#if defaultSignupPolicy.canCreateAccounts}checked{/if}> Users from unmatched domains can create accounts</label>
+                            <label><input type="checkbox" name="autoApprove" {#if defaultSignupPolicy.autoApprove}checked{/if}> Users from unmatched domains are auto-approved</label>
+                        </div>
+                        <button type="submit">Save default policy</button>
+                    </div>
+                </form>
                 <form action="/admin/domain-policies" method="post" class="management-card">
                     <div class="management-card-body">
                         <div class="management-card-header">
@@ -816,6 +837,11 @@
                 </span>
             </div>
             {#if canAdmin}
+            {#if !user.emailVerified && user.localAccount && user.email}
+            <form action="/admin/users/{user.id}/resend-verification" method="post">
+                <button class="secondary" type="submit">Resend verification email</button>
+            </form>
+            {/if}
             {#if !user.approved}
             <form action="/admin/users/{user.id}/approve" method="post">
                 <button type="submit">Approve account</button>

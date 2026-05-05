@@ -11,9 +11,14 @@ import top.nextnet.paper.monitor.repo.EmailDomainPolicyRepository;
 public class EmailDomainPolicyService {
 
     private final EmailDomainPolicyRepository emailDomainPolicyRepository;
+    private final DefaultSignupPolicyService defaultSignupPolicyService;
 
-    public EmailDomainPolicyService(EmailDomainPolicyRepository emailDomainPolicyRepository) {
+    public EmailDomainPolicyService(
+            EmailDomainPolicyRepository emailDomainPolicyRepository,
+            DefaultSignupPolicyService defaultSignupPolicyService
+    ) {
         this.emailDomainPolicyRepository = emailDomainPolicyRepository;
+        this.defaultSignupPolicyService = defaultSignupPolicyService;
     }
 
     public List<EmailDomainPolicy> all() {
@@ -22,12 +27,17 @@ public class EmailDomainPolicyService {
 
     public DomainSignupPolicy resolveForEmail(String email) {
         String domain = extractDomain(email);
+        DomainSignupPolicy defaultPolicy = defaultPolicy(domain);
         if (domain == null) {
-            return DomainSignupPolicy.defaultPolicy(null);
+            return defaultPolicy;
         }
         Optional<EmailDomainPolicy> policy = emailDomainPolicyRepository.findByDomain(domain);
         return policy.map(value -> new DomainSignupPolicy(value.domain, value.canCreateAccounts, value.autoApprove, true))
-                .orElseGet(() -> DomainSignupPolicy.defaultPolicy(domain));
+                .orElse(defaultPolicy);
+    }
+
+    public DomainSignupPolicy defaultPolicy() {
+        return defaultPolicy(null);
     }
 
     @Transactional
@@ -95,9 +105,11 @@ public class EmailDomainPolicyService {
         return normalized.substring(atIndex + 1);
     }
 
+    private DomainSignupPolicy defaultPolicy(String domain) {
+        var policy = defaultSignupPolicyService.get();
+        return new DomainSignupPolicy(domain, policy.canCreateAccounts, policy.autoApprove, false);
+    }
+
     public record DomainSignupPolicy(String domain, boolean canCreateAccounts, boolean autoApprove, boolean configured) {
-        public static DomainSignupPolicy defaultPolicy(String domain) {
-            return new DomainSignupPolicy(domain, true, false, false);
-        }
     }
 }
