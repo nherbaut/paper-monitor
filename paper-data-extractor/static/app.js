@@ -68,6 +68,8 @@ const extractModelLoadButton = document.querySelector("#extract-model-load");
 const extractModelFormPreview = document.querySelector("#extract-model-form-preview");
 const extractModelYaml = document.querySelector("#extract-model-yaml");
 const extractModelErrors = document.querySelector("#extract-model-errors");
+const extractModelProgress = document.querySelector("#extract-model-progress");
+const extractModelCloseButton = document.querySelector("#extract-model-close");
 
 async function api(path, options = {}) {
     const response = await fetch(path, options);
@@ -361,7 +363,7 @@ async function runModelExtraction() {
     }
     resetExtractedPreview();
     setExtractionBusy(true);
-    extractModelStatus.textContent = "Generating taxonomy from paper PDF...";
+    extractModelStatus.textContent = "Generating taxonomy from paper PDF. This can take several minutes.";
     try {
         const body = new FormData();
         body.append("file", file);
@@ -443,6 +445,7 @@ extractModelModalElement?.addEventListener("show.bs.modal", () => {
     extractModelStatus.textContent = "";
     extractModelFileInput.value = "";
     extractModelFileLabel.textContent = "or click to choose a paper PDF";
+    showView("extract-view");
 });
 
 extractModelModalElement?.addEventListener("hidden.bs.modal", () => {
@@ -798,6 +801,12 @@ function setExtractionBusy(isBusy) {
     if (extractModelSubmitButton) {
         extractModelSubmitButton.disabled = isBusy;
         extractModelSubmitButton.textContent = isBusy ? "Generating..." : "Generate taxonomy";
+    }
+    if (extractModelCloseButton) {
+        extractModelCloseButton.disabled = isBusy;
+    }
+    if (extractModelProgress) {
+        extractModelProgress.classList.toggle("d-none", !isBusy);
     }
 }
 

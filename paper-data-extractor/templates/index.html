@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Paper Data Extractor</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/static/styles.css?v=20260506a">
+    <link rel="stylesheet" href="/static/styles.css?v=20260506b">
 </head>
 <body class="app-shell">
 <main class="container-xxl py-4 py-lg-5">
@@ -19,6 +19,7 @@
             <nav class="view-tabs nav nav-pills p-1 rounded-3 bg-body-secondary border" aria-label="Workspace">
                 <button class="tab-button nav-link active" data-view="review-design-view" type="button">Review Design</button>
                 <button class="tab-button nav-link" data-view="designer-view" type="button">Data Extraction Models</button>
+                <button class="tab-button nav-link" data-view="extract-view" type="button">Extract From PDF</button>
             </nav>
         </div>
     </header>
@@ -117,7 +118,6 @@
                     <select id="designer-model-picker" class="form-select designer-load-picker">
                         <option value="">Load model...</option>
                     </select>
-                    <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#extract-model-modal">Generate model from paper PDF</button>
                     <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#import-model-modal">Import Data Extraction Model</button>
                     <details class="action-menu">
                         <summary class="btn btn-outline-secondary">Downloads</summary>
@@ -202,13 +202,45 @@
             <p id="designer-status" class="status-line small mb-0"></p>
         </form>
     </section>
+
+    <section id="extract-view" class="app-view hidden mt-4">
+        <section class="paper-card card shadow-sm border-0 extract-hero-card">
+            <div class="card-body d-grid gap-4">
+                <div class="d-flex flex-column flex-xl-row justify-content-between gap-4 align-items-xl-end">
+                    <div class="min-w-0">
+                        <p class="eyebrow">PDF Extraction</p>
+                        <h2 class="h3 mb-2 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 1h7l3 3v11H3V1Zm1 1v12h8V5H9V2H4Zm5 0v2h2L9 2ZM5 8h6v1H5V8Zm0 2h6v1H5v-1Z"/></svg></span><span>Generate a Data Extraction Model from a paper PDF</span></h2>
+                        <p class="help-text mb-0">Upload a paper, send it to OpenAI with the taxonomy extraction prompt, inspect the generated YAML and form preview, then save the result as a reusable Data Extraction Model.</p>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 align-items-end">
+                        <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#extract-model-modal">Open PDF extraction</button>
+                    </div>
+                </div>
+                <div class="extract-info-grid">
+                    <article class="extract-info-card">
+                        <h3 class="h6 mb-2">1. Upload a paper PDF</h3>
+                        <p class="help-text mt-0 mb-0">Choose a PDF and optionally refine the extraction prompt before starting the run.</p>
+                    </article>
+                    <article class="extract-info-card">
+                        <h3 class="h6 mb-2">2. Wait for the extraction</h3>
+                        <p class="help-text mt-0 mb-0">The LLM call and validation can take several minutes, especially for long papers.</p>
+                    </article>
+                    <article class="extract-info-card">
+                        <h3 class="h6 mb-2">3. Review and save</h3>
+                        <p class="help-text mt-0 mb-0">Inspect the normalized YAML and rendered form preview before saving or loading into the designer.</p>
+                    </article>
+                </div>
+                <p class="status-line small mb-0">Use this tab when you want to bootstrap a new model from a publication rather than authoring it manually.</p>
+            </div>
+        </section>
+    </section>
 </main>
 <div class="modal fade" id="extract-model-modal" tabindex="-1" aria-labelledby="extract-model-modal-label" aria-hidden="true">
     <div class="modal-dialog modal-fullscreen-xl-down modal-xl modal-dialog-scrollable">
         <div class="modal-content border-0 shadow">
             <div class="modal-header">
                 <h2 id="extract-model-modal-label" class="modal-title h5 mb-0 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 1h7l3 3v11H3V1Zm1 1v12h8V5H9V2H4Zm5 0v2h2L9 2ZM5 8h6v1H5V8Zm0 2h6v1H5v-1Z"/></svg></span><span>Generate Data Extraction Model from PDF</span></h2>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button id="extract-model-close" type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="extract-model-form" novalidate>
                 <div class="modal-body d-grid gap-4">
@@ -229,6 +261,13 @@
                                 <label class="form-label mb-0">Prompt
                                     <textarea id="extract-model-prompt" class="form-control mt-2" rows="18" {% if not taxonomy_extraction_enabled %}disabled{% endif %}>{{ default_taxonomy_extraction_prompt }}</textarea>
                                 </label>
+                                <div id="extract-model-progress" class="extract-progress alert alert-info d-none mb-0" role="status" aria-live="polite">
+                                    <div class="extract-progress-header">
+                                        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                                        <strong>Extraction in progress</strong>
+                                    </div>
+                                    <p class="mb-0">The OpenAI call, YAML normalization, and model validation can take several minutes for large PDFs. Keep this window open while the extraction runs.</p>
+                                </div>
                                 <button id="extract-model-submit" class="btn btn-primary" type="button" {% if not taxonomy_extraction_enabled %}disabled{% endif %}>Generate taxonomy</button>
                                 <p id="extract-model-status" class="status-line small mb-0"></p>
                             </div>
@@ -323,6 +362,6 @@
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="/static/app.js?v=20260506a"></script>
+    <script src="/static/app.js?v=20260506b"></script>
 </body>
 </html>

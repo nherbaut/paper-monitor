@@ -145,6 +145,34 @@ body.app-shell {
     gap: 1.25rem;
 }
 
+.extract-hero-card .card-body {
+    gap: 1.25rem;
+}
+
+.extract-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.extract-info-card {
+    padding: 1rem 1.05rem;
+    border: 1px solid rgb(0 0 0 / 0.08);
+    border-radius: 0.95rem;
+    background: rgb(255 255 255 / 0.8);
+}
+
+.extract-progress {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.extract-progress-header {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
 .review-upload-form {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
