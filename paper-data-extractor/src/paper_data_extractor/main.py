@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 import yaml
-from fastapi import FastAPI, File, HTTPException, Response, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
 from paper_data_extractor.classifications import create_classification, read_classification
+from paper_data_extractor.llm_prompt import DEFAULT_TAXONOMY_EXTRACTION_PROMPT
 from paper_data_extractor.models import (
     ClassificationRequest,
     ClassificationResponse,
@@ -18,7 +20,9 @@ from paper_data_extractor.models import (
     ReviewDesignRequest,
     ReviewDesignResponse,
     ReviewDesignSummary,
+    TaxonomyExtractionResponse,
 )
+from paper_data_extractor.openai_taxonomy_extractor import OpenAITaxonomyExtractor, parse_yaml_mapping
 from paper_data_extractor.paths import CONTRIBUTED_MODELS_DIR, CUSTOM_MODELS_DIR, PROJECT_ROOT, ensure_data_dirs
 from paper_data_extractor.review_schema import (
     compile_review_schema_artifacts,
@@ -42,6 +46,7 @@ from paper_data_extractor.taxonomy import (
     list_models,
     load_model,
     save_custom_model,
+    taxonomy_validation_errors,
     taxonomy_to_form_schema,
     yaml_text,
     validate_taxonomy_shape,
@@ -52,11 +57,22 @@ ensure_data_dirs()
 app = FastAPI(title="Paper Data Extractor", version="0.1.0")
 app.mount("/static", StaticFiles(directory=PROJECT_ROOT / "static"), name="static")
 templates = Jinja2Templates(directory=PROJECT_ROOT / "templates")
+taxonomy_extractor = OpenAITaxonomyExtractor(
+    api_key=os.getenv("PAPER_DATA_EXTRACTOR_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY"),
+    model=os.getenv("PAPER_DATA_EXTRACTOR_OPENAI_MODEL", "gpt-5"),
+)
 
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "index.html")
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "default_taxonomy_extraction_prompt": DEFAULT_TAXONOMY_EXTRACTION_PROMPT,
+            "taxonomy_extraction_enabled": taxonomy_extractor.is_configured(),
+        },
+    )
 
 
 @app.get("/reviews", response_class=HTMLResponse)
@@ -130,6 +146,35 @@ async def upload_custom_model(file: UploadFile = File(...)) -> ModelSummary:
 @app.post("/api/models/custom/json", response_model=ModelSummary)
 def create_custom_model(taxonomy: dict[str, Any]) -> ModelSummary:
     return save_custom_model(taxonomy)
+
+
+@app.post("/api/models/extract-from-paper", response_model=TaxonomyExtractionResponse)
+async def extract_model_from_paper(
+    file: UploadFile = File(...),
+    prompt: str = Form(...),
+) -> TaxonomyExtractionResponse:
+    if not taxonomy_extractor.is_configured():
+        raise HTTPException(status_code=503, detail="OpenAI extraction is not configured on this server")
+    filename = file.filename or "paper.pdf"
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Upload a PDF file")
+    pdf_bytes = await file.read()
+    raw_yaml = taxonomy_extractor.extract_yaml(pdf_bytes, filename, prompt)
+    try:
+        taxonomy = parse_yaml_mapping(raw_yaml)
+    except HTTPException as exc:
+        return TaxonomyExtractionResponse(raw_yaml=raw_yaml, validation_errors=[str(exc.detail)])
+
+    errors = taxonomy_validation_errors(taxonomy)
+    if errors:
+        return TaxonomyExtractionResponse(raw_yaml=raw_yaml, taxonomy=taxonomy, validation_errors=errors)
+
+    return TaxonomyExtractionResponse(
+        raw_yaml=yaml_text(taxonomy),
+        taxonomy=taxonomy,
+        form_schema=taxonomy_to_form_schema(taxonomy),
+        validation_errors=[],
+    )
 
 
 @app.get("/api/review-designs", response_model=list[ReviewDesignSummary])

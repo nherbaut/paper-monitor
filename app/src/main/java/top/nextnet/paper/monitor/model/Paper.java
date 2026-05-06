@@ -13,12 +13,16 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Transient;
+import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Entity
@@ -99,14 +103,14 @@ public class Paper extends PanacheEntityBase {
     }
 
     public List<String> tagList() {
-        if (tags == null || tags.isBlank()) {
-            return List.of();
+        LinkedHashMap<String, String> orderedTags = new LinkedHashMap<>();
+        for (String value : persistedTagList()) {
+            orderedTags.putIfAbsent(value.toLowerCase(Locale.ROOT), value);
         }
-        return Arrays.stream(tags.split("\\R"))
-                .map(String::trim)
-                .filter((value) -> !value.isBlank())
-                .distinct()
-                .toList();
+        for (String value : derivedTagList()) {
+            orderedTags.putIfAbsent(value.toLowerCase(Locale.ROOT), value);
+        }
+        return List.copyOf(orderedTags.values());
     }
 
     public String tagsToken() {
@@ -129,5 +133,42 @@ public class Paper extends PanacheEntityBase {
                 .sorted(String.CASE_INSENSITIVE_ORDER)
                 .toList();
         return orderedTags.isEmpty() ? null : String.join("\n", orderedTags);
+    }
+
+    private List<String> persistedTagList() {
+        if (tags == null || tags.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(tags.split("\\R"))
+                .map(String::trim)
+                .filter((value) -> !value.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private List<String> derivedTagList() {
+        Set<String> derivedTags = new LinkedHashSet<>();
+        if (hasHostSuffix(sourceLink, "arxiv.org") || hasHostSuffix(openAccessLink, "arxiv.org")) {
+            derivedTags.add("arxiv");
+        }
+        if (hasHostSuffix(sourceLink, "hal.science")
+                || hasHostSuffix(openAccessLink, "hal.science")
+                || hasHostSuffix(sourceLink, "archives-ouvertes.fr")
+                || hasHostSuffix(openAccessLink, "archives-ouvertes.fr")) {
+            derivedTags.add("hal");
+        }
+        return List.copyOf(derivedTags);
+    }
+
+    private boolean hasHostSuffix(String candidate, String suffix) {
+        if (candidate == null || candidate.isBlank()) {
+            return false;
+        }
+        try {
+            String host = URI.create(candidate.trim()).getHost();
+            return host != null && host.toLowerCase(Locale.ROOT).endsWith(suffix);
+        } catch (IllegalArgumentException ignored) {
+            return false;
+        }
     }
 }

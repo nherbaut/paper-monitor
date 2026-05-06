@@ -8,6 +8,7 @@ let lastDesignerPickerValue = "";
 let workspaceModels = [];
 let selectedReviewModelIds = [];
 let reviewPreviewRequestId = 0;
+let extractedTaxonomyDraft = null;
 
 const allModels = document.querySelector("#all-models");
 const reviewDesigns = document.querySelector("#review-designs");
@@ -51,6 +52,21 @@ const downloadDataExtractionMetamodelButton = document.querySelector("#download-
 const downloadDataExtractionMetamodelJsonSchemaButton = document.querySelector("#download-data-extraction-metamodel-json-schema");
 const downloadReviewDesignMetamodelButton = document.querySelector("#download-review-design-metamodel");
 const downloadReviewDesignMetamodelJsonSchemaButton = document.querySelector("#download-review-design-metamodel-json-schema");
+const extractModelModalElement = document.querySelector("#extract-model-modal");
+const extractModelModal = extractModelModalElement ? bootstrap.Modal.getOrCreateInstance(extractModelModalElement) : null;
+const extractModelForm = document.querySelector("#extract-model-form");
+const extractModelFileInput = document.querySelector("#extract-model-file");
+const extractModelDropzone = document.querySelector("#extract-model-dropzone");
+const extractModelFileLabel = document.querySelector("#extract-model-file-label");
+const extractModelPrompt = document.querySelector("#extract-model-prompt");
+const extractModelStatus = document.querySelector("#extract-model-status");
+const extractModelValidation = document.querySelector("#extract-model-validation");
+const extractModelTitle = document.querySelector("#extract-model-title");
+const extractModelSaveButton = document.querySelector("#extract-model-save");
+const extractModelLoadButton = document.querySelector("#extract-model-load");
+const extractModelFormPreview = document.querySelector("#extract-model-form-preview");
+const extractModelYaml = document.querySelector("#extract-model-yaml");
+const extractModelErrors = document.querySelector("#extract-model-errors");
 
 async function api(path, options = {}) {
     const response = await fetch(path, options);
@@ -303,6 +319,124 @@ uploadForm.addEventListener("submit", async (event) => {
     } catch (error) {
         modelStatus.textContent = error.message;
     }
+});
+
+extractModelFileInput?.addEventListener("change", () => {
+    const file = extractModelFileInput.files?.[0];
+    extractModelFileLabel.textContent = file ? file.name : "or click to choose a paper PDF";
+});
+
+extractModelDropzone?.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    extractModelDropzone.classList.add("is-dragover");
+});
+
+extractModelDropzone?.addEventListener("dragleave", () => {
+    extractModelDropzone.classList.remove("is-dragover");
+});
+
+extractModelDropzone?.addEventListener("drop", (event) => {
+    event.preventDefault();
+    extractModelDropzone.classList.remove("is-dragover");
+    const file = event.dataTransfer?.files?.[0];
+    if (!file || !extractModelFileInput) {
+        return;
+    }
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    extractModelFileInput.files = transfer.files;
+    extractModelFileInput.dispatchEvent(new Event("change"));
+});
+
+extractModelForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const file = extractModelFileInput.files?.[0];
+    if (!file) {
+        extractModelStatus.textContent = "Choose a paper PDF first.";
+        return;
+    }
+    if (!String(file.name || "").toLowerCase().endsWith(".pdf")) {
+        extractModelStatus.textContent = "Upload a PDF file.";
+        return;
+    }
+    resetExtractedPreview();
+    setExtractionBusy(true);
+    extractModelStatus.textContent = "Generating taxonomy from paper PDF...";
+    try {
+        const body = new FormData();
+        body.append("file", file);
+        body.append("prompt", extractModelPrompt.value || "");
+        const response = await api("/api/models/extract-from-paper", {method: "POST", body});
+        applyExtractedTaxonomyPreview(response);
+    } catch (error) {
+        extractModelStatus.textContent = error.message;
+    } finally {
+        setExtractionBusy(false);
+    }
+});
+
+extractModelTitle?.addEventListener("input", syncExtractedDraftSaveState);
+
+extractModelSaveButton?.addEventListener("click", async () => {
+    if (!extractedTaxonomyDraft?.taxonomy) {
+        return;
+    }
+    const title = String(extractModelTitle.value || "").trim();
+    if (!title) {
+        extractModelStatus.textContent = "Enter a model name before saving.";
+        return;
+    }
+    const taxonomy = structuredClone(extractedTaxonomyDraft.taxonomy);
+    taxonomy.title = title;
+    taxonomy.id = deriveId(title, "Data Extraction Model id");
+    try {
+        extractModelStatus.textContent = "Saving generated model...";
+        const response = await api("/api/models/custom/json", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(taxonomy)
+        });
+        extractedTaxonomyDraft.taxonomy = taxonomy;
+        extractModelStatus.textContent = `Saved Data Extraction Model: ${response.title}.`;
+        await loadWorkspace();
+        designerModelPicker.value = `${response.source}:${response.id}`;
+        lastDesignerPickerValue = designerModelPicker.value;
+        extractModelModal?.hide();
+    } catch (error) {
+        extractModelStatus.textContent = error.message;
+    }
+});
+
+extractModelLoadButton?.addEventListener("click", async () => {
+    if (!extractedTaxonomyDraft?.taxonomy) {
+        return;
+    }
+    if (!await confirmDiscardDesignerChanges("Load the generated model into the designer? Unsaved changes will be discarded.")) {
+        return;
+    }
+    const title = String(extractModelTitle.value || "").trim();
+    if (!title) {
+        extractModelStatus.textContent = "Enter a model name before loading it into the designer.";
+        return;
+    }
+    const taxonomy = structuredClone(extractedTaxonomyDraft.taxonomy);
+    taxonomy.title = title;
+    taxonomy.id = deriveId(title, "Data Extraction Model id");
+    resetDesignerFromTaxonomy(taxonomy);
+    designerStatus.textContent = `Loaded generated Data Extraction Model: ${taxonomy.title}`;
+    extractModelModal?.hide();
+    showView("designer-view");
+});
+
+extractModelModalElement?.addEventListener("show.bs.modal", () => {
+    resetExtractedPreview();
+    extractModelStatus.textContent = "";
+    extractModelFileInput.value = "";
+    extractModelFileLabel.textContent = "or click to choose a paper PDF";
+});
+
+extractModelModalElement?.addEventListener("hidden.bs.modal", () => {
+    setExtractionBusy(false);
 });
 
 for (const button of tabButtons) {
@@ -629,6 +763,77 @@ function resetDesignerToBlank() {
     markDesignerClean();
 }
 
+function resetExtractedPreview() {
+    extractedTaxonomyDraft = null;
+    extractModelTitle.value = "";
+    extractModelTitle.disabled = true;
+    extractModelSaveButton.disabled = true;
+    extractModelLoadButton.disabled = true;
+    extractModelValidation.textContent = "";
+    extractModelErrors.classList.add("d-none");
+    extractModelErrors.innerHTML = "";
+    extractModelYaml.classList.add("empty-state");
+    extractModelYaml.textContent = "The generated YAML will appear here after extraction.";
+    extractModelFormPreview.classList.add("empty-state");
+    extractModelFormPreview.textContent = "The generated form preview will appear here after extraction.";
+}
+
+function setExtractionBusy(isBusy) {
+    if (extractModelFileInput) {
+        extractModelFileInput.disabled = isBusy;
+    }
+    if (extractModelPrompt) {
+        extractModelPrompt.disabled = isBusy;
+    }
+    const submitButton = document.querySelector("#extract-model-submit");
+    if (submitButton) {
+        submitButton.disabled = isBusy;
+        submitButton.textContent = isBusy ? "Generating..." : "Generate taxonomy";
+    }
+}
+
+function applyExtractedTaxonomyPreview(response) {
+    extractedTaxonomyDraft = response;
+    extractModelYaml.classList.remove("empty-state");
+    extractModelYaml.textContent = response.raw_yaml || "";
+
+    if (response.taxonomy?.title) {
+        extractModelTitle.value = response.taxonomy.title;
+        extractModelTitle.disabled = false;
+    } else {
+        extractModelTitle.value = "";
+        extractModelTitle.disabled = true;
+    }
+
+    if (response.form_schema?.fields?.length) {
+        renderClassificationFieldsInto(extractModelFormPreview, response.form_schema.fields, response.form_schema);
+    } else {
+        extractModelFormPreview.classList.add("empty-state");
+        extractModelFormPreview.textContent = "The generated taxonomy did not validate, so no form preview is available yet.";
+    }
+
+    const validationErrors = response.validation_errors || [];
+    if (validationErrors.length > 0) {
+        extractModelValidation.textContent = `${validationErrors.length} validation issue(s)`;
+        extractModelErrors.innerHTML = `<ul class="mb-0">${validationErrors.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
+        extractModelErrors.classList.remove("d-none");
+        extractModelStatus.textContent = "Generation completed, but the model did not validate.";
+    } else {
+        extractModelValidation.textContent = "Valid against metamodel";
+        extractModelErrors.classList.add("d-none");
+        extractModelErrors.innerHTML = "";
+        extractModelStatus.textContent = "Generation completed.";
+    }
+    syncExtractedDraftSaveState();
+}
+
+function syncExtractedDraftSaveState() {
+    const canUse = Boolean(extractedTaxonomyDraft?.taxonomy) && (extractedTaxonomyDraft.validation_errors || []).length === 0;
+    const hasTitle = Boolean(String(extractModelTitle?.value || "").trim());
+    extractModelSaveButton.disabled = !(canUse && hasTitle);
+    extractModelLoadButton.disabled = !(canUse && hasTitle);
+}
+
 function handleDesignerMutation(event) {
     if (event.target === designerModelPicker) {
         return;
@@ -677,14 +882,18 @@ async function confirmDiscardDesignerChanges(message = "Load another Data Extrac
 }
 
 function renderClassificationFields(fields) {
-    dynamicFields.classList.remove("empty-state");
-    dynamicFields.innerHTML = "";
+    renderClassificationFieldsInto(dynamicFields, fields, formSchema);
+}
+
+function renderClassificationFieldsInto(container, fields, schema) {
+    container.classList.remove("empty-state");
+    container.innerHTML = "";
     for (const field of fields) {
-        dynamicFields.append(renderField(field));
+        container.append(renderField(field, schema));
     }
 }
 
-function renderField(field) {
+function renderField(field, schema = formSchema) {
     const wrapper = document.createElement("section");
     wrapper.className = "classification-field card border-0 shadow-sm";
     const body = document.createElement("div");
@@ -713,7 +922,7 @@ function renderField(field) {
                 label.innerHTML = `<input class="form-check-input" type="checkbox" data-field="${escapeHtml(field.id)}" data-option-criteria='${escapeHtml(JSON.stringify(option.criteria || []))}' value="${escapeHtml(option.id)}"><span class="form-check-label">${escapeHtml(option.label)}</span>`;
                 list.append(label);
             }
-            list.addEventListener("change", () => renderSelectedCriteria(field.id, criteriaContainer));
+            list.addEventListener("change", () => renderSelectedCriteria(field.id, criteriaContainer, schema));
             body.append(list);
         } else {
             const select = document.createElement("select");
@@ -731,7 +940,7 @@ function renderField(field) {
                 }
                 select.append(item);
             }
-            select.addEventListener("change", () => renderSelectedCriteria(field.id, criteriaContainer));
+            select.addEventListener("change", () => renderSelectedCriteria(field.id, criteriaContainer, schema));
             body.append(select);
         }
         const criteriaContainer = document.createElement("div");
@@ -755,7 +964,7 @@ function renderField(field) {
     }
 
     for (const subfield of field.subdimensions || []) {
-        body.append(renderField(subfield));
+        body.append(renderField(subfield, schema));
     }
     wrapper.append(body);
     return wrapper;
@@ -771,24 +980,24 @@ function flattenOptions(options, prefix = "") {
     return result;
 }
 
-function renderSelectedCriteria(fieldId, container) {
-    const criteria = selectedCriteriaFor(fieldId);
+function renderSelectedCriteria(fieldId, container, schema = formSchema) {
+    const criteria = selectedCriteriaFor(fieldId, container.parentElement || document);
     container.innerHTML = "";
     for (const criterion of criteria) {
-        container.append(renderCriterion(criterion));
+        container.append(renderCriterion(criterion, schema));
     }
 }
 
-function selectedCriteriaFor(fieldId) {
+function selectedCriteriaFor(fieldId, scope = document) {
     const criteriaById = new Map();
-    const checkboxes = Array.from(document.querySelectorAll(`[data-field="${cssEscape(fieldId)}"]:checked`));
+    const checkboxes = Array.from(scope.querySelectorAll(`[data-field="${cssEscape(fieldId)}"]:checked`));
     for (const checkbox of checkboxes) {
         for (const criterion of JSON.parse(checkbox.dataset.optionCriteria || "[]")) {
             criteriaById.set(criterion.id, criterion);
         }
     }
 
-    const select = document.querySelector(`select[data-field="${cssEscape(fieldId)}"]`);
+    const select = scope.querySelector(`select[data-field="${cssEscape(fieldId)}"]`);
     if (select && select.selectedOptions.length > 0) {
         const selected = select.selectedOptions[0];
         for (const criterion of JSON.parse(selected.dataset.optionCriteria || "[]")) {
@@ -798,7 +1007,7 @@ function selectedCriteriaFor(fieldId) {
     return Array.from(criteriaById.values());
 }
 
-function renderCriterion(criterion) {
+function renderCriterion(criterion, schema = formSchema) {
     const wrapper = document.createElement("div");
     wrapper.className = "classification-field card border-0";
     const body = document.createElement("div");
@@ -813,7 +1022,7 @@ function renderCriterion(criterion) {
         body.append(question);
     }
 
-    const scale = formSchema?.scales?.[criterion.scale];
+    const scale = schema?.scales?.[criterion.scale];
     if (scale && scale.scale_values && scale.scale_values.length > 0) {
         const select = document.createElement("select");
         select.className = "form-select";

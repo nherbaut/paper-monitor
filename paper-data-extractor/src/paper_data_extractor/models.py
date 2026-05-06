@@ -22,6 +22,13 @@ class ModelSummary(BaseModel):
     preview_text: str | None = None
 
 
+class TaxonomyExtractionResponse(BaseModel):
+    raw_yaml: str
+    taxonomy: dict[str, Any] | None = None
+    form_schema: dict[str, Any] | None = None
+    validation_errors: list[str] = Field(default_factory=list)
+
+
 class ReviewDesignRequest(BaseModel):
     title: str
     model_ids: list[str]

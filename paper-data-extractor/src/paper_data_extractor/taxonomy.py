@@ -5,11 +5,14 @@ import json
 import os
 import re
 from copy import deepcopy
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
 from fastapi import HTTPException
+from jsonschema import Draft202012Validator
+from linkml.generators.jsonschemagen import JsonSchemaGenerator
 
 from paper_data_extractor.models import ModelSummary
 from paper_data_extractor.paths import (
@@ -68,6 +71,7 @@ def validate_taxonomy_shape(taxonomy: dict[str, Any]) -> None:
         validate_dimension(dimension)
     for scale in taxonomy.get("scales") or []:
         validate_scale(scale)
+    validate_taxonomy_against_metamodel(taxonomy)
 
 
 def validate_dimension(dimension: Any) -> None:
@@ -115,6 +119,50 @@ def validate_scale(scale: Any) -> None:
             raise HTTPException(status_code=400, detail=f"Scale is missing required field: {key}")
     if scale["scale_type"] not in {"binary", "ordinal", "nominal", "numeric", "free_text"}:
         raise HTTPException(status_code=400, detail=f"Unsupported scale_type: {scale['scale_type']}")
+
+
+@lru_cache(maxsize=1)
+def taxonomy_metamodel_json_schema() -> dict[str, Any]:
+    generator = JsonSchemaGenerator(str(METAMODEL_PATH), top_class="DataExtractionModel")
+    return yaml.safe_load(generator.serialize())
+
+
+def taxonomy_validation_errors(taxonomy: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    try:
+        required = ("id", "title", "dimensions")
+        missing = [key for key in required if key not in taxonomy]
+        if missing:
+            errors.append(f"Taxonomy is missing required fields: {', '.join(missing)}")
+        elif not isinstance(taxonomy.get("dimensions"), list):
+            errors.append("Taxonomy dimensions must be a list")
+        else:
+            for dimension in taxonomy["dimensions"]:
+                validate_dimension(dimension)
+            for scale in taxonomy.get("scales") or []:
+                validate_scale(scale)
+    except HTTPException as exc:
+        detail = exc.detail
+        if isinstance(detail, list):
+            errors.extend(str(item) for item in detail)
+        else:
+            errors.append(str(detail))
+
+    if errors:
+        return errors
+
+    validator = Draft202012Validator(taxonomy_metamodel_json_schema())
+    schema_errors = sorted(validator.iter_errors(taxonomy), key=lambda item: list(item.path))
+    for error in schema_errors:
+        path = ".".join(str(part) for part in error.absolute_path)
+        errors.append(f"{path or '<root>'}: {error.message}")
+    return errors
+
+
+def validate_taxonomy_against_metamodel(taxonomy: dict[str, Any]) -> None:
+    errors = taxonomy_validation_errors(taxonomy)
+    if errors:
+        raise HTTPException(status_code=400, detail=" ; ".join(errors))
 
 
 def model_file_for(directory: Path, model_id: str) -> Path:
