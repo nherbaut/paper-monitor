@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 from copy import deepcopy
@@ -27,6 +28,7 @@ os.environ.setdefault("PYSTOW_HOME", str(SCHEMA_DIR.parent / "data" / ".pystow")
 from linkml_runtime.utils.schemaview import SchemaView
 
 METAMODEL_PATH = SCHEMA_DIR / "data_extraction_model_metamodel.yaml"
+logger = logging.getLogger(__name__)
 
 
 def load_metamodel() -> SchemaView:
@@ -128,6 +130,14 @@ def taxonomy_metamodel_json_schema() -> dict[str, Any]:
 
 
 def taxonomy_validation_errors(taxonomy: dict[str, Any]) -> list[str]:
+    logger.info(
+        "Taxonomy validation starting: taxonomy_id=%s title=%s dimensions=%d scales=%d rules=%d",
+        taxonomy.get("id"),
+        taxonomy.get("title"),
+        len(taxonomy.get("dimensions") or []),
+        len(taxonomy.get("scales") or []),
+        len(taxonomy.get("rules") or []),
+    )
     errors: list[str] = []
     try:
         required = ("id", "title", "dimensions")
@@ -149,6 +159,11 @@ def taxonomy_validation_errors(taxonomy: dict[str, Any]) -> list[str]:
             errors.append(str(detail))
 
     if errors:
+        logger.warning(
+            "Taxonomy validation failed during shape checks: taxonomy_id=%s errors=%s",
+            taxonomy.get("id"),
+            errors,
+        )
         return errors
 
     validator = Draft202012Validator(taxonomy_metamodel_json_schema())
@@ -156,6 +171,14 @@ def taxonomy_validation_errors(taxonomy: dict[str, Any]) -> list[str]:
     for error in schema_errors:
         path = ".".join(str(part) for part in error.absolute_path)
         errors.append(f"{path or '<root>'}: {error.message}")
+    if errors:
+        logger.warning(
+            "Taxonomy validation failed against metamodel schema: taxonomy_id=%s errors=%s",
+            taxonomy.get("id"),
+            errors,
+        )
+    else:
+        logger.info("Taxonomy validation succeeded: taxonomy_id=%s", taxonomy.get("id"))
     return errors
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
 
@@ -53,6 +54,8 @@ from paper_data_extractor.taxonomy import (
 )
 
 ensure_data_dirs()
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Paper Data Extractor", version="0.1.0")
 app.mount("/static", StaticFiles(directory=PROJECT_ROOT / "static"), name="static")
@@ -153,22 +156,52 @@ async def extract_model_from_paper(
     file: UploadFile = File(...),
     prompt: str = Form(...),
 ) -> TaxonomyExtractionResponse:
+    logger.info(
+        "Taxonomy extraction request received: filename=%s content_type=%s prompt_chars=%d extractor_configured=%s",
+        file.filename,
+        file.content_type,
+        len(prompt or ""),
+        taxonomy_extractor.is_configured(),
+    )
     if not taxonomy_extractor.is_configured():
+        logger.warning("Taxonomy extraction rejected because OpenAI extractor is not configured")
         raise HTTPException(status_code=503, detail="OpenAI extraction is not configured on this server")
     filename = file.filename or "paper.pdf"
     if not filename.lower().endswith(".pdf"):
+        logger.warning("Taxonomy extraction rejected because uploaded file is not a PDF: filename=%s", filename)
         raise HTTPException(status_code=400, detail="Upload a PDF file")
     pdf_bytes = await file.read()
+    logger.info("Taxonomy extraction upload read: filename=%s bytes=%d", filename, len(pdf_bytes))
     raw_yaml = taxonomy_extractor.extract_yaml(pdf_bytes, filename, prompt)
+    logger.info("Taxonomy extraction OpenAI call completed: filename=%s raw_yaml_chars=%d", filename, len(raw_yaml))
     try:
         taxonomy = parse_yaml_mapping(raw_yaml)
     except HTTPException as exc:
+        logger.warning("Taxonomy extraction YAML parsing failed: filename=%s detail=%s", filename, exc.detail)
         return TaxonomyExtractionResponse(raw_yaml=raw_yaml, validation_errors=[str(exc.detail)])
 
+    logger.info(
+        "Taxonomy extraction YAML parsed: filename=%s keys=%s",
+        filename,
+        sorted(taxonomy.keys()),
+    )
     errors = taxonomy_validation_errors(taxonomy)
     if errors:
+        logger.warning(
+            "Taxonomy extraction validation failed: filename=%s error_count=%d errors=%s",
+            filename,
+            len(errors),
+            errors,
+        )
         return TaxonomyExtractionResponse(raw_yaml=raw_yaml, taxonomy=taxonomy, validation_errors=errors)
 
+    logger.info(
+        "Taxonomy extraction validated successfully: filename=%s taxonomy_id=%s taxonomy_title=%s dimensions=%d",
+        filename,
+        taxonomy.get("id"),
+        taxonomy.get("title"),
+        len(taxonomy.get("dimensions") or []),
+    )
     return TaxonomyExtractionResponse(
         raw_yaml=yaml_text(taxonomy),
         taxonomy=taxonomy,
