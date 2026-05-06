@@ -217,19 +217,19 @@
                             <div class="d-grid gap-3">
                                 <div>
                                     <p class="help-text mt-0">Upload a paper PDF, send it to OpenAI with the taxonomy-extraction prompt, then inspect the generated YAML and rendered form before saving.</p>
-                                    {#if !taxonomy_extraction_enabled}
+                                    {% if not taxonomy_extraction_enabled %}
                                     <div class="alert alert-warning mb-0">OpenAI extraction is not configured on this server. Set <code>PAPER_DATA_EXTRACTOR_OPENAI_API_KEY</code> or <code>OPENAI_API_KEY</code> to enable it.</div>
-                                    {/if}
+                                    {% endif %}
                                 </div>
                                 <label id="extract-model-dropzone" class="pdf-dropzone">
-                                    <input id="extract-model-file" class="d-none" type="file" accept="application/pdf,.pdf" {#if !taxonomy_extraction_enabled}disabled{/if} required>
+                                    <input id="extract-model-file" class="d-none" type="file" accept="application/pdf,.pdf" {% if not taxonomy_extraction_enabled %}disabled{% endif %} required>
                                     <span class="pdf-dropzone-title">Drop a PDF here</span>
                                     <span id="extract-model-file-label" class="pdf-dropzone-meta">or click to choose a paper PDF</span>
                                 </label>
                                 <label class="form-label mb-0">Prompt
-                                    <textarea id="extract-model-prompt" class="form-control mt-2" rows="18" {#if !taxonomy_extraction_enabled}disabled{/if}>{default_taxonomy_extraction_prompt}</textarea>
+                                    <textarea id="extract-model-prompt" class="form-control mt-2" rows="18" {% if not taxonomy_extraction_enabled %}disabled{% endif %}>{{ default_taxonomy_extraction_prompt }}</textarea>
                                 </label>
-                                <button id="extract-model-submit" class="btn btn-primary" type="submit" {#if !taxonomy_extraction_enabled}disabled{/if}>Generate taxonomy</button>
+                                <button id="extract-model-submit" class="btn btn-primary" type="submit" {% if not taxonomy_extraction_enabled %}disabled{% endif %}>Generate taxonomy</button>
                                 <p id="extract-model-status" class="status-line small mb-0"></p>
                             </div>
                         </div>
