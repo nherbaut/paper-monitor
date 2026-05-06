@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import logging
 import os
 import re
 from copy import deepcopy
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
 import yaml
 from fastapi import HTTPException
-from jsonschema import Draft202012Validator
-from linkml.generators.jsonschemagen import JsonSchemaGenerator
 
 from paper_data_extractor.models import ModelSummary
 from paper_data_extractor.paths import (
@@ -57,6 +55,11 @@ def yaml_text(data: dict[str, Any]) -> str:
 def slugify(value: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower()).strip("-")
     return slug or "taxonomy"
+
+
+def machine_id(value: str) -> str:
+    identifier = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip().lower()).strip("_")
+    return identifier or "item"
 
 
 def validate_taxonomy_shape(taxonomy: dict[str, Any]) -> None:
@@ -123,10 +126,75 @@ def validate_scale(scale: Any) -> None:
         raise HTTPException(status_code=400, detail=f"Unsupported scale_type: {scale['scale_type']}")
 
 
-@lru_cache(maxsize=1)
-def taxonomy_metamodel_json_schema() -> dict[str, Any]:
-    generator = JsonSchemaGenerator(str(METAMODEL_PATH), top_class="DataExtractionModel")
-    return yaml.safe_load(generator.serialize())
+def normalize_taxonomy(taxonomy: dict[str, Any]) -> dict[str, Any]:
+    normalized = normalize_strings(deepcopy(taxonomy))
+    normalized["dimensions"] = [normalize_dimension_model(dimension) for dimension in normalized.get("dimensions") or []]
+    return normalized
+
+
+def normalize_strings(value: Any) -> Any:
+    if isinstance(value, str):
+        return html.unescape(value).replace("\r\n", "\n")
+    if isinstance(value, list):
+        return [normalize_strings(item) for item in value]
+    if isinstance(value, dict):
+        return {key: normalize_strings(item) for key, item in value.items()}
+    return value
+
+
+def normalize_dimension_model(dimension: dict[str, Any]) -> dict[str, Any]:
+    normalized = deepcopy(dimension)
+    promoted_subdimensions: list[dict[str, Any]] = []
+    normalized_values: list[Any] = []
+
+    for value in normalized.get("values") or []:
+        normalized_value, extra_subdimensions = normalize_taxon_model(value)
+        normalized_values.append(normalized_value)
+        promoted_subdimensions.extend(extra_subdimensions)
+
+    normalized["values"] = normalized_values
+    normalized["subdimensions"] = merge_dimensions(
+        [normalize_dimension_model(item) for item in normalized.get("subdimensions") or []],
+        promoted_subdimensions,
+    )
+    return normalized
+
+
+def normalize_taxon_model(value: Any) -> tuple[Any, list[dict[str, Any]]]:
+    if isinstance(value, str):
+        return value, []
+
+    normalized = deepcopy(value)
+    normalized_children: list[Any] = []
+    promoted_subdimensions: list[dict[str, Any]] = []
+
+    for child in normalized.get("children") or []:
+        normalized_child, extra_subdimensions = normalize_taxon_model(child)
+        normalized_children.append(normalized_child)
+        promoted_subdimensions.extend(extra_subdimensions)
+
+    normalized["children"] = normalized_children
+
+    for subdimension in normalized.pop("subdimensions", []) or []:
+        if isinstance(subdimension, dict):
+            promoted_subdimensions.append(contextualize_promoted_subdimension(subdimension, normalized))
+
+    return normalized, promoted_subdimensions
+
+
+def contextualize_promoted_subdimension(subdimension: dict[str, Any], taxon: dict[str, Any]) -> dict[str, Any]:
+    normalized = normalize_dimension_model(subdimension)
+    taxon_id = machine_id(str(taxon.get("id") or taxon.get("label") or "taxon"))
+    subdimension_id = machine_id(str(normalized.get("id") or normalized.get("label") or "dimension"))
+    qualified_id = f"{taxon_id}_{subdimension_id}"
+    if str(normalized.get("id") or "") != qualified_id:
+        normalized["id"] = qualified_id
+    taxon_label = str(taxon.get("label") or taxon.get("id") or "taxon")
+    description_prefix = f"Applies when taxon '{taxon_label}' is selected."
+    existing_description = str(normalized.get("description") or "").strip()
+    normalized["description"] = f"{description_prefix} {existing_description}".strip()
+    normalized["label"] = f"{taxon_label}: {normalized.get('label') or normalized.get('id')}"
+    return normalized
 
 
 def taxonomy_validation_errors(taxonomy: dict[str, Any]) -> list[str]:
@@ -166,14 +234,10 @@ def taxonomy_validation_errors(taxonomy: dict[str, Any]) -> list[str]:
         )
         return errors
 
-    validator = Draft202012Validator(taxonomy_metamodel_json_schema())
-    schema_errors = sorted(validator.iter_errors(taxonomy), key=lambda item: list(item.path))
-    for error in schema_errors:
-        path = ".".join(str(part) for part in error.absolute_path)
-        errors.append(f"{path or '<root>'}: {error.message}")
+    validate_taxonomy_authoring_model(taxonomy, errors)
     if errors:
         logger.warning(
-            "Taxonomy validation failed against metamodel schema: taxonomy_id=%s errors=%s",
+            "Taxonomy validation failed against authoring metamodel: taxonomy_id=%s errors=%s",
             taxonomy.get("id"),
             errors,
         )
@@ -186,6 +250,159 @@ def validate_taxonomy_against_metamodel(taxonomy: dict[str, Any]) -> None:
     errors = taxonomy_validation_errors(taxonomy)
     if errors:
         raise HTTPException(status_code=400, detail=" ; ".join(errors))
+
+
+def validate_taxonomy_authoring_model(taxonomy: dict[str, Any], errors: list[str]) -> None:
+    validate_mapping_keys(
+        taxonomy,
+        "<root>",
+        {"id", "title", "source", "target_entity", "dimensions", "scales", "rules"},
+        errors,
+    )
+
+    source = taxonomy.get("source")
+    if source is not None:
+        if not isinstance(source, dict):
+            errors.append("source: must be a mapping")
+        else:
+            validate_mapping_keys(source, "source", {"citation_key", "title", "authors", "year"}, errors)
+            authors = source.get("authors")
+            if authors is not None and not isinstance(authors, list):
+                errors.append("source.authors: must be a list")
+            elif isinstance(authors, list):
+                for index, author in enumerate(authors):
+                    if not isinstance(author, str):
+                        errors.append(f"source.authors.{index}: must be a string")
+            year = source.get("year")
+            if year is not None and not isinstance(year, int):
+                errors.append("source.year: must be an integer")
+
+    for index, dimension in enumerate(taxonomy.get("dimensions") or []):
+        validate_dimension_authoring_model(dimension, f"dimensions.{index}", errors)
+
+    scales = taxonomy.get("scales") or []
+    known_scale_ids = {str(scale.get("id")) for scale in scales if isinstance(scale, dict) and scale.get("id")}
+    for index, scale in enumerate(scales):
+        validate_scale_authoring_model(scale, f"scales.{index}", errors)
+
+    for index, rule in enumerate(taxonomy.get("rules") or []):
+        validate_rule_authoring_model(rule, f"rules.{index}", errors)
+
+    for index, dimension in enumerate(taxonomy.get("dimensions") or []):
+        validate_dimension_scale_references(dimension, known_scale_ids, f"dimensions.{index}", errors)
+
+
+def validate_dimension_authoring_model(dimension: Any, path: str, errors: list[str]) -> None:
+    if not isinstance(dimension, dict):
+        errors.append(f"{path}: must be a mapping")
+        return
+    validate_mapping_keys(
+        dimension,
+        path,
+        {"id", "label", "description", "value_type", "cardinality", "required", "values", "subdimensions"},
+        errors,
+    )
+    values = dimension.get("values")
+    if values is not None and not isinstance(values, list):
+        errors.append(f"{path}.values: must be a list")
+    else:
+        for index, value in enumerate(values or []):
+            validate_taxon_authoring_model(value, f"{path}.values.{index}", errors)
+
+    subdimensions = dimension.get("subdimensions")
+    if subdimensions is not None and not isinstance(subdimensions, list):
+        errors.append(f"{path}.subdimensions: must be a list")
+    else:
+        for index, subdimension in enumerate(subdimensions or []):
+            validate_dimension_authoring_model(subdimension, f"{path}.subdimensions.{index}", errors)
+
+
+def validate_taxon_authoring_model(value: Any, path: str, errors: list[str]) -> None:
+    if isinstance(value, str):
+        return
+    if not isinstance(value, dict):
+        errors.append(f"{path}: must be a string or mapping")
+        return
+    validate_mapping_keys(value, path, {"id", "label", "description", "children", "criteria"}, errors)
+
+    children = value.get("children")
+    if children is not None and not isinstance(children, list):
+        errors.append(f"{path}.children: must be a list")
+    else:
+        for index, child in enumerate(children or []):
+            validate_taxon_authoring_model(child, f"{path}.children.{index}", errors)
+
+    criteria = value.get("criteria")
+    if criteria is not None and not isinstance(criteria, list):
+        errors.append(f"{path}.criteria: must be a list")
+    else:
+        for index, criterion in enumerate(criteria or []):
+            validate_criterion_authoring_model(criterion, f"{path}.criteria.{index}", errors)
+
+
+def validate_criterion_authoring_model(criterion: Any, path: str, errors: list[str]) -> None:
+    if not isinstance(criterion, dict):
+        errors.append(f"{path}: must be a mapping")
+        return
+    validate_mapping_keys(criterion, path, {"id", "label", "description", "question", "scale", "required"}, errors)
+
+
+def validate_scale_authoring_model(scale: Any, path: str, errors: list[str]) -> None:
+    if not isinstance(scale, dict):
+        errors.append(f"{path}: must be a mapping")
+        return
+    validate_mapping_keys(scale, path, {"id", "scale_type", "scale_values"}, errors)
+    scale_values = scale.get("scale_values")
+    if scale_values is not None and not isinstance(scale_values, list):
+        errors.append(f"{path}.scale_values: must be a list")
+        return
+    for index, scale_value in enumerate(scale_values or []):
+        if not isinstance(scale_value, dict):
+            errors.append(f"{path}.scale_values.{index}: must be a mapping")
+            continue
+        validate_mapping_keys(
+            scale_value,
+            f"{path}.scale_values.{index}",
+            {"value", "label", "description"},
+            errors,
+        )
+
+
+def validate_rule_authoring_model(rule: Any, path: str, errors: list[str]) -> None:
+    if not isinstance(rule, dict):
+        errors.append(f"{path}: must be a mapping")
+        return
+    validate_mapping_keys(rule, path, {"id", "description", "applies_to"}, errors)
+
+
+def validate_dimension_scale_references(
+    dimension: Any, known_scale_ids: set[str], path: str, errors: list[str]
+) -> None:
+    if not isinstance(dimension, dict):
+        return
+    for index, value in enumerate(dimension.get("values") or []):
+        validate_taxon_scale_references(value, known_scale_ids, f"{path}.values.{index}", errors)
+    for index, subdimension in enumerate(dimension.get("subdimensions") or []):
+        validate_dimension_scale_references(subdimension, known_scale_ids, f"{path}.subdimensions.{index}", errors)
+
+
+def validate_taxon_scale_references(value: Any, known_scale_ids: set[str], path: str, errors: list[str]) -> None:
+    if isinstance(value, str) or not isinstance(value, dict):
+        return
+    for index, criterion in enumerate(value.get("criteria") or []):
+        if not isinstance(criterion, dict):
+            continue
+        scale_id = criterion.get("scale")
+        if isinstance(scale_id, str) and scale_id not in known_scale_ids:
+            errors.append(f"{path}.criteria.{index}.scale: unknown scale '{scale_id}'")
+    for index, child in enumerate(value.get("children") or []):
+        validate_taxon_scale_references(child, known_scale_ids, f"{path}.children.{index}", errors)
+
+
+def validate_mapping_keys(value: dict[str, Any], path: str, allowed_keys: set[str], errors: list[str]) -> None:
+    for key in value:
+        if key not in allowed_keys:
+            errors.append(f"{path}.{key}: unexpected field")
 
 
 def model_file_for(directory: Path, model_id: str) -> Path:
@@ -250,6 +467,7 @@ def load_model(model_id: str, source: str | None = None) -> dict[str, Any]:
 
 
 def save_custom_model(taxonomy: dict[str, Any]) -> ModelSummary:
+    taxonomy = normalize_taxonomy(taxonomy)
     validate_taxonomy_shape(taxonomy)
     path = CUSTOM_MODELS_DIR / f"{slugify(str(taxonomy['id']))}.yaml"
     if path.exists():

@@ -61,6 +61,7 @@ classes:
     slots:
       - id
       - label
+      - description
       - question
       - scale
       - required

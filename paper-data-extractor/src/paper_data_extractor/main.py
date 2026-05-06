@@ -46,6 +46,7 @@ from paper_data_extractor.taxonomy import (
     delete_model,
     list_models,
     load_model,
+    normalize_taxonomy,
     save_custom_model,
     taxonomy_validation_errors,
     taxonomy_to_form_schema,
@@ -180,6 +181,16 @@ async def extract_model_from_paper(
         logger.warning("Taxonomy extraction YAML parsing failed: filename=%s detail=%s", filename, exc.detail)
         return TaxonomyExtractionResponse(raw_yaml=raw_yaml, validation_errors=[str(exc.detail)])
 
+    normalized_taxonomy = normalize_taxonomy(taxonomy)
+    if normalized_taxonomy != taxonomy:
+        logger.info(
+            "Taxonomy extraction normalized parsed YAML: filename=%s original_dimensions=%d normalized_dimensions=%d",
+            filename,
+            len(taxonomy.get("dimensions") or []),
+            len(normalized_taxonomy.get("dimensions") or []),
+        )
+    taxonomy = normalized_taxonomy
+
     logger.info(
         "Taxonomy extraction YAML parsed: filename=%s keys=%s",
         filename,
@@ -193,7 +204,7 @@ async def extract_model_from_paper(
             len(errors),
             errors,
         )
-        return TaxonomyExtractionResponse(raw_yaml=raw_yaml, taxonomy=taxonomy, validation_errors=errors)
+        return TaxonomyExtractionResponse(raw_yaml=yaml_text(taxonomy), taxonomy=taxonomy, validation_errors=errors)
 
     logger.info(
         "Taxonomy extraction validated successfully: filename=%s taxonomy_id=%s taxonomy_title=%s dimensions=%d",
