@@ -52,8 +52,6 @@ const downloadDataExtractionMetamodelButton = document.querySelector("#download-
 const downloadDataExtractionMetamodelJsonSchemaButton = document.querySelector("#download-data-extraction-metamodel-json-schema");
 const downloadReviewDesignMetamodelButton = document.querySelector("#download-review-design-metamodel");
 const downloadReviewDesignMetamodelJsonSchemaButton = document.querySelector("#download-review-design-metamodel-json-schema");
-const extractModelModalElement = document.querySelector("#extract-model-modal");
-const extractModelModal = extractModelModalElement ? bootstrap.Modal.getOrCreateInstance(extractModelModalElement) : null;
 const extractModelForm = document.querySelector("#extract-model-form");
 const extractModelFileInput = document.querySelector("#extract-model-file");
 const extractModelDropzone = document.querySelector("#extract-model-dropzone");
@@ -69,7 +67,6 @@ const extractModelFormPreview = document.querySelector("#extract-model-form-prev
 const extractModelYaml = document.querySelector("#extract-model-yaml");
 const extractModelErrors = document.querySelector("#extract-model-errors");
 const extractModelProgress = document.querySelector("#extract-model-progress");
-const extractModelCloseButton = document.querySelector("#extract-model-close");
 
 async function api(path, options = {}) {
     const response = await fetch(path, options);
@@ -413,7 +410,6 @@ extractModelSaveButton?.addEventListener("click", async () => {
         await loadWorkspace();
         designerModelPicker.value = `${response.source}:${response.id}`;
         lastDesignerPickerValue = designerModelPicker.value;
-        extractModelModal?.hide();
     } catch (error) {
         extractModelStatus.textContent = error.message;
     }
@@ -436,20 +432,7 @@ extractModelLoadButton?.addEventListener("click", async () => {
     taxonomy.id = deriveId(title, "Data Extraction Model id");
     resetDesignerFromTaxonomy(taxonomy);
     designerStatus.textContent = `Loaded generated Data Extraction Model: ${taxonomy.title}`;
-    extractModelModal?.hide();
     showView("designer-view");
-});
-
-extractModelModalElement?.addEventListener("show.bs.modal", () => {
-    resetExtractedPreview();
-    extractModelStatus.textContent = "";
-    extractModelFileInput.value = "";
-    extractModelFileLabel.textContent = "or click to choose a paper PDF";
-    showView("extract-view");
-});
-
-extractModelModalElement?.addEventListener("hidden.bs.modal", () => {
-    setExtractionBusy(false);
 });
 
 for (const button of tabButtons) {
@@ -801,9 +784,6 @@ function setExtractionBusy(isBusy) {
     if (extractModelSubmitButton) {
         extractModelSubmitButton.disabled = isBusy;
         extractModelSubmitButton.textContent = isBusy ? "Generating..." : "Generate taxonomy";
-    }
-    if (extractModelCloseButton) {
-        extractModelCloseButton.disabled = isBusy;
     }
     if (extractModelProgress) {
         extractModelProgress.classList.toggle("d-none", !isBusy);
