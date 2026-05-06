@@ -210,7 +210,7 @@
                 <h2 id="extract-model-modal-label" class="modal-title h5 mb-0 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 1h7l3 3v11H3V1Zm1 1v12h8V5H9V2H4Zm5 0v2h2L9 2ZM5 8h6v1H5V8Zm0 2h6v1H5v-1Z"/></svg></span><span>Generate Data Extraction Model from PDF</span></h2>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="extract-model-form">
+            <form id="extract-model-form" novalidate>
                 <div class="modal-body d-grid gap-4">
                     <div class="row g-4">
                         <div class="col-lg-5">
@@ -222,14 +222,14 @@
                                     {% endif %}
                                 </div>
                                 <label id="extract-model-dropzone" class="pdf-dropzone">
-                                    <input id="extract-model-file" class="d-none" type="file" accept="application/pdf,.pdf" {% if not taxonomy_extraction_enabled %}disabled{% endif %} required>
+                                    <input id="extract-model-file" class="d-none" type="file" accept="application/pdf,.pdf" {% if not taxonomy_extraction_enabled %}disabled{% endif %}>
                                     <span class="pdf-dropzone-title">Drop a PDF here</span>
                                     <span id="extract-model-file-label" class="pdf-dropzone-meta">or click to choose a paper PDF</span>
                                 </label>
                                 <label class="form-label mb-0">Prompt
                                     <textarea id="extract-model-prompt" class="form-control mt-2" rows="18" {% if not taxonomy_extraction_enabled %}disabled{% endif %}>{{ default_taxonomy_extraction_prompt }}</textarea>
                                 </label>
-                                <button id="extract-model-submit" class="btn btn-primary" type="submit" {% if not taxonomy_extraction_enabled %}disabled{% endif %}>Generate taxonomy</button>
+                                <button id="extract-model-submit" class="btn btn-primary" type="button" {% if not taxonomy_extraction_enabled %}disabled{% endif %}>Generate taxonomy</button>
                                 <p id="extract-model-status" class="status-line small mb-0"></p>
                             </div>
                         </div>

@@ -60,6 +60,7 @@ const extractModelDropzone = document.querySelector("#extract-model-dropzone");
 const extractModelFileLabel = document.querySelector("#extract-model-file-label");
 const extractModelPrompt = document.querySelector("#extract-model-prompt");
 const extractModelStatus = document.querySelector("#extract-model-status");
+const extractModelSubmitButton = document.querySelector("#extract-model-submit");
 const extractModelValidation = document.querySelector("#extract-model-validation");
 const extractModelTitle = document.querySelector("#extract-model-title");
 const extractModelSaveButton = document.querySelector("#extract-model-save");
@@ -348,16 +349,15 @@ extractModelDropzone?.addEventListener("drop", (event) => {
     extractModelFileInput.dispatchEvent(new Event("change"));
 });
 
-extractModelForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
+async function runModelExtraction() {
     const file = extractModelFileInput.files?.[0];
     if (!file) {
         extractModelStatus.textContent = "Choose a paper PDF first.";
-        return;
+        return false;
     }
     if (!String(file.name || "").toLowerCase().endsWith(".pdf")) {
         extractModelStatus.textContent = "Upload a PDF file.";
-        return;
+        return false;
     }
     resetExtractedPreview();
     setExtractionBusy(true);
@@ -373,6 +373,16 @@ extractModelForm?.addEventListener("submit", async (event) => {
     } finally {
         setExtractionBusy(false);
     }
+    return true;
+}
+
+extractModelForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void runModelExtraction();
+});
+
+extractModelSubmitButton?.addEventListener("click", () => {
+    void runModelExtraction();
 });
 
 extractModelTitle?.addEventListener("input", syncExtractedDraftSaveState);
@@ -785,10 +795,9 @@ function setExtractionBusy(isBusy) {
     if (extractModelPrompt) {
         extractModelPrompt.disabled = isBusy;
     }
-    const submitButton = document.querySelector("#extract-model-submit");
-    if (submitButton) {
-        submitButton.disabled = isBusy;
-        submitButton.textContent = isBusy ? "Generating..." : "Generate taxonomy";
+    if (extractModelSubmitButton) {
+        extractModelSubmitButton.disabled = isBusy;
+        extractModelSubmitButton.textContent = isBusy ? "Generating..." : "Generate taxonomy";
     }
 }
 
