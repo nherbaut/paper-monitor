@@ -83,7 +83,7 @@ class CurrentUser:
     is_admin: bool
 
 
-app = FastAPI(title="Paper Data Extractor", version="0.1.0", root_path=PDE_BASE_PATH)
+app = FastAPI(title="Paper Data Extractor", version="0.1.0")
 app.mount("/static", StaticFiles(directory=PROJECT_ROOT / "static"), name="static")
 templates = Jinja2Templates(directory=PROJECT_ROOT / "templates")
 templates.env.globals["pde_base_path"] = PDE_BASE_PATH
