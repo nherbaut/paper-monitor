@@ -25,13 +25,16 @@ public class PaperDataExtractorService {
             .build();
 
     private final String baseUrl;
+    private final String internalApiToken;
     private static final String DEFAULT_BASE_URL = "http://localhost:8091";
 
     public PaperDataExtractorService(
             @ConfigProperty(name = "paper-monitor.pde.api-base-url", defaultValue = "") String apiBaseUrl,
-            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "") String legacyBaseUrl
+            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "") String legacyBaseUrl,
+            @ConfigProperty(name = "paper-monitor.pde.internal-api-token", defaultValue = "") String internalApiToken
     ) {
         this.baseUrl = trimTrailingSlash(firstNonBlank(apiBaseUrl, legacyBaseUrl, DEFAULT_BASE_URL));
+        this.internalApiToken = internalApiToken == null ? "" : internalApiToken.trim();
     }
 
     public List<ReviewTemplateSummary> listReviewTemplates() {
@@ -68,6 +71,7 @@ public class PaperDataExtractorService {
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + path))
                 .timeout(Duration.ofSeconds(15))
                 .header("Accept", "application/json")
+                .header("X-PDE-Internal-Token", internalApiToken)
                 .GET()
                 .build();
         try {

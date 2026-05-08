@@ -8,6 +8,7 @@ services:
             - PAPER_MONITOR_PDE_BASE_URL=http://paper-data-extractor:8091
             - PAPER_MONITOR_PDE_PUBLIC_BASE_URL=http://localhost:8091
             - PAPER_MONITOR_PDE_API_BASE_URL=http://paper-data-extractor:8091
+            - PAPER_MONITOR_PDE_INTERNAL_API_TOKEN=dev-pde-internal-token
             - QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://paper-monitor-postgres:5432/paper_monitor
             - QUARKUS_DATASOURCE_USERNAME=paper_monitor
             - QUARKUS_DATASOURCE_PASSWORD=paper_monitor
@@ -22,6 +23,7 @@ services:
     paper-data-extractor:
         environment:
             - PAPER_DATA_EXTRACTOR_DEV_AUTH=true
+            - PAPER_DATA_EXTRACTOR_INTERNAL_API_TOKEN=dev-pde-internal-token
         ports:
             - 8091:8091
         image: docker.io/nherbaut/paper-monitor-paper-data-extractor:latest

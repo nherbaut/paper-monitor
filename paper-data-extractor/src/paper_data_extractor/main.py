@@ -93,6 +93,7 @@ taxonomy_extractor = OpenAITaxonomyExtractor(
     model=os.getenv("PAPER_DATA_EXTRACTOR_OPENAI_MODEL", "gpt-5"),
     timeout_seconds=int(os.getenv("PAPER_DATA_EXTRACTOR_OPENAI_TIMEOUT_SECONDS", str(20 * 60))),
 )
+internal_api_token = (os.getenv("PAPER_DATA_EXTRACTOR_INTERNAL_API_TOKEN") or "").strip()
 dev_auth_enabled = os.getenv("PAPER_DATA_EXTRACTOR_DEV_AUTH", "").strip().lower() in {"1", "true", "yes", "on"}
 dev_auth_user = CurrentUser(
     id=os.getenv("PAPER_DATA_EXTRACTOR_DEV_USER_ID", "dev-user"),
@@ -121,6 +122,17 @@ async def require_authenticated_user(request: Request, call_next):
 
     if dev_auth_enabled:
         request.state.current_user = dev_auth_user
+        return await call_next(request)
+
+    internal_token = (request.headers.get("X-PDE-Internal-Token") or "").strip()
+    if internal_api_token and internal_token == internal_api_token:
+        request.state.current_user = CurrentUser(
+            id="paper-monitor-service",
+            username="paper-monitor",
+            email="",
+            display_name="Paper Monitor",
+            is_admin=True,
+        )
         return await call_next(request)
 
     forwarded_user_id = (request.headers.get("X-Forwarded-User-Id") or "").strip()
