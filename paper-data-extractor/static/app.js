@@ -10,6 +10,9 @@ let selectedReviewModelIds = [];
 let reviewPreviewRequestId = 0;
 let extractedTaxonomyDraft = null;
 const PDE_BASE_PATH = normalizeBasePath(window.PDE_BASE_PATH || "");
+const AUTH_CONTEXT = window.PDE_AUTH_CONTEXT || {};
+const IS_AUTHENTICATED = Boolean(AUTH_CONTEXT.is_authenticated);
+const IS_ADMIN = Boolean(AUTH_CONTEXT.is_admin);
 
 const allModels = document.querySelector("#all-models");
 const reviewDesigns = document.querySelector("#review-designs");
@@ -27,6 +30,7 @@ const uploadForm = document.querySelector("#custom-upload-form");
 const importModelModalElement = document.querySelector("#import-model-modal");
 const importModelModal = importModelModalElement ? bootstrap.Modal.getOrCreateInstance(importModelModalElement) : null;
 const customModelFileInput = document.querySelector("#custom-model-file");
+const customModelPublicInput = document.querySelector("#custom-model-public");
 const saveReviewTemplateModalElement = document.querySelector("#save-review-template-modal");
 const saveReviewTemplateModal = saveReviewTemplateModalElement ? bootstrap.Modal.getOrCreateInstance(saveReviewTemplateModalElement) : null;
 const saveReviewTemplateForm = document.querySelector("#save-review-template-form");
@@ -65,6 +69,7 @@ const extractModelTitle = document.querySelector("#extract-model-title");
 const extractModelValidateButton = document.querySelector("#extract-model-validate");
 const extractModelSaveButton = document.querySelector("#extract-model-save");
 const extractModelLoadButton = document.querySelector("#extract-model-load");
+const extractModelPublicInput = document.querySelector("#extract-model-public");
 const extractModelFormPreview = document.querySelector("#extract-model-form-preview");
 const extractModelYaml = document.querySelector("#extract-model-yaml");
 const extractModelYamlInput = document.querySelector("#extract-model-yaml-input");
@@ -117,7 +122,7 @@ async function loadWorkspace() {
     renderModelWorkspace(models);
     renderReviewDesignList(reviewDesigns, designs);
     populateDesignerPicker(models);
-    modelStatus.textContent = `${models.length} Data Extraction Model(s), ${designs.length} Review Template(s) available.`;
+    modelStatus.textContent = `${models.length} Data Extraction Model(s), ${designs.length} Review Template(s) available.${IS_AUTHENTICATED ? "" : " Sign in through Paper Monitor to save or delete."}`;
 }
 
 function renderModelWorkspace(models) {
@@ -172,9 +177,14 @@ function renderDemCard(model, selected) {
                 <span class="dem-card-source">${escapeHtml(model.source)}</span>
             </div>
             <div class="dem-card-summary">${escapeHtml(model.preview_text || "Drag to include in the current review design preview.")}</div>
+            <div class="d-flex flex-wrap gap-2 align-items-center small text-secondary">
+                <span class="badge text-bg-light border">${model.is_public ? "Public" : "Private"}</span>
+                ${model.owner_display_name ? `<span>Owner: ${escapeHtml(model.owner_display_name)}</span>` : ""}
+            </div>
             <div class="model-option-actions d-flex flex-wrap gap-2">
                 <button class="btn btn-outline-secondary btn-sm" type="button" data-action="load-model">Load</button>
-                <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete-model">Delete</button>
+                ${model.source === "custom" && model.can_write ? `<button class="btn btn-outline-primary btn-sm" type="button" data-action="toggle-public">${model.is_public ? "Make private" : "Make public"}</button>` : ""}
+                ${model.source === "custom" && model.can_write ? `<button class="btn btn-outline-danger btn-sm" type="button" data-action="delete-model">Delete</button>` : ""}
             </div>
         </div>
     `;
@@ -190,7 +200,14 @@ function renderDemCard(model, selected) {
         }
         loadModelIntoDesigner(model.source, model.id);
     });
-    item.querySelector("[data-action='delete-model']").addEventListener("click", () => removeDataExtractionModel(model.source, model.id));
+    const toggleVisibilityButton = item.querySelector("[data-action='toggle-public']");
+    if (toggleVisibilityButton) {
+        toggleVisibilityButton.addEventListener("click", () => updateModelVisibility(model, !model.is_public));
+    }
+    const deleteButton = item.querySelector("[data-action='delete-model']");
+    if (deleteButton) {
+        deleteButton.addEventListener("click", () => removeDataExtractionModel(model.source, model.id));
+    }
     return item;
 }
 
@@ -208,11 +225,14 @@ function renderReviewDesignList(container, designs) {
                 ${escapeHtml(design.title)}
             </button>
             <div class="model-option-actions d-flex flex-wrap gap-2 justify-content-end">
-                <button class="btn btn-outline-danger btn-sm" type="button" data-action="delete-review-design">Delete</button>
+                ${IS_AUTHENTICATED ? '<button class="btn btn-outline-danger btn-sm" type="button" data-action="delete-review-design">Delete</button>' : ""}
             </div>
         `;
         item.querySelector("[data-action='open-review-design']").addEventListener("click", () => openReviewDesign(design.id));
-        item.querySelector("[data-action='delete-review-design']").addEventListener("click", () => removeReviewDesign(design.id));
+        const deleteButton = item.querySelector("[data-action='delete-review-design']");
+        if (deleteButton) {
+            deleteButton.addEventListener("click", () => removeReviewDesign(design.id));
+        }
         container.append(item);
     }
 }
@@ -332,10 +352,14 @@ uploadForm.addEventListener("submit", async (event) => {
     const body = new FormData();
     body.append("file", file);
     try {
-        await api("/api/models/custom", {method: "POST", body});
+        const isPublic = customModelPublicInput?.checked ? "true" : "false";
+        await api(`/api/models/custom?is_public=${encodeURIComponent(isPublic)}`, {method: "POST", body});
         await loadWorkspace();
         modelStatus.textContent = "Data Extraction Model uploaded.";
         customModelFileInput.value = "";
+        if (customModelPublicInput) {
+            customModelPublicInput.checked = IS_ADMIN;
+        }
         importModelModal?.hide();
     } catch (error) {
         modelStatus.textContent = error.message;
@@ -461,7 +485,8 @@ extractModelSaveButton?.addEventListener("click", async () => {
     taxonomy.id = deriveId(title, "Data Extraction Model id");
     try {
         extractModelStatus.textContent = "Saving generated model...";
-        const response = await api("/api/models/custom/json", {
+        const isPublic = extractModelPublicInput?.checked ? "true" : "false";
+        const response = await api(`/api/models/custom/json?is_public=${encodeURIComponent(isPublic)}`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify(taxonomy)
@@ -532,7 +557,7 @@ designerForm.addEventListener("submit", async (event) => {
     designerStatus.textContent = "Saving Data Extraction Model...";
     try {
         const model = collectDesignedTaxonomy();
-        const response = await api("/api/models/custom/json", {
+        const response = await api(`/api/models/custom/json?is_public=${encodeURIComponent(designerVisibilityValue())}`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify(model)
@@ -629,6 +654,20 @@ async function removeDataExtractionModel(source, modelId) {
         await loadWorkspace();
         scheduleReviewPreview();
         modelStatus.textContent = `Deleted Data Extraction Model: ${modelId}`;
+    } catch (error) {
+        modelStatus.textContent = error.message;
+    }
+}
+
+async function updateModelVisibility(model, isPublic) {
+    try {
+        await api(`/api/models/custom/${encodeURIComponent(model.id)}/visibility`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({is_public: isPublic})
+        });
+        await loadWorkspace();
+        modelStatus.textContent = `${model.title} is now ${isPublic ? "public" : "private"}.`;
     } catch (error) {
         modelStatus.textContent = error.message;
     }
@@ -782,6 +821,9 @@ function resetDesignerFromTaxonomy(taxonomy) {
     designerForm.elements["source.title"].value = taxonomy.source?.title || "";
     designerForm.elements["source.authors"].value = (taxonomy.source?.authors || []).join("; ");
     designerForm.elements["source.year"].value = taxonomy.source?.year || "";
+    if (designerForm.elements["model.is_public"]) {
+        designerForm.elements["model.is_public"].checked = IS_ADMIN;
+    }
     updateDerivedMetadata();
     sourceDetails.open = Boolean(
         taxonomy.source?.title ||
@@ -814,6 +856,9 @@ function resetDesignerToBlank() {
     designerModelPicker.value = "";
     lastDesignerPickerValue = "";
     sourceDetails.open = false;
+    if (designerForm.elements["model.is_public"]) {
+        designerForm.elements["model.is_public"].checked = IS_ADMIN;
+    }
     updateDerivedMetadata();
     addScaleCard({id: "ordinal_0_2", scale_type: "ordinal"});
     restoreDimensionEmptyState();
@@ -824,6 +869,9 @@ function resetExtractedPreview() {
     extractedTaxonomyDraft = null;
     extractModelTitle.value = "";
     extractModelTitle.disabled = true;
+    if (extractModelPublicInput) {
+        extractModelPublicInput.checked = IS_ADMIN;
+    }
     extractModelValidateButton.disabled = true;
     extractModelSaveButton.disabled = true;
     extractModelLoadButton.disabled = true;
@@ -895,7 +943,7 @@ function syncExtractedDraftSaveState() {
     const canUse = Boolean(extractedTaxonomyDraft?.taxonomy) && (extractedTaxonomyDraft.validation_errors || []).length === 0;
     const hasTitle = Boolean(String(extractModelTitle?.value || "").trim());
     extractModelValidateButton.disabled = !String(extractModelYamlInput?.value || "").trim();
-    extractModelSaveButton.disabled = !(canUse && hasTitle);
+    extractModelSaveButton.disabled = !(IS_AUTHENTICATED && canUse && hasTitle);
     extractModelLoadButton.disabled = !(canUse && hasTitle);
 }
 
@@ -1491,6 +1539,11 @@ function collectDesignedTaxonomy() {
     });
 }
 
+function designerVisibilityValue() {
+    const field = designerForm?.elements?.["model.is_public"];
+    return field?.checked ? "true" : "false";
+}
+
 function collectScaleCards() {
     return Array.from(scaleList.querySelectorAll(":scope > .scale-card")).map((card) => removeEmpty({
         id: deriveId(card.querySelector("[data-role='scale-label']").value, "Scale id"),
@@ -1726,6 +1779,18 @@ function cssEscape(value) {
 }
 
 addScaleCard({id: "ordinal_0_2", scale_type: "ordinal"});
+
+if (customModelPublicInput) {
+    customModelPublicInput.checked = IS_ADMIN;
+}
+if (extractModelPublicInput) {
+    extractModelPublicInput.checked = IS_ADMIN;
+}
+if (!IS_AUTHENTICATED) {
+    openSaveReviewTemplateButton.disabled = true;
+    openSaveReviewTemplateButton.title = "Authentication required";
+    saveDesignedModelButton.disabled = true;
+}
 
 loadWorkspace().catch((error) => {
     modelStatus.textContent = error.message;

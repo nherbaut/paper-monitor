@@ -19,6 +19,7 @@ from paper_data_extractor.llm_prompt import DEFAULT_TAXONOMY_EXTRACTION_PROMPT
 from paper_data_extractor.models import (
     ClassificationRequest,
     ClassificationResponse,
+    ModelVisibilityRequest,
     ModelSummary,
     ReviewDesignRequest,
     ReviewDesignResponse,
@@ -53,6 +54,7 @@ from paper_data_extractor.taxonomy import (
     save_custom_model,
     taxonomy_validation_errors,
     taxonomy_to_form_schema,
+    update_custom_model_visibility,
     yaml_text,
     validate_taxonomy_shape,
 )
@@ -117,6 +119,7 @@ def pde_url(path: str = "") -> str:
 
 @app.middleware("http")
 async def require_authenticated_user(request: Request, call_next):
+    request.state.current_user = None
     if is_public_path(request.url.path):
         return await call_next(request)
 
@@ -138,12 +141,7 @@ async def require_authenticated_user(request: Request, call_next):
     forwarded_user_id = (request.headers.get("X-Forwarded-User-Id") or "").strip()
     forwarded_username = (request.headers.get("X-Forwarded-Username") or "").strip()
     if not forwarded_user_id or not forwarded_username:
-        logger.warning(
-            "Rejecting PDE request without forwarded auth headers: path=%s method=%s",
-            request.url.path,
-            request.method,
-        )
-        return PlainTextResponse("Authentication is required", status_code=401)
+        return await call_next(request)
 
     request.state.current_user = CurrentUser(
         id=forwarded_user_id,
@@ -155,6 +153,27 @@ async def require_authenticated_user(request: Request, call_next):
     return await call_next(request)
 
 
+def current_user(request: Request) -> CurrentUser | None:
+    return getattr(request.state, "current_user", None)
+
+
+def require_authenticated(request: Request) -> CurrentUser:
+    user = current_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication is required")
+    return user
+
+
+def auth_context(request: Request) -> dict[str, Any]:
+    user = current_user(request)
+    return {
+        "is_authenticated": user is not None,
+        "is_admin": bool(user.is_admin) if user else False,
+        "username": user.username if user else None,
+        "display_name": user.display_name if user else None,
+    }
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
@@ -164,6 +183,7 @@ def index(request: Request) -> HTMLResponse:
             "default_taxonomy_extraction_prompt": DEFAULT_TAXONOMY_EXTRACTION_PROMPT,
             "taxonomy_extraction_enabled": taxonomy_extractor.is_configured(),
             "pde_base_path": PDE_BASE_PATH,
+            "auth_context": auth_context(request),
         },
     )
 
@@ -173,7 +193,11 @@ def reviews_index(request: Request) -> HTMLResponse:
     return templates.TemplateResponse(
         request,
         "reviews.html",
-        {"reviews": list_review_designs(), "pde_base_path": PDE_BASE_PATH},
+        {
+            "reviews": list_review_designs(),
+            "pde_base_path": PDE_BASE_PATH,
+            "auth_context": auth_context(request),
+        },
     )
 
 
@@ -183,37 +207,72 @@ def health() -> dict[str, str]:
 
 
 @app.get("/api/models/contributed", response_model=list[ModelSummary])
-def contributed_models() -> list[ModelSummary]:
-    return list_models(CONTRIBUTED_MODELS_DIR, "contributed")
+def contributed_models(request: Request) -> list[ModelSummary]:
+    user = current_user(request)
+    return list_models(
+        CONTRIBUTED_MODELS_DIR,
+        "contributed",
+        current_user_id=user.id if user else None,
+        is_admin=bool(user.is_admin) if user else False,
+    )
 
 
 @app.get("/api/models/custom", response_model=list[ModelSummary])
-def custom_models() -> list[ModelSummary]:
-    return list_models(CUSTOM_MODELS_DIR, "custom")
+def custom_models(request: Request) -> list[ModelSummary]:
+    user = current_user(request)
+    return list_models(
+        CUSTOM_MODELS_DIR,
+        "custom",
+        current_user_id=user.id if user else None,
+        is_admin=bool(user.is_admin) if user else False,
+    )
 
 
 @app.get("/api/models", response_model=list[ModelSummary])
-def models() -> list[ModelSummary]:
+def models(request: Request) -> list[ModelSummary]:
+    user = current_user(request)
     merged = [
-        *list_models(CONTRIBUTED_MODELS_DIR, "contributed"),
-        *list_models(CUSTOM_MODELS_DIR, "custom"),
+        *list_models(
+            CONTRIBUTED_MODELS_DIR,
+            "contributed",
+            current_user_id=user.id if user else None,
+            is_admin=bool(user.is_admin) if user else False,
+        ),
+        *list_models(
+            CUSTOM_MODELS_DIR,
+            "custom",
+            current_user_id=user.id if user else None,
+            is_admin=bool(user.is_admin) if user else False,
+        ),
     ]
     return sorted(merged, key=lambda model: (model.title.lower(), model.id.lower()))
 
 
 @app.get("/api/data-extraction-models", response_model=list[ModelSummary])
-def data_extraction_models() -> list[ModelSummary]:
-    return models()
+def data_extraction_models(request: Request) -> list[ModelSummary]:
+    return models(request)
 
 
 @app.get("/api/models/{source}/{model_id}")
-def model(source: str, model_id: str) -> dict[str, Any]:
-    return load_model(model_id, source)
+def model(source: str, model_id: str, request: Request) -> dict[str, Any]:
+    user = current_user(request)
+    return load_model(
+        model_id,
+        source,
+        current_user_id=user.id if user else None,
+        is_admin=bool(user.is_admin) if user else False,
+    )
 
 
 @app.get("/api/models/{source}/{model_id}/download", response_class=PlainTextResponse)
-def download_model(source: str, model_id: str) -> PlainTextResponse:
-    taxonomy = load_model(model_id, source)
+def download_model(source: str, model_id: str, request: Request) -> PlainTextResponse:
+    user = current_user(request)
+    taxonomy = load_model(
+        model_id,
+        source,
+        current_user_id=user.id if user else None,
+        is_admin=bool(user.is_admin) if user else False,
+    )
     return PlainTextResponse(
         content=yaml_text(taxonomy),
         headers={"Content-Disposition": f'attachment; filename="{model_id}.yaml"'},
@@ -221,13 +280,19 @@ def download_model(source: str, model_id: str) -> PlainTextResponse:
 
 
 @app.delete("/api/models/{source}/{model_id}", status_code=204)
-def remove_model(source: str, model_id: str) -> Response:
-    delete_model(model_id, source)
+def remove_model(source: str, model_id: str, request: Request) -> Response:
+    user = require_authenticated(request)
+    delete_model(model_id, source, current_user_id=user.id, is_admin=user.is_admin)
     return Response(status_code=204)
 
 
 @app.post("/api/models/custom", response_model=ModelSummary)
-async def upload_custom_model(file: UploadFile = File(...)) -> ModelSummary:
+async def upload_custom_model(
+    request: Request,
+    file: UploadFile = File(...),
+    is_public: bool | None = None,
+) -> ModelSummary:
+    user = require_authenticated(request)
     if not file.filename or not file.filename.endswith((".yaml", ".yml")):
         raise HTTPException(status_code=400, detail="Upload a YAML file")
     raw = await file.read()
@@ -237,12 +302,33 @@ async def upload_custom_model(file: UploadFile = File(...)) -> ModelSummary:
         raise HTTPException(status_code=400, detail=f"Invalid YAML: {exc}") from exc
     if not isinstance(taxonomy, dict):
         raise HTTPException(status_code=400, detail="Taxonomy must be a YAML mapping")
-    return save_custom_model(taxonomy)
+    return save_custom_model(
+        taxonomy,
+        owner_id=user.id,
+        owner_username=user.username,
+        owner_display_name=user.display_name,
+        is_admin=user.is_admin,
+        is_public=is_public,
+    )
 
 
 @app.post("/api/models/custom/json", response_model=ModelSummary)
-def create_custom_model(taxonomy: dict[str, Any]) -> ModelSummary:
-    return save_custom_model(taxonomy)
+def create_custom_model(request: Request, taxonomy: dict[str, Any], is_public: bool | None = None) -> ModelSummary:
+    user = require_authenticated(request)
+    return save_custom_model(
+        taxonomy,
+        owner_id=user.id,
+        owner_username=user.username,
+        owner_display_name=user.display_name,
+        is_admin=user.is_admin,
+        is_public=is_public,
+    )
+
+
+@app.post("/api/models/custom/{model_id}/visibility", response_model=ModelSummary)
+def update_model_visibility(model_id: str, body: ModelVisibilityRequest, request: Request) -> ModelSummary:
+    user = require_authenticated(request)
+    return update_custom_model_visibility(model_id, body.is_public, current_user_id=user.id, is_admin=user.is_admin)
 
 
 @app.post("/api/models/extract-from-paper", response_model=TaxonomyExtractionResponse)
@@ -357,8 +443,14 @@ def review_designs() -> list[ReviewDesignSummary]:
 
 
 @app.post("/api/review-designs", response_model=ReviewDesignResponse)
-def create_review_design_endpoint(request: ReviewDesignRequest) -> ReviewDesignResponse:
-    review_design = create_review_design(request.title, request.model_ids)
+def create_review_design_endpoint(body: ReviewDesignRequest, request: Request) -> ReviewDesignResponse:
+    user = require_authenticated(request)
+    review_design = create_review_design(
+        body.title,
+        body.model_ids,
+        current_user_id=user.id,
+        is_admin=user.is_admin,
+    )
     preview = review_design_to_preview(review_design)
     return ReviewDesignResponse(
         id=review_design["id"],
@@ -418,6 +510,7 @@ def review_template_endpoint(
                 "owl_download_url": review_artifact_url(review_id, "owl", download=True),
                 "shacl_download_url": review_artifact_url(review_id, "shacl", download=True),
                 "pde_base_path": PDE_BASE_PATH,
+                "auth_context": auth_context(request),
             },
         )
     if selected_format == "yaml":
@@ -482,7 +575,17 @@ def review_template_shacl(review_id: str, download: bool = False) -> Response:
 def review_graph_endpoint(review_id: str, request: Request) -> HTMLResponse:
     loaded = load_review_design(review_id)
     preview = review_design_to_preview(loaded)
-    selected_models = [load_model(model_id) for model_id in loaded.get("selected_model_ids") or []]
+    user = current_user(request)
+    selected_models = []
+    for model_id in loaded.get("selected_model_ids") or []:
+        try:
+            selected_models.append(load_model(
+                model_id,
+                current_user_id=user.id if user else None,
+                is_admin=bool(user.is_admin) if user else False,
+            ))
+        except HTTPException:
+            logger.info("Skipping inaccessible model in review graph preview: model_id=%s review_id=%s", model_id, review_id)
     return templates.TemplateResponse(
         request,
         "review_graph.html",
@@ -494,12 +597,14 @@ def review_graph_endpoint(review_id: str, request: Request) -> HTMLResponse:
             "linkml_download_url": review_artifact_url(review_id, "linkml", download=True),
             "json_schema_download_url": review_artifact_url(review_id, "json-schema", download=True),
             "pde_base_path": PDE_BASE_PATH,
+            "auth_context": auth_context(request),
         },
     )
 
 
 @app.delete("/api/review-designs/{review_design_id}", status_code=204)
-def remove_review_design(review_design_id: str) -> Response:
+def remove_review_design(review_design_id: str, request: Request) -> Response:
+    require_authenticated(request)
     delete_review_design(review_design_id)
     return Response(status_code=204)
 
@@ -518,15 +623,20 @@ def metamodel_json_schema(kind: str) -> JSONResponse:
 
 
 @app.post("/api/models/compose", response_model=ReviewDesignResponse)
-def compose_models_compat(request: ReviewDesignRequest) -> ReviewDesignResponse:
-    taxonomy = compose_taxonomies(request.model_ids)
+def compose_models_compat(body: ReviewDesignRequest, request: Request) -> ReviewDesignResponse:
+    user = current_user(request)
+    taxonomy = compose_taxonomies(
+        body.model_ids,
+        current_user_id=user.id if user else None,
+        is_admin=bool(user.is_admin) if user else False,
+    )
     validate_taxonomy_shape(taxonomy)
     review_linkml_schema, review_json_schema = compile_review_schema_artifacts(taxonomy)
     review_design = {
         "id": taxonomy["id"],
-        "title": request.title,
+        "title": body.title,
         "target_entity": taxonomy.get("target_entity") or "paper",
-        "selected_model_ids": request.model_ids,
+        "selected_model_ids": body.model_ids,
         "composed_model": taxonomy,
     }
     return ReviewDesignResponse(
@@ -539,8 +649,9 @@ def compose_models_compat(request: ReviewDesignRequest) -> ReviewDesignResponse:
 
 
 @app.post("/api/classifications", response_model=ClassificationResponse)
-def classifications(request: ClassificationRequest) -> ClassificationResponse:
-    return create_classification(request)
+def classifications(body: ClassificationRequest, request: Request) -> ClassificationResponse:
+    require_authenticated(request)
+    return create_classification(body)
 
 
 @app.get("/api/classifications/{classification_id}")

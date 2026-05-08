@@ -52,10 +52,15 @@ def delete_review_design(review_design_id: str) -> None:
     review_design_file(review_design_id).unlink()
 
 
-def create_review_design(title: str, model_ids: list[str]) -> dict[str, Any]:
+def create_review_design(
+    title: str,
+    model_ids: list[str],
+    current_user_id: str | None = None,
+    is_admin: bool = False,
+) -> dict[str, Any]:
     if not model_ids:
         raise HTTPException(status_code=400, detail="Select at least one DataExtractionModel.")
-    composed_model = compose_taxonomies(model_ids)
+    composed_model = compose_taxonomies(model_ids, current_user_id=current_user_id, is_admin=is_admin)
     review_design = {
         "id": slugify(title),
         "title": title,

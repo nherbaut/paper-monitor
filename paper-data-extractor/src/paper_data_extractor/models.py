@@ -20,6 +20,10 @@ class ModelSummary(BaseModel):
     target_entity: str | None = None
     dimension_count: int
     preview_text: str | None = None
+    is_public: bool = True
+    owned_by_current_user: bool = False
+    can_write: bool = False
+    owner_display_name: str | None = None
 
 
 class TaxonomyExtractionResponse(BaseModel):
@@ -31,6 +35,10 @@ class TaxonomyExtractionResponse(BaseModel):
 
 class YamlValidationRequest(BaseModel):
     raw_yaml: str
+
+
+class ModelVisibilityRequest(BaseModel):
+    is_public: bool
 
 
 class ReviewDesignRequest(BaseModel):

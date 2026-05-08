@@ -52,6 +52,31 @@ def yaml_text(data: dict[str, Any]) -> str:
     return yaml.safe_dump(data, sort_keys=False, allow_unicode=False)
 
 
+def custom_model_metadata_file(path: Path) -> Path:
+    return path.with_suffix(".meta.json")
+
+
+def load_custom_model_metadata(path: Path) -> dict[str, Any]:
+    metadata_path = custom_model_metadata_file(path)
+    if not metadata_path.exists():
+        return {"is_public": True}
+    try:
+        payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to load custom model metadata from %s: %s", metadata_path, exc)
+        return {"is_public": True}
+    if not isinstance(payload, dict):
+        return {"is_public": True}
+    return payload
+
+
+def save_custom_model_metadata(path: Path, metadata: dict[str, Any]) -> None:
+    custom_model_metadata_file(path).write_text(
+        json.dumps(metadata, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
 def slugify(value: str) -> str:
     slug = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower()).strip("-")
     return slug or "taxonomy"
@@ -412,10 +437,18 @@ def model_file_for(directory: Path, model_id: str) -> Path:
     return candidate
 
 
-def list_models(directory: Path, source: str) -> list[ModelSummary]:
+def list_models(
+    directory: Path,
+    source: str,
+    current_user_id: str | None = None,
+    is_admin: bool = False,
+) -> list[ModelSummary]:
     models: list[ModelSummary] = []
     for path in sorted(directory.glob("*.yaml")):
         taxonomy = load_yaml(path)
+        metadata = load_custom_model_metadata(path) if source == "custom" else {"is_public": True}
+        if source == "custom" and not can_read_custom_model(metadata, current_user_id, is_admin):
+            continue
         dimension_labels = [
             str(dimension.get("label") or dimension.get("id") or "")
             for dimension in (taxonomy.get("dimensions") or [])
@@ -428,6 +461,8 @@ def list_models(directory: Path, source: str) -> list[ModelSummary]:
                 preview_parts[-1] += ", ..."
         if taxonomy.get("source", {}).get("title"):
             preview_parts.append(f"Source: {taxonomy['source']['title']}")
+        owned_by_current_user = bool(current_user_id and metadata.get("owner_id") == current_user_id)
+        can_write = source == "custom" and (is_admin or owned_by_current_user)
         models.append(
             ModelSummary(
                 id=str(taxonomy.get("id") or path.stem),
@@ -436,6 +471,10 @@ def list_models(directory: Path, source: str) -> list[ModelSummary]:
                 target_entity=taxonomy.get("target_entity"),
                 dimension_count=len(taxonomy.get("dimensions") or []),
                 preview_text=" | ".join(preview_parts) if preview_parts else None,
+                is_public=bool(metadata.get("is_public", True)),
+                owned_by_current_user=owned_by_current_user,
+                can_write=can_write,
+                owner_display_name=string_or_none(metadata.get("owner_display_name")),
             )
         )
     return models
@@ -453,26 +492,48 @@ def model_directory(source: str) -> Path:
     return directory
 
 
-def load_model(model_id: str, source: str | None = None) -> dict[str, Any]:
+def load_model(
+    model_id: str,
+    source: str | None = None,
+    current_user_id: str | None = None,
+    is_admin: bool = False,
+) -> dict[str, Any]:
     if source is not None:
-        return load_yaml(model_file_for(model_directory(source), model_id))
+        path = model_file_for(model_directory(source), model_id)
+        enforce_model_readable(path, source, current_user_id, is_admin)
+        return load_yaml(path)
 
     contributed_path = CONTRIBUTED_MODELS_DIR / f"{slugify(model_id)}.yaml"
     custom_path = CUSTOM_MODELS_DIR / f"{slugify(model_id)}.yaml"
     if contributed_path.exists():
         return load_yaml(contributed_path)
     if custom_path.exists():
+        enforce_model_readable(custom_path, "custom", current_user_id, is_admin)
         return load_yaml(custom_path)
     raise HTTPException(status_code=404, detail=f"Unknown model: {model_id}")
 
 
-def save_custom_model(taxonomy: dict[str, Any]) -> ModelSummary:
+def save_custom_model(
+    taxonomy: dict[str, Any],
+    owner_id: str,
+    owner_username: str,
+    owner_display_name: str,
+    is_admin: bool = False,
+    is_public: bool | None = None,
+) -> ModelSummary:
     taxonomy = normalize_taxonomy(taxonomy)
     validate_taxonomy_shape(taxonomy)
     path = CUSTOM_MODELS_DIR / f"{slugify(str(taxonomy['id']))}.yaml"
     if path.exists():
         raise HTTPException(status_code=409, detail=f"A custom model already exists for id: {taxonomy['id']}")
     dump_yaml(path, taxonomy)
+    metadata = {
+        "owner_id": owner_id,
+        "owner_username": owner_username,
+        "owner_display_name": owner_display_name,
+        "is_public": bool(is_admin if is_public is None else is_public),
+    }
+    save_custom_model_metadata(path, metadata)
     return ModelSummary(
         id=str(taxonomy["id"]),
         title=str(taxonomy["title"]),
@@ -480,14 +541,23 @@ def save_custom_model(taxonomy: dict[str, Any]) -> ModelSummary:
         target_entity=taxonomy.get("target_entity"),
         dimension_count=len(taxonomy.get("dimensions") or []),
         preview_text=None,
+        is_public=bool(metadata["is_public"]),
+        owned_by_current_user=True,
+        can_write=True,
+        owner_display_name=owner_display_name,
     )
 
 
-def compose_taxonomies(model_ids: list[str], custom_taxonomy: dict[str, Any] | None = None) -> dict[str, Any]:
+def compose_taxonomies(
+    model_ids: list[str],
+    custom_taxonomy: dict[str, Any] | None = None,
+    current_user_id: str | None = None,
+    is_admin: bool = False,
+) -> dict[str, Any]:
     if not model_ids and custom_taxonomy is None:
         raise HTTPException(status_code=400, detail="At least one model or a custom taxonomy is required")
 
-    selected = [load_model(model_id) for model_id in model_ids]
+    selected = [load_model(model_id, current_user_id=current_user_id, is_admin=is_admin) for model_id in model_ids]
     if custom_taxonomy is not None:
         validate_taxonomy_shape(custom_taxonomy)
         selected.append(custom_taxonomy)
@@ -586,9 +656,78 @@ def load_composed_model(model_id: str) -> dict[str, Any]:
     return load_yaml(model_file_for(COMPOSED_MODELS_DIR, model_id))
 
 
-def delete_model(model_id: str, source: str) -> None:
+def delete_model(
+    model_id: str,
+    source: str,
+    current_user_id: str | None = None,
+    is_admin: bool = False,
+) -> None:
+    if source != "custom":
+        raise HTTPException(status_code=403, detail="Only custom models can be deleted")
     path = model_file_for(model_directory(source), model_id)
+    metadata = load_custom_model_metadata(path)
+    if not can_write_custom_model(metadata, current_user_id, is_admin):
+        raise HTTPException(status_code=403, detail="You do not have permission to delete this model")
     path.unlink()
+    metadata_path = custom_model_metadata_file(path)
+    if metadata_path.exists():
+        metadata_path.unlink()
+
+
+def update_custom_model_visibility(
+    model_id: str,
+    is_public: bool,
+    current_user_id: str | None = None,
+    is_admin: bool = False,
+) -> ModelSummary:
+    path = model_file_for(CUSTOM_MODELS_DIR, model_id)
+    metadata = load_custom_model_metadata(path)
+    if not can_write_custom_model(metadata, current_user_id, is_admin):
+        raise HTTPException(status_code=403, detail="You do not have permission to update this model")
+    metadata["is_public"] = bool(is_public)
+    save_custom_model_metadata(path, metadata)
+    taxonomy = load_yaml(path)
+    return ModelSummary(
+        id=str(taxonomy.get("id") or path.stem),
+        title=str(taxonomy.get("title") or path.stem),
+        source="custom",
+        target_entity=taxonomy.get("target_entity"),
+        dimension_count=len(taxonomy.get("dimensions") or []),
+        preview_text=None,
+        is_public=bool(metadata["is_public"]),
+        owned_by_current_user=bool(current_user_id and metadata.get("owner_id") == current_user_id),
+        can_write=bool(is_admin or (current_user_id and metadata.get("owner_id") == current_user_id)),
+        owner_display_name=string_or_none(metadata.get("owner_display_name")),
+    )
+
+
+def enforce_model_readable(path: Path, source: str, current_user_id: str | None, is_admin: bool) -> None:
+    if source != "custom":
+        return
+    metadata = load_custom_model_metadata(path)
+    if not can_read_custom_model(metadata, current_user_id, is_admin):
+        raise HTTPException(status_code=404, detail="Unknown model")
+
+
+def can_read_custom_model(metadata: dict[str, Any], current_user_id: str | None, is_admin: bool) -> bool:
+    if is_admin:
+        return True
+    if metadata.get("is_public", True):
+        return True
+    return bool(current_user_id and metadata.get("owner_id") == current_user_id)
+
+
+def can_write_custom_model(metadata: dict[str, Any], current_user_id: str | None, is_admin: bool) -> bool:
+    if is_admin:
+        return True
+    return bool(current_user_id and metadata.get("owner_id") == current_user_id)
+
+
+def string_or_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def taxonomy_to_form_schema(taxonomy: dict[str, Any]) -> dict[str, Any]:
