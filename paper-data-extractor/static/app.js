@@ -9,6 +9,7 @@ let workspaceModels = [];
 let selectedReviewModelIds = [];
 let reviewPreviewRequestId = 0;
 let extractedTaxonomyDraft = null;
+const PDE_BASE_PATH = normalizeBasePath(window.PDE_BASE_PATH || "");
 
 const allModels = document.querySelector("#all-models");
 const reviewDesigns = document.querySelector("#review-designs");
@@ -73,7 +74,7 @@ const extractModelErrors = document.querySelector("#extract-model-errors");
 const extractModelProgress = document.querySelector("#extract-model-progress");
 
 async function api(path, options = {}) {
-    const response = await fetch(path, options);
+    const response = await fetch(pdePath(path), options);
     if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         throw new Error(body.detail || response.statusText);
@@ -86,6 +87,22 @@ async function api(path, options = {}) {
         return null;
     }
     return response.json();
+}
+
+function normalizeBasePath(value) {
+    const normalized = String(value || "").trim();
+    if (!normalized || normalized === "/") {
+        return "";
+    }
+    return normalized.startsWith("/") ? normalized.replace(/\/+$/, "") : `/${normalized.replace(/\/+$/, "")}`;
+}
+
+function pdePath(path = "") {
+    if (!path) {
+        return PDE_BASE_PATH || "/";
+    }
+    const normalized = String(path).startsWith("/") ? String(path) : `/${path}`;
+    return PDE_BASE_PATH ? `${PDE_BASE_PATH}${normalized}` : normalized;
 }
 
 async function loadWorkspace() {
@@ -532,7 +549,7 @@ designerForm.addEventListener("submit", async (event) => {
 });
 
 downloadDataExtractionMetamodelButton.addEventListener("click", () => {
-    window.location.href = "/api/metamodels/data-extraction-model/download";
+    window.location.href = pdePath("/api/metamodels/data-extraction-model/download");
 });
 
 downloadDataExtractionMetamodelJsonSchemaButton.addEventListener("click", async () => {
@@ -541,7 +558,7 @@ downloadDataExtractionMetamodelJsonSchemaButton.addEventListener("click", async 
 });
 
 downloadReviewDesignMetamodelButton.addEventListener("click", () => {
-    window.location.href = "/api/metamodels/review-design/download";
+    window.location.href = pdePath("/api/metamodels/review-design/download");
 });
 
 downloadReviewDesignMetamodelJsonSchemaButton.addEventListener("click", async () => {
@@ -1675,9 +1692,9 @@ function reviewArtifactUrl(reviewId, format, download = false) {
         params.set("download", "true");
     }
     if (format === "shacl") {
-        return `/review/${encodeURIComponent(reviewId)}/shacl${params.toString() ? `?${params}` : ""}`;
+        return pdePath(`/review/${encodeURIComponent(reviewId)}/shacl${params.toString() ? `?${params}` : ""}`);
     }
-    return `/review/${encodeURIComponent(reviewId)}${params.toString() ? `?${params}` : ""}`;
+    return pdePath(`/review/${encodeURIComponent(reviewId)}${params.toString() ? `?${params}` : ""}`);
 }
 
 function downloadTextBlob(text, filename, type) {

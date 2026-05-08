@@ -42,6 +42,7 @@ Production flow:
 Local development:
 
 - set `PAPER_DATA_EXTRACTOR_DEV_AUTH=true`
+- leave `PAPER_DATA_EXTRACTOR_BASE_PATH` empty
 - PDE injects a local fake user instead of requiring forwarded auth headers
 - default dev identity:
   - `id=dev-user`
@@ -57,6 +58,12 @@ Optional dev overrides:
 - `PAPER_DATA_EXTRACTOR_DEV_EMAIL`
 - `PAPER_DATA_EXTRACTOR_DEV_DISPLAY_NAME`
 - `PAPER_DATA_EXTRACTOR_DEV_ADMIN`
+
+Production subpath deployment:
+
+- set `PAPER_DATA_EXTRACTOR_BASE_PATH=/pde`
+- Traefik should strip the `/pde` prefix before forwarding to PDE
+- PDE will generate static asset URLs, API URLs, and review links under `/pde/...`
 
 Example Traefik configuration is provided in [traefik-forward-auth-example.yml](./traefik-forward-auth-example.yml).
 

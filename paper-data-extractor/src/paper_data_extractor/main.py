@@ -62,6 +62,18 @@ ensure_data_dirs()
 logger = logging.getLogger(__name__)
 
 
+def normalize_base_path(value: str | None) -> str:
+    normalized = (value or "").strip()
+    if not normalized or normalized == "/":
+        return ""
+    if not normalized.startswith("/"):
+        normalized = "/" + normalized
+    return normalized.rstrip("/")
+
+
+PDE_BASE_PATH = normalize_base_path(os.getenv("PAPER_DATA_EXTRACTOR_BASE_PATH", ""))
+
+
 @dataclass(slots=True)
 class CurrentUser:
     id: str
@@ -71,9 +83,11 @@ class CurrentUser:
     is_admin: bool
 
 
-app = FastAPI(title="Paper Data Extractor", version="0.1.0")
+app = FastAPI(title="Paper Data Extractor", version="0.1.0", root_path=PDE_BASE_PATH)
 app.mount("/static", StaticFiles(directory=PROJECT_ROOT / "static"), name="static")
 templates = Jinja2Templates(directory=PROJECT_ROOT / "templates")
+templates.env.globals["pde_base_path"] = PDE_BASE_PATH
+templates.env.globals["pde_url"] = lambda path="": pde_url(path)
 taxonomy_extractor = OpenAITaxonomyExtractor(
     api_key=os.getenv("PAPER_DATA_EXTRACTOR_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY"),
     model=os.getenv("PAPER_DATA_EXTRACTOR_OPENAI_MODEL", "gpt-5"),
@@ -91,6 +105,13 @@ dev_auth_user = CurrentUser(
 
 def is_public_path(path: str) -> bool:
     return path == "/health" or path.startswith("/static/")
+
+
+def pde_url(path: str = "") -> str:
+    if not path:
+        return PDE_BASE_PATH or "/"
+    normalized = path if path.startswith("/") else f"/{path}"
+    return f"{PDE_BASE_PATH}{normalized}" if PDE_BASE_PATH else normalized
 
 
 @app.middleware("http")
@@ -130,13 +151,18 @@ def index(request: Request) -> HTMLResponse:
         {
             "default_taxonomy_extraction_prompt": DEFAULT_TAXONOMY_EXTRACTION_PROMPT,
             "taxonomy_extraction_enabled": taxonomy_extractor.is_configured(),
+            "pde_base_path": PDE_BASE_PATH,
         },
     )
 
 
 @app.get("/reviews", response_class=HTMLResponse)
 def reviews_index(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "reviews.html", {"reviews": list_review_designs()})
+    return templates.TemplateResponse(
+        request,
+        "reviews.html",
+        {"reviews": list_review_designs(), "pde_base_path": PDE_BASE_PATH},
+    )
 
 
 @app.get("/health")
@@ -372,13 +398,14 @@ def review_template_endpoint(
             {
                 "review_design": preview["review_design"],
                 "form_schema": preview["form_schema"],
-                "graph_url": f"/review/{review_id}/graph",
+                "graph_url": pde_url(f"/review/{review_id}/graph"),
                 "taxonomy_download_url": review_artifact_url(review_id, "yaml", download=True),
                 "linkml_download_url": review_artifact_url(review_id, "linkml", download=True),
                 "json_schema_download_url": review_artifact_url(review_id, "json-schema", download=True),
                 "rdf_download_url": review_artifact_url(review_id, "rdf", download=True),
                 "owl_download_url": review_artifact_url(review_id, "owl", download=True),
                 "shacl_download_url": review_artifact_url(review_id, "shacl", download=True),
+                "pde_base_path": PDE_BASE_PATH,
             },
         )
     if selected_format == "yaml":
@@ -450,10 +477,11 @@ def review_graph_endpoint(review_id: str, request: Request) -> HTMLResponse:
         {
             "review_design": preview["review_design"],
             "selected_models": selected_models,
-            "form_url": f"/review/{review_id}",
+            "form_url": pde_url(f"/review/{review_id}"),
             "taxonomy_download_url": review_artifact_url(review_id, "yaml", download=True),
             "linkml_download_url": review_artifact_url(review_id, "linkml", download=True),
             "json_schema_download_url": review_artifact_url(review_id, "json-schema", download=True),
+            "pde_base_path": PDE_BASE_PATH,
         },
     )
 
@@ -550,9 +578,9 @@ def artifact_response(
 
 def review_artifact_url(review_id: str, artifact_format: str, download: bool = False) -> str:
     if artifact_format == "shacl":
-        return f"/review/{review_id}/shacl" + ("?download=true" if download else "")
+        return pde_url(f"/review/{review_id}/shacl") + ("?download=true" if download else "")
     suffix = "&download=true" if download else ""
-    return f"/review/{review_id}?format={artifact_format}{suffix}"
+    return pde_url(f"/review/{review_id}?format={artifact_format}{suffix}")
 
 
 def slug_filename(value: str) -> str:
