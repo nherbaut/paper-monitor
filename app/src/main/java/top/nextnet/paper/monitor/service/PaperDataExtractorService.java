@@ -25,11 +25,13 @@ public class PaperDataExtractorService {
             .build();
 
     private final String baseUrl;
+    private static final String DEFAULT_BASE_URL = "http://localhost:8091";
 
     public PaperDataExtractorService(
-            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "http://localhost:8091") String baseUrl
+            @ConfigProperty(name = "paper-monitor.pde.api-base-url", defaultValue = "") String apiBaseUrl,
+            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "") String legacyBaseUrl
     ) {
-        this.baseUrl = trimTrailingSlash(baseUrl);
+        this.baseUrl = trimTrailingSlash(firstNonBlank(apiBaseUrl, legacyBaseUrl, DEFAULT_BASE_URL));
     }
 
     public List<ReviewTemplateSummary> listReviewTemplates() {
@@ -120,11 +122,23 @@ public class PaperDataExtractorService {
     }
 
     private String trimTrailingSlash(String value) {
-        String trimmed = value == null ? "http://localhost:8091" : value.trim();
+        String trimmed = value == null ? DEFAULT_BASE_URL : value.trim();
         while (trimmed.endsWith("/")) {
             trimmed = trimmed.substring(0, trimmed.length() - 1);
         }
         return trimmed;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private String urlEncode(String value) {

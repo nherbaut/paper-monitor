@@ -114,6 +114,7 @@ public class HomeResource {
     private final Instance<CurrentUserContext> currentUserContext;
     private final String baseUrl;
     private final String paperDataExtractorBaseUrl;
+    private static final String DEFAULT_PDE_BASE_URL = "http://localhost:8091";
 
     public HomeResource(
             @Location("home") Template home,
@@ -146,7 +147,8 @@ public class HomeResource {
             NotificationService notificationService,
             Instance<CurrentUserContext> currentUserContext,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl,
-            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "http://localhost:8091") String paperDataExtractorBaseUrl
+            @ConfigProperty(name = "paper-monitor.pde.public-base-url", defaultValue = "") String paperDataExtractorPublicBaseUrl,
+            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "") String legacyPaperDataExtractorBaseUrl
     ) {
         this.home = home;
         this.admin = admin;
@@ -178,7 +180,9 @@ public class HomeResource {
         this.notificationService = notificationService;
         this.currentUserContext = currentUserContext;
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.trim();
-        this.paperDataExtractorBaseUrl = paperDataExtractorBaseUrl == null ? "http://localhost:8091" : paperDataExtractorBaseUrl.trim();
+        this.paperDataExtractorBaseUrl = normalizeUrl(
+                firstNonBlank(paperDataExtractorPublicBaseUrl, legacyPaperDataExtractorBaseUrl, DEFAULT_PDE_BASE_URL),
+                DEFAULT_PDE_BASE_URL);
     }
 
     @GET
@@ -195,6 +199,23 @@ public class HomeResource {
                 .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0)
                 .data("infoMessage", normalize(info))
                 .data("errorMessage", normalize(error));
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String normalizeUrl(String value, String defaultValue) {
+        String normalized = value == null ? defaultValue : value.trim();
+        return normalized.isEmpty() ? defaultValue : normalized;
     }
 
     @POST

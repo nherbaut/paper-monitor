@@ -17,15 +17,20 @@ public class ReviewReportService {
     private final ReviewService reviewService;
     private final String paperMonitorBaseUrl;
     private final String paperDataExtractorBaseUrl;
+    private static final String DEFAULT_PDE_BASE_URL = "http://localhost:8091";
 
     public ReviewReportService(
             ReviewService reviewService,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String paperMonitorBaseUrl,
-            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "http://localhost:8091") String paperDataExtractorBaseUrl
+            @ConfigProperty(name = "paper-monitor.pde.public-base-url", defaultValue = "") String paperDataExtractorPublicBaseUrl,
+            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "") String legacyPaperDataExtractorBaseUrl
     ) {
         this.reviewService = reviewService;
         this.paperMonitorBaseUrl = trimTrailingSlash(paperMonitorBaseUrl);
-        this.paperDataExtractorBaseUrl = trimTrailingSlash(paperDataExtractorBaseUrl);
+        this.paperDataExtractorBaseUrl = trimTrailingSlash(firstNonBlank(
+                paperDataExtractorPublicBaseUrl,
+                legacyPaperDataExtractorBaseUrl,
+                DEFAULT_PDE_BASE_URL));
     }
 
     public Map<String, Object> aggregate(Review review) {
@@ -226,6 +231,18 @@ public class ReviewReportService {
         item.put("notes", paper.notes);
         item.put("instance", instance);
         return item;
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private void accumulateFieldStats(
