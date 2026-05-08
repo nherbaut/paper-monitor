@@ -23,6 +23,43 @@ uvicorn paper_data_extractor.main:app --reload --port 8091
 
 Open `http://localhost:8091`.
 
+## Authentication
+
+PDE is intended to stay behind Paper Monitor in production.
+
+Production flow:
+
+- Traefik protects PDE with forward auth against `paper-monitor`.
+- `paper-monitor` validates the session cookie through `GET /auth/forward`.
+- If authenticated, Traefik forwards trusted identity headers to PDE:
+  - `X-Forwarded-User-Id`
+  - `X-Forwarded-Username`
+  - `X-Forwarded-Display-Name`
+  - `X-Forwarded-Email`
+  - `X-Forwarded-Admin`
+- PDE trusts those headers and does not implement its own login flow.
+
+Local development:
+
+- set `PAPER_DATA_EXTRACTOR_DEV_AUTH=true`
+- PDE injects a local fake user instead of requiring forwarded auth headers
+- default dev identity:
+  - `id=dev-user`
+  - `username=dev`
+  - `email=dev@localhost`
+  - `display_name=Local Dev`
+  - `admin=true`
+
+Optional dev overrides:
+
+- `PAPER_DATA_EXTRACTOR_DEV_USER_ID`
+- `PAPER_DATA_EXTRACTOR_DEV_USERNAME`
+- `PAPER_DATA_EXTRACTOR_DEV_EMAIL`
+- `PAPER_DATA_EXTRACTOR_DEV_DISPLAY_NAME`
+- `PAPER_DATA_EXTRACTOR_DEV_ADMIN`
+
+Example Traefik configuration is provided in [traefik-forward-auth-example.yml](./traefik-forward-auth-example.yml).
+
 ## API
 
 - `GET /api/models/contributed`: list contributed models.

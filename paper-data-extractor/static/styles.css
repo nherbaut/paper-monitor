@@ -281,17 +281,115 @@ body.app-shell {
 }
 
 .yaml-preview-panel {
+    position: relative;
     min-height: 24rem;
-    padding: 1rem;
+    padding: 0;
     border: 1px solid rgb(0 0 0 / 0.08);
     border-radius: 1rem;
-    background: #fff;
+    background: #f8fbfc;
     color: var(--app-ink);
     font-size: 0.84rem;
     line-height: 1.5;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
     overflow: auto;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+.yaml-editor-shell {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.yaml-editor-lines {
+    padding: 1rem 0.75rem 1rem 0;
+    border-right: 1px solid rgb(31 111 120 / 0.14);
+    color: #7e8b97;
+    text-align: right;
+    user-select: none;
+    overflow: hidden;
+}
+
+.yaml-editor-lines span {
+    display: block;
+    min-height: 1.5em;
+}
+
+.yaml-editor-highlight {
+    margin: 0;
+    padding: 1rem 1rem 1rem 0.85rem;
+    overflow: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background: transparent;
+    color: inherit;
+}
+
+.yaml-editor-input {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    min-height: 24rem;
+    padding: 1rem 1rem 1rem 4.35rem;
+    border: 0;
+    border-radius: 1rem;
+    background: transparent;
+    color: transparent;
+    caret-color: var(--app-ink);
+    resize: vertical;
+    overflow: auto;
+    white-space: pre;
+    font: inherit;
+    line-height: inherit;
+}
+
+.yaml-editor-input:focus {
+    outline: 2px solid rgb(31 111 120 / 0.25);
+    outline-offset: -2px;
+}
+
+.yaml-editor-input::selection {
+    background: rgb(31 111 120 / 0.18);
+}
+
+.yaml-line-code {
+    min-height: 1.5em;
+}
+
+.yaml-token-key {
+    color: #0f5d66;
+    font-weight: 700;
+}
+
+.yaml-token-punctuation {
+    color: #6c7a86;
+}
+
+.yaml-token-string {
+    color: #1e6b3f;
+}
+
+.yaml-token-number {
+    color: #8f4f00;
+}
+
+.yaml-token-boolean {
+    color: #7a2bc2;
+    font-weight: 600;
+}
+
+.yaml-token-scalar {
+    color: #9a5b00;
+    font-weight: 600;
+}
+
+.yaml-token-comment {
+    color: #7b8792;
+    font-style: italic;
 }
 
 .model-card-grid {

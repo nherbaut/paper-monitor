@@ -29,6 +29,10 @@ class TaxonomyExtractionResponse(BaseModel):
     validation_errors: list[str] = Field(default_factory=list)
 
 
+class YamlValidationRequest(BaseModel):
+    raw_yaml: str
+
+
 class ReviewDesignRequest(BaseModel):
     title: str
     model_ids: list[str]

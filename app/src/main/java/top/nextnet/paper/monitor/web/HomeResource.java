@@ -10,6 +10,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -21,6 +22,7 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.NewCookie;
+import jakarta.ws.rs.core.Context;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.io.IOException;
@@ -234,6 +236,39 @@ public class HomeResource {
         } catch (IllegalArgumentException e) {
             return seeOther("/login?error=" + urlEncode(e.getMessage()));
         }
+    }
+
+    @GET
+    @Path("/auth/forward")
+    @Transactional
+    public Response forwardAuth(
+            @Context HttpHeaders headers,
+            @HeaderParam("X-Forwarded-Uri") String forwardedUri
+    ) {
+        var sessionCookie = headers.getCookies().get(authService.sessionCookieName());
+        var session = authService.findActiveSession(sessionCookie == null ? null : sessionCookie.getValue());
+        if (session.isEmpty()) {
+            String returnTo = safeReturnTo(forwardedUri);
+            return Response.status(Response.Status.SEE_OTHER)
+                    .header(HttpHeaders.LOCATION, "/login?returnTo=" + urlEncode(returnTo))
+                    .build();
+        }
+
+        AppUser user = session.get().user;
+        if (user == null || !user.isActive()) {
+            return Response.status(Response.Status.FORBIDDEN)
+                    .type(MediaType.TEXT_PLAIN)
+                    .entity("Authenticated account is not active")
+                    .build();
+        }
+
+        return Response.ok()
+                .header("X-Forwarded-User-Id", user.id)
+                .header("X-Forwarded-Username", user.username)
+                .header("X-Forwarded-Display-Name", user.displayLabel())
+                .header("X-Forwarded-Email", user.email == null ? "" : user.email)
+                .header("X-Forwarded-Admin", Boolean.toString(user.isAdmin()))
+                .build();
     }
 
     @GET

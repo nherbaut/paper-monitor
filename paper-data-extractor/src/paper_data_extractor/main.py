@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from dataclasses import dataclass
 from typing import Any
 
 import yaml
@@ -11,6 +12,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
+from starlette.types import ASGIApp
 
 from paper_data_extractor.classifications import create_classification, read_classification
 from paper_data_extractor.llm_prompt import DEFAULT_TAXONOMY_EXTRACTION_PROMPT
@@ -22,6 +24,7 @@ from paper_data_extractor.models import (
     ReviewDesignResponse,
     ReviewDesignSummary,
     TaxonomyExtractionResponse,
+    YamlValidationRequest,
 )
 from paper_data_extractor.openai_taxonomy_extractor import OpenAITaxonomyExtractor, parse_yaml_mapping
 from paper_data_extractor.paths import CONTRIBUTED_MODELS_DIR, CUSTOM_MODELS_DIR, PROJECT_ROOT, ensure_data_dirs
@@ -58,13 +61,65 @@ ensure_data_dirs()
 
 logger = logging.getLogger(__name__)
 
+
+@dataclass(slots=True)
+class CurrentUser:
+    id: str
+    username: str
+    email: str
+    display_name: str
+    is_admin: bool
+
+
 app = FastAPI(title="Paper Data Extractor", version="0.1.0")
 app.mount("/static", StaticFiles(directory=PROJECT_ROOT / "static"), name="static")
 templates = Jinja2Templates(directory=PROJECT_ROOT / "templates")
 taxonomy_extractor = OpenAITaxonomyExtractor(
     api_key=os.getenv("PAPER_DATA_EXTRACTOR_OPENAI_API_KEY") or os.getenv("OPENAI_API_KEY"),
     model=os.getenv("PAPER_DATA_EXTRACTOR_OPENAI_MODEL", "gpt-5"),
+    timeout_seconds=int(os.getenv("PAPER_DATA_EXTRACTOR_OPENAI_TIMEOUT_SECONDS", str(20 * 60))),
 )
+dev_auth_enabled = os.getenv("PAPER_DATA_EXTRACTOR_DEV_AUTH", "").strip().lower() in {"1", "true", "yes", "on"}
+dev_auth_user = CurrentUser(
+    id=os.getenv("PAPER_DATA_EXTRACTOR_DEV_USER_ID", "dev-user"),
+    username=os.getenv("PAPER_DATA_EXTRACTOR_DEV_USERNAME", "dev"),
+    email=os.getenv("PAPER_DATA_EXTRACTOR_DEV_EMAIL", "dev@localhost"),
+    display_name=os.getenv("PAPER_DATA_EXTRACTOR_DEV_DISPLAY_NAME", "Local Dev"),
+    is_admin=os.getenv("PAPER_DATA_EXTRACTOR_DEV_ADMIN", "true").strip().lower() in {"1", "true", "yes", "on"},
+)
+
+
+def is_public_path(path: str) -> bool:
+    return path == "/health" or path.startswith("/static/")
+
+
+@app.middleware("http")
+async def require_authenticated_user(request: Request, call_next):
+    if is_public_path(request.url.path):
+        return await call_next(request)
+
+    if dev_auth_enabled:
+        request.state.current_user = dev_auth_user
+        return await call_next(request)
+
+    forwarded_user_id = (request.headers.get("X-Forwarded-User-Id") or "").strip()
+    forwarded_username = (request.headers.get("X-Forwarded-Username") or "").strip()
+    if not forwarded_user_id or not forwarded_username:
+        logger.warning(
+            "Rejecting PDE request without forwarded auth headers: path=%s method=%s",
+            request.url.path,
+            request.method,
+        )
+        return PlainTextResponse("Authentication is required", status_code=401)
+
+    request.state.current_user = CurrentUser(
+        id=forwarded_user_id,
+        username=forwarded_username,
+        email=(request.headers.get("X-Forwarded-Email") or "").strip(),
+        display_name=(request.headers.get("X-Forwarded-Display-Name") or forwarded_username).strip(),
+        is_admin=(request.headers.get("X-Forwarded-Admin") or "").strip().lower() == "true",
+    )
+    return await call_next(request)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -209,6 +264,43 @@ async def extract_model_from_paper(
     logger.info(
         "Taxonomy extraction validated successfully: filename=%s taxonomy_id=%s taxonomy_title=%s dimensions=%d",
         filename,
+        taxonomy.get("id"),
+        taxonomy.get("title"),
+        len(taxonomy.get("dimensions") or []),
+    )
+    return TaxonomyExtractionResponse(
+        raw_yaml=yaml_text(taxonomy),
+        taxonomy=taxonomy,
+        form_schema=taxonomy_to_form_schema(taxonomy),
+        validation_errors=[],
+    )
+
+
+@app.post("/api/models/validate-yaml", response_model=TaxonomyExtractionResponse)
+def validate_model_yaml(request: YamlValidationRequest) -> TaxonomyExtractionResponse:
+    raw_yaml = request.raw_yaml or ""
+    logger.info("Taxonomy YAML validation requested: chars=%d", len(raw_yaml))
+    try:
+        taxonomy = parse_yaml_mapping(raw_yaml)
+    except HTTPException as exc:
+        logger.warning("Taxonomy YAML validation parse failed: detail=%s", exc.detail)
+        return TaxonomyExtractionResponse(raw_yaml=raw_yaml, validation_errors=[str(exc.detail)])
+
+    normalized_taxonomy = normalize_taxonomy(taxonomy)
+    if normalized_taxonomy != taxonomy:
+        logger.info(
+            "Taxonomy YAML validation normalized YAML: original_dimensions=%d normalized_dimensions=%d",
+            len(taxonomy.get("dimensions") or []),
+            len(normalized_taxonomy.get("dimensions") or []),
+        )
+    taxonomy = normalized_taxonomy
+    errors = taxonomy_validation_errors(taxonomy)
+    if errors:
+        logger.warning("Taxonomy YAML validation failed: error_count=%d errors=%s", len(errors), errors)
+        return TaxonomyExtractionResponse(raw_yaml=yaml_text(taxonomy), taxonomy=taxonomy, validation_errors=errors)
+
+    logger.info(
+        "Taxonomy YAML validation succeeded: taxonomy_id=%s taxonomy_title=%s dimensions=%d",
         taxonomy.get("id"),
         taxonomy.get("title"),
         len(taxonomy.get("dimensions") or []),

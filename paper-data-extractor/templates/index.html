@@ -141,9 +141,8 @@
                 </div>
             </section>
 
-            <section class="designer-grid row g-4">
-                <div class="col-xl-7">
-                <div class="paper-card card shadow-sm border-0 h-100 metadata-card">
+            <section class="designer-grid">
+                <div class="paper-card card shadow-sm border-0 metadata-card">
                     <div class="card-body d-grid gap-2">
                     <h2 class="h4 mb-0 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 0 1 1 1v10H2V3a1 1 0 0 1 1-1Zm0 1v2h10V3H3Zm0 3v6h10V6H3Zm2 1h3v1H5V7Zm0 2h6v1H5V9Z"/></svg></span><span>Metadata</span></h2>
                     <p class="help-text">A Data Extraction Model is a reusable extraction model fragment. It defines dimensions, taxa, criteria, scales, and rules that can be composed into a Review Design.</p>
@@ -161,10 +160,8 @@
                     </details>
                     </div>
                 </div>
-                </div>
 
-                <div class="col-xl-5">
-                <div class="paper-card card shadow-sm border-0 designer-section h-100">
+                <div class="paper-card card shadow-sm border-0 designer-section">
                     <div class="card-body d-grid gap-3">
                     <div class="section-title d-flex justify-content-between align-items-center gap-3 mb-0">
                         <h2 class="h4 mb-0 title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 3h10v2H3V3Zm2 4h6v2H5V7Zm-2 4h10v2H3v-2Z"/></svg></span><span>Scales</span></h2>
@@ -173,7 +170,6 @@
                     <p class="help-text">A scale defines the allowed answers for criteria. Criteria reference scales by id, so define reusable scales such as yes/no, ordinal 0-2, or numeric score here.</p>
                     <div id="scale-list" class="builder-list"></div>
                     </div>
-                </div>
                 </div>
             </section>
 
@@ -276,6 +272,7 @@
                                         <input id="extract-model-title" class="form-control mt-2" placeholder="Generated model name" disabled>
                                     </label>
                                     <div class="d-flex flex-wrap gap-2">
+                                        <button id="extract-model-validate" class="btn btn-outline-primary" type="button" disabled>Validate model</button>
                                         <button id="extract-model-save" class="btn btn-success" type="button" disabled>Save generated model</button>
                                         <button id="extract-model-load" class="btn btn-outline-secondary" type="button" disabled>Load into designer</button>
                                     </div>
@@ -289,14 +286,20 @@
                                     <button class="nav-link" id="extract-model-yaml-tab" data-bs-toggle="tab" data-bs-target="#extract-model-yaml-panel" type="button" role="tab">YAML</button>
                                 </li>
                             </ul>
-                            <div class="tab-content">
-                                <div class="tab-pane fade show active" id="extract-model-form-preview-panel" role="tabpanel" aria-labelledby="extract-model-form-tab">
-                                    <div id="extract-model-form-preview" class="dynamic-fields form-preview-surface empty-state">The generated form preview will appear here after extraction.</div>
+                                <div class="tab-content">
+                                    <div class="tab-pane fade show active" id="extract-model-form-preview-panel" role="tabpanel" aria-labelledby="extract-model-form-tab">
+                                        <div id="extract-model-form-preview" class="dynamic-fields form-preview-surface empty-state">The generated form preview will appear here after extraction.</div>
+                                    </div>
+                                    <div class="tab-pane fade" id="extract-model-yaml-panel" role="tabpanel" aria-labelledby="extract-model-yaml-tab">
+                                        <div id="extract-model-yaml" class="yaml-preview-panel empty-state mb-0">
+                                            <div class="yaml-editor-shell" aria-hidden="true">
+                                                <div id="extract-model-yaml-lines" class="yaml-editor-lines"></div>
+                                                <pre id="extract-model-yaml-highlight" class="yaml-editor-highlight"></pre>
+                                            </div>
+                                            <textarea id="extract-model-yaml-input" class="yaml-editor-input" spellcheck="false" aria-label="Editable YAML model"></textarea>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="tab-pane fade" id="extract-model-yaml-panel" role="tabpanel" aria-labelledby="extract-model-yaml-tab">
-                                    <pre id="extract-model-yaml" class="yaml-preview-panel empty-state mb-0">The generated YAML will appear here after extraction.</pre>
-                                </div>
-                            </div>
                             <div id="extract-model-errors" class="alert alert-danger d-none mb-0"></div>
                         </div>
                     </section>

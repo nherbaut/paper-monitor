@@ -19,11 +19,13 @@ class OpenAITaxonomyExtractor:
         model: str = "gpt-5",
         base_url: str = "https://api.openai.com/v1/responses",
         files_url: str = "https://api.openai.com/v1/files",
+        timeout_seconds: int = 20 * 60,
     ) -> None:
         self.api_key = (api_key or "").strip()
         self.model = model.strip() or "gpt-5"
         self.base_url = base_url
         self.files_url = files_url
+        self.timeout_seconds = max(1, int(timeout_seconds))
 
     def is_configured(self) -> bool:
         return bool(self.api_key)
@@ -70,7 +72,7 @@ class OpenAITaxonomyExtractor:
             method="POST",
         )
         try:
-            with request.urlopen(http_request, timeout=180) as response:
+            with request.urlopen(http_request, timeout=self.timeout_seconds) as response:
                 logger.info(
                     "OpenAI taxonomy extraction HTTP response received: filename=%s status=%s",
                     filename,
@@ -123,7 +125,7 @@ class OpenAITaxonomyExtractor:
         )
         logger.info("OpenAI taxonomy extraction uploading PDF: filename=%s bytes=%d", filename, len(pdf_bytes))
         try:
-            with request.urlopen(http_request, timeout=180) as response:
+            with request.urlopen(http_request, timeout=self.timeout_seconds) as response:
                 logger.info(
                     "OpenAI file upload response received: filename=%s status=%s",
                     filename,

@@ -61,10 +61,14 @@ const extractModelStatus = document.querySelector("#extract-model-status");
 const extractModelSubmitButton = document.querySelector("#extract-model-submit");
 const extractModelValidation = document.querySelector("#extract-model-validation");
 const extractModelTitle = document.querySelector("#extract-model-title");
+const extractModelValidateButton = document.querySelector("#extract-model-validate");
 const extractModelSaveButton = document.querySelector("#extract-model-save");
 const extractModelLoadButton = document.querySelector("#extract-model-load");
 const extractModelFormPreview = document.querySelector("#extract-model-form-preview");
 const extractModelYaml = document.querySelector("#extract-model-yaml");
+const extractModelYamlInput = document.querySelector("#extract-model-yaml-input");
+const extractModelYamlLines = document.querySelector("#extract-model-yaml-lines");
+const extractModelYamlHighlight = document.querySelector("#extract-model-yaml-highlight");
 const extractModelErrors = document.querySelector("#extract-model-errors");
 const extractModelProgress = document.querySelector("#extract-model-progress");
 
@@ -375,6 +379,32 @@ async function runModelExtraction() {
     return true;
 }
 
+async function validateEditedYaml() {
+    const rawYaml = String(extractModelYamlInput?.value || "");
+    if (!rawYaml.trim()) {
+        extractModelStatus.textContent = "Enter or generate YAML first.";
+        return false;
+    }
+    setExtractionBusy(true);
+    extractModelStatus.textContent = "Validating YAML model...";
+    try {
+        const response = await api("/api/models/validate-yaml", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({raw_yaml: rawYaml})
+        });
+        applyExtractedTaxonomyPreview(response);
+        extractModelStatus.textContent = (response.validation_errors || []).length
+            ? "Validation completed, but the model still has issues."
+            : "Validation completed successfully.";
+    } catch (error) {
+        extractModelStatus.textContent = error.message;
+    } finally {
+        setExtractionBusy(false);
+    }
+    return true;
+}
+
 extractModelForm?.addEventListener("submit", (event) => {
     event.preventDefault();
     void runModelExtraction();
@@ -384,7 +414,21 @@ extractModelSubmitButton?.addEventListener("click", () => {
     void runModelExtraction();
 });
 
+extractModelValidateButton?.addEventListener("click", () => {
+    void validateEditedYaml();
+});
+
 extractModelTitle?.addEventListener("input", syncExtractedDraftSaveState);
+extractModelYamlInput?.addEventListener("input", markExtractedDraftDirty);
+extractModelYamlInput?.addEventListener("scroll", () => {
+    if (extractModelYamlLines) {
+        extractModelYamlLines.scrollTop = extractModelYamlInput.scrollTop;
+    }
+    if (extractModelYamlHighlight) {
+        extractModelYamlHighlight.scrollTop = extractModelYamlInput.scrollTop;
+        extractModelYamlHighlight.scrollLeft = extractModelYamlInput.scrollLeft;
+    }
+});
 
 extractModelSaveButton?.addEventListener("click", async () => {
     if (!extractedTaxonomyDraft?.taxonomy) {
@@ -763,13 +807,13 @@ function resetExtractedPreview() {
     extractedTaxonomyDraft = null;
     extractModelTitle.value = "";
     extractModelTitle.disabled = true;
+    extractModelValidateButton.disabled = true;
     extractModelSaveButton.disabled = true;
     extractModelLoadButton.disabled = true;
     extractModelValidation.textContent = "";
     extractModelErrors.classList.add("d-none");
     extractModelErrors.innerHTML = "";
-    extractModelYaml.classList.add("empty-state");
-    extractModelYaml.textContent = "The generated YAML will appear here after extraction.";
+    renderYamlPreview("The generated YAML will appear here after extraction.", true);
     extractModelFormPreview.classList.add("empty-state");
     extractModelFormPreview.textContent = "The generated form preview will appear here after extraction.";
 }
@@ -781,9 +825,15 @@ function setExtractionBusy(isBusy) {
     if (extractModelPrompt) {
         extractModelPrompt.disabled = isBusy;
     }
+    if (extractModelYamlInput) {
+        extractModelYamlInput.disabled = isBusy;
+    }
     if (extractModelSubmitButton) {
         extractModelSubmitButton.disabled = isBusy;
         extractModelSubmitButton.textContent = isBusy ? "Generating..." : "Generate taxonomy";
+    }
+    if (extractModelValidateButton) {
+        extractModelValidateButton.disabled = isBusy || !String(extractModelYamlInput?.value || "").trim();
     }
     if (extractModelProgress) {
         extractModelProgress.classList.toggle("d-none", !isBusy);
@@ -792,8 +842,7 @@ function setExtractionBusy(isBusy) {
 
 function applyExtractedTaxonomyPreview(response) {
     extractedTaxonomyDraft = response;
-    extractModelYaml.classList.remove("empty-state");
-    extractModelYaml.textContent = response.raw_yaml || "";
+    renderYamlPreview(response.raw_yaml || "", false);
 
     if (response.taxonomy?.title) {
         extractModelTitle.value = response.taxonomy.title;
@@ -828,8 +877,113 @@ function applyExtractedTaxonomyPreview(response) {
 function syncExtractedDraftSaveState() {
     const canUse = Boolean(extractedTaxonomyDraft?.taxonomy) && (extractedTaxonomyDraft.validation_errors || []).length === 0;
     const hasTitle = Boolean(String(extractModelTitle?.value || "").trim());
+    extractModelValidateButton.disabled = !String(extractModelYamlInput?.value || "").trim();
     extractModelSaveButton.disabled = !(canUse && hasTitle);
     extractModelLoadButton.disabled = !(canUse && hasTitle);
+}
+
+function renderYamlPreview(yamlText, isEmptyState = false) {
+    if (!extractModelYaml) {
+        return;
+    }
+    extractModelYaml.classList.toggle("empty-state", isEmptyState);
+    if (isEmptyState) {
+        extractModelYamlInput.value = "";
+        extractModelYamlLines.innerHTML = "";
+        extractModelYamlHighlight.textContent = yamlText;
+        return;
+    }
+
+    extractModelYamlInput.value = String(yamlText || "");
+    refreshYamlEditorDisplay();
+}
+
+function refreshYamlEditorDisplay() {
+    const text = String(extractModelYamlInput?.value || "");
+    const lines = text.split("\n");
+    extractModelYamlLines.innerHTML = lines.map((_, index) => `<span>${index + 1}</span>`).join("");
+    extractModelYamlHighlight.innerHTML = lines.map((line) => `<div class="yaml-line-code">${highlightYamlLine(line)}</div>`).join("");
+}
+
+function highlightYamlLine(line) {
+    const escapedLine = escapeHtml(line);
+    const commentIndex = findYamlCommentIndex(line);
+    const codePart = commentIndex >= 0 ? line.slice(0, commentIndex) : line;
+    const commentPart = commentIndex >= 0 ? line.slice(commentIndex) : "";
+    const escapedComment = commentPart ? `<span class="yaml-token-comment">${escapeHtml(commentPart)}</span>` : "";
+
+    const keyMatch = codePart.match(/^(\s*)(-\s+)?([^:#\n][^:\n]*?):(\s*)(.*)$/);
+    if (keyMatch) {
+        const [, indent, dash = "", rawKey, gap, rawValue] = keyMatch;
+        const renderedValue = highlightYamlValue(rawValue);
+        return `${escapeHtml(indent)}${dash ? `<span class="yaml-token-punctuation">${escapeHtml(dash)}</span>` : ""}<span class="yaml-token-key">${escapeHtml(rawKey)}</span><span class="yaml-token-punctuation">:</span>${escapeHtml(gap)}${renderedValue}${escapedComment}`;
+    }
+
+    const listMatch = codePart.match(/^(\s*-\s+)(.*)$/);
+    if (listMatch) {
+        const [, prefix, rawValue] = listMatch;
+        return `<span class="yaml-token-punctuation">${escapeHtml(prefix)}</span>${highlightYamlValue(rawValue)}${escapedComment}`;
+    }
+
+    return `${highlightYamlValue(escapedLine, true)}${escapedComment}`;
+}
+
+function highlightYamlValue(rawValue, alreadyEscaped = false) {
+    const value = alreadyEscaped ? rawValue : escapeHtml(rawValue);
+    const trimmedRaw = alreadyEscaped ? rawValue.trim() : rawValue.trim();
+    if (!trimmedRaw) {
+        return value;
+    }
+    if (/^["'].*["']$/.test(trimmedRaw)) {
+        return `<span class="yaml-token-string">${value}</span>`;
+    }
+    if (/^(true|false|null)$/i.test(trimmedRaw)) {
+        return `<span class="yaml-token-boolean">${value}</span>`;
+    }
+    if (/^-?\d+(\.\d+)?$/.test(trimmedRaw)) {
+        return `<span class="yaml-token-number">${value}</span>`;
+    }
+    if (/^[>|][+-]?$/.test(trimmedRaw)) {
+        return `<span class="yaml-token-scalar">${value}</span>`;
+    }
+    return value;
+}
+
+function findYamlCommentIndex(line) {
+    let inSingle = false;
+    let inDouble = false;
+    for (let index = 0; index < line.length; index += 1) {
+        const character = line[index];
+        if (character === "'" && !inDouble) {
+            inSingle = !inSingle;
+            continue;
+        }
+        if (character === "\"" && !inSingle) {
+            inDouble = !inDouble;
+            continue;
+        }
+        if (character === "#" && !inSingle && !inDouble) {
+            return index;
+        }
+    }
+    return -1;
+}
+
+function markExtractedDraftDirty() {
+    if (!extractModelYamlInput) {
+        return;
+    }
+    refreshYamlEditorDisplay();
+    if (!extractModelYaml.classList.contains("empty-state")) {
+        extractedTaxonomyDraft = null;
+        extractModelValidation.textContent = "Modified, validate again";
+        extractModelErrors.classList.add("d-none");
+        extractModelErrors.innerHTML = "";
+        extractModelStatus.textContent = "YAML updated. Validate the model to refresh the form preview.";
+        extractModelSaveButton.disabled = true;
+        extractModelLoadButton.disabled = true;
+        extractModelValidateButton.disabled = !String(extractModelYamlInput.value || "").trim();
+    }
 }
 
 function handleDesignerMutation(event) {
