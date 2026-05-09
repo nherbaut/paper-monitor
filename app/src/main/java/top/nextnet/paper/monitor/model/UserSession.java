@@ -25,6 +25,10 @@ public class UserSession extends PanacheEntityBase {
     @JoinColumn(nullable = false)
     public AppUser user;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn
+    public AppUser masqueradingAdmin;
+
     @Column(nullable = false)
     public Instant createdAt = Instant.now();
 
@@ -33,5 +37,9 @@ public class UserSession extends PanacheEntityBase {
 
     public boolean isExpired() {
         return expiresAt == null || !expiresAt.isAfter(Instant.now());
+    }
+
+    public boolean isMasquerading() {
+        return masqueradingAdmin != null;
     }
 }

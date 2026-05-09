@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{review.title} · Review</title>
+    <title>{review.title} · Survey</title>
     <style>
         :root {
             color-scheme: light;
@@ -235,12 +235,20 @@
 </head>
 <body>
 <main>
+    {#if masquerading}
+    <section class="panel" style="margin-bottom: 1rem;">
+        <p class="meta">Masquerading as <strong>{currentUser.displayLabel}</strong>. Return to admin account <strong>{masqueradeAdminDisplay}</strong> when finished.</p>
+        <form action="/masquerade/stop" method="post">
+            <button class="secondary" type="submit">Stop masquerading</button>
+        </form>
+    </section>
+    {/if}
     <section class="hero">
         <div class="hero-grid">
             <div>
-                <p class="eyebrow">Live Review</p>
+                <p class="eyebrow">Live Survey</p>
                 <h1 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>{review.title}</span></h1>
-                <p class="meta">Paper feed: <strong>{logicalFeed.name}</strong>. The review scope is live and follows papers currently in the selected states.</p>
+                <p class="meta">Paper feed: <strong>{logicalFeed.name}</strong>. The survey scope is live and follows papers currently in the selected states.</p>
                 <div class="chips">
                     {#for state in selectedStates}
                     <span class="chip">{state}</span>
@@ -265,22 +273,22 @@
 
     <section class="panel">
         <div class="progress-panel">
-            <div class="progress-chart" aria-label="Review progress">
+            <div class="progress-chart" aria-label="Survey progress">
                 <div class="progress-chart-label">
                     <span>{analyzedPercent}%</span>
                     <span>done</span>
                 </div>
             </div>
             <div class="progress-metrics">
-                <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Review progress</span></h2>
-                <p class="progress-summary">{analyzedCount} analyzed out of {totalCount} paper(s) currently in the live review scope.</p>
+                <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Survey progress</span></h2>
+                <p class="progress-summary">{analyzedCount} analyzed out of {totalCount} paper(s) currently in the live survey scope.</p>
                 <div class="metric-list">
                     <span class="metric-chip"><span class="metric-dot done" aria-hidden="true"></span><strong>{analyzedCount}</strong> analyzed</span>
                     <span class="metric-chip"><span class="metric-dot todo" aria-hidden="true"></span><strong>{remainingCount}</strong> remaining</span>
                 </div>
             </div>
         </div>
-        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 0 1 1 1v10H2V3a1 1 0 0 1 1-1Zm0 1v2h10V3H3Zm0 3v6h10V6H3Zm2 1h6v1H5V7Zm0 2h6v1H5V9Z"/></svg></span><span>Papers in review</span></h2>
+        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 0 1 1 1v10H2V3a1 1 0 0 1 1-1Zm0 1v2h10V3H3Zm0 3v6h10V6H3Zm2 1h6v1H5V7Zm0 2h6v1H5V9Z"/></svg></span><span>Papers in survey</span></h2>
         <table>
             <thead>
             <tr>

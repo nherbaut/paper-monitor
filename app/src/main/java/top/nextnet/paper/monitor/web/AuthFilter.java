@@ -71,6 +71,7 @@ public class AuthFilter implements ContainerRequestFilter {
 
         UserSession authenticatedSession = session.get();
         AppUser user = authenticatedSession.user;
+        AppUser masqueradeAdmin = authenticatedSession.masqueradingAdmin;
         // Touch template-facing fields while the filter transaction is still open so
         // later request handling does not carry a detached lazy proxy into Qute.
         user.id.longValue();
@@ -78,9 +79,17 @@ public class AuthFilter implements ContainerRequestFilter {
         user.displayName = user.displayName;
         user.username = user.username;
         user.email = user.email;
+        if (masqueradeAdmin != null) {
+            masqueradeAdmin.id.longValue();
+            masqueradeAdmin.admin = masqueradeAdmin.isAdmin();
+            masqueradeAdmin.displayName = masqueradeAdmin.displayName;
+            masqueradeAdmin.username = masqueradeAdmin.username;
+            masqueradeAdmin.email = masqueradeAdmin.email;
+        }
 
         currentUserContext.setSession(authenticatedSession);
         currentUserContext.setUser(user);
+        currentUserContext.setMasqueradeAdmin(masqueradeAdmin);
 
         if (requiresAdmin(path, requestContext.getMethod()) && !currentUserContext.isAdmin()) {
             requestContext.abortWith(Response.status(Response.Status.FORBIDDEN)

@@ -100,6 +100,12 @@
         <div class="pill">Paper Activity</div>
         <h1 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2.5h12v11H2v-11Zm1 1v9h10v-9H3Zm1.5 1.5H8v1H4.5V5Zm0 2.5h7v1h-7v-1Zm0 2.5h7v1h-7v-1Z"/></svg></span><span>Event log</span></h1>
         <p class="meta">Recent paper fetches, state transitions, and PDF uploads.</p>
+        {#if masquerading}
+        <p class="meta">Masquerading as <strong>{currentUser.displayLabel}</strong>. Return to admin account <strong>{masqueradeAdminDisplay}</strong> when finished.</p>
+        <form action="/masquerade/stop" method="post">
+            <button type="submit">Stop masquerading</button>
+        </form>
+        {/if}
         <p>
             Signed in as <strong>{currentUser.displayLabel}</strong>
             {#if canAdmin}| <a href="/admin">Admin</a>{/if}

@@ -91,6 +91,38 @@
             color: #6f2d19;
         }
 
+        .settings-nav-link {
+            display: block;
+            text-decoration: none;
+        }
+
+        .rss-source-help {
+            display: grid;
+            gap: 0.45rem;
+        }
+
+        .rss-source-help a {
+            color: var(--accent);
+        }
+
+        .masquerade-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            padding: 0.8rem 0.9rem;
+            border-radius: 12px;
+            border: 1px solid #d7a18e;
+            background: rgba(247, 226, 219, 0.86);
+            color: #7b2f18;
+        }
+
+        .masquerade-banner form {
+            display: block;
+            margin: 0;
+        }
+
         .settings-panels {
             min-width: 0;
         }
@@ -433,19 +465,28 @@
 
     <div class="settings-layout">
         <aside class="settings-sidebar" aria-label="Admin sections">
-            <button class="settings-nav-button active" data-settings-target="setup" type="button">My Review Setup</button>
+            <button class="settings-nav-button active" data-settings-target="setup" type="button">Wizard</button>
             <button class="settings-nav-button" data-settings-target="feeds" type="button">Paper Feed Management</button>
             <button class="settings-nav-button" data-settings-target="rss" type="button">RSS Feed Management</button>
             <button class="settings-nav-button" data-settings-target="tts" type="button">TTS Management</button>
             <button class="settings-nav-button" data-settings-target="users" type="button">User Management</button>
             <button class="settings-nav-button" data-settings-target="backup" type="button">Backup</button>
+            <a class="settings-nav-button settings-nav-link" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Survey Design (PDE)</a>
         </aside>
 
         <div class="settings-panels">
+    {#if masquerading}
+    <div class="masquerade-banner">
+        <div>Masquerading as <strong>{currentUser.displayLabel}</strong>. Return to admin account <strong>{masqueradeAdminDisplay}</strong> when finished.</div>
+        <form action="/masquerade/stop" method="post">
+            <button class="secondary" type="submit">Stop masquerading</button>
+        </form>
+    </div>
+    {/if}
     <section class="settings-panel" data-settings-panel="setup">
-        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>My Review Setup</span></h2>
-        <p class="meta">A paper feed is your review workspace. It groups papers, notes, workflow states, and one or more RSS feeds.</p>
-        <p class="meta">Workflow states describe where a paper is in your review process. Recommended defaults:</p>
+        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Wizard</span></h2>
+        <p class="meta">A paper feed is your survey workspace. It groups papers, notes, workflow states, and one or more RSS feeds.</p>
+        <p class="meta">Workflow states describe where a paper is in your survey process. Recommended defaults:</p>
         <pre>- Discarded
 - New
 - Todo
@@ -462,7 +503,10 @@
 - Todo
 - Done</textarea>
             <div class="two-columns">
-                <input type="url" name="rssFeedUrl" value="https://scholar.miage.dev/feed/4.rss" required>
+                <div class="rss-source-help">
+                    <input type="url" name="rssFeedUrl" value="https://scholar.miage.dev/feed/4.rss" required>
+                    <span class="meta">Need an RSS source? Open <a href="https://scholar.miage.dev/feeds" target="_blank" rel="noreferrer">Miage Scholar feeds</a> in a new tab, pick a feed, then paste its URL here.</span>
+                </div>
                 <div class="poll-slider">
                     <input type="range" min="0" max="2" step="1" value="0" data-poll-slider>
                     <input type="hidden" name="pollIntervalMinutes" value="1440" data-poll-minutes>
@@ -827,6 +871,8 @@
                 {#if user.email}<br>{user.email}{/if}
                 <br>Provider: {user.authProvider}
                 {#if user.githubLogin}<br>GitHub: @{user.githubLogin}{/if}
+                <br>Last login:
+                {#if user.lastLoginAt}{user.lastLoginAt}{#else}Never{/if}
             </p>
             <div class="status-row">
                 <span class="status-badge {#if user.emailVerified}good{#else}warn{/if}">
@@ -858,6 +904,11 @@
                 <label><input type="checkbox" name="admin" {#if user.admin}checked{/if}> Paper admin</label>
                 <button type="submit">Save user</button>
             </form>
+            {#if user.id != currentUser.id}
+            <form action="/admin/users/{user.id}/masquerade" method="post">
+                <button class="secondary" type="submit">Masquerade user</button>
+            </form>
+            {/if}
             <form action="/admin/users/{user.id}/delete" method="post">
                 <button class="secondary" type="submit">Delete user</button>
             </form>

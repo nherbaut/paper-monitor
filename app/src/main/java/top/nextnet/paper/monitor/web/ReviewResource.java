@@ -154,7 +154,9 @@ public class ReviewResource {
                 .data("analyzedPercent", Math.round(analyzedRatio * 100.0d))
                 .data("analyzedAngle", analyzedRatio * 360.0d)
                 .data("rows", rows)
-                .data("currentUser", currentUser);
+                .data("currentUser", currentUser)
+                .data("masquerading", currentUserContext.isMasquerading())
+                .data("masqueradeAdminDisplay", currentUserContext.masqueradeAdminDisplayLabel());
     }
 
     @GET
@@ -241,7 +243,10 @@ public class ReviewResource {
                 .data("formSchemaBase64", encodeBase64(JsonCodec.stringify(formSchema)))
                 .data("valuesBase64", encodeBase64(JsonCodec.stringify(values)))
                 .data("paperSnapshotBase64", encodeBase64(JsonCodec.stringify(reviewService.paperSnapshot(context.paper()))))
-                .data("notesBase64", encodeBase64(context.paper().notes == null ? "" : context.paper().notes));
+                .data("notesBase64", encodeBase64(context.paper().notes == null ? "" : context.paper().notes))
+                .data("currentUser", currentUser)
+                .data("masquerading", currentUserContext.isMasquerading())
+                .data("masqueradeAdminDisplay", currentUserContext.masqueradeAdminDisplayLabel());
     }
 
     @POST

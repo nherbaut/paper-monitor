@@ -388,6 +388,14 @@
 </head>
 <body>
 <main>
+    {#if masquerading}
+    <section class="panel" style="margin-bottom: 1rem;">
+        <p class="meta">Masquerading as <strong>{currentUser.displayLabel}</strong>. Return to admin account <strong>{masqueradeAdminDisplay}</strong> when finished.</p>
+        <form action="/masquerade/stop" method="post">
+            <button class="secondary" type="submit">Stop masquerading</button>
+        </form>
+    </section>
+    {/if}
     <section class="hero">
         <p class="eyebrow">Review form</p>
         <h1 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2h10a1 1 0 0 1 1 1v10H2V3a1 1 0 0 1 1-1Zm0 1v2h10V3H3Zm0 3v6h10V6H3Zm2 1h6v1H5V7Zm0 2h6v1H5V9Z"/></svg></span><span>{paper.title}</span></h1>
@@ -1028,7 +1036,7 @@
         pdfFullscreenButton.setAttribute("aria-label", isFullscreen ? "Exit PDF fullscreen" : "Toggle PDF fullscreen");
         if (pdfFullscreenHint) {
             pdfFullscreenHint.textContent = isFullscreen
-                ? "Press Esc to return to the review workspace."
+                ? "Press Esc to return to the survey workspace."
                 : "Use the fullscreen button to focus on the paper. Press Esc to return.";
         }
         if (isFullscreen || pdfFrame) {
@@ -1044,7 +1052,7 @@
     }
 
     async function saveForm(goNext = false) {
-        statusLine.textContent = "Saving review form...";
+        statusLine.textContent = "Saving survey form...";
         currentValues = collectValues();
         const response = await fetch(`/api/reviews/{review.id}/papers/{paper.id}/submission`, {
             method: "POST",
@@ -1064,10 +1072,10 @@
                     renderForm();
                     triggerValidationFeedback();
                     scrollToFirstValidationError();
-                    statusLine.textContent = "The review form has validation errors.";
+                    statusLine.textContent = "The survey form has validation errors.";
                     return;
                 }
-                statusLine.textContent = payload.message || "Review form validation failed";
+                statusLine.textContent = payload.message || "Survey form validation failed";
                 return;
             }
             statusLine.textContent = await response.text();
@@ -1082,10 +1090,10 @@
     }
 
     async function resetForm() {
-        if (!window.confirm("Reset this review form?")) {
+        if (!window.confirm("Reset this survey form?")) {
             return;
         }
-        statusLine.textContent = "Resetting review form...";
+        statusLine.textContent = "Resetting survey form...";
         const response = await fetch(`/api/reviews/{review.id}/papers/{paper.id}/submission`, { method: "DELETE" });
         if (!response.ok) {
             statusLine.textContent = await response.text();

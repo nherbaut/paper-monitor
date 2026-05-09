@@ -9,6 +9,7 @@ public class CurrentUserContext {
 
     private AppUser user;
     private UserSession session;
+    private AppUser masqueradeAdmin;
 
     public AppUser user() {
         return user;
@@ -26,8 +27,24 @@ public class CurrentUserContext {
         this.session = session;
     }
 
+    public AppUser masqueradeAdmin() {
+        return masqueradeAdmin;
+    }
+
+    public void setMasqueradeAdmin(AppUser masqueradeAdmin) {
+        this.masqueradeAdmin = masqueradeAdmin;
+    }
+
     public boolean isAuthenticated() {
         return user != null;
+    }
+
+    public boolean isMasquerading() {
+        return masqueradeAdmin != null;
+    }
+
+    public String masqueradeAdminDisplayLabel() {
+        return masqueradeAdmin == null ? null : masqueradeAdmin.displayLabel();
     }
 
     public boolean isAdmin() {

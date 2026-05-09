@@ -1752,6 +1752,14 @@
     </nav>
 </div>
 <main>
+    {#if masquerading}
+    <section class="panel panel-wide">
+        <p class="meta">Masquerading as <strong>{currentUser.displayLabel}</strong>. Return to admin account <strong>{masqueradeAdminDisplay}</strong> when finished.</p>
+        <form action="/masquerade/stop" method="post">
+            <button class="secondary" type="submit">Stop masquerading</button>
+        </form>
+    </section>
+    {/if}
     <p class="meta hidden" id="last-seen-logical-feed">No paper feed seen yet.</p>
     {#if infoMessage}
     <p class="message">{infoMessage}</p>
@@ -1783,7 +1791,7 @@
     {#if authenticated && !logicalFeeds.isEmpty}
     <section class="panel panel-wide {#if initialLogicalFeedId}hidden{/if}" id="feed-dashboard-panel">
         <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm1 3h10v6H3V7Zm1 1v4h8V8H4Z"/></svg></span><span>Your surveys</span></h2>
-        <p class="meta">Choose a paper feed to open its papers and review workspace.</p>
+        <p class="meta">Choose a paper feed to open its papers and survey workspace.</p>
         <div class="feed-dashboard" id="feed-dashboard">
             {#for logicalFeed in logicalFeeds}
             <article class="feed-dashboard-card"
@@ -1835,23 +1843,23 @@
         <div class="review-modal-body">
             <div class="review-modal-header">
                 <div>
-                    <h3 id="review-modal-title">Create review</h3>
-                    <p class="meta" id="review-menu-status">Select a paper feed to create its review.</p>
+                    <h3 id="review-modal-title">Create survey</h3>
+                    <p class="meta" id="review-menu-status">Select a paper feed to create its survey.</p>
                 </div>
                 <button class="icon-button secondary" id="review-modal-close" type="button" title="Close">×</button>
             </div>
             <form class="stack" id="review-create-form">
-                <label class="meta" for="review-template-select">Review template</label>
+                <label class="meta" for="review-template-select">Survey template</label>
                 <select id="review-template-select" name="templateId" required>
                     <option value="">Loading templates...</option>
                 </select>
                 <div>
-                    <p class="meta">States included in the live review scope</p>
+                    <p class="meta">States included in the live survey scope</p>
                     <div class="review-state-list" id="review-state-list"></div>
                 </div>
                 <div class="manual-import-actions">
                     <a class="secondary" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Open PDE</a>
-                    <button class="secondary" id="review-create-button" type="submit">Create review</button>
+                    <button class="secondary" id="review-create-button" type="submit">Create survey</button>
                 </div>
             </form>
         </div>
@@ -2964,7 +2972,7 @@
                 target.innerHTML = "";
             }
             if (adminTarget) {
-                adminTarget.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-open-create-review=\"" + logicalFeedId + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M7.5 2h1v5.5H14v1H8.5V14h-1V8.5H2v-1h5.5V2Z\"/></svg><span>Create review</span></button>";
+                adminTarget.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-open-create-review=\"" + logicalFeedId + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M7.5 2h1v5.5H14v1H8.5V14h-1V8.5H2v-1h5.5V2Z\"/></svg><span>Create survey</span></button>";
                 const createButton = adminTarget.querySelector("[data-open-create-review]");
                 createButton?.addEventListener("click", () => {
                     createButton.closest("details")?.removeAttribute("open");
@@ -2992,9 +3000,9 @@
         }
         const logicalFeedId = logicalFeedFilter.value;
         if (!logicalFeedId) {
-            reviewMenuStatus.textContent = "Select a paper feed to create its review.";
+            reviewMenuStatus.textContent = "Select a paper feed to create its survey.";
             if (reviewModalTitle) {
-                reviewModalTitle.textContent = "Create review";
+                reviewModalTitle.textContent = "Create survey";
             }
             reviewCreateForm.classList.remove("hidden");
             reviewStateList.innerHTML = "";
@@ -3003,13 +3011,13 @@
 
         reviewCreateForm.classList.remove("hidden");
         if (reviewModalTitle) {
-            const feedName = logicalFeedFilter.selectedOptions?.[0]?.dataset?.feedName || "Create review";
-            reviewModalTitle.textContent = "Create review for " + feedName;
+            const feedName = logicalFeedFilter.selectedOptions?.[0]?.dataset?.feedName || "Create survey";
+            reviewModalTitle.textContent = "Create survey for " + feedName;
         }
         const existing = reviewForLogicalFeed(logicalFeedId);
         reviewMenuStatus.textContent = existing
-            ? "A live review already exists. Creating a new one here will replace it."
-            : "Select at least one state and one review template.";
+            ? "A live survey already exists. Creating a new one here will replace it."
+            : "Select at least one state and one survey template.";
         reviewStateList.innerHTML = "";
         workflowStatesForLogicalFeed(logicalFeedId).forEach((state, index) => {
             const label = document.createElement("label");
@@ -3021,10 +3029,10 @@
 
         reviewTemplateSelect.innerHTML = "";
         if (!reviewTemplates.length) {
-            reviewTemplateSelect.innerHTML = "<option value=\"\">No review templates available</option>";
+            reviewTemplateSelect.innerHTML = "<option value=\"\">No survey templates available</option>";
             return;
         }
-        reviewTemplateSelect.innerHTML = "<option value=\"\">Select review template</option>";
+        reviewTemplateSelect.innerHTML = "<option value=\"\">Select survey template</option>";
         reviewTemplates.forEach((template) => {
             const option = document.createElement("option");
             option.value = template.id;
@@ -3048,7 +3056,7 @@
             reviewTemplates = [];
             reviewSummaries = [];
             if (reviewMenuStatus) {
-                reviewMenuStatus.textContent = error.message || "Failed to load review workspace.";
+                reviewMenuStatus.textContent = error.message || "Failed to load survey workspace.";
             }
         }
         renderReviewLauncher();
@@ -5454,7 +5462,7 @@
                 return;
             }
             if (!templateId) {
-                reviewMenuStatus.textContent = "Select a review template.";
+                reviewMenuStatus.textContent = "Select a survey template.";
                 return;
             }
             if (!selectedStates.length) {

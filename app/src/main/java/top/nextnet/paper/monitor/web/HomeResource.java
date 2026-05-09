@@ -266,6 +266,9 @@ public class HomeResource {
             @Context HttpHeaders headers,
             @HeaderParam("X-Forwarded-Uri") String forwardedUri
     ) {
+        if (allowsAnonymousPdeAccess(forwardedUri)) {
+            return Response.ok().build();
+        }
         var sessionCookie = headers.getCookies().get(authService.sessionCookieName());
         var session = authService.findActiveSession(sessionCookie == null ? null : sessionCookie.getValue());
         if (session.isEmpty()) {
@@ -401,6 +404,19 @@ public class HomeResource {
                 .build();
     }
 
+    @POST
+    @Path("/masquerade/stop")
+    @Transactional
+    public Response stopMasquerade() {
+        CurrentUserContext context = currentUserContext.get();
+        try {
+            authService.stopMasquerade(context.session());
+            return seeOther("/?info=" + urlEncode("Returned to your admin account"));
+        } catch (IllegalArgumentException e) {
+            return seeOther("/?error=" + urlEncode(e.getMessage()));
+        }
+    }
+
     @GET
     @Transactional
     public TemplateInstance index(
@@ -436,6 +452,8 @@ public class HomeResource {
                 .data("currentUser", currentUser)
                 .data("canAdmin", currentUserContext.get().isAdmin())
                 .data("authenticated", currentUser != null)
+                .data("masquerading", currentUserContext.get().isMasquerading())
+                .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
                 .data("infoMessage", normalize(info))
                 .data("errorMessage", normalize(error))
@@ -585,6 +603,7 @@ public class HomeResource {
         return admin.data("logicalFeeds", logicalFeeds)
                 .data("adminLogicalFeeds", adminLogicalFeeds)
                 .data("feeds", feeds)
+                .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
                 .data("defaultSignupPolicy", defaultSignupPolicyService.get())
                 .data("emailDomainPolicies", emailDomainPolicyService.all())
                 .data("ttsSettings", getOrCreateUserSettings())
@@ -597,6 +616,8 @@ public class HomeResource {
                 .data("recentPapers", paperRepository.findRecent(30))
                 .data("currentUser", currentUser)
                 .data("canAdmin", currentUserContext.get().isAdmin())
+                .data("masquerading", currentUserContext.get().isMasquerading())
+                .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("allUsers", authService.allUsers())
                 .data("userManagementUsers", currentUserContext.get().isAdmin() ? authService.allUsers() : List.of(currentUser))
                 .data("oidcEnabled", oidcService.isEnabled())
@@ -873,6 +894,22 @@ public class HomeResource {
     }
 
     @POST
+    @Path("/admin/users/{id}/masquerade")
+    @Transactional
+    public Response masqueradeUser(@jakarta.ws.rs.PathParam("id") Long id) {
+        AppUser currentUser = requireCurrentUser();
+        requireAdminUser(currentUser);
+        try {
+            AppUser target = appUserRepository.findByIdOptional(id)
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+            authService.startMasquerade(currentUserContext.get().session(), currentUser, id);
+            return seeOther("/?info=" + urlEncode("Masquerading as " + target.displayLabel()));
+        } catch (IllegalArgumentException e) {
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#users");
+        }
+    }
+
+    @POST
     @Path("/admin/users/{id}/delete")
     @Transactional
     public Response deleteUser(@jakarta.ws.rs.PathParam("id") Long id) {
@@ -938,7 +975,9 @@ public class HomeResource {
                 .toList();
         return logs.data("events", events)
                 .data("currentUser", currentUser)
-                .data("canAdmin", currentUserContext.get().isAdmin());
+                .data("canAdmin", currentUserContext.get().isAdmin())
+                .data("masquerading", currentUserContext.get().isMasquerading())
+                .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel());
     }
 
     @POST
@@ -2269,6 +2308,14 @@ public class HomeResource {
                 .header(HttpHeaders.LOCATION, safeReturnTo(returnTo))
                 .cookie(cookie)
                 .build();
+    }
+
+    private boolean allowsAnonymousPdeAccess(String forwardedUri) {
+        String path = safeReturnTo(forwardedUri);
+        return "/pde".equals(path)
+                || "/pde/".equals(path)
+                || "/pde/reviews".equals(path)
+                || "/pde/reviews/".equals(path);
     }
 
     private String safeReturnTo(String returnTo) {

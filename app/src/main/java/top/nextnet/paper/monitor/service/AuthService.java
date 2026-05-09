@@ -339,6 +339,41 @@ public class AuthService {
     }
 
     @Transactional
+    public UserSession startMasquerade(UserSession session, AppUser adminUser, Long targetUserId) {
+        if (session == null) {
+            throw new IllegalArgumentException("Active session is required");
+        }
+        if (adminUser == null || !adminUser.isAdmin()) {
+            throw new IllegalArgumentException("Only paper admins can masquerade other users");
+        }
+        if (session.isMasquerading()) {
+            throw new IllegalArgumentException("Stop the current masquerade session before starting another one");
+        }
+        AppUser targetUser = appUserRepository.findByIdOptional(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        if (targetUser.id.equals(adminUser.id)) {
+            throw new IllegalArgumentException("You are already signed in as this user");
+        }
+        session.masqueradingAdmin = adminUser;
+        session.user = targetUser;
+        return session;
+    }
+
+    @Transactional
+    public UserSession stopMasquerade(UserSession session) {
+        if (session == null || !session.isMasquerading()) {
+            throw new IllegalArgumentException("No masquerade session is active");
+        }
+        AppUser adminUser = session.masqueradingAdmin;
+        if (adminUser == null) {
+            throw new IllegalArgumentException("No masquerade session is active");
+        }
+        session.user = adminUser;
+        session.masqueradingAdmin = null;
+        return session;
+    }
+
+    @Transactional
     public void logout(String token) {
         if (token == null || token.isBlank()) {
             return;
