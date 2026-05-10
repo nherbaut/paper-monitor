@@ -29,6 +29,17 @@ METAMODEL_PATH = SCHEMA_DIR / "data_extraction_model_metamodel.yaml"
 logger = logging.getLogger(__name__)
 
 
+class QuotedStringDumper(yaml.SafeDumper):
+    pass
+
+
+def _represent_quoted_string(dumper: yaml.SafeDumper, data: str) -> yaml.nodes.ScalarNode:
+    return dumper.represent_scalar("tag:yaml.org,2002:str", data, style='"')
+
+
+QuotedStringDumper.add_representer(str, _represent_quoted_string)
+
+
 def load_metamodel() -> SchemaView:
     return SchemaView(str(METAMODEL_PATH))
 
@@ -45,11 +56,14 @@ def load_yaml(path: Path) -> dict[str, Any]:
 
 
 def dump_yaml(path: Path, data: dict[str, Any]) -> None:
-    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="utf-8")
+    path.write_text(
+        yaml.dump(data, Dumper=QuotedStringDumper, sort_keys=False, allow_unicode=False),
+        encoding="utf-8",
+    )
 
 
 def yaml_text(data: dict[str, Any]) -> str:
-    return yaml.safe_dump(data, sort_keys=False, allow_unicode=False)
+    return yaml.dump(data, Dumper=QuotedStringDumper, sort_keys=False, allow_unicode=False)
 
 
 def custom_model_metadata_file(path: Path) -> Path:

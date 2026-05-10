@@ -38,6 +38,9 @@ OUTPUT FORMAT
 
 Return ONLY valid YAML.
 
+Every scalar string value MUST be wrapped in double quotes, including titles, labels, ids, applies_to values, free-text values, and any string that contains punctuation such as ":".
+Do not emit bare string scalars.
+
 The YAML must follow this structure:
 
 id: <taxonomy_id>
@@ -212,6 +215,10 @@ when dimensions are mutually exclusive.
   required: false
 
 unless explicitly mandatory.
+
+- Quote every scalar string value with double quotes.
+
+- If a value is textual, never leave it unquoted.
 
 --------------------------------------------------
 QUALITY REQUIREMENTS

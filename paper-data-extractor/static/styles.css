@@ -709,6 +709,15 @@ details[open] > .optional-section-toggle::after {
     display: none !important;
 }
 
+@media (min-width: 1200px) {
+    .work-panel-sticky {
+        position: sticky;
+        top: 1rem;
+        max-height: calc(100vh - 2rem);
+        overflow: auto;
+    }
+}
+
 @media (max-width: 991.98px) {
     .review-upload-form,
     .review-hero-controls {
