@@ -533,6 +533,8 @@ public class HomeResource {
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("authenticated", currentUser != null)
+                .data("infoMessage", null)
+                .data("errorMessage", null)
                 .data("shareMode", true)
                 .data("sharedPaper", paper)
                 .data("sharedPaperUrl", normalizeBaseUrl() + "/share/paper/" + paper.shareToken);
@@ -571,6 +573,8 @@ public class HomeResource {
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("authenticated", false)
+                .data("infoMessage", null)
+                .data("errorMessage", null)
                 .data("shareMode", true)
                 .data("sharedPaper", null)
                 .data("sharedPaperUrl", null);
