@@ -929,14 +929,24 @@ function applyExtractedTaxonomyPreview(response) {
         extractModelValidation.textContent = `${validationErrors.length} validation issue(s)`;
         extractModelErrors.innerHTML = `<ul class="mb-0">${validationErrors.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
         extractModelErrors.classList.remove("d-none");
-        extractModelStatus.textContent = "Generation completed, but the model did not validate.";
+        extractModelStatus.textContent = extractionStatusMessage(response, "Generation completed, but the model did not validate.");
     } else {
         extractModelValidation.textContent = "Valid against metamodel";
         extractModelErrors.classList.add("d-none");
         extractModelErrors.innerHTML = "";
-        extractModelStatus.textContent = "Generation completed.";
+        extractModelStatus.textContent = extractionStatusMessage(response, "Generation completed.");
     }
     syncExtractedDraftSaveState();
+}
+
+function extractionStatusMessage(response, prefix) {
+    if (response?.using_personal_key) {
+        return `${prefix} Used your personal OpenAI key.`;
+    }
+    if (typeof response?.shared_quota_remaining === "number" && typeof response?.shared_quota_used === "number") {
+        return `${prefix} Shared quota remaining: ${response.shared_quota_remaining}.`;
+    }
+    return prefix;
 }
 
 function syncExtractedDraftSaveState() {

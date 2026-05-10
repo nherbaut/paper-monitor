@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from urllib import parse, request as urllib_request
 from dataclasses import dataclass
 from typing import Any
 
@@ -83,6 +84,9 @@ class CurrentUser:
     email: str
     display_name: str
     is_admin: bool
+    pde_openai_api_key: str = ""
+    pde_openai_quota_limit: int = 2
+    pde_openai_quota_used: int = 0
 
 
 app = FastAPI(title="Paper Data Extractor", version="0.1.0")
@@ -96,6 +100,7 @@ taxonomy_extractor = OpenAITaxonomyExtractor(
     timeout_seconds=int(os.getenv("PAPER_DATA_EXTRACTOR_OPENAI_TIMEOUT_SECONDS", str(20 * 60))),
 )
 internal_api_token = (os.getenv("PAPER_DATA_EXTRACTOR_INTERNAL_API_TOKEN") or "").strip()
+paper_monitor_base_url = (os.getenv("PAPER_DATA_EXTRACTOR_PAPER_MONITOR_BASE_URL") or "http://localhost:8080").strip().rstrip("/")
 dev_auth_enabled = os.getenv("PAPER_DATA_EXTRACTOR_DEV_AUTH", "").strip().lower() in {"1", "true", "yes", "on"}
 dev_auth_user = CurrentUser(
     id=os.getenv("PAPER_DATA_EXTRACTOR_DEV_USER_ID", "dev-user"),
@@ -103,6 +108,7 @@ dev_auth_user = CurrentUser(
     email=os.getenv("PAPER_DATA_EXTRACTOR_DEV_EMAIL", "dev@localhost"),
     display_name=os.getenv("PAPER_DATA_EXTRACTOR_DEV_DISPLAY_NAME", "Local Dev"),
     is_admin=os.getenv("PAPER_DATA_EXTRACTOR_DEV_ADMIN", "true").strip().lower() in {"1", "true", "yes", "on"},
+    pde_openai_quota_limit=999999,
 )
 
 
@@ -115,6 +121,30 @@ def pde_url(path: str = "") -> str:
         return PDE_BASE_PATH or "/"
     normalized = path if path.startswith("/") else f"/{path}"
     return f"{PDE_BASE_PATH}{normalized}" if PDE_BASE_PATH else normalized
+
+
+def parse_positive_int(value: str | None, default: int) -> int:
+    try:
+        parsed = int((value or "").strip())
+    except ValueError:
+        return default
+    return parsed if parsed >= 0 else default
+
+
+def user_has_personal_openai_key(user: CurrentUser | None) -> bool:
+    return bool((user.pde_openai_api_key or "").strip()) if user else False
+
+
+def user_remaining_shared_openai_extractions(user: CurrentUser | None) -> int:
+    if user is None:
+        return 0
+    return max(0, user.pde_openai_quota_limit - user.pde_openai_quota_used)
+
+
+def can_extract_with_openai(user: CurrentUser | None) -> bool:
+    if user is None:
+        return False
+    return user_has_personal_openai_key(user) or (taxonomy_extractor.is_configured() and user_remaining_shared_openai_extractions(user) > 0)
 
 
 @app.middleware("http")
@@ -149,6 +179,9 @@ async def require_authenticated_user(request: Request, call_next):
         email=(request.headers.get("X-Forwarded-Email") or "").strip(),
         display_name=(request.headers.get("X-Forwarded-Display-Name") or forwarded_username).strip(),
         is_admin=(request.headers.get("X-Forwarded-Admin") or "").strip().lower() == "true",
+        pde_openai_api_key=(request.headers.get("X-Forwarded-PDE-OpenAI-Api-Key") or "").strip(),
+        pde_openai_quota_limit=parse_positive_int(request.headers.get("X-Forwarded-PDE-OpenAI-Quota-Limit"), 2),
+        pde_openai_quota_used=parse_positive_int(request.headers.get("X-Forwarded-PDE-OpenAI-Quota-Used"), 0),
     )
     return await call_next(request)
 
@@ -171,6 +204,51 @@ def auth_context(request: Request) -> dict[str, Any]:
         "is_admin": bool(user.is_admin) if user else False,
         "username": user.username if user else None,
         "display_name": user.display_name if user else None,
+        "pde_openai_has_personal_key": user_has_personal_openai_key(user),
+        "pde_openai_quota_limit": user.pde_openai_quota_limit if user else 0,
+        "pde_openai_quota_used": user.pde_openai_quota_used if user else 0,
+        "pde_openai_quota_remaining": user_remaining_shared_openai_extractions(user),
+        "pde_openai_extraction_enabled": can_extract_with_openai(user),
+        "pde_openai_server_key_available": taxonomy_extractor.is_configured(),
+    }
+
+
+def consume_shared_openai_quota(user: CurrentUser) -> None:
+    if not internal_api_token:
+        logger.warning("Skipping shared PDE OpenAI quota consumption because no internal API token is configured")
+        return
+    if user_has_personal_openai_key(user):
+        return
+    body = parse.urlencode({"userId": user.id}).encode("utf-8")
+    quota_request = urllib_request.Request(
+        f"{paper_monitor_base_url}/api/pde/openai-extractions/consume",
+        data=body,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-PDE-Internal-Token": internal_api_token,
+        },
+        method="POST",
+    )
+    try:
+        with urllib_request.urlopen(quota_request, timeout=15) as response:
+            payload = json.loads(response.read().decode("utf-8") or "{}")
+            user.pde_openai_quota_limit = int(payload.get("quotaLimit", user.pde_openai_quota_limit))
+            user.pde_openai_quota_used = int(payload.get("quotaUsed", user.pde_openai_quota_used + 1))
+            logger.info(
+                "Consumed shared PDE OpenAI quota: user_id=%s quota_used=%s quota_limit=%s",
+                user.id,
+                user.pde_openai_quota_used,
+                user.pde_openai_quota_limit,
+            )
+    except Exception as exc:
+        logger.warning("Failed to persist shared PDE OpenAI quota usage for user_id=%s: %s", user.id, exc)
+
+
+def extraction_quota_payload(user: CurrentUser, using_personal_key: bool) -> dict[str, Any]:
+    return {
+        "using_personal_key": using_personal_key,
+        "shared_quota_used": None if using_personal_key else user.pde_openai_quota_used,
+        "shared_quota_remaining": None if using_personal_key else user_remaining_shared_openai_extractions(user),
     }
 
 
@@ -181,7 +259,7 @@ def index(request: Request) -> HTMLResponse:
         "index.html",
         {
             "default_taxonomy_extraction_prompt": DEFAULT_TAXONOMY_EXTRACTION_PROMPT,
-            "taxonomy_extraction_enabled": taxonomy_extractor.is_configured(),
+            "taxonomy_extraction_enabled": can_extract_with_openai(current_user(request)),
             "pde_base_path": PDE_BASE_PATH,
             "auth_context": auth_context(request),
         },
@@ -333,32 +411,56 @@ def update_model_visibility(model_id: str, body: ModelVisibilityRequest, request
 
 @app.post("/api/models/extract-from-paper", response_model=TaxonomyExtractionResponse)
 async def extract_model_from_paper(
+    request: Request,
     file: UploadFile = File(...),
     prompt: str = Form(...),
 ) -> TaxonomyExtractionResponse:
+    user = require_authenticated(request)
+    extractor = taxonomy_extractor
+    using_personal_key = user_has_personal_openai_key(user)
+    if using_personal_key:
+        extractor = OpenAITaxonomyExtractor(
+            api_key=user.pde_openai_api_key,
+            model=taxonomy_extractor.model,
+            base_url=taxonomy_extractor.base_url,
+            files_url=taxonomy_extractor.files_url,
+            timeout_seconds=taxonomy_extractor.timeout_seconds,
+        )
     logger.info(
-        "Taxonomy extraction request received: filename=%s content_type=%s prompt_chars=%d extractor_configured=%s",
+        "Taxonomy extraction request received: filename=%s content_type=%s prompt_chars=%d extractor_configured=%s user_id=%s using_personal_key=%s quota_remaining=%d",
         file.filename,
         file.content_type,
         len(prompt or ""),
-        taxonomy_extractor.is_configured(),
+        extractor.is_configured(),
+        user.id,
+        using_personal_key,
+        user_remaining_shared_openai_extractions(user),
     )
-    if not taxonomy_extractor.is_configured():
-        logger.warning("Taxonomy extraction rejected because OpenAI extractor is not configured")
-        raise HTTPException(status_code=503, detail="OpenAI extraction is not configured on this server")
+    if not using_personal_key and not taxonomy_extractor.is_configured():
+        logger.warning("Taxonomy extraction rejected because no shared OpenAI extractor is configured and the user has no personal key")
+        raise HTTPException(status_code=503, detail="OpenAI extraction is not configured on this server and you do not have a personal OpenAI key")
+    if not using_personal_key and user_remaining_shared_openai_extractions(user) <= 0:
+        logger.warning("Taxonomy extraction rejected because the user exhausted the shared PDE OpenAI quota: user_id=%s", user.id)
+        raise HTTPException(status_code=403, detail="You have used all shared PDE OpenAI extractions. Add your own OpenAI key in Paper Monitor or ask an admin for more quota.")
     filename = file.filename or "paper.pdf"
     if not filename.lower().endswith(".pdf"):
         logger.warning("Taxonomy extraction rejected because uploaded file is not a PDF: filename=%s", filename)
         raise HTTPException(status_code=400, detail="Upload a PDF file")
     pdf_bytes = await file.read()
     logger.info("Taxonomy extraction upload read: filename=%s bytes=%d", filename, len(pdf_bytes))
-    raw_yaml = taxonomy_extractor.extract_yaml(pdf_bytes, filename, prompt)
+    raw_yaml = extractor.extract_yaml(pdf_bytes, filename, prompt)
+    if not using_personal_key:
+        consume_shared_openai_quota(user)
     logger.info("Taxonomy extraction OpenAI call completed: filename=%s raw_yaml_chars=%d", filename, len(raw_yaml))
     try:
         taxonomy = parse_yaml_mapping(raw_yaml)
     except HTTPException as exc:
         logger.warning("Taxonomy extraction YAML parsing failed: filename=%s detail=%s", filename, exc.detail)
-        return TaxonomyExtractionResponse(raw_yaml=raw_yaml, validation_errors=[str(exc.detail)])
+        return TaxonomyExtractionResponse(
+            raw_yaml=raw_yaml,
+            validation_errors=[str(exc.detail)],
+            **extraction_quota_payload(user, using_personal_key),
+        )
 
     normalized_taxonomy = normalize_taxonomy(taxonomy)
     if normalized_taxonomy != taxonomy:
@@ -383,7 +485,12 @@ async def extract_model_from_paper(
             len(errors),
             errors,
         )
-        return TaxonomyExtractionResponse(raw_yaml=yaml_text(taxonomy), taxonomy=taxonomy, validation_errors=errors)
+        return TaxonomyExtractionResponse(
+            raw_yaml=yaml_text(taxonomy),
+            taxonomy=taxonomy,
+            validation_errors=errors,
+            **extraction_quota_payload(user, using_personal_key),
+        )
 
     logger.info(
         "Taxonomy extraction validated successfully: filename=%s taxonomy_id=%s taxonomy_title=%s dimensions=%d",
@@ -397,6 +504,7 @@ async def extract_model_from_paper(
         taxonomy=taxonomy,
         form_schema=taxonomy_to_form_schema(taxonomy),
         validation_errors=[],
+        **extraction_quota_payload(user, using_personal_key),
     )
 
 

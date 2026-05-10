@@ -246,6 +246,53 @@ public class AuthService {
     }
 
     @Transactional
+    public UserSettings updateOwnPdeOpenAiKey(AppUser user, String apiKey) {
+        if (user == null) {
+            throw new IllegalArgumentException("User is required");
+        }
+        UserSettings settings = ensureSettings(user);
+        settings.pdeOpenAiApiKey = normalize(apiKey);
+        return settings;
+    }
+
+    @Transactional
+    public UserSettings clearOwnPdeOpenAiKey(AppUser user) {
+        if (user == null) {
+            throw new IllegalArgumentException("User is required");
+        }
+        UserSettings settings = ensureSettings(user);
+        settings.pdeOpenAiApiKey = null;
+        return settings;
+    }
+
+    @Transactional
+    public UserSettings updatePdeExtractionQuota(Long userId, Integer quota) {
+        AppUser user = appUserRepository.findByIdOptional(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        if (quota == null || quota < 0) {
+            throw new IllegalArgumentException("Quota must be zero or greater");
+        }
+        UserSettings settings = ensureSettings(user);
+        settings.pdeOpenAiExtractionQuota = quota;
+        return settings;
+    }
+
+    @Transactional
+    public UserSettings consumeSharedPdeOpenAiExtraction(Long userId) {
+        AppUser user = appUserRepository.findByIdOptional(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
+        UserSettings settings = ensureSettings(user);
+        if (settings.hasPdeOpenAiApiKey()) {
+            return settings;
+        }
+        if (settings.remainingPdeOpenAiExtractions() <= 0) {
+            throw new IllegalArgumentException("No shared PDE OpenAI extractions remaining for this user");
+        }
+        settings.pdeOpenAiExtractionCallsUsed = settings.effectivePdeOpenAiExtractionCallsUsed() + 1;
+        return settings;
+    }
+
+    @Transactional
     public AppUser upsertOidcUser(String issuer, String subject, String username, String displayName, String email, boolean admin) {
         AppUser user = appUserRepository.findByOidcIdentity(issuer, subject).orElseGet(AppUser::new);
         user.authProvider = "OIDC";
@@ -383,14 +430,19 @@ public class AuthService {
 
     @Transactional
     public UserSettings ensureSettings(AppUser user) {
-        return userSettingsRepository.findByUser(user).orElseGet(() -> {
-            UserSettings settings = new UserSettings();
-            settings.user = user;
-            settings.speedMultiplier = 1.1d;
-            userSettingsRepository.persist(settings);
-            user.settings = settings;
-            return settings;
-        });
+        UserSettings existing = userSettingsRepository.findByUser(user).orElse(null);
+        if (existing != null) {
+            user.settings = existing;
+            return existing;
+        }
+        UserSettings settings = new UserSettings();
+        settings.user = user;
+        settings.speedMultiplier = 1.1d;
+        settings.pdeOpenAiExtractionQuota = 2;
+        settings.pdeOpenAiExtractionCallsUsed = 0;
+        userSettingsRepository.persist(settings);
+        user.settings = settings;
+        return settings;
     }
 
     @Transactional

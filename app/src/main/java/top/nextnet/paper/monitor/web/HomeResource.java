@@ -114,6 +114,7 @@ public class HomeResource {
     private final Instance<CurrentUserContext> currentUserContext;
     private final String baseUrl;
     private final String paperDataExtractorBaseUrl;
+    private final String paperDataExtractorInternalApiToken;
     private static final String DEFAULT_PDE_BASE_URL = "http://localhost:8091";
 
     public HomeResource(
@@ -148,7 +149,8 @@ public class HomeResource {
             Instance<CurrentUserContext> currentUserContext,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl,
             @ConfigProperty(name = "paper-monitor.pde.public-base-url", defaultValue = "") String paperDataExtractorPublicBaseUrl,
-            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "") String legacyPaperDataExtractorBaseUrl
+            @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "") String legacyPaperDataExtractorBaseUrl,
+            @ConfigProperty(name = "paper-monitor.pde.internal-api-token", defaultValue = "") String paperDataExtractorInternalApiToken
     ) {
         this.home = home;
         this.admin = admin;
@@ -183,6 +185,7 @@ public class HomeResource {
         this.paperDataExtractorBaseUrl = normalizeUrl(
                 firstNonBlank(paperDataExtractorPublicBaseUrl, legacyPaperDataExtractorBaseUrl, DEFAULT_PDE_BASE_URL),
                 DEFAULT_PDE_BASE_URL);
+        this.paperDataExtractorInternalApiToken = paperDataExtractorInternalApiToken == null ? "" : paperDataExtractorInternalApiToken.trim();
     }
 
     @GET
@@ -266,12 +269,13 @@ public class HomeResource {
             @Context HttpHeaders headers,
             @HeaderParam("X-Forwarded-Uri") String forwardedUri
     ) {
-        if (allowsAnonymousPdeAccess(forwardedUri)) {
-            return Response.ok().build();
-        }
+        boolean anonymousAllowed = allowsAnonymousPdeAccess(forwardedUri);
         var sessionCookie = headers.getCookies().get(authService.sessionCookieName());
         var session = authService.findActiveSession(sessionCookie == null ? null : sessionCookie.getValue());
         if (session.isEmpty()) {
+            if (anonymousAllowed) {
+                return Response.ok().build();
+            }
             String returnTo = safeReturnTo(forwardedUri);
             return Response.status(Response.Status.SEE_OTHER)
                     .header(HttpHeaders.LOCATION, "/login?returnTo=" + urlEncode(returnTo))
@@ -285,6 +289,7 @@ public class HomeResource {
                     .entity("Authenticated account is not active")
                     .build();
         }
+        UserSettings settings = authService.ensureSettings(user);
 
         return Response.ok()
                 .header("X-Forwarded-User-Id", user.id)
@@ -292,6 +297,9 @@ public class HomeResource {
                 .header("X-Forwarded-Display-Name", user.displayLabel())
                 .header("X-Forwarded-Email", user.email == null ? "" : user.email)
                 .header("X-Forwarded-Admin", Boolean.toString(user.isAdmin()))
+                .header("X-Forwarded-PDE-OpenAI-Api-Key", settings.pdeOpenAiApiKey == null ? "" : settings.pdeOpenAiApiKey)
+                .header("X-Forwarded-PDE-OpenAI-Quota-Limit", Integer.toString(settings.effectivePdeOpenAiExtractionQuota()))
+                .header("X-Forwarded-PDE-OpenAI-Quota-Used", Integer.toString(settings.effectivePdeOpenAiExtractionCallsUsed()))
                 .build();
     }
 
@@ -584,6 +592,8 @@ public class HomeResource {
                 .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
                 .toList();
         List<Feed> feeds = logicalFeedAccessService.readableFeeds(currentUser);
+        List<AppUser> userManagementUsers = currentUserContext.get().isAdmin() ? authService.allUsers() : List.of(currentUser);
+        userManagementUsers.forEach(authService::ensureSettings);
         List<String> ttsVoices = List.of();
         String ttsVoicesError = null;
         List<GithubRepositoryService.GithubRepositoryChoice> githubRepositoryChoices = List.of();
@@ -619,7 +629,7 @@ public class HomeResource {
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("allUsers", authService.allUsers())
-                .data("userManagementUsers", currentUserContext.get().isAdmin() ? authService.allUsers() : List.of(currentUser))
+                .data("userManagementUsers", userManagementUsers)
                 .data("oidcEnabled", oidcService.isEnabled())
                 .data("githubEnabled", githubAuthService.isEnabled())
                 .data("infoMessage", normalize(info))
@@ -777,6 +787,28 @@ public class HomeResource {
     }
 
     @POST
+    @Path("/admin/pde-settings")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response updateOwnPdeSettings(@RestForm("pdeOpenAiApiKey") String pdeOpenAiApiKey) {
+        AppUser currentUser = requireCurrentUser();
+        if (normalize(pdeOpenAiApiKey) == null) {
+            return seeOther("/admin?error=" + urlEncode("Paste an OpenAI API key to save it, or use Remove personal OpenAI key") + "#pde");
+        }
+        authService.updateOwnPdeOpenAiKey(currentUser, pdeOpenAiApiKey);
+        return seeOther("/admin?info=" + urlEncode("PDE OpenAI settings updated") + "#pde");
+    }
+
+    @POST
+    @Path("/admin/pde-settings/remove-key")
+    @Transactional
+    public Response removeOwnPdeOpenAiKey() {
+        AppUser currentUser = requireCurrentUser();
+        authService.clearOwnPdeOpenAiKey(currentUser);
+        return seeOther("/admin?info=" + urlEncode("Personal OpenAI key removed") + "#pde");
+    }
+
+    @POST
     @Path("/admin/setup")
     @Transactional
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -866,6 +898,54 @@ public class HomeResource {
             return seeOther("/admin");
         } catch (IllegalArgumentException e) {
             throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
+    }
+
+    @POST
+    @Path("/admin/users/{id}/pde-quota")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response updateUserPdeQuota(
+            @jakarta.ws.rs.PathParam("id") Long id,
+            @RestForm("pdeOpenAiExtractionQuota") Integer pdeOpenAiExtractionQuota
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        requireAdminUser(currentUser);
+        try {
+            authService.updatePdeExtractionQuota(id, pdeOpenAiExtractionQuota);
+            return seeOther("/admin?info=" + urlEncode("PDE extraction quota updated") + "#users");
+        } catch (IllegalArgumentException e) {
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#users");
+        }
+    }
+
+    @POST
+    @Path("/api/pde/openai-extractions/consume")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response consumePdeOpenAiExtraction(
+            @HeaderParam("X-PDE-Internal-Token") String internalToken,
+            @RestForm("userId") Long userId
+    ) {
+        if (paperDataExtractorInternalApiToken.isBlank()
+                || internalToken == null
+                || !paperDataExtractorInternalApiToken.equals(internalToken.trim())) {
+            return Response.status(Response.Status.UNAUTHORIZED)
+                    .entity(Map.of("detail", "Invalid PDE internal token"))
+                    .build();
+        }
+        try {
+            UserSettings settings = authService.consumeSharedPdeOpenAiExtraction(userId);
+            return Response.ok(Map.of(
+                    "quotaLimit", settings.effectivePdeOpenAiExtractionQuota(),
+                    "quotaUsed", settings.effectivePdeOpenAiExtractionCallsUsed(),
+                    "quotaRemaining", settings.remainingPdeOpenAiExtractions()))
+                    .build();
+        } catch (IllegalArgumentException e) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("detail", e.getMessage()))
+                    .build();
         }
     }
 

@@ -241,8 +241,20 @@
                         <div class="card-body d-grid gap-3">
                             <div>
                                 <p class="help-text mt-0">Upload a paper PDF, send it to OpenAI with the taxonomy-extraction prompt, then inspect the generated YAML and rendered form before saving.</p>
-                                {% if not taxonomy_extraction_enabled %}
-                                <div class="alert alert-warning mb-0">OpenAI extraction is not configured on this server. Set <code>PAPER_DATA_EXTRACTOR_OPENAI_API_KEY</code> or <code>OPENAI_API_KEY</code> to enable it.</div>
+                                {% if not auth_context.is_authenticated %}
+                                <div class="alert alert-warning mb-0">Sign in through Paper Monitor to use OpenAI PDF extraction. Anonymous users can browse models, but extraction is authenticated-only.</div>
+                                {% elif auth_context.pde_openai_has_personal_key %}
+                                <div class="alert alert-info mb-0">Your personal OpenAI key is stored in Paper Monitor. PDE will use it for this extraction and will not consume your shared quota.</div>
+                                {% elif auth_context.pde_openai_extraction_enabled %}
+                                <div class="alert alert-info mb-0">Shared server quota available: {{ auth_context.pde_openai_quota_remaining }} extraction(s) remaining out of {{ auth_context.pde_openai_quota_limit }}.</div>
+                                {% else %}
+                                <div class="alert alert-warning mb-0">
+                                    {% if auth_context.pde_openai_server_key_available %}
+                                    Your shared PDE OpenAI quota is exhausted. Add your own OpenAI key in Paper Monitor or ask an admin for more quota.
+                                    {% else %}
+                                    OpenAI extraction is not configured on this server and no personal OpenAI key is stored for your account.
+                                    {% endif %}
+                                </div>
                                 {% endif %}
                             </div>
                             <label id="extract-model-dropzone" class="pdf-dropzone">

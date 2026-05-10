@@ -37,6 +37,9 @@ Production flow:
   - `X-Forwarded-Display-Name`
   - `X-Forwarded-Email`
   - `X-Forwarded-Admin`
+  - `X-Forwarded-PDE-OpenAI-Api-Key`
+  - `X-Forwarded-PDE-OpenAI-Quota-Limit`
+  - `X-Forwarded-PDE-OpenAI-Quota-Used`
 - PDE trusts those headers and does not implement its own login flow.
 
 Local development:
@@ -64,6 +67,24 @@ Production subpath deployment:
 - set `PAPER_DATA_EXTRACTOR_BASE_PATH=/pde`
 - Traefik should strip the `/pde` prefix before forwarding to PDE
 - PDE will generate static asset URLs, API URLs, and review links under `/pde/...`
+
+OpenAI extraction quota and per-user keys:
+
+- PDE extraction is authenticated-only.
+- Each user gets 2 shared server-backed OpenAI extraction calls by default.
+- If a user stores a personal OpenAI key in Paper Monitor, PDE uses that key and does not consume the shared quota.
+- Paper Monitor forwards the user quota and personal-key context to PDE through forward-auth headers.
+- After a successful shared-key extraction, PDE reports quota consumption back to Paper Monitor via:
+  - `POST /api/pde/openai-extractions/consume`
+  - authenticated with the shared `X-PDE-Internal-Token`
+
+Relevant environment variables:
+
+- `PAPER_DATA_EXTRACTOR_PAPER_MONITOR_BASE_URL`
+- `PAPER_DATA_EXTRACTOR_INTERNAL_API_TOKEN`
+- `PAPER_DATA_EXTRACTOR_OPENAI_API_KEY`
+- `PAPER_DATA_EXTRACTOR_OPENAI_MODEL`
+- `PAPER_DATA_EXTRACTOR_OPENAI_TIMEOUT_SECONDS`
 
 Example Traefik configuration is provided in [traefik-forward-auth-example.yml](./traefik-forward-auth-example.yml).
 

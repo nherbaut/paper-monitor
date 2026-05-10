@@ -31,6 +31,9 @@ class TaxonomyExtractionResponse(BaseModel):
     taxonomy: dict[str, Any] | None = None
     form_schema: dict[str, Any] | None = None
     validation_errors: list[str] = Field(default_factory=list)
+    using_personal_key: bool = False
+    shared_quota_used: int | None = None
+    shared_quota_remaining: int | None = None
 
 
 class YamlValidationRequest(BaseModel):

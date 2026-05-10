@@ -24,6 +24,7 @@ services:
         environment:
             - PAPER_DATA_EXTRACTOR_DEV_AUTH=true
             - PAPER_DATA_EXTRACTOR_INTERNAL_API_TOKEN=dev-pde-internal-token
+            - PAPER_DATA_EXTRACTOR_PAPER_MONITOR_BASE_URL=http://paper-monitor:8080
         ports:
             - 8091:8091
         image: docker.io/nherbaut/paper-monitor-paper-data-extractor:latest

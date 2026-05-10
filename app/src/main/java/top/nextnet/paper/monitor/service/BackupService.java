@@ -215,6 +215,9 @@ public class BackupService {
             row.put("userId", item.user.id);
             row.put("voice", item.voice);
             row.put("speedMultiplier", item.speedMultiplier);
+            row.put("pdeOpenAiApiKey", item.pdeOpenAiApiKey);
+            row.put("pdeOpenAiExtractionQuota", item.pdeOpenAiExtractionQuota);
+            row.put("pdeOpenAiExtractionCallsUsed", item.pdeOpenAiExtractionCallsUsed);
             settings.add(row);
         }
         return settings;
@@ -373,6 +376,9 @@ public class BackupService {
             settings.user = usersByOldId.get(longValue(item.get("userId")));
             settings.voice = stringValue(item.get("voice"));
             settings.speedMultiplier = doubleValue(item.get("speedMultiplier"));
+            settings.pdeOpenAiApiKey = stringValue(item.get("pdeOpenAiApiKey"));
+            settings.pdeOpenAiExtractionQuota = intValue(item.get("pdeOpenAiExtractionQuota"));
+            settings.pdeOpenAiExtractionCallsUsed = intValue(item.get("pdeOpenAiExtractionCallsUsed"));
             if (settings.user != null) {
                 userSettingsRepository.persist(settings);
             }

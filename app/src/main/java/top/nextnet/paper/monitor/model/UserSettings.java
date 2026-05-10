@@ -32,6 +32,13 @@ public class UserSettings extends PanacheEntityBase {
 
     public Instant githubAccessTokenUpdatedAt;
 
+    @Column(length = 512)
+    public String pdeOpenAiApiKey;
+
+    public Integer pdeOpenAiExtractionQuota;
+
+    public Integer pdeOpenAiExtractionCallsUsed;
+
     public double effectiveSpeedMultiplier() {
         if (speedMultiplier == null || speedMultiplier <= 0) {
             return 1.1d;
@@ -57,5 +64,27 @@ public class UserSettings extends PanacheEntityBase {
 
     public boolean hasGithubAccessToken() {
         return githubAccessToken != null && !githubAccessToken.isBlank();
+    }
+
+    public boolean hasPdeOpenAiApiKey() {
+        return pdeOpenAiApiKey != null && !pdeOpenAiApiKey.isBlank();
+    }
+
+    public int effectivePdeOpenAiExtractionQuota() {
+        if (pdeOpenAiExtractionQuota == null || pdeOpenAiExtractionQuota < 0) {
+            return 2;
+        }
+        return pdeOpenAiExtractionQuota;
+    }
+
+    public int effectivePdeOpenAiExtractionCallsUsed() {
+        if (pdeOpenAiExtractionCallsUsed == null || pdeOpenAiExtractionCallsUsed < 0) {
+            return 0;
+        }
+        return pdeOpenAiExtractionCallsUsed;
+    }
+
+    public int remainingPdeOpenAiExtractions() {
+        return Math.max(0, effectivePdeOpenAiExtractionQuota() - effectivePdeOpenAiExtractionCallsUsed());
     }
 }

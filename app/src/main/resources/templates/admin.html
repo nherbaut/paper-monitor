@@ -469,6 +469,7 @@
             <button class="settings-nav-button" data-settings-target="feeds" type="button">Paper Feed Management</button>
             <button class="settings-nav-button" data-settings-target="rss" type="button">RSS Feed Management</button>
             <button class="settings-nav-button" data-settings-target="tts" type="button">TTS Management</button>
+            <button class="settings-nav-button" data-settings-target="pde" type="button">PDE Settings</button>
             <button class="settings-nav-button" data-settings-target="users" type="button">User Management</button>
             <button class="settings-nav-button" data-settings-target="backup" type="button">Backup</button>
             <a class="settings-nav-button settings-nav-link" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Survey Design (PDE)</a>
@@ -766,6 +767,51 @@
         </form>
     </section>
 
+    <section class="settings-panel hidden" data-settings-panel="pde">
+        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v12H2V2Zm1 1v10h10V3H3Zm2 2h6v1H5V5Zm0 2h6v1H5V7Zm0 2h4v1H5V9Z"/></svg></span><span>PDE Settings</span></h2>
+        <p class="meta">Configure how your account uses OpenAI for PDF-to-model extraction in PDE.</p>
+        <div class="stack-layout">
+            <div class="management-card">
+                <div class="management-card-body">
+                    <div class="management-card-header">
+                        <strong>Shared Paper Monitor quota</strong>
+                        <span class="meta">This quota is only consumed when you use the server-managed OpenAI key.</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-badge {#if ttsSettings.remainingPdeOpenAiExtractions > 0}good{#else}warn{/if}">
+                            {ttsSettings.remainingPdeOpenAiExtractions} extraction(s) remaining
+                        </span>
+                        <span class="status-badge">
+                            {ttsSettings.effectivePdeOpenAiExtractionCallsUsed}/{ttsSettings.effectivePdeOpenAiExtractionQuota} used
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="management-card">
+                <div class="management-card-body">
+                    <div class="management-card-header">
+                        <strong>Your personal OpenAI key</strong>
+                        <span class="meta">When you store your own key, PDE uses it for extraction and does not consume your shared quota.</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-badge {#if ttsSettings.hasPdeOpenAiApiKey}good{#else}warn{/if}">
+                            {#if ttsSettings.hasPdeOpenAiApiKey}Personal key stored{#else}No personal key stored{/if}
+                        </span>
+                    </div>
+                    <form action="/admin/pde-settings" method="post">
+                        <input type="password" name="pdeOpenAiApiKey" placeholder="Paste a new OpenAI API key">
+                        <button type="submit">Save personal OpenAI key</button>
+                    </form>
+                    {#if ttsSettings.hasPdeOpenAiApiKey}
+                    <form action="/admin/pde-settings/remove-key" method="post">
+                        <button class="secondary" type="submit">Remove personal OpenAI key</button>
+                    </form>
+                    {/if}
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section class="settings-panel hidden" data-settings-panel="users">
         <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 8a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm0 1c-2.7 0-5 1.34-5 3v1h10v-1c0-1.66-2.3-3-5-3Z"/></svg></span><span>User Management</span></h2>
         {#if canAdmin}
@@ -881,8 +927,18 @@
                 <span class="status-badge {#if user.approved}good{#else}warn{/if}">
                     {#if user.approved}Admin approved{#else}Admin approval pending{/if}
                 </span>
+                <span class="status-badge {#if user.settings.remainingPdeOpenAiExtractions > 0}good{#else}warn{/if}">
+                    PDE quota: {user.settings.remainingPdeOpenAiExtractions}/{user.settings.effectivePdeOpenAiExtractionQuota} remaining
+                </span>
+                <span class="status-badge {#if user.settings.hasPdeOpenAiApiKey}good{#else}warn{/if}">
+                    {#if user.settings.hasPdeOpenAiApiKey}Personal OpenAI key stored{#else}No personal OpenAI key{/if}
+                </span>
             </div>
             {#if canAdmin}
+            <form action="/admin/users/{user.id}/pde-quota" method="post">
+                <input type="number" name="pdeOpenAiExtractionQuota" min="0" value="{user.settings.effectivePdeOpenAiExtractionQuota}">
+                <button type="submit">Save PDE extraction quota</button>
+            </form>
             {#if !user.emailVerified && user.localAccount && user.email}
             <form action="/admin/users/{user.id}/resend-verification" method="post">
                 <button class="secondary" type="submit">Resend verification email</button>
@@ -938,7 +994,10 @@
     </div>
 </main>
 <script>
-    const initialSettingsPanel = window.location.hash === "#users" ? "users" : "setup";
+    const availableSettingsPanels = Array.from(document.querySelectorAll("[data-settings-panel]"))
+        .map((panel) => panel.dataset.settingsPanel);
+    const requestedSettingsPanel = window.location.hash ? window.location.hash.slice(1) : "";
+    const initialSettingsPanel = availableSettingsPanels.includes(requestedSettingsPanel) ? requestedSettingsPanel : "setup";
     const POLL_PRESETS = [
         { label: "Daily", minutes: 1440 },
         { label: "Weekly", minutes: 10080 },
