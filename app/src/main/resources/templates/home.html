@@ -2186,6 +2186,8 @@
     let keyboardStatePicker = null;
     let keyboardStatusUndo = null;
     let suppressCardClick = false;
+    let paperStatusTransitionSequence = 0;
+    const paperStatusTransitionTokens = new Map();
     let stateSearchQuery = "";
     let stateSearchVisibleLimit = 10;
     let selectedTagFilters = [];
@@ -4104,6 +4106,7 @@
             return;
         }
         const advanceFocus = options.advanceFocus === true;
+        const selectedPaperIdBeforeChange = selectedPaperId;
         const visibleCardsBeforeChange = advanceFocus ? visiblePaperCards() : [];
         const currentIndex = advanceFocus
             ? visibleCardsBeforeChange.findIndex((item) => item.dataset.paperId === card.dataset.paperId)
@@ -4114,7 +4117,10 @@
             nextPaperId = visibleCardsBeforeChange[nextIndex]?.dataset.paperId || null;
         }
         suppressCardClick = true;
-        await updatePaperStatus(card.dataset.paperId, nextStatus);
+        const paperId = card.dataset.paperId;
+        const transitionToken = ++paperStatusTransitionSequence;
+        paperStatusTransitionTokens.set(paperId, transitionToken);
+
         card.dataset.paperStatus = nextStatus;
         card.dataset.paperTopStatus = nextStatus.includes("/") ? nextStatus.split("/")[0] : nextStatus;
         const record = paperRecordById(card.dataset.paperId);
@@ -4140,6 +4146,30 @@
         const remainingCards = visiblePaperCards();
         if (remainingCards.length) {
             openPaperCard(remainingCards[0]);
+        }
+
+        try {
+            await updatePaperStatus(paperId, nextStatus);
+        } catch (error) {
+            if (paperStatusTransitionTokens.get(paperId) !== transitionToken) {
+                throw error;
+            }
+            card.dataset.paperStatus = previousStatus;
+            card.dataset.paperTopStatus = previousStatus.includes("/") ? previousStatus.split("/")[0] : previousStatus;
+            if (record) {
+                record.paperStatus = previousStatus;
+                record.paperTopStatus = previousStatus.includes("/") ? previousStatus.split("/")[0] : previousStatus;
+            }
+            syncPaperStatusCounts(card, normalizeStatus(nextStatus), previousStatus);
+            applyLogicalFeedFilter();
+            if (selectedPaperIdBeforeChange === paperId) {
+                openPaperCard(card);
+            }
+            throw error;
+        } finally {
+            if (paperStatusTransitionTokens.get(paperId) === transitionToken) {
+                paperStatusTransitionTokens.delete(paperId);
+            }
         }
     };
 
