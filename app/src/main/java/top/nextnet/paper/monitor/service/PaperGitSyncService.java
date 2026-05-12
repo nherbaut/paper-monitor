@@ -8,12 +8,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -31,9 +34,11 @@ import top.nextnet.paper.monitor.repo.ReviewSubmissionRepository;
 public class PaperGitSyncService {
 
     private static final String MANAGED_COMMIT_PREFIX = "[paper-monitor]";
+    private static final Duration STALE_GIT_LOCK_MAX_AGE = Duration.ofMinutes(5);
     private static final Pattern DOI_PATTERN = Pattern.compile(
             "\\b10\\.\\d{4,9}/[-._;()/:A-Z0-9]+\\b",
             Pattern.CASE_INSENSITIVE);
+    private static final ConcurrentHashMap<String, ReentrantLock> REPO_SYNC_LOCKS = new ConcurrentHashMap<>();
 
     private final Path gitRoot;
     private final String baseUrl;
@@ -84,8 +89,10 @@ public class PaperGitSyncService {
             logicalFeed.gitRepoToken = UUID.randomUUID().toString();
         }
 
-        Path repoPath = repoPath(logicalFeed.gitRepoToken);
+        ReentrantLock syncLock = REPO_SYNC_LOCKS.computeIfAbsent(logicalFeed.gitRepoToken, ignored -> new ReentrantLock());
+        syncLock.lock();
         try {
+        Path repoPath = repoPath(logicalFeed.gitRepoToken);
             ensureRepo(repoPath, logicalFeed);
             runGit(repoPath, "reset", "--hard", "HEAD");
             importCommittedChanges(logicalFeed, repoPath);
@@ -95,6 +102,8 @@ public class PaperGitSyncService {
         } catch (IOException e) {
             logicalFeed.gitSyncError = "Git mirror sync failed: " + e.getMessage();
             Log.errorf(e, "Failed to sync git export for %s", logicalFeed.name);
+        } finally {
+            syncLock.unlock();
         }
     }
 
@@ -506,6 +515,10 @@ public class PaperGitSyncService {
     }
 
     private String runGit(Path directory, String... arguments) throws IOException {
+        return runGit(directory, false, arguments);
+    }
+
+    private String runGit(Path directory, boolean retryingAfterLockCleanup, String... arguments) throws IOException {
         List<String> command = new ArrayList<>();
         command.add("git");
         command.addAll(List.of(arguments));
@@ -522,12 +535,41 @@ public class PaperGitSyncService {
             String output = new String(process.getInputStream().readAllBytes());
             int exit = process.waitFor();
             if (exit != 0) {
+                if (!retryingAfterLockCleanup && tryClearStaleIndexLock(directory, output)) {
+                    Log.warnf("Removed stale git index lock for %s and retrying git command: %s",
+                            directory, String.join(" ", command));
+                    return runGit(directory, true, arguments);
+                }
                 throw new IOException("Git command failed: " + String.join(" ", command) + "\n" + output);
             }
             return output;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("Git command interrupted", e);
+        }
+    }
+
+    private boolean tryClearStaleIndexLock(Path directory, String gitOutput) {
+        if (gitOutput == null || !gitOutput.contains("index.lock") || !gitOutput.contains("File exists")) {
+            return false;
+        }
+        Path indexLock = directory.resolve(".git").resolve("index.lock");
+        if (!Files.exists(indexLock)) {
+            return false;
+        }
+        try {
+            Instant lastModified = Files.getLastModifiedTime(indexLock).toInstant();
+            Duration age = Duration.between(lastModified, Instant.now());
+            if (age.compareTo(STALE_GIT_LOCK_MAX_AGE) < 0) {
+                Log.warnf("Git index lock exists for %s but is only %d seconds old; leaving it in place",
+                        directory, age.toSeconds());
+                return false;
+            }
+            Files.deleteIfExists(indexLock);
+            return true;
+        } catch (IOException e) {
+            Log.warnf(e, "Failed to inspect or remove stale git index lock for %s", directory);
+            return false;
         }
     }
 
