@@ -1402,7 +1402,8 @@ public class HomeResource {
             @RestForm("url") String url,
             @RestForm("pollIntervalMinutes") Integer pollIntervalMinutes,
             @RestForm("logicalFeedId") Long logicalFeedId,
-            @RestForm("defaultPaperStatus") String defaultPaperStatus
+            @RestForm("defaultPaperStatus") String defaultPaperStatus,
+            @RestForm("returnTo") String returnTo
     ) {
         LogicalFeed logicalFeed = requireLogicalFeed(logicalFeedId);
         Feed feed = new Feed();
@@ -1413,7 +1414,8 @@ public class HomeResource {
         feed.defaultPaperStatus = normalizeFeedDefaultStatus(logicalFeed, defaultPaperStatus);
         feedRepository.persist(feed);
         paperGitSyncService.syncLogicalFeed(logicalFeed);
-        return seeOther("/admin");
+        String fallbackReturnTo = "/?logicalFeedId=" + logicalFeed.id;
+        return seeOther(returnTo == null || returnTo.isBlank() ? fallbackReturnTo : safeReturnTo(returnTo));
     }
 
     @POST

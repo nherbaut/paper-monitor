@@ -1734,6 +1734,10 @@
                     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M1.5 6V1.5H6v1H3.2l3.3 3.3-.7.7-3.3-3.3V6h-1Zm9.3-4.5h4.7V6h-1V3.2l-3.3 3.3-.7-.7 3.3-3.3h-2.8v-1Zm3.7 9.3h1v4.7h-4.7v-1h2.8l-3.3-3.3.7-.7 3.3 3.3v-2.8Zm-12 0v2.8l3.3-3.3.7.7-3.3 3.3H6v1H1.5v-4.7h1Z"/></svg>
                     <span class="nav-action-label" id="fullscreen-toggle-label">Full width</span>
                 </button>
+                <a class="secondary nav-action" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">
+                    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2h12v2H2V2Zm0 3.5h12V14H2V5.5Zm1 1V13h10V6.5H3Zm2 1h6v1H5v-1Zm0 2.5h6v1H5V10Z"/></svg>
+                    <span class="nav-action-label">Survey Design (PDE)</span>
+                </a>
                 {#if authenticated}
                 <a class="secondary nav-action" href="/admin">
                     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.67 1.5 10 3.1c.3.12.59.28.86.47l1.47-.5 1 1.73-1.15 1.03c.04.31.04.63 0 .94l1.15 1.03-1 1.73-1.47-.5c-.27.2-.56.35-.86.47L9.67 14.5H7.33L7 12.9a4.9 4.9 0 0 1-.86-.47l-1.47.5-1-1.73 1.15-1.03a3.7 3.7 0 0 1 0-.94L3.67 8.2l1-1.73 1.47.5c.27-.19.56-.35.86-.47l.33-1.6h2.34ZM8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z"/></svg>
@@ -1812,12 +1816,12 @@
                         <summary class="secondary button-with-icon" title="Feed actions"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 8a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 3 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 8 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 13 8Z"/></svg><span>Manage</span></summary>
                         <div class="inline-menu-panel">
                             <div data-card-review-admin="{logicalFeed.id}"></div>
-                            <form action="/logical-feeds/{logicalFeed.id}/archive" method="post" onsubmit="return window.confirm('Archive this paper feed? It will disappear from the front page and RSS polling will stop.');">
-                                <button class="secondary button-with-icon" type="submit"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2.5 3h11v1h-11V3Zm1 2h9v8h-9V5Zm2 1v6h5V6h-5Z"/></svg><span>Archive feed</span></button>
-                            </form>
-                            <form action="/logical-feeds/{logicalFeed.id}/delete" method="post" onsubmit="return window.confirm('Delete this paper feed? This action cannot be undone.');">
-                                <button class="secondary button-with-icon" type="submit"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5.5 2h5l.5 1.5H14V4.5H2V3.5h3L5.5 2Zm-1 3h7l-.5 8h-6L4.5 5Z"/></svg><span>Delete feed</span></button>
-                            </form>
+                            <button class="secondary button-with-icon" type="button"
+                                    data-open-add-feed="{logicalFeed.id}"
+                                    data-add-feed-name="{logicalFeed.name}">
+                                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 3h10v2H3V3Zm0 4h6v2H3V7Zm0 4h6v2H3v-2Zm9-4v2h2v1h-2v2h-1v-2H9V9h2V7h1Z"/></svg>
+                                <span>Add RSS feed</span>
+                            </button>
                         </div>
                     </details>
                     {/if}
@@ -1866,6 +1870,32 @@
                 <div class="manual-import-actions">
                     <a class="secondary" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Open PDE</a>
                     <button class="secondary" id="review-create-button" type="submit">Create survey</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <dialog class="review-modal" id="feed-create-modal">
+        <div class="review-modal-body">
+            <div class="review-modal-header">
+                <div>
+                    <h3 id="feed-create-modal-title">Add RSS feed</h3>
+                    <p class="meta" id="feed-create-modal-status">Add a new RSS source to this paper feed. Default polling frequency is 1 day.</p>
+                </div>
+                <button class="icon-button secondary" id="feed-create-modal-close" type="button" title="Close">×</button>
+            </div>
+            <form class="stack" id="feed-create-form" action="/feeds" method="post">
+                <input type="hidden" id="feed-create-logical-feed-id" name="logicalFeedId">
+                <input type="hidden" name="pollIntervalMinutes" value="1440">
+                <input type="hidden" id="feed-create-return-to" name="returnTo">
+                <label class="meta" for="feed-create-name">RSS feed name</label>
+                <input id="feed-create-name" name="name" type="text" placeholder="My RSS source" required>
+                <label class="meta" for="feed-create-url">RSS feed URL</label>
+                <input id="feed-create-url" name="url" type="url" placeholder="https://example.org/feed.xml" required>
+                <p class="meta">Paste the RSS feed URL and pick a short label for it. You can later manage polling in Admin if needed.</p>
+                <p class="meta">Need a source? Open <a href="https://scholar.miage.dev/feeds" target="_blank" rel="noreferrer">Miage Scholar feeds</a> in a new tab, pick a feed, then paste its URL here.</p>
+                <div class="manual-import-actions">
+                    <button class="secondary" type="submit">Add RSS feed</button>
                 </div>
             </form>
         </div>
@@ -2100,6 +2130,15 @@
     const reviewCreateForm = document.getElementById("review-create-form");
     const reviewTemplateSelect = document.getElementById("review-template-select");
     const reviewStateList = document.getElementById("review-state-list");
+    const feedCreateModal = document.getElementById("feed-create-modal");
+    const feedCreateModalTitle = document.getElementById("feed-create-modal-title");
+    const feedCreateModalStatus = document.getElementById("feed-create-modal-status");
+    const feedCreateModalClose = document.getElementById("feed-create-modal-close");
+    const feedCreateForm = document.getElementById("feed-create-form");
+    const feedCreateLogicalFeedId = document.getElementById("feed-create-logical-feed-id");
+    const feedCreateReturnTo = document.getElementById("feed-create-return-to");
+    const feedCreateName = document.getElementById("feed-create-name");
+    const feedCreateUrl = document.getElementById("feed-create-url");
     const manualImportForm = document.getElementById("manual-import-form");
     const manualImportDoi = document.getElementById("manual-import-doi");
     const manualImportFetch = document.getElementById("manual-import-fetch");
@@ -2926,6 +2965,53 @@
             reviewCreateModal.close();
         } else {
             reviewCreateModal.removeAttribute("open");
+        }
+    };
+
+    const openFeedCreateModal = (logicalFeedId, logicalFeedName) => {
+        if (!feedCreateModal || !feedCreateLogicalFeedId || !feedCreateReturnTo) {
+            return;
+        }
+        feedCreateLogicalFeedId.value = logicalFeedId || "";
+        feedCreateReturnTo.value = logicalFeedId ? "/?logicalFeedId=" + encodeURIComponent(logicalFeedId) : "/";
+        if (feedCreateModalTitle) {
+            feedCreateModalTitle.textContent = "Add RSS feed";
+        }
+        if (feedCreateModalStatus) {
+            feedCreateModalStatus.textContent = logicalFeedName
+                ? 'Add a new RSS source to "' + logicalFeedName + '". Default polling frequency is 1 day.'
+                : "Add a new RSS source to this paper feed. Default polling frequency is 1 day.";
+        }
+        if (feedCreateForm) {
+            feedCreateForm.reset();
+        }
+        if (feedCreateLogicalFeedId) {
+            feedCreateLogicalFeedId.value = logicalFeedId || "";
+        }
+        if (feedCreateReturnTo) {
+            feedCreateReturnTo.value = logicalFeedId ? "/?logicalFeedId=" + encodeURIComponent(logicalFeedId) : "/";
+        }
+        if (feedCreateName && logicalFeedName) {
+            feedCreateName.value = logicalFeedName + " RSS";
+        }
+        if (typeof feedCreateModal.showModal === "function") {
+            feedCreateModal.showModal();
+        } else {
+            feedCreateModal.setAttribute("open", "open");
+        }
+        window.setTimeout(() => {
+            feedCreateUrl?.focus();
+        }, 0);
+    };
+
+    const closeFeedCreateModal = () => {
+        if (!feedCreateModal) {
+            return;
+        }
+        if (typeof feedCreateModal.close === "function") {
+            feedCreateModal.close();
+        } else {
+            feedCreateModal.removeAttribute("open");
         }
     };
 
@@ -5375,6 +5461,20 @@
                 }
             });
         });
+    });
+    feedDashboard?.querySelectorAll("[data-open-add-feed]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const logicalFeedId = button.dataset.openAddFeed;
+            const logicalFeedName = button.dataset.addFeedName || "";
+            button.closest(".feed-dashboard-card-menu")?.removeAttribute("open");
+            openFeedCreateModal(logicalFeedId, logicalFeedName);
+        });
+    });
+    feedCreateModalClose?.addEventListener("click", closeFeedCreateModal);
+    feedCreateModal?.addEventListener("click", (event) => {
+        if (event.target === feedCreateModal) {
+            closeFeedCreateModal();
+        }
     });
     logicalFeedFilter?.addEventListener("change", async () => {
         await openLogicalFeed(logicalFeedFilter.value);
