@@ -2980,7 +2980,10 @@
     };
 
     const parseSearchDateValue = (value) => {
-        const normalized = String(value || "").trim();
+        const normalized = String(value || "")
+            .replace(/[\u200B-\u200D\uFEFF]/g, "")
+            .replace(/[^\d-]/g, "")
+            .trim();
         const match = normalized.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/);
         if (!match) {
             return null;
