@@ -2980,40 +2980,121 @@
     };
 
     const parseSearchDateValue = (value) => {
-        const normalized = String(value || "")
-            .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        const rawValue = String(value ?? "");
+        const withoutZeroWidth = rawValue.replace(/[\u200B-\u200D\uFEFF]/g, "");
+        const normalized = withoutZeroWidth
             .replace(/[^\d-]/g, "")
             .trim();
+        if (searchDebugEnabled) {
+            console.log("[paper-monitor] parseSearchDateValue:start", {
+                input: value,
+                rawValue,
+                rawChars: Array.from(rawValue).map((char) => ({
+                    char,
+                    code: char.charCodeAt(0)
+                })),
+                withoutZeroWidth,
+                normalized
+            });
+        }
         const parts = normalized.split("-").filter((part) => part.length > 0);
+        if (searchDebugEnabled) {
+            console.log("[paper-monitor] parseSearchDateValue:parts", {
+                normalized,
+                parts,
+                partMeta: parts.map((part) => ({
+                    part,
+                    length: part.length,
+                    digitsOnly: /^\d+$/.test(part)
+                }))
+            });
+        }
         if (!parts.length || parts.length > 3) {
+            if (searchDebugEnabled) {
+                console.log("[paper-monitor] parseSearchDateValue:return-null", {
+                    reason: "invalid-part-count",
+                    normalized,
+                    parts
+                });
+            }
             return null;
         }
         if (parts[0].length !== 4 || !/^\d{4}$/.test(parts[0])) {
+            if (searchDebugEnabled) {
+                console.log("[paper-monitor] parseSearchDateValue:return-null", {
+                    reason: "invalid-year-format",
+                    parts
+                });
+            }
             return null;
         }
         if (parts.length >= 2 && !/^\d{2}$/.test(parts[1])) {
+            if (searchDebugEnabled) {
+                console.log("[paper-monitor] parseSearchDateValue:return-null", {
+                    reason: "invalid-month-format",
+                    parts
+                });
+            }
             return null;
         }
         if (parts.length === 3 && !/^\d{2}$/.test(parts[2])) {
+            if (searchDebugEnabled) {
+                console.log("[paper-monitor] parseSearchDateValue:return-null", {
+                    reason: "invalid-day-format",
+                    parts
+                });
+            }
             return null;
         }
         const year = Number(parts[0]);
         const month = parts.length >= 2 ? Number(parts[1]) : null;
         const day = parts.length === 3 ? Number(parts[2]) : null;
+        if (searchDebugEnabled) {
+            console.log("[paper-monitor] parseSearchDateValue:numeric-values", {
+                parts,
+                year,
+                month,
+                day
+            });
+        }
         if (month != null && (month < 1 || month > 12)) {
+            if (searchDebugEnabled) {
+                console.log("[paper-monitor] parseSearchDateValue:return-null", {
+                    reason: "month-out-of-range",
+                    month
+                });
+            }
             return null;
         }
         const maxDay = month != null ? new Date(Date.UTC(year, month, 0)).getUTCDate() : null;
+        if (searchDebugEnabled) {
+            console.log("[paper-monitor] parseSearchDateValue:max-day", {
+                year,
+                month,
+                maxDay
+            });
+        }
         if (day != null && (!maxDay || day < 1 || day > maxDay)) {
+            if (searchDebugEnabled) {
+                console.log("[paper-monitor] parseSearchDateValue:return-null", {
+                    reason: "day-out-of-range",
+                    day,
+                    maxDay
+                });
+            }
             return null;
         }
-        return {
+        const parsedDateValue = {
             raw: normalized,
             precision: parts.length === 3 ? "day" : parts.length === 2 ? "month" : "year",
             year,
             month,
             day
         };
+        if (searchDebugEnabled) {
+            console.log("[paper-monitor] parseSearchDateValue:success", parsedDateValue);
+        }
+        return parsedDateValue;
     };
 
     const formatSearchDateValue = (year, month = 1, day = 1) => {
@@ -3051,6 +3132,12 @@
     const parseStateSearchQuery = (value) => {
         const raw = String(value || "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
         const directDateSource = raw.replace(/\s+/g, "");
+        if (searchDebugEnabled && raw.toLowerCase().includes("date:")) {
+            console.log("[paper-monitor] parseStateSearchQuery:start", {
+                raw,
+                directDateSource
+            });
+        }
         if (directDateSource.toLowerCase().startsWith("date:")) {
             let remainder = directDateSource.slice(5);
             let operator = "=";
@@ -3062,6 +3149,14 @@
                 remainder = remainder.slice(1);
             }
             remainder = remainder.replace(/[.,;:!?]+$/, "");
+            if (searchDebugEnabled) {
+                console.log("[paper-monitor] parseStateSearchQuery:direct-date", {
+                    raw,
+                    directDateSource,
+                    operator,
+                    remainder
+                });
+            }
             const parsed = parseSearchDateValue(remainder);
             const parsedQuery = {
                 raw,
@@ -3080,9 +3175,22 @@
         const dateFilters = [];
         const textTokens = [];
         const rawTokens = raw.split(/\s+/).filter(Boolean);
+        if (searchDebugEnabled && raw.toLowerCase().includes("date:")) {
+            console.log("[paper-monitor] parseStateSearchQuery:tokenized", {
+                raw,
+                rawTokens
+            });
+        }
         for (let index = 0; index < rawTokens.length; index += 1) {
             const token = rawTokens[index];
             const sanitizedToken = token.replace(/[.,;:!?]+$/, "");
+            if (searchDebugEnabled && raw.toLowerCase().includes("date:")) {
+                console.log("[paper-monitor] parseStateSearchQuery:token", {
+                    index,
+                    token,
+                    sanitizedToken
+                });
+            }
             if (!sanitizedToken.toLowerCase().startsWith("date:")) {
                 textTokens.push(token);
                 continue;
@@ -3097,8 +3205,22 @@
             const operatorMatch = remainder.match(/^(<=|>=|<|>|=)/);
             const operator = operatorMatch ? operatorMatch[1] : "=";
             const dateValue = (operatorMatch ? remainder.slice(operator.length) : remainder).trim();
+            if (searchDebugEnabled) {
+                console.log("[paper-monitor] parseStateSearchQuery:token-date", {
+                    token,
+                    remainder,
+                    operator,
+                    dateValue
+                });
+            }
             const parsed = parseSearchDateValue(dateValue);
             if (!parsed) {
+                if (searchDebugEnabled) {
+                    console.log("[paper-monitor] parseStateSearchQuery:token-date-invalid", {
+                        token,
+                        dateValue
+                    });
+                }
                 textTokens.push(token);
                 continue;
             }
