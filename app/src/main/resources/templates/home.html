@@ -2984,13 +2984,22 @@
             .replace(/[\u200B-\u200D\uFEFF]/g, "")
             .replace(/[^\d-]/g, "")
             .trim();
-        const match = normalized.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/);
-        if (!match) {
+        const parts = normalized.split("-").filter((part) => part.length > 0);
+        if (!parts.length || parts.length > 3) {
             return null;
         }
-        const year = Number(match[1]);
-        const month = match[2] ? Number(match[2]) : null;
-        const day = match[3] ? Number(match[3]) : null;
+        if (parts[0].length !== 4 || !/^\d{4}$/.test(parts[0])) {
+            return null;
+        }
+        if (parts.length >= 2 && !/^\d{2}$/.test(parts[1])) {
+            return null;
+        }
+        if (parts.length === 3 && !/^\d{2}$/.test(parts[2])) {
+            return null;
+        }
+        const year = Number(parts[0]);
+        const month = parts.length >= 2 ? Number(parts[1]) : null;
+        const day = parts.length === 3 ? Number(parts[2]) : null;
         if (month != null && (month < 1 || month > 12)) {
             return null;
         }
@@ -3000,7 +3009,7 @@
         }
         return {
             raw: normalized,
-            precision: day != null ? "day" : month != null ? "month" : "year",
+            precision: parts.length === 3 ? "day" : parts.length === 2 ? "month" : "year",
             year,
             month,
             day
