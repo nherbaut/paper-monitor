@@ -3058,7 +3058,7 @@
             dateFilters
         };
         if (searchDebugEnabled && parsedQuery.dateFilters.length) {
-            console.debug("[paper-monitor] Parsed date search query", parsedQuery);
+            console.log("[paper-monitor] Parsed date search query", parsedQuery);
         }
         return parsedQuery;
     };
@@ -3079,7 +3079,7 @@
         const paperDate = paperPublishedDateValue(publishedOn);
         if (!paperDate) {
             if (searchDebugEnabled) {
-                console.debug("[paper-monitor] Date filter rejected paper because publication date is missing or invalid", {
+                console.log("[paper-monitor] Date filter rejected paper because publication date is missing or invalid", {
                     publishedOn,
                     dateFilters
                 });
@@ -3102,7 +3102,7 @@
             return paperDate >= filter.range.start && paperDate <= filter.range.end;
         });
         if (searchDebugEnabled) {
-            console.debug("[paper-monitor] Date filter evaluation", {
+            console.log("[paper-monitor] Date filter evaluation", {
                 publishedOn,
                 paperDate,
                 dateFilters,
@@ -4193,7 +4193,7 @@
             return stateSearchMatchesRecord(record, searchQuery);
         });
         if (searchDebugEnabled && searchQuery.dateFilters.length) {
-            console.debug("[paper-monitor] Filtered paper records with date filters", {
+            console.log("[paper-monitor] Filtered paper records with date filters", {
                 selectedLogicalFeedId,
                 activePrimaryTab,
                 activeStatusTab,
@@ -5451,6 +5451,9 @@
     if (stateSearchInput) {
         stateSearchInput.addEventListener("input", () => {
             stateSearchQuery = stateSearchInput.value || "";
+            if (searchDebugEnabled) {
+                console.log("[paper-monitor] Search input changed", stateSearchQuery);
+            }
             stateSearchVisibleLimit = 10;
             applyLogicalFeedFilter();
         });
