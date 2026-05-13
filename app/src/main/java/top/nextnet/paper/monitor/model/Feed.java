@@ -36,6 +36,8 @@ public class Feed extends PanacheEntityBase {
     @Column(length = 1000)
     public String lastError;
 
+    public Integer lastPollCreatedPaperCount;
+
     @Column(length = 64)
     public String defaultPaperStatus;
 
@@ -51,5 +53,13 @@ public class Feed extends PanacheEntityBase {
             return defaultPaperStatus;
         }
         return logicalFeed.initialPaperStatus();
+    }
+
+    public int lastPollCreatedPaperCountValue() {
+        return lastPollCreatedPaperCount == null || lastPollCreatedPaperCount < 0 ? 0 : lastPollCreatedPaperCount;
+    }
+
+    public boolean lastPollSucceeded() {
+        return lastError == null || lastError.isBlank();
     }
 }

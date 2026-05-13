@@ -143,6 +143,7 @@ public class FeedPollingService {
             }
             feed.lastPolledAt = now;
             feed.lastError = null;
+            feed.lastPollCreatedPaperCount = createdCount;
             if (feed.logicalFeed != null && feed.logicalFeed.notifyOnNewRssPapers && !createdPapers.isEmpty()) {
                 notificationService.sendRssPaperDigest(feed.logicalFeed, feed, createdPapers);
             }
@@ -152,6 +153,7 @@ public class FeedPollingService {
         } catch (Exception e) {
             feed.lastPolledAt = now;
             feed.lastError = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+            feed.lastPollCreatedPaperCount = 0;
             Log.errorf(e, "Failed to poll feed id=%d name=%s url=%s", feed.id, feed.name, feed.url);
         }
     }

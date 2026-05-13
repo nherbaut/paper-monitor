@@ -1900,6 +1900,83 @@
             </form>
         </div>
     </dialog>
+
+    <dialog class="review-modal" id="doi-import-modal">
+        <div class="review-modal-body">
+            <div class="review-modal-header">
+                <div>
+                    <h3>Import paper by DOI</h3>
+                    <p class="meta" id="manual-import-modal-status">Paste one DOI or several DOIs separated by spaces or commas. The papers will be added to the current paper feed.</p>
+                </div>
+                <button class="icon-button secondary" id="doi-import-modal-close" type="button" title="Close">×</button>
+            </div>
+            <form class="stack manual-import-form" id="manual-import-form" action="/papers/import-doi" method="post" enctype="multipart/form-data">
+                <div class="hidden" aria-hidden="true">
+                    <select id="doi-import-logical-feed" name="logicalFeedId" tabindex="-1">
+                        <option value="">Select paper feed</option>
+                        {#for logicalFeed in logicalFeeds}
+                        <option value="{logicalFeed.id}">{logicalFeed.name}</option>
+                        {/for}
+                    </select>
+                </div>
+                <label class="meta" for="manual-import-doi">DOI</label>
+                <input id="manual-import-doi" name="doi" type="text" placeholder="10.1145/1234567 or 10.1145/1234567, 10.5555/7654321" required>
+                <div class="manual-import-actions">
+                    <button class="secondary" id="manual-import-fetch" type="button">Fetch metadata</button>
+                </div>
+                <p class="meta hidden" id="manual-import-status"></p>
+                <div class="manual-import-preview hidden" id="manual-import-preview">
+                    <h3 id="manual-import-preview-title">Preview</h3>
+                    <p class="meta" id="manual-import-preview-meta"></p>
+                    <p class="manual-import-preview-summary" id="manual-import-preview-summary"></p>
+                    <p class="meta" id="manual-import-preview-links"></p>
+                </div>
+                <div class="manual-import-dropzone hidden" id="manual-import-dropzone" tabindex="0">
+                    <input id="manual-import-pdf" name="pdf" type="file" accept="application/pdf" class="hidden">
+                    <p class="meta" id="manual-import-file-label">Drop a PDF here, or select one from your device.</p>
+                    <div class="manual-import-actions">
+                        <button class="secondary" id="manual-import-file-button" type="button">Choose PDF</button>
+                    </div>
+                </div>
+                <div class="manual-import-actions">
+                    <button class="secondary hidden" id="manual-import-submit" type="submit">Import paper</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <dialog class="review-modal" id="batch-paper-modal">
+        <div class="review-modal-body">
+            <div class="review-modal-header">
+                <div>
+                    <h3>Batch update papers</h3>
+                    <p class="meta" id="batch-paper-modal-status">Apply an operation to the papers matching the current filter.</p>
+                </div>
+                <button class="icon-button secondary" id="batch-paper-modal-close" type="button" title="Close">×</button>
+            </div>
+            <form class="stack" id="batch-paper-form">
+                <label class="meta" for="batch-paper-operation">Operation</label>
+                <select id="batch-paper-operation" name="operation" required>
+                    <option value="change_state">Batch change state</option>
+                    <option value="add_tag">Batch add tag</option>
+                    <option value="remove_tag">Batch remove tag</option>
+                </select>
+                <div id="batch-paper-status-field">
+                    <label class="meta" for="batch-paper-status">Target state</label>
+                    <select id="batch-paper-status" name="status"></select>
+                </div>
+                <div class="hidden" id="batch-paper-tag-field">
+                    <label class="meta" for="batch-paper-tag">Tag</label>
+                    <input id="batch-paper-tag" name="tag" type="text" placeholder="systematic-review">
+                </div>
+                <p class="meta" id="batch-paper-form-summary"></p>
+                <p class="meta hidden" id="batch-paper-form-feedback"></p>
+                <div class="manual-import-actions">
+                    <button class="secondary" id="batch-paper-apply" type="submit">Apply batch update</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
     {/if}
 
     <section class="panel panel-wide {#if authenticated && !shareMode && !initialLogicalFeedId}hidden{/if}" id="browser-reader-section">
@@ -1909,6 +1986,14 @@
                 <details class="export-menu" id="reader-export-menu">
                     <summary class="secondary" id="reader-export-button">Export</summary>
                     <div class="export-menu-panel">
+                        <div class="export-menu-group">
+                            <div class="export-menu-group-title">Import</div>
+                            <button class="secondary" id="reader-import-doi-button" type="button">Import by DOI</button>
+                        </div>
+                        <div class="export-menu-group">
+                            <div class="export-menu-group-title">Batch update</div>
+                            <button class="secondary" id="reader-batch-update-button" type="button">Batch update papers</button>
+                        </div>
                         <div class="export-menu-group">
                             <div class="export-menu-group-title">States</div>
                             <div class="export-state-grid" id="export-state-list"></div>
@@ -1936,8 +2021,9 @@
         <div class="reader-search {#if shareMode && !authenticated}share-anon-hidden{/if}" id="reader-search">
             <div class="reader-search-box">
                 <svg class="reader-search-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.2 10.5 14.5 13.8l-.7.7-3.3-3.3a5 5 0 1 1 .7-.7ZM6.75 11a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Z"/></svg>
-                <input id="state-search-input" type="search" placeholder="Search this state in title, abstract, authors, or venue">
+                <input id="state-search-input" type="search" placeholder="Search title, abstract, authors, venue, or use date:>2024 / date:<2024-05 / date:2024-05-12">
             </div>
+            <p class="meta">Date filter syntax: `date:&gt;YYYY[-MM[-DD]]`, `date:&lt;YYYY[-MM[-DD]]`, or exact `date:YYYY[-MM[-DD]]`.</p>
         </div>
         <div class="tag-browser {#if shareMode && !authenticated}share-anon-hidden{/if}" id="tag-browser">
             <div class="tag-badge-list" id="tag-badge-list"></div>
@@ -2139,6 +2225,21 @@
     const feedCreateReturnTo = document.getElementById("feed-create-return-to");
     const feedCreateName = document.getElementById("feed-create-name");
     const feedCreateUrl = document.getElementById("feed-create-url");
+    const doiImportModal = document.getElementById("doi-import-modal");
+    const doiImportModalClose = document.getElementById("doi-import-modal-close");
+    const doiImportModalStatus = document.getElementById("manual-import-modal-status");
+    const batchPaperModal = document.getElementById("batch-paper-modal");
+    const batchPaperModalClose = document.getElementById("batch-paper-modal-close");
+    const batchPaperModalStatus = document.getElementById("batch-paper-modal-status");
+    const batchPaperForm = document.getElementById("batch-paper-form");
+    const batchPaperOperation = document.getElementById("batch-paper-operation");
+    const batchPaperStatusField = document.getElementById("batch-paper-status-field");
+    const batchPaperStatus = document.getElementById("batch-paper-status");
+    const batchPaperTagField = document.getElementById("batch-paper-tag-field");
+    const batchPaperTag = document.getElementById("batch-paper-tag");
+    const batchPaperFormSummary = document.getElementById("batch-paper-form-summary");
+    const batchPaperFormFeedback = document.getElementById("batch-paper-form-feedback");
+    const batchPaperApply = document.getElementById("batch-paper-apply");
     const manualImportForm = document.getElementById("manual-import-form");
     const manualImportDoi = document.getElementById("manual-import-doi");
     const manualImportFetch = document.getElementById("manual-import-fetch");
@@ -2155,6 +2256,8 @@
     const manualImportSubmit = document.getElementById("manual-import-submit");
     const exportTabButton = document.getElementById("reader-export-button");
     const exportTabMenu = document.getElementById("reader-export-menu");
+    const readerImportDoiButton = document.getElementById("reader-import-doi-button");
+    const readerBatchUpdateButton = document.getElementById("reader-batch-update-button");
     const exportStateList = document.getElementById("export-state-list");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
     const feedDashboard = document.getElementById("feed-dashboard");
@@ -2613,7 +2716,7 @@
         if (!card) {
             return;
         }
-        const query = normalizedSearchText(stateSearchQuery);
+        const query = parseStateSearchQuery(stateSearchQuery).textQuery;
         const title = card.querySelector(".paper-title");
         const meta = card.querySelector(".paper-meta");
         const summary = card.querySelector(".paper-summary");
@@ -2690,6 +2793,12 @@
     const setPaperTags = (card, tags) => {
         card.dataset.paperTags = tags.join("|");
         const record = paperRecordById(card.dataset.paperId);
+        if (record) {
+            record.paperTags = tags.join("|");
+        }
+    };
+
+    const setPaperRecordTags = (record, tags) => {
         if (record) {
             record.paperTags = tags.join("|");
         }
@@ -2851,8 +2960,130 @@
         return (value || "").toLowerCase().replace(/\s+/g, " ").trim();
     };
 
-    const stateSearchMatchesCard = (card, query) => {
-        if (!query) {
+    const parseSearchDateValue = (value) => {
+        const normalized = String(value || "").trim();
+        const match = normalized.match(/^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/);
+        if (!match) {
+            return null;
+        }
+        const year = Number(match[1]);
+        const month = match[2] ? Number(match[2]) : null;
+        const day = match[3] ? Number(match[3]) : null;
+        if (month != null && (month < 1 || month > 12)) {
+            return null;
+        }
+        const maxDay = month != null ? new Date(Date.UTC(year, month, 0)).getUTCDate() : null;
+        if (day != null && (!maxDay || day < 1 || day > maxDay)) {
+            return null;
+        }
+        return {
+            raw: normalized,
+            precision: day != null ? "day" : month != null ? "month" : "year",
+            year,
+            month,
+            day
+        };
+    };
+
+    const formatSearchDateValue = (year, month = 1, day = 1) => {
+        return [
+            String(year).padStart(4, "0"),
+            String(month).padStart(2, "0"),
+            String(day).padStart(2, "0")
+        ].join("-");
+    };
+
+    const lastDayOfMonth = (year, month) => new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+    const searchDateRange = (parsed) => {
+        if (!parsed) {
+            return null;
+        }
+        if (parsed.precision === "year") {
+            return {
+                start: formatSearchDateValue(parsed.year, 1, 1),
+                end: formatSearchDateValue(parsed.year, 12, 31)
+            };
+        }
+        if (parsed.precision === "month") {
+            return {
+                start: formatSearchDateValue(parsed.year, parsed.month, 1),
+                end: formatSearchDateValue(parsed.year, parsed.month, lastDayOfMonth(parsed.year, parsed.month))
+            };
+        }
+        return {
+            start: parsed.raw,
+            end: parsed.raw
+        };
+    };
+
+    const parseStateSearchQuery = (value) => {
+        const raw = String(value || "").trim();
+        const dateFilters = [];
+        const textTokens = [];
+        raw.split(/\s+/).filter(Boolean).forEach((token) => {
+            const match = token.match(/^date:(<=|>=|<|>|=)?(\d{4}(?:-\d{2}(?:-\d{2})?)?)$/i);
+            if (!match) {
+                textTokens.push(token);
+                return;
+            }
+            const parsed = parseSearchDateValue(match[2]);
+            if (!parsed) {
+                textTokens.push(token);
+                return;
+            }
+            dateFilters.push({
+                operator: match[1] || "=",
+                value: parsed,
+                range: searchDateRange(parsed)
+            });
+        });
+        return {
+            raw,
+            textQuery: normalizedSearchText(textTokens.join(" ")),
+            dateFilters
+        };
+    };
+
+    const paperPublishedDateValue = (value) => {
+        const normalized = String(value || "").trim();
+        const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!match) {
+            return null;
+        }
+        return normalized;
+    };
+
+    const publicationDateMatchesFilters = (publishedOn, dateFilters) => {
+        if (!dateFilters.length) {
+            return true;
+        }
+        const paperDate = paperPublishedDateValue(publishedOn);
+        if (!paperDate) {
+            return false;
+        }
+        return dateFilters.every((filter) => {
+            if (filter.operator === "<") {
+                return paperDate < filter.range.start;
+            }
+            if (filter.operator === ">") {
+                return paperDate > filter.range.end;
+            }
+            if (filter.operator === "<=") {
+                return paperDate <= filter.range.end;
+            }
+            if (filter.operator === ">=") {
+                return paperDate >= filter.range.start;
+            }
+            return paperDate >= filter.range.start && paperDate <= filter.range.end;
+        });
+    };
+
+    const stateSearchMatchesCard = (card, searchQuery) => {
+        if (!publicationDateMatchesFilters(card.dataset.paperPublishedOn, searchQuery.dateFilters)) {
+            return false;
+        }
+        if (!searchQuery.textQuery) {
             return true;
         }
         return [
@@ -2860,11 +3091,14 @@
             card.dataset.paperSummary,
             card.dataset.paperAuthors,
             card.dataset.paperVenue
-        ].some((value) => normalizedSearchText(value).includes(query));
+        ].some((value) => normalizedSearchText(value).includes(searchQuery.textQuery));
     };
 
-    const stateSearchMatchesRecord = (record, query) => {
-        if (!query) {
+    const stateSearchMatchesRecord = (record, searchQuery) => {
+        if (!publicationDateMatchesFilters(record.paperPublishedOn, searchQuery.dateFilters)) {
+            return false;
+        }
+        if (!searchQuery.textQuery) {
             return true;
         }
         return [
@@ -2872,7 +3106,7 @@
             record.paperSummary,
             record.paperAuthors,
             record.paperVenue
-        ].some((value) => normalizedSearchText(value).includes(query));
+        ].some((value) => normalizedSearchText(value).includes(searchQuery.textQuery));
     };
 
     const currentFeedCards = () => {
@@ -2909,6 +3143,28 @@
     };
 
     const normalizeTagInput = (value) => value.trim().replace(/\s+/g, " ");
+
+    const applyBatchOperationToRecords = (records, operation, value) => {
+        const normalizedValue = operation === "change_state" ? normalizeStatus(value) : normalizeTagInput(value);
+        records.forEach((record) => {
+            if (operation === "change_state") {
+                record.paperStatus = normalizedValue;
+                record.paperTopStatus = normalizedValue.includes("/") ? normalizedValue.split("/")[0] : normalizedValue;
+                return;
+            }
+            const tags = parsePaperTagsFromRecord(record);
+            if (operation === "add_tag") {
+                const nextTags = Array.from(new Set([...tags, normalizedValue])).sort((left, right) => left.localeCompare(right));
+                setPaperRecordTags(record, nextTags);
+                return;
+            }
+            const nextTags = tags.filter((tag) => tag.toLowerCase() !== normalizedValue.toLowerCase());
+            setPaperRecordTags(record, nextTags);
+        });
+        if (operation === "change_state") {
+            refreshLogicalFeedStateCounts(logicalFeedFilter?.value || "");
+        }
+    };
 
     const getNextInterestingStatus = (status, logicalFeedId) => {
         const workflow = workflowStatesForLogicalFeed(logicalFeedId);
@@ -3012,6 +3268,164 @@
             feedCreateModal.close();
         } else {
             feedCreateModal.removeAttribute("open");
+        }
+    };
+
+    const closeDoiImportModal = () => {
+        if (!doiImportModal) {
+            return;
+        }
+        if (typeof doiImportModal.close === "function") {
+            doiImportModal.close();
+        } else {
+            doiImportModal.removeAttribute("open");
+        }
+    };
+
+    const openDoiImportModal = () => {
+        if (!doiImportModal || !doiImportLogicalFeed || !logicalFeedFilter?.value) {
+            window.alert("Select a paper feed before importing by DOI.");
+            return;
+        }
+        if (Array.from(doiImportLogicalFeed.options).some((option) => option.value === logicalFeedFilter.value)) {
+            doiImportLogicalFeed.value = logicalFeedFilter.value;
+        }
+        manualImportForm?.reset();
+        resetManualImportPreview();
+        syncManualImportControls();
+        setManualImportStatus("");
+        if (doiImportModalStatus) {
+            const feedName = logicalFeedFilter.selectedOptions?.[0]?.dataset?.feedName || "the current paper feed";
+            doiImportModalStatus.textContent = "Paste one DOI or several DOIs separated by spaces or commas. The papers will be added to " + feedName + ".";
+        }
+        if (typeof doiImportModal.showModal === "function") {
+            doiImportModal.showModal();
+        } else {
+            doiImportModal.setAttribute("open", "open");
+        }
+        window.setTimeout(() => {
+            manualImportDoi?.focus();
+        }, 0);
+    };
+
+    const setBatchPaperFeedback = (message, isError = false) => {
+        if (!batchPaperFormFeedback) {
+            return;
+        }
+        batchPaperFormFeedback.textContent = message || "";
+        batchPaperFormFeedback.classList.toggle("hidden", !message);
+        batchPaperFormFeedback.style.color = isError ? "var(--danger, #a33)" : "";
+    };
+
+    const currentBatchPaperRecords = () => shareMode ? [] : filteredPaperRecords();
+
+    const renderBatchPaperStatusOptions = () => {
+        if (!batchPaperStatus) {
+            return;
+        }
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        const workflowTree = workflowTreeForLogicalFeed(logicalFeedId);
+        batchPaperStatus.innerHTML = "";
+        workflowTree.forEach((group) => {
+            const choices = stateLeafChoices(group);
+            if (choices.length === 1 && choices[0].value === group?.name) {
+                const option = document.createElement("option");
+                option.value = choices[0].value;
+                option.textContent = statusLabel(choices[0].value);
+                batchPaperStatus.appendChild(option);
+                return;
+            }
+            const optgroup = document.createElement("optgroup");
+            optgroup.label = statusLabel(group?.name || "");
+            choices.forEach((choice) => {
+                const option = document.createElement("option");
+                option.value = choice.value;
+                option.textContent = statusLabel(choice.value);
+                optgroup.appendChild(option);
+            });
+            batchPaperStatus.appendChild(optgroup);
+        });
+    };
+
+    const syncBatchPaperOperation = () => {
+        const operation = batchPaperOperation?.value || "change_state";
+        batchPaperStatusField?.classList.toggle("hidden", operation !== "change_state");
+        batchPaperTagField?.classList.toggle("hidden", operation === "change_state");
+        if (batchPaperStatus) {
+            batchPaperStatus.required = operation === "change_state";
+        }
+        if (batchPaperTag) {
+            batchPaperTag.required = operation !== "change_state";
+        }
+    };
+
+    const updateBatchPaperSummary = () => {
+        const records = currentBatchPaperRecords();
+        const feedName = logicalFeedFilter?.selectedOptions?.[0]?.dataset?.feedName || "the current paper feed";
+        const count = records.length;
+        if (batchPaperModalStatus) {
+            batchPaperModalStatus.textContent = count
+                ? "Apply an operation to " + count + " paper(s) currently matching the filters in " + feedName + "."
+                : "No papers currently match the filters in " + feedName + ".";
+        }
+        if (batchPaperFormSummary) {
+            batchPaperFormSummary.textContent = count
+                ? count + " paper(s) will be affected."
+                : "Adjust the filters first so at least one paper matches.";
+        }
+        if (batchPaperApply) {
+            batchPaperApply.disabled = count === 0;
+        }
+    };
+
+    const refreshLogicalFeedStateCounts = (logicalFeedId) => {
+        if (!logicalFeedId) {
+            return;
+        }
+        const option = Array.from(logicalFeedFilter.options).find((item) => item.value === logicalFeedId);
+        if (!option) {
+            return;
+        }
+        const counts = {};
+        paperRecords
+            .filter((record) => String(record.logicalFeedId) === String(logicalFeedId))
+            .forEach((record) => {
+                const status = record.paperTopStatus || normalizeStatus(record.paperStatus);
+                counts[status] = (counts[status] || 0) + 1;
+            });
+        option.dataset.stateCounts = Object.entries(counts)
+            .map(([status, count]) => status + ":" + count)
+            .join("|");
+    };
+
+    const openBatchPaperModal = () => {
+        if (!batchPaperModal || !logicalFeedFilter?.value) {
+            window.alert("Select a paper feed before using batch updates.");
+            return;
+        }
+        batchPaperForm?.reset();
+        renderBatchPaperStatusOptions();
+        syncBatchPaperOperation();
+        setBatchPaperFeedback("");
+        updateBatchPaperSummary();
+        if (typeof batchPaperModal.showModal === "function") {
+            batchPaperModal.showModal();
+        } else {
+            batchPaperModal.setAttribute("open", "open");
+        }
+        window.setTimeout(() => {
+            batchPaperOperation?.focus();
+        }, 0);
+    };
+
+    const closeBatchPaperModal = () => {
+        if (!batchPaperModal) {
+            return;
+        }
+        if (typeof batchPaperModal.close === "function") {
+            batchPaperModal.close();
+        } else {
+            batchPaperModal.removeAttribute("open");
         }
     };
 
@@ -3728,7 +4142,7 @@
 
     const filteredPaperRecords = () => {
         const selectedLogicalFeedId = logicalFeedFilter.value;
-        const normalizedQuery = normalizedSearchText(stateSearchQuery);
+        const searchQuery = parseStateSearchQuery(stateSearchQuery);
         return paperRecords.filter((record) => {
             const feedMatches = activePrimaryTab === "tags"
                 ? Boolean(selectedLogicalFeedId) && String(record.logicalFeedId) === String(selectedLogicalFeedId)
@@ -3743,7 +4157,7 @@
             if (!stateMatches) {
                 return false;
             }
-            return stateSearchMatchesRecord(record, normalizedQuery);
+            return stateSearchMatchesRecord(record, searchQuery);
         });
     };
 
@@ -3890,6 +4304,13 @@
             exportFormatButtons.forEach((button) => {
                 button.disabled = exportDisabled;
             });
+            if (readerBatchUpdateButton) {
+                const batchDisabled = !selectedLogicalFeedId || filtered.length === 0;
+                readerBatchUpdateButton.disabled = batchDisabled;
+                readerBatchUpdateButton.title = batchDisabled
+                    ? "Select a paper feed with at least one matching paper first."
+                    : "Apply a batch update to the currently filtered papers.";
+            }
             const activeCard = selectedPaperCard();
             if (activeCard) {
                 populatePaperViewMeta(activeCard);
@@ -3899,6 +4320,9 @@
             }
             renderReviewLauncher();
             updatePaperFeedHeading();
+            if (batchPaperModal?.open) {
+                updateBatchPaperSummary();
+            }
             return;
         }
 
@@ -3906,8 +4330,9 @@
         let activeCardStillVisible = false;
         const availableTabs = selectedWorkflowStates();
         const availableCounts = selectedWorkflowCounts();
-        const normalizedQuery = normalizedSearchText(stateSearchQuery);
-        const isStateSearchActive = activePrimaryTab === "state" && normalizedQuery.length > 0;
+        const searchQuery = parseStateSearchQuery(stateSearchQuery);
+        const isStateSearchActive = activePrimaryTab === "state"
+            && (searchQuery.textQuery.length > 0 || searchQuery.dateFilters.length > 0);
         let matchingSearchCards = [];
 
         if (availableTabs.length === 0) {
@@ -3923,7 +4348,7 @@
                 : (!selectedLogicalFeedId || card.dataset.logicalFeedId === selectedLogicalFeedId);
             const stateMatches = feedMatches && (activeStatusTab == null || card.dataset.paperTopStatus === activeStatusTab);
             const tagMatches = feedMatches && tagFilterMatchesCard(card, selectedTagFilters);
-            const searchMatches = stateMatches && stateSearchMatchesCard(card, normalizedQuery);
+            const searchMatches = stateMatches && stateSearchMatchesCard(card, searchQuery);
             if (isStateSearchActive && searchMatches) {
                 matchingSearchCards.push(card);
             }
@@ -4225,20 +4650,6 @@
             closeViewer();
         }
         applyLogicalFeedFilter();
-        if (!advanceFocus) {
-            return;
-        }
-        if (nextPaperId) {
-            const nextCard = findCardByPaperId(nextPaperId);
-            if (nextCard && !nextCard.hidden) {
-                openPaperCard(nextCard);
-                return;
-            }
-        }
-        const remainingCards = visiblePaperCards();
-        if (remainingCards.length) {
-            openPaperCard(remainingCards[0]);
-        }
 
         try {
             await updatePaperStatus(paperId, nextStatus);
@@ -4262,6 +4673,21 @@
             if (paperStatusTransitionTokens.get(paperId) === transitionToken) {
                 paperStatusTransitionTokens.delete(paperId);
             }
+        }
+
+        if (!advanceFocus) {
+            return;
+        }
+        if (nextPaperId) {
+            const nextCard = findCardByPaperId(nextPaperId);
+            if (nextCard && !nextCard.hidden) {
+                openPaperCard(nextCard);
+                return;
+            }
+        }
+        const remainingCards = visiblePaperCards();
+        if (remainingCards.length) {
+            openPaperCard(remainingCards[0]);
         }
     };
 
@@ -4361,7 +4787,7 @@
 
     const renderPaperCardPreview = (card) => {
         const summary = (card.dataset.paperSummary || "").trim();
-        const query = normalizedSearchText(stateSearchQuery);
+        const query = parseStateSearchQuery(stateSearchQuery).textQuery;
         const abstractHtml = summary
             ? "<div class=\"paper-view-abstract\"><p>" + highlightedHtml(summary, query).replace(/\n+/g, "</p><p>") + "</p></div>"
             : "<p class=\"meta\">No abstract available for this paper.</p>";
@@ -4373,7 +4799,7 @@
         const authors = card.dataset.paperAuthors || "Unknown authors";
         const publicationDate = card.dataset.paperPublishedOn || "unknown";
         const venue = card.dataset.paperVenue || "Unknown venue";
-        const query = normalizedSearchText(stateSearchQuery);
+        const query = parseStateSearchQuery(stateSearchQuery).textQuery;
         pdfPanelTitle.innerHTML = highlightedHtml(title, query);
         pdfPanelMeta.innerHTML = ""
             + highlightedHtml(authors, query) + "<br>"
@@ -5476,6 +5902,30 @@
             closeFeedCreateModal();
         }
     });
+    readerImportDoiButton?.addEventListener("click", () => {
+        exportTabMenu.open = false;
+        openDoiImportModal();
+    });
+    readerBatchUpdateButton?.addEventListener("click", () => {
+        exportTabMenu.open = false;
+        openBatchPaperModal();
+    });
+    doiImportModalClose?.addEventListener("click", closeDoiImportModal);
+    doiImportModal?.addEventListener("click", (event) => {
+        if (event.target === doiImportModal) {
+            closeDoiImportModal();
+        }
+    });
+    batchPaperModalClose?.addEventListener("click", closeBatchPaperModal);
+    batchPaperModal?.addEventListener("click", (event) => {
+        if (event.target === batchPaperModal) {
+            closeBatchPaperModal();
+        }
+    });
+    batchPaperOperation?.addEventListener("change", () => {
+        syncBatchPaperOperation();
+        setBatchPaperFeedback("");
+    });
     logicalFeedFilter?.addEventListener("change", async () => {
         await openLogicalFeed(logicalFeedFilter.value);
     });
@@ -5583,6 +6033,66 @@
             if (isBatch && manualImportPdf?.files?.length) {
                 event.preventDefault();
                 setManualImportStatus("Remove the PDF attachment before importing multiple DOIs.", true);
+            }
+        });
+    }
+
+    if (batchPaperForm) {
+        batchPaperForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const logicalFeedId = logicalFeedFilter?.value || "";
+            const records = currentBatchPaperRecords();
+            const operation = batchPaperOperation?.value || "change_state";
+            const status = batchPaperStatus?.value || "";
+            const tag = normalizeTagInput(batchPaperTag?.value || "");
+            if (!logicalFeedId) {
+                setBatchPaperFeedback("Select a paper feed first.", true);
+                return;
+            }
+            if (!records.length) {
+                setBatchPaperFeedback("No papers match the current filters.", true);
+                return;
+            }
+            if (operation === "change_state" && !status) {
+                setBatchPaperFeedback("Select a target state.", true);
+                return;
+            }
+            if (operation !== "change_state" && !tag) {
+                setBatchPaperFeedback("Enter a tag first.", true);
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set("logicalFeedId", logicalFeedId);
+            params.set("operation", operation);
+            if (operation === "change_state") {
+                params.set("status", status);
+            } else {
+                params.set("tag", tag);
+            }
+            records.forEach((record) => params.append("paperIds", String(record.id)));
+
+            setBatchPaperFeedback("Applying batch update...");
+            batchPaperApply.disabled = true;
+            try {
+                const response = await fetch("/papers/batch", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+                    },
+                    body: params.toString()
+                });
+                const body = await response.text();
+                if (!response.ok) {
+                    throw new Error(body || "Failed to apply batch update.");
+                }
+                applyBatchOperationToRecords(records, operation, operation === "change_state" ? status : tag);
+                closeBatchPaperModal();
+                applyLogicalFeedFilter();
+            } catch (error) {
+                setBatchPaperFeedback(error.message || "Failed to apply batch update.", true);
+            } finally {
+                batchPaperApply.disabled = false;
             }
         });
     }

@@ -37,7 +37,9 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.zip.CRC32;
@@ -591,18 +593,17 @@ public class HomeResource {
             @QueryParam("error") String error
     ) {
         AppUser currentUser = requireCurrentUser();
-        List<LogicalFeed> readableLogicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser);
-        List<Long> readableLogicalFeedIds = readableLogicalFeeds.stream().map((feed) -> feed.id).toList();
-        List<LogicalFeed> logicalFeeds = logicalFeedRepository.findAllForAdminView().stream()
-                .filter((feed) -> readableLogicalFeedIds.contains(feed.id))
-                .toList();
+        boolean globalAdmin = currentUserContext.get().isAdmin();
+        List<LogicalFeed> logicalFeeds = globalAdmin
+                ? logicalFeedRepository.findAllForAdminView()
+                : logicalFeedAccessService.readableLogicalFeeds(currentUser);
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
         paperGitSyncService.syncLogicalFeeds(logicalFeeds);
         List<LogicalFeed> adminLogicalFeeds = logicalFeeds.stream()
                 .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
                 .toList();
-        List<Feed> feeds = logicalFeedAccessService.readableFeeds(currentUser);
-        List<AppUser> userManagementUsers = currentUserContext.get().isAdmin() ? authService.allUsers() : List.of(currentUser);
+        List<Feed> feeds = globalAdmin ? feedRepository.findAllForAdminView() : logicalFeedAccessService.readableFeeds(currentUser);
+        List<AppUser> userManagementUsers = globalAdmin ? authService.allUsers() : List.of(currentUser);
         userManagementUsers.forEach(authService::ensureSettings);
         List<String> ttsVoices = List.of();
         String ttsVoicesError = null;
@@ -635,7 +636,7 @@ public class HomeResource {
                 .data("githubRepositoryChoicesError", githubRepositoryChoicesError)
                 .data("recentPapers", paperRepository.findRecent(30))
                 .data("currentUser", currentUser)
-                .data("canAdmin", currentUserContext.get().isAdmin())
+                .data("canAdmin", globalAdmin)
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("allUsers", authService.allUsers())
@@ -1744,6 +1745,96 @@ public class HomeResource {
             throw new WebApplicationException("Invalid paper status", Response.Status.BAD_REQUEST);
         }
         return Response.noContent().build();
+    }
+
+    @POST
+    @Path("/papers/batch")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response batchUpdatePapers(
+            @RestForm("logicalFeedId") Long logicalFeedId,
+            @RestForm("paperIds") List<Long> paperIds,
+            @RestForm("operation") String operation,
+            @RestForm("status") String status,
+            @RestForm("tag") String tag
+    ) {
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, requireCurrentUser());
+        List<Long> distinctPaperIds = paperIds == null ? List.of() : paperIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (distinctPaperIds.isEmpty()) {
+            throw new WebApplicationException("At least one paper is required", Response.Status.BAD_REQUEST);
+        }
+        List<Paper> papers = paperRepository.list("logicalFeed = ?1 and id in ?2", logicalFeed, distinctPaperIds);
+        if (papers.size() != distinctPaperIds.size()) {
+            throw new WebApplicationException("Some selected papers could not be found in this paper feed", Response.Status.BAD_REQUEST);
+        }
+
+        String normalizedOperation = normalizeRequired(operation, "Batch operation is required").toLowerCase(Locale.ROOT);
+        switch (normalizedOperation) {
+            case "change_state" -> applyBatchStateChange(logicalFeed, papers, status);
+            case "add_tag" -> applyBatchTagAddition(papers, tag);
+            case "remove_tag" -> applyBatchTagRemoval(papers, tag);
+            default -> throw new WebApplicationException("Unsupported batch operation", Response.Status.BAD_REQUEST);
+        }
+        return Response.noContent().build();
+    }
+
+    private void applyBatchStateChange(LogicalFeed logicalFeed, List<Paper> papers, String status) {
+        String normalizedStatus = normalizePaperStatus(status);
+        if (!logicalFeedWorkflow(logicalFeedRepository.findById(logicalFeed.id)).contains(normalizedStatus)) {
+            throw new WebApplicationException("Invalid paper status", Response.Status.BAD_REQUEST);
+        }
+        boolean changed = false;
+        for (Paper paper : papers) {
+            String previousStatus = paper.status;
+            if (normalizedStatus.equals(previousStatus)) {
+                continue;
+            }
+            paper.status = normalizedStatus;
+            paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
+            changed = true;
+        }
+        if (changed) {
+            paperGitSyncService.syncLogicalFeed(logicalFeed);
+        }
+    }
+
+    private void applyBatchTagAddition(List<Paper> papers, String tag) {
+        String normalizedTag = normalizeRequired(tag, "Tag is required");
+        for (Paper paper : papers) {
+            LinkedHashMap<String, String> tagsByKey = persistedTagsByKey(paper.tags);
+            tagsByKey.putIfAbsent(normalizedTag.toLowerCase(Locale.ROOT), normalizedTag);
+            paper.tags = joinPersistedTags(tagsByKey);
+        }
+    }
+
+    private void applyBatchTagRemoval(List<Paper> papers, String tag) {
+        String normalizedTag = normalizeRequired(tag, "Tag is required");
+        String keyToRemove = normalizedTag.toLowerCase(Locale.ROOT);
+        for (Paper paper : papers) {
+            LinkedHashMap<String, String> tagsByKey = persistedTagsByKey(paper.tags);
+            tagsByKey.remove(keyToRemove);
+            paper.tags = joinPersistedTags(tagsByKey);
+        }
+    }
+
+    private LinkedHashMap<String, String> persistedTagsByKey(String rawTags) {
+        LinkedHashMap<String, String> tagsByKey = new LinkedHashMap<>();
+        String normalizedTags = Paper.normalizeTags(rawTags);
+        if (normalizedTags == null || normalizedTags.isBlank()) {
+            return tagsByKey;
+        }
+        for (String value : normalizedTags.split("\\R")) {
+            String trimmed = value.trim();
+            if (trimmed.isBlank()) {
+                continue;
+            }
+            tagsByKey.putIfAbsent(trimmed.toLowerCase(Locale.ROOT), trimmed);
+        }
+        return tagsByKey;
+    }
+
+    private String joinPersistedTags(LinkedHashMap<String, String> tagsByKey) {
+        return tagsByKey.isEmpty() ? null : String.join("\n", tagsByKey.values());
     }
 
     private void populatePaperBadges(List<Paper> papers) {

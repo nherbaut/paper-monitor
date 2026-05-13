@@ -528,6 +528,9 @@
         <div class="management-intro">
             <p class="meta">You can rename paper feeds, update their YAML workflow, connect a GitHub repository, and delegate read or admin access to other users.</p>
             <p class="meta">Backups exported from this page are scoped to the paper feeds you can read or administer.</p>
+            {#if canAdmin}
+            <p class="meta">As a paper admin, you can see every paper feed in the system here.</p>
+            {/if}
         </div>
         <div class="stack-layout">
             <details class="management-card" open>
@@ -654,6 +657,9 @@
         <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 11a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-1-4a6 6 0 0 1 6 6H6a4 4 0 0 0-4-4V7Zm0-4a10 10 0 0 1 10 10h-2A8 8 0 0 0 2 5V3Z"/></svg></span><span>RSS Feed Management</span></h2>
         <div class="management-intro">
             <p class="meta">Only paper feeds where you have admin access are available for RSS creation and editing.</p>
+            {#if canAdmin}
+            <p class="meta">As a paper admin, you can see every RSS feed in the system here.</p>
+            {/if}
         </div>
         <div class="stack-layout">
             <details class="management-card" open>
@@ -683,7 +689,18 @@
             </details>
             {#for feed in feeds}
             <details class="management-card">
-                <summary>{feed.name}</summary>
+                <summary>
+                    <span>{feed.name}</span>
+                    <span class="status-row">
+                        <span class="status-badge">{feed.lastPolledAt ?: 'Never polled'}</span>
+                        <span class="status-badge {#if feed.lastPollSucceeded}good{#else}warn{/if}">
+                            {#if feed.lastPollSucceeded}Success{#else}Error{/if}
+                        </span>
+                        <span class="status-badge {#if feed.lastPollCreatedPaperCountValue > 0}good{/if}">
+                            +{feed.lastPollCreatedPaperCountValue} new
+                        </span>
+                    </span>
+                </summary>
                 <div class="management-card-body">
                     <div class="management-card-header">
                         <strong>{feed.name}</strong>
