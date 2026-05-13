@@ -3037,15 +3037,25 @@
     };
 
     const parseStateSearchQuery = (value) => {
-        const raw = String(value || "").trim();
-        const directDateMatch = raw.match(/^date\s*:\s*(<=|>=|<|>|=)?\s*(\d{4}(?:-\d{2}(?:-\d{2})?)?)$/i);
-        if (directDateMatch) {
-            const parsed = parseSearchDateValue(directDateMatch[2]);
+        const raw = String(value || "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+        const directDateSource = raw.replace(/\s+/g, "");
+        if (directDateSource.toLowerCase().startsWith("date:")) {
+            let remainder = directDateSource.slice(5);
+            let operator = "=";
+            if (remainder.startsWith("<=") || remainder.startsWith(">=")) {
+                operator = remainder.slice(0, 2);
+                remainder = remainder.slice(2);
+            } else if (["<", ">", "="].includes(remainder.charAt(0))) {
+                operator = remainder.charAt(0);
+                remainder = remainder.slice(1);
+            }
+            remainder = remainder.replace(/[.,;:!?]+$/, "");
+            const parsed = parseSearchDateValue(remainder);
             const parsedQuery = {
                 raw,
                 textQuery: "",
                 dateFilters: parsed ? [{
-                    operator: directDateMatch[1] || "=",
+                    operator,
                     value: parsed,
                     range: searchDateRange(parsed)
                 }] : []
