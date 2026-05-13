@@ -2370,6 +2370,7 @@
     let notesCollapsed = false;
     let pdfResizeObserver = null;
     let lastPdfFrameWidth = 0;
+    const searchDebugEnabled = true;
 
     const allPaperCards = () => Array.from(document.querySelectorAll("[data-paper-id]"));
     const paperRecordById = (paperId) => paperRecords.find((record) => String(record.id) === String(paperId)) || null;
@@ -3051,11 +3052,15 @@
             });
             return " ";
         });
-        return {
+        const parsedQuery = {
             raw,
             textQuery: normalizedSearchText(textQuerySource),
             dateFilters
         };
+        if (searchDebugEnabled && parsedQuery.dateFilters.length) {
+            console.debug("[paper-monitor] Parsed date search query", parsedQuery);
+        }
+        return parsedQuery;
     };
 
     const paperPublishedDateValue = (value) => {
@@ -3073,9 +3078,15 @@
         }
         const paperDate = paperPublishedDateValue(publishedOn);
         if (!paperDate) {
+            if (searchDebugEnabled) {
+                console.debug("[paper-monitor] Date filter rejected paper because publication date is missing or invalid", {
+                    publishedOn,
+                    dateFilters
+                });
+            }
             return false;
         }
-        return dateFilters.every((filter) => {
+        const matches = dateFilters.every((filter) => {
             if (filter.operator === "<") {
                 return paperDate < filter.range.start;
             }
@@ -3090,6 +3101,15 @@
             }
             return paperDate >= filter.range.start && paperDate <= filter.range.end;
         });
+        if (searchDebugEnabled) {
+            console.debug("[paper-monitor] Date filter evaluation", {
+                publishedOn,
+                paperDate,
+                dateFilters,
+                matches
+            });
+        }
+        return matches;
     };
 
     const stateSearchMatchesCard = (card, searchQuery) => {
@@ -4156,7 +4176,7 @@
     const filteredPaperRecords = () => {
         const selectedLogicalFeedId = logicalFeedFilter.value;
         const searchQuery = parseStateSearchQuery(stateSearchQuery);
-        return paperRecords.filter((record) => {
+        const filtered = paperRecords.filter((record) => {
             const feedMatches = activePrimaryTab === "tags"
                 ? Boolean(selectedLogicalFeedId) && String(record.logicalFeedId) === String(selectedLogicalFeedId)
                 : (!selectedLogicalFeedId || String(record.logicalFeedId) === String(selectedLogicalFeedId));
@@ -4172,6 +4192,24 @@
             }
             return stateSearchMatchesRecord(record, searchQuery);
         });
+        if (searchDebugEnabled && searchQuery.dateFilters.length) {
+            console.debug("[paper-monitor] Filtered paper records with date filters", {
+                selectedLogicalFeedId,
+                activePrimaryTab,
+                activeStatusTab,
+                selectedTagFilters,
+                totalRecords: paperRecords.length,
+                matchingRecords: filtered.length,
+                sample: filtered.slice(0, 10).map((record) => ({
+                    id: record.id,
+                    title: record.paperTitle,
+                    publishedOn: record.paperPublishedOn,
+                    status: record.paperStatus,
+                    topStatus: record.paperTopStatus
+                }))
+            });
+        }
+        return filtered;
     };
 
     const renderPaginatedPaperList = () => {
