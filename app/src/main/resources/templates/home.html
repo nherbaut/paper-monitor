@@ -1984,7 +1984,7 @@
             <h2 id="paper-feed-heading" class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm2 3h8v2H4V7Zm-2 3h12v2H2v-2Z"/></svg></span><span>Paper feed reader</span></h2>
             <div class="reader-header-actions {#if shareMode && !authenticated}share-anon-hidden{/if}">
                 <details class="export-menu" id="reader-export-menu">
-                    <summary class="secondary" id="reader-export-button">Export</summary>
+                    <summary class="secondary" id="reader-export-button">Tools</summary>
                     <div class="export-menu-panel">
                         <div class="export-menu-group">
                             <div class="export-menu-group-title">Import</div>
@@ -3022,7 +3022,8 @@
         const dateFilters = [];
         const textTokens = [];
         raw.split(/\s+/).filter(Boolean).forEach((token) => {
-            const match = token.match(/^date:(<=|>=|<|>|=)?(\d{4}(?:-\d{2}(?:-\d{2})?)?)$/i);
+            const sanitizedToken = token.replace(/[.,;:!?]+$/, "");
+            const match = sanitizedToken.match(/^date:(<=|>=|<|>|=)?(\d{4}(?:-\d{2}(?:-\d{2})?)?)$/i);
             if (!match) {
                 textTokens.push(token);
                 return;
@@ -4300,7 +4301,7 @@
 
             const exportDisabled = !selectedLogicalFeedId || (activePrimaryTab === "state" && !activeStatusTab);
             exportTabButton.classList.toggle("disabled", exportDisabled);
-            exportTabButton.title = exportDisabled ? "Select a paper feed before exporting." : "Export";
+            exportTabButton.title = exportDisabled ? "Select a paper feed before using tools." : "Tools";
             exportFormatButtons.forEach((button) => {
                 button.disabled = exportDisabled;
             });
@@ -4450,7 +4451,7 @@
 
         const exportDisabled = !selectedLogicalFeedId || (activePrimaryTab === "state" && !activeStatusTab);
         exportTabButton.classList.toggle("disabled", exportDisabled);
-        exportTabButton.title = exportDisabled ? "Select a paper feed before exporting." : "Export";
+        exportTabButton.title = exportDisabled ? "Select a paper feed before using tools." : "Tools";
         exportFormatButtons.forEach((button) => {
             button.disabled = exportDisabled;
         });
