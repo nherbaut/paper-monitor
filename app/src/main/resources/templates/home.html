@@ -4176,6 +4176,7 @@
     const filteredPaperRecords = () => {
         const selectedLogicalFeedId = logicalFeedFilter.value;
         const searchQuery = parseStateSearchQuery(stateSearchQuery);
+        const hasDateFilter = searchQuery.dateFilters.length > 0;
         const filtered = paperRecords.filter((record) => {
             const feedMatches = activePrimaryTab === "tags"
                 ? Boolean(selectedLogicalFeedId) && String(record.logicalFeedId) === String(selectedLogicalFeedId)
@@ -4186,7 +4187,7 @@
             if (activePrimaryTab === "tags") {
                 return tagFilterMatchesRecord(record, selectedTagFilters);
             }
-            const stateMatches = activeStatusTab == null || record.paperTopStatus === activeStatusTab;
+            const stateMatches = hasDateFilter || activeStatusTab == null || record.paperTopStatus === activeStatusTab;
             if (!stateMatches) {
                 return false;
             }
@@ -4382,6 +4383,7 @@
         const availableTabs = selectedWorkflowStates();
         const availableCounts = selectedWorkflowCounts();
         const searchQuery = parseStateSearchQuery(stateSearchQuery);
+        const hasDateFilter = searchQuery.dateFilters.length > 0;
         const isStateSearchActive = activePrimaryTab === "state"
             && (searchQuery.textQuery.length > 0 || searchQuery.dateFilters.length > 0);
         let matchingSearchCards = [];
@@ -4397,7 +4399,7 @@
             const feedMatches = activePrimaryTab === "tags"
                 ? Boolean(selectedLogicalFeedId) && card.dataset.logicalFeedId === selectedLogicalFeedId
                 : (!selectedLogicalFeedId || card.dataset.logicalFeedId === selectedLogicalFeedId);
-            const stateMatches = feedMatches && (activeStatusTab == null || card.dataset.paperTopStatus === activeStatusTab);
+            const stateMatches = feedMatches && (hasDateFilter || activeStatusTab == null || card.dataset.paperTopStatus === activeStatusTab);
             const tagMatches = feedMatches && tagFilterMatchesCard(card, selectedTagFilters);
             const searchMatches = stateMatches && stateSearchMatchesCard(card, searchQuery);
             if (isStateSearchActive && searchMatches) {
