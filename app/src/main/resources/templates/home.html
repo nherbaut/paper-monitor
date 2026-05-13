@@ -3039,25 +3039,39 @@
     const parseStateSearchQuery = (value) => {
         const raw = String(value || "").trim();
         const dateFilters = [];
-        const datePattern = /date\s*:\s*(<=|>=|<|>|=)?\s*(\d{4}(?:-\d{2}(?:-\d{2})?)?)/ig;
-        let textQuerySource = raw;
-        let match;
-        while ((match = datePattern.exec(raw)) !== null) {
-            const [, operator, dateValue] = match;
+        const textTokens = [];
+        const rawTokens = raw.split(/\s+/).filter(Boolean);
+        for (let index = 0; index < rawTokens.length; index += 1) {
+            const token = rawTokens[index];
+            const sanitizedToken = token.replace(/[.,;:!?]+$/, "");
+            if (!sanitizedToken.toLowerCase().startsWith("date:")) {
+                textTokens.push(token);
+                continue;
+            }
+
+            let remainder = sanitizedToken.slice(5).trim();
+            if (!remainder && index + 1 < rawTokens.length) {
+                remainder = rawTokens[index + 1].replace(/[.,;:!?]+$/, "").trim();
+                index += 1;
+            }
+
+            const operatorMatch = remainder.match(/^(<=|>=|<|>|=)/);
+            const operator = operatorMatch ? operatorMatch[1] : "=";
+            const dateValue = (operatorMatch ? remainder.slice(operator.length) : remainder).trim();
             const parsed = parseSearchDateValue(dateValue);
             if (!parsed) {
+                textTokens.push(token);
                 continue;
             }
             dateFilters.push({
-                operator: operator || "=",
+                operator,
                 value: parsed,
                 range: searchDateRange(parsed)
             });
-            textQuerySource = textQuerySource.replace(match[0], " ");
         }
         const parsedQuery = {
             raw,
-            textQuery: normalizedSearchText(textQuerySource),
+            textQuery: normalizedSearchText(textTokens.join(" ")),
             dateFilters
         };
         if (searchDebugEnabled && raw.toLowerCase().includes("date:")) {
