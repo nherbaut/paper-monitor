@@ -654,6 +654,13 @@
             box-shadow: none;
         }
 
+        .reader-subtabs {
+            margin-top: -0.8rem;
+            margin-bottom: 1rem;
+            padding-left: 1.2rem;
+            border-bottom-style: dashed;
+        }
+
         .reader-search {
             display: flex;
             align-items: center;
@@ -2034,6 +2041,7 @@
             <div class="stack" id="mobile-state-tabs"></div>
         </details>
         <div class="reader-tabs {#if shareMode && !authenticated}share-anon-hidden{/if}" id="reader-tabs"></div>
+        <div class="reader-tabs reader-subtabs hidden {#if shareMode && !authenticated}share-anon-hidden{/if}" id="reader-subtabs"></div>
         <div class="reader-search {#if shareMode && !authenticated}share-anon-hidden{/if}" id="reader-search">
             <div class="reader-search-box">
                 <svg class="reader-search-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M11.2 10.5 14.5 13.8l-.7.7-3.3-3.3a5 5 0 1 1 .7-.7ZM6.75 11a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5Z"/></svg>
@@ -2218,6 +2226,7 @@
     const storageKey = "paper-monitor.lastSeenLogicalFeed";
     const readerBootstrap = document.getElementById("reader-bootstrap");
     const statusTabsContainer = document.getElementById("reader-tabs");
+    const statusSubtabsContainer = document.getElementById("reader-subtabs");
     const mobileStateMenu = document.getElementById("mobile-state-menu");
     const mobileStateMenuSummary = document.getElementById("mobile-state-menu-summary");
     const mobileStateTabs = document.getElementById("mobile-state-tabs");
@@ -2346,6 +2355,7 @@
     let lastPdfSelectionText = "";
     let handToolState = null;
     let activeStatusTab = "NEW";
+    let activeChildStatus = null;
     let activePrimaryTab = "state";
     let cardDragState = null;
     let activeTouchStatusDrag = null;
@@ -2876,6 +2886,18 @@
         return workflowStatesFromToken(option?.dataset.workflowStates || "");
     };
 
+    const selectedWorkflowGroups = () => {
+        const selectedOption = logicalFeedFilter.selectedOptions?.[0];
+        if (selectedOption && selectedOption.value) {
+            return workflowTreeForLogicalFeed(selectedOption.value);
+        }
+        return [];
+    };
+
+    const workflowGroupByName = (logicalFeedId, groupName) => {
+        return workflowTreeForLogicalFeed(logicalFeedId).find((group) => group?.name === groupName) || null;
+    };
+
     const stateLeafChoices = (group) => {
         const children = Array.isArray(group?.children) ? group.children.filter(Boolean) : [];
         if (!children.length) {
@@ -2886,6 +2908,83 @@
             label: group.name + "/" + child,
             child
         }));
+    };
+
+    const wheelOptionsForGroups = (groups) => {
+        const options = [];
+        groups.forEach((group) => {
+            const choices = stateLeafChoices(group);
+            if (choices.length === 1 && choices[0].value === group.name) {
+                options.push({ type: "state", label: group.name, value: group.name });
+                return;
+            }
+            options.push({ type: "group", label: group.name });
+            choices.forEach((choice) => {
+                options.push({ type: "state", label: choice.child || choice.value, value: choice.value });
+            });
+        });
+        return options;
+    };
+
+    const syncActiveStateSelection = () => {
+        const groups = selectedWorkflowGroups();
+        const groupNames = groups.map((group) => group.name);
+        if (!groupNames.length) {
+            activeStatusTab = null;
+            activeChildStatus = null;
+            return;
+        }
+        if (!groupNames.includes(activeStatusTab)) {
+            activeStatusTab = groupNames[0];
+            activeChildStatus = null;
+        }
+        const activeGroup = groups.find((group) => group.name === activeStatusTab) || null;
+        const childValues = stateLeafChoices(activeGroup)
+            .map((choice) => choice.value)
+            .filter((value) => value !== activeStatusTab);
+        if (!childValues.length) {
+            activeChildStatus = null;
+            return;
+        }
+        if (activeChildStatus && !childValues.includes(activeChildStatus)) {
+            activeChildStatus = null;
+        }
+    };
+
+    const selectedStateMatchesRecord = (record) => {
+        if (activeChildStatus) {
+            return normalizeStatus(record.paperStatus) === activeChildStatus;
+        }
+        return activeStatusTab == null || record.paperTopStatus === activeStatusTab;
+    };
+
+    const selectedStateMatchesCard = (card) => {
+        if (activeChildStatus) {
+            return normalizeStatus(card.dataset.paperStatus) === activeChildStatus;
+        }
+        return activeStatusTab == null || card.dataset.paperTopStatus === activeStatusTab;
+    };
+
+    const childStateCountsForGroup = (logicalFeedId, parentState) => {
+        const counts = {};
+        if (!logicalFeedId || !parentState) {
+            return counts;
+        }
+        const targetRecords = shareMode
+            ? allPaperCards()
+                .filter((card) => card.dataset.logicalFeedId === logicalFeedId)
+                .map((card) => ({
+                    paperStatus: card.dataset.paperStatus
+                }))
+            : paperRecords.filter((record) => String(record.logicalFeedId) === String(logicalFeedId));
+        targetRecords.forEach((record) => {
+            const status = normalizeStatus(record.paperStatus);
+            if (!status.startsWith(parentState + "/")) {
+                return;
+            }
+            counts[status] = (counts[status] || 0) + 1;
+        });
+        return counts;
     };
 
     const stateCountsFromToken = (token) => {
@@ -3983,6 +4082,119 @@
         });
     };
 
+    const renderStateTabs = (availableCounts) => {
+        if (!statusTabsContainer) {
+            return;
+        }
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        const groups = selectedWorkflowGroups();
+        statusTabsContainer.innerHTML = "";
+        if (statusSubtabsContainer) {
+            statusSubtabsContainer.innerHTML = "";
+            statusSubtabsContainer.classList.add("hidden");
+        }
+        if (mobileStateTabs) {
+            mobileStateTabs.innerHTML = "";
+        }
+
+        groups.forEach((group) => {
+            const topLabel = statusLabel(group.name) + " (" + (availableCounts[group.name] || 0) + ")";
+            const activateTopTab = () => {
+                activePrimaryTab = "state";
+                activeStatusTab = group.name;
+                activeChildStatus = null;
+                stateSearchVisibleLimit = 10;
+                applyLogicalFeedFilter();
+            };
+            const tab = document.createElement("button");
+            tab.type = "button";
+            tab.className = "reader-tab" + (activePrimaryTab === "state" && group.name === activeStatusTab ? " active" : "");
+            tab.textContent = topLabel;
+            tab.addEventListener("click", activateTopTab);
+            statusTabsContainer.appendChild(tab);
+
+            if (mobileStateTabs) {
+                const mobileTab = document.createElement("button");
+                mobileTab.type = "button";
+                mobileTab.className = "secondary";
+                mobileTab.textContent = topLabel;
+                mobileTab.addEventListener("click", () => {
+                    activateTopTab();
+                    if (mobileStateMenu) {
+                        mobileStateMenu.open = false;
+                    }
+                });
+                mobileStateTabs.appendChild(mobileTab);
+            }
+        });
+
+        const activeGroup = groups.find((group) => group.name === activeStatusTab) || null;
+        const childChoices = activeGroup ? stateLeafChoices(activeGroup).filter((choice) => choice.value !== activeGroup.name) : [];
+        if (activeGroup && childChoices.length && statusSubtabsContainer) {
+            const childCounts = childStateCountsForGroup(logicalFeedId, activeGroup.name);
+            statusSubtabsContainer.classList.remove("hidden");
+            childChoices.forEach((choice) => {
+                const label = statusLabel(choice.child || choice.value) + " (" + (childCounts[choice.value] || 0) + ")";
+                const childTab = document.createElement("button");
+                childTab.type = "button";
+                childTab.className = "reader-tab" + (activePrimaryTab === "state" && activeChildStatus === choice.value ? " active" : "");
+                childTab.textContent = label;
+                childTab.addEventListener("click", () => {
+                    activePrimaryTab = "state";
+                    activeStatusTab = activeGroup.name;
+                    activeChildStatus = activeChildStatus === choice.value ? null : choice.value;
+                    stateSearchVisibleLimit = 10;
+                    applyLogicalFeedFilter();
+                });
+                statusSubtabsContainer.appendChild(childTab);
+
+                if (mobileStateTabs) {
+                    const mobileChildTab = document.createElement("button");
+                    mobileChildTab.type = "button";
+                    mobileChildTab.className = "secondary";
+                    mobileChildTab.textContent = statusLabel(activeGroup.name) + " / " + label;
+                    mobileChildTab.addEventListener("click", () => {
+                        activePrimaryTab = "state";
+                        activeStatusTab = activeGroup.name;
+                        activeChildStatus = choice.value;
+                        stateSearchVisibleLimit = 10;
+                        applyLogicalFeedFilter();
+                        if (mobileStateMenu) {
+                            mobileStateMenu.open = false;
+                        }
+                    });
+                    mobileStateTabs.appendChild(mobileChildTab);
+                }
+            });
+        }
+
+        const tagsTab = document.createElement("button");
+        tagsTab.type = "button";
+        tagsTab.className = "reader-tab" + (activePrimaryTab === "tags" ? " active" : "");
+        tagsTab.textContent = "Tags";
+        tagsTab.addEventListener("click", () => {
+            activePrimaryTab = "tags";
+            stateSearchVisibleLimit = 10;
+            applyLogicalFeedFilter();
+        });
+        statusTabsContainer.appendChild(tagsTab);
+        if (mobileStateTabs) {
+            const mobileTagsTab = document.createElement("button");
+            mobileTagsTab.type = "button";
+            mobileTagsTab.className = "secondary";
+            mobileTagsTab.textContent = "Tags";
+            mobileTagsTab.addEventListener("click", () => {
+                activePrimaryTab = "tags";
+                stateSearchVisibleLimit = 10;
+                applyLogicalFeedFilter();
+                if (mobileStateMenu) {
+                    mobileStateMenu.open = false;
+                }
+            });
+            mobileStateTabs.appendChild(mobileTagsTab);
+        }
+    };
+
     const hideStateWheels = () => {
         leftStateWheel.classList.remove("visible");
         rightStateWheel.classList.remove("visible");
@@ -4049,13 +4261,7 @@
         } else if (side === "right" && currentIndex >= 0 && currentIndex < workflowTree.length - 1) {
             groups = workflowTree.slice(currentIndex + 1);
         }
-        const options = [];
-        groups.forEach((group) => {
-            options.push({ type: "group", label: group.name });
-            stateLeafChoices(group).forEach((choice) => {
-                options.push({ type: "state", label: choice.child || choice.value, value: choice.value });
-            });
-        });
+        const options = wheelOptionsForGroups(groups);
         const activeIndex = options.findIndex((entry) => entry.type === "state");
         if (activeIndex < 0) {
             clearKeyboardStatePicker();
@@ -4131,7 +4337,7 @@
 
     const beginPaperStatusDrag = (card, event, visualTarget = card) => {
         clearKeyboardStatePicker();
-        const workflow = workflowStatesForLogicalFeed(card.dataset.logicalFeedId);
+        const workflow = workflowTreeForLogicalFeed(card.dataset.logicalFeedId);
         cardDragState = {
             card,
             paperId: card.dataset.paperId,
@@ -4162,19 +4368,12 @@
         const visualTarget = cardDragState.visualTarget || card;
         const deltaX = clientX - cardDragState.startX;
         const deltaY = clientY - cardDragState.startY;
-        const currentIndex = cardDragState.workflow.indexOf(cardDragState.currentTopStatus);
+        const currentIndex = cardDragState.workflow.findIndex((group) => group?.name === cardDragState.currentTopStatus);
         resetCardDragVisual(visualTarget);
         visualTarget.classList.add("drag-armed");
 
         if (deltaX > STATE_DRAG_TRIGGER_X && currentIndex >= 0 && currentIndex < cardDragState.workflow.length - 1) {
-            const options = cardDragState.workflow.slice(currentIndex + 1).flatMap((groupName) => {
-                const group = workflowTreeForLogicalFeed(card.dataset.logicalFeedId).find((item) => item.name === groupName);
-                const entries = [{ type: "group", label: groupName }];
-                stateLeafChoices(group).forEach((choice) => {
-                    entries.push({ type: "state", label: choice.child || choice.value, value: choice.value });
-                });
-                return entries;
-            });
+            const options = wheelOptionsForGroups(cardDragState.workflow.slice(currentIndex + 1));
             const selectableIndexes = options.map((entry, index) => entry.type === "state" ? index : -1).filter((index) => index >= 0);
             const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(deltaY / STATE_WHEEL_ROW_HEIGHT)))] ?? 0;
             cardDragState.side = "right";
@@ -4185,14 +4384,7 @@
             rightStateWheel.classList.add("visible");
             renderStateWheel(rightStateOptions, options, activeIndex);
         } else if (deltaX < -STATE_DRAG_TRIGGER_X && currentIndex > 0) {
-            const options = cardDragState.workflow.slice(0, currentIndex).reverse().flatMap((groupName) => {
-                const group = workflowTreeForLogicalFeed(card.dataset.logicalFeedId).find((item) => item.name === groupName);
-                const entries = [{ type: "group", label: groupName }];
-                stateLeafChoices(group).forEach((choice) => {
-                    entries.push({ type: "state", label: choice.child || choice.value, value: choice.value });
-                });
-                return entries;
-            });
+            const options = wheelOptionsForGroups(cardDragState.workflow.slice(0, currentIndex).reverse());
             const selectableIndexes = options.map((entry, index) => entry.type === "state" ? index : -1).filter((index) => index >= 0);
             const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(-deltaY / STATE_WHEEL_ROW_HEIGHT)))] ?? 0;
             cardDragState.side = "left";
@@ -4386,7 +4578,7 @@
             if (activePrimaryTab === "tags") {
                 return tagFilterMatchesRecord(record, selectedTagFilters);
             }
-            const stateMatches = hasDateFilter || activeStatusTab == null || record.paperTopStatus === activeStatusTab;
+            const stateMatches = hasDateFilter || selectedStateMatchesRecord(record);
             if (!stateMatches) {
                 return false;
             }
@@ -4463,14 +4655,8 @@
     const applyLogicalFeedFilter = () => {
         if (!shareMode) {
             const selectedLogicalFeedId = logicalFeedFilter.value;
-            const availableTabs = selectedWorkflowStates();
             const availableCounts = selectedWorkflowCounts();
-
-            if (availableTabs.length === 0) {
-                activeStatusTab = null;
-            } else if (!availableTabs.includes(activeStatusTab)) {
-                activeStatusTab = availableTabs[0];
-            }
+            syncActiveStateSelection();
 
             const filtered = filteredPaperRecords();
             const selectedStillVisible = filtered.some((record) => String(record.id) === String(selectedPaperId));
@@ -4478,69 +4664,15 @@
                 closeViewer();
             }
 
-            statusTabsContainer.innerHTML = "";
-            if (mobileStateTabs) {
-                mobileStateTabs.innerHTML = "";
-            }
-            availableTabs.forEach((status) => {
-                const tab = document.createElement("button");
-                tab.type = "button";
-                tab.className = "reader-tab" + (activePrimaryTab === "state" && status === activeStatusTab ? " active" : "");
-                tab.textContent = statusLabel(status) + " (" + (availableCounts[status] || 0) + ")";
-                const activateTab = () => {
-                    activePrimaryTab = "state";
-                    activeStatusTab = status;
-                    stateSearchVisibleLimit = 10;
-                    applyLogicalFeedFilter();
-                };
-                tab.addEventListener("click", activateTab);
-                statusTabsContainer.appendChild(tab);
-                if (mobileStateTabs) {
-                    const mobileTab = document.createElement("button");
-                    mobileTab.type = "button";
-                    mobileTab.className = "secondary";
-                    mobileTab.textContent = tab.textContent;
-                    mobileTab.addEventListener("click", () => {
-                        activateTab();
-                        if (mobileStateMenu) {
-                            mobileStateMenu.open = false;
-                        }
-                    });
-                    mobileStateTabs.appendChild(mobileTab);
-                }
-            });
-
-            const tagsTab = document.createElement("button");
-            tagsTab.type = "button";
-            tagsTab.className = "reader-tab" + (activePrimaryTab === "tags" ? " active" : "");
-            tagsTab.textContent = "Tags";
-            tagsTab.addEventListener("click", () => {
-                activePrimaryTab = "tags";
-                stateSearchVisibleLimit = 10;
-                applyLogicalFeedFilter();
-            });
-            statusTabsContainer.appendChild(tagsTab);
-            if (mobileStateTabs) {
-                const mobileTagsTab = document.createElement("button");
-                mobileTagsTab.type = "button";
-                mobileTagsTab.className = "secondary";
-                mobileTagsTab.textContent = "Tags";
-                mobileTagsTab.addEventListener("click", () => {
-                    activePrimaryTab = "tags";
-                    stateSearchVisibleLimit = 10;
-                    applyLogicalFeedFilter();
-                    if (mobileStateMenu) {
-                        mobileStateMenu.open = false;
-                    }
-                });
-                mobileStateTabs.appendChild(mobileTagsTab);
-            }
+            renderStateTabs(availableCounts);
 
             if (mobileStateMenuSummary) {
                 mobileStateMenuSummary.textContent = activePrimaryTab === "tags"
                     ? "Tags"
-                    : activeStatusTab
-                        ? statusLabel(activeStatusTab) + " (" + (availableCounts[activeStatusTab] || 0) + ")"
+                    : activeChildStatus
+                        ? statusLabel(activeStatusTab) + " / " + statusLabel(activeChildStatus)
+                        : activeStatusTab
+                            ? statusLabel(activeStatusTab) + " (" + (availableCounts[activeStatusTab] || 0) + ")"
                         : "States";
             }
 
@@ -4579,26 +4711,20 @@
 
         const selectedLogicalFeedId = logicalFeedFilter.value;
         let activeCardStillVisible = false;
-        const availableTabs = selectedWorkflowStates();
         const availableCounts = selectedWorkflowCounts();
         const searchQuery = parseStateSearchQuery(stateSearchQuery);
         const hasDateFilter = searchQuery.dateFilters.length > 0;
         const isStateSearchActive = activePrimaryTab === "state"
             && (searchQuery.textQuery.length > 0 || searchQuery.dateFilters.length > 0);
         let matchingSearchCards = [];
-
-        if (availableTabs.length === 0) {
-            activeStatusTab = null;
-        } else if (!availableTabs.includes(activeStatusTab)) {
-            activeStatusTab = availableTabs[0];
-        }
+        syncActiveStateSelection();
 
         allPaperCards().forEach((card) => {
             renderCardSearchHighlights(card);
             const feedMatches = activePrimaryTab === "tags"
                 ? Boolean(selectedLogicalFeedId) && card.dataset.logicalFeedId === selectedLogicalFeedId
                 : (!selectedLogicalFeedId || card.dataset.logicalFeedId === selectedLogicalFeedId);
-            const stateMatches = feedMatches && (hasDateFilter || activeStatusTab == null || card.dataset.paperTopStatus === activeStatusTab);
+            const stateMatches = feedMatches && (hasDateFilter || selectedStateMatchesCard(card));
             const tagMatches = feedMatches && tagFilterMatchesCard(card, selectedTagFilters);
             const searchMatches = stateMatches && stateSearchMatchesCard(card, searchQuery);
             if (isStateSearchActive && searchMatches) {
@@ -4628,69 +4754,15 @@
             closeViewer();
         }
 
-        statusTabsContainer.innerHTML = "";
-        if (mobileStateTabs) {
-            mobileStateTabs.innerHTML = "";
-        }
-        availableTabs.forEach((status) => {
-            const tab = document.createElement("button");
-            tab.type = "button";
-            tab.className = "reader-tab" + (activePrimaryTab === "state" && status === activeStatusTab ? " active" : "");
-            tab.textContent = statusLabel(status) + " (" + (availableCounts[status] || 0) + ")";
-            const activateTab = () => {
-                activePrimaryTab = "state";
-                activeStatusTab = status;
-                stateSearchVisibleLimit = 10;
-                applyLogicalFeedFilter();
-            };
-            tab.addEventListener("click", activateTab);
-            statusTabsContainer.appendChild(tab);
-            if (mobileStateTabs) {
-                const mobileTab = document.createElement("button");
-                mobileTab.type = "button";
-                mobileTab.className = "secondary";
-                mobileTab.textContent = tab.textContent;
-                mobileTab.addEventListener("click", () => {
-                    activateTab();
-                    if (mobileStateMenu) {
-                        mobileStateMenu.open = false;
-                    }
-                });
-                mobileStateTabs.appendChild(mobileTab);
-            }
-        });
-
-        const tagsTab = document.createElement("button");
-        tagsTab.type = "button";
-        tagsTab.className = "reader-tab" + (activePrimaryTab === "tags" ? " active" : "");
-        tagsTab.textContent = "Tags";
-        tagsTab.addEventListener("click", () => {
-            activePrimaryTab = "tags";
-            stateSearchVisibleLimit = 10;
-            applyLogicalFeedFilter();
-        });
-        statusTabsContainer.appendChild(tagsTab);
-        if (mobileStateTabs) {
-            const mobileTagsTab = document.createElement("button");
-            mobileTagsTab.type = "button";
-            mobileTagsTab.className = "secondary";
-            mobileTagsTab.textContent = "Tags";
-            mobileTagsTab.addEventListener("click", () => {
-                activePrimaryTab = "tags";
-                stateSearchVisibleLimit = 10;
-                applyLogicalFeedFilter();
-                if (mobileStateMenu) {
-                    mobileStateMenu.open = false;
-                }
-            });
-            mobileStateTabs.appendChild(mobileTagsTab);
-        }
+        renderStateTabs(availableCounts);
 
         if (mobileStateMenuSummary) {
             mobileStateMenuSummary.textContent = activePrimaryTab === "tags"
                 ? "Tags"
-                : activeStatusTab
-                    ? statusLabel(activeStatusTab) + " (" + (availableCounts[activeStatusTab] || 0) + ")"
+                : activeChildStatus
+                    ? statusLabel(activeStatusTab) + " / " + statusLabel(activeChildStatus)
+                    : activeStatusTab
+                        ? statusLabel(activeStatusTab) + " (" + (availableCounts[activeStatusTab] || 0) + ")"
                     : "States";
         }
 
@@ -4816,7 +4888,10 @@
         }
 
         logicalFeedFilter.value = card.dataset.logicalFeedId || "";
-        activeStatusTab = normalizeStatus(card.dataset.paperStatus);
+        activeStatusTab = card.dataset.paperTopStatus || normalizeStatus(card.dataset.paperStatus);
+        activeChildStatus = normalizeStatus(card.dataset.paperStatus).includes("/")
+            ? normalizeStatus(card.dataset.paperStatus)
+            : null;
         applyLogicalFeedFilter();
 
         if (card.hidden) {
