@@ -3038,6 +3038,23 @@
 
     const parseStateSearchQuery = (value) => {
         const raw = String(value || "").trim();
+        const directDateMatch = raw.match(/^date\s*:\s*(<=|>=|<|>|=)?\s*(\d{4}(?:-\d{2}(?:-\d{2})?)?)$/i);
+        if (directDateMatch) {
+            const parsed = parseSearchDateValue(directDateMatch[2]);
+            const parsedQuery = {
+                raw,
+                textQuery: "",
+                dateFilters: parsed ? [{
+                    operator: directDateMatch[1] || "=",
+                    value: parsed,
+                    range: searchDateRange(parsed)
+                }] : []
+            };
+            if (searchDebugEnabled) {
+                console.log("[paper-monitor] Parsed direct date search query", parsedQuery);
+            }
+            return parsedQuery;
+        }
         const dateFilters = [];
         const textTokens = [];
         const rawTokens = raw.split(/\s+/).filter(Boolean);
