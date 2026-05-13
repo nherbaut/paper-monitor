@@ -3039,25 +3039,28 @@
     const parseStateSearchQuery = (value) => {
         const raw = String(value || "").trim();
         const dateFilters = [];
-        const datePattern = /date\s*:\s*(<=|>=|<|>|=)?\s*(\d{4}(?:-\d{2}(?:-\d{2})?)?)(?=$|[\s,.;:!?])/ig;
-        const textQuerySource = raw.replace(datePattern, (_, operator, dateValue) => {
+        const datePattern = /date\s*:\s*(<=|>=|<|>|=)?\s*(\d{4}(?:-\d{2}(?:-\d{2})?)?)/ig;
+        let textQuerySource = raw;
+        let match;
+        while ((match = datePattern.exec(raw)) !== null) {
+            const [, operator, dateValue] = match;
             const parsed = parseSearchDateValue(dateValue);
             if (!parsed) {
-                return _;
+                continue;
             }
             dateFilters.push({
                 operator: operator || "=",
                 value: parsed,
                 range: searchDateRange(parsed)
             });
-            return " ";
-        });
+            textQuerySource = textQuerySource.replace(match[0], " ");
+        }
         const parsedQuery = {
             raw,
             textQuery: normalizedSearchText(textQuerySource),
             dateFilters
         };
-        if (searchDebugEnabled && parsedQuery.dateFilters.length) {
+        if (searchDebugEnabled && raw.toLowerCase().includes("date:")) {
             console.log("[paper-monitor] Parsed date search query", parsedQuery);
         }
         return parsedQuery;
