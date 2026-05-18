@@ -1384,7 +1384,7 @@ function addDimensionCard(container, initial = {}, nested = false) {
             <label class="form-label mb-0">Value type
                 <span class="help-text">category uses taxa; free_text and numeric collect direct input.</span>
                 <select class="form-select" data-role="dimension-value-type">
-                    ${selectOptions(["category", "criterion", "method", "free_text", "numeric"], initial.value_type || "category")}
+                    ${selectOptions(["category", "method", "free_text", "numeric"], initial.value_type || "category")}
                 </select>
             </label>
             <label class="form-label mb-0">Cardinality

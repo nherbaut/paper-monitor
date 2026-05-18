@@ -37,6 +37,7 @@ import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
 import top.nextnet.paper.monitor.service.MarkdownConversionService;
 import top.nextnet.paper.monitor.service.PaperDataExtractorService;
 import top.nextnet.paper.monitor.service.PaperGitSyncService;
+import top.nextnet.paper.monitor.service.ReviewExcelExportService;
 import top.nextnet.paper.monitor.service.ReviewReportService;
 import top.nextnet.paper.monitor.service.ReviewService;
 
@@ -50,6 +51,7 @@ public class ReviewResource {
     private final LogicalFeedAccessService logicalFeedAccessService;
     private final ReviewService reviewService;
     private final ReviewReportService reviewReportService;
+    private final ReviewExcelExportService reviewExcelExportService;
     private final MarkdownConversionService markdownConversionService;
     private final PaperDataExtractorService paperDataExtractorService;
     private final PaperGitSyncService paperGitSyncService;
@@ -61,6 +63,7 @@ public class ReviewResource {
             LogicalFeedAccessService logicalFeedAccessService,
             ReviewService reviewService,
             ReviewReportService reviewReportService,
+            ReviewExcelExportService reviewExcelExportService,
             MarkdownConversionService markdownConversionService,
             PaperDataExtractorService paperDataExtractorService,
             PaperGitSyncService paperGitSyncService
@@ -71,6 +74,7 @@ public class ReviewResource {
         this.logicalFeedAccessService = logicalFeedAccessService;
         this.reviewService = reviewService;
         this.reviewReportService = reviewReportService;
+        this.reviewExcelExportService = reviewExcelExportService;
         this.markdownConversionService = markdownConversionService;
         this.paperDataExtractorService = paperDataExtractorService;
         this.paperGitSyncService = paperGitSyncService;
@@ -201,6 +205,23 @@ public class ReviewResource {
     @Transactional
     public Response reviewReportDocx(@PathParam("id") Long id) {
         return reviewReportBinary(id, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    }
+
+    @GET
+    @Path("/api/reviews/{id}/export.xlsx")
+    @Produces("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    @Transactional
+    public Response reviewExportExcel(@PathParam("id") Long id) {
+        AppUser currentUser = requireCurrentUser();
+        Review reviewEntity = reviewService.requireReview(id, currentUser);
+        try {
+            byte[] workbook = reviewExcelExportService.exportSurveyWorkbook(reviewEntity);
+            return Response.ok(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    .header("Content-Disposition", "attachment; filename=\"review-" + reviewEntity.id + "-survey.xlsx\"")
+                    .build();
+        } catch (IOException e) {
+            throw new WebApplicationException("Failed to build Excel export", Status.BAD_GATEWAY);
+        }
     }
 
     @DELETE

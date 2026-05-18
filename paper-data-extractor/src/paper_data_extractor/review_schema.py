@@ -86,7 +86,7 @@ def build_dimension_slot(schema: dict[str, Any], dimension: dict[str, Any]) -> d
     }
 
     value_type = dimension["value_type"]
-    if value_type in {"category", "method", "criterion"} and (dimension.get("values") or []):
+    if value_type in {"category", "method"} and (dimension.get("values") or []):
         enum_name = f"{dimension['id']}_enum"
         schema["enums"][enum_name] = build_taxon_enum(dimension.get("values") or [])
         slot["range"] = enum_name

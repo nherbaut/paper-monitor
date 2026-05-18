@@ -124,7 +124,7 @@ def validate_dimension(dimension: Any) -> None:
     for key in ("id", "label", "value_type", "cardinality"):
         if key not in dimension:
             raise HTTPException(status_code=400, detail=f"Dimension is missing required field: {key}")
-    if dimension["value_type"] not in {"category", "criterion", "method", "free_text", "numeric"}:
+    if dimension["value_type"] not in {"category", "method", "free_text", "numeric"}:
         raise HTTPException(status_code=400, detail=f"Unsupported value_type: {dimension['value_type']}")
     if dimension["cardinality"] not in {"single", "multiple"}:
         raise HTTPException(status_code=400, detail=f"Unsupported cardinality: {dimension['cardinality']}")
@@ -183,6 +183,8 @@ def normalize_strings(value: Any) -> Any:
 
 def normalize_dimension_model(dimension: dict[str, Any]) -> dict[str, Any]:
     normalized = deepcopy(dimension)
+    if normalized.get("value_type") == "criterion":
+        normalized["value_type"] = "category"
     promoted_subdimensions: list[dict[str, Any]] = []
     normalized_values: list[Any] = []
 

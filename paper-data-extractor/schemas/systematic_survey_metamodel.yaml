@@ -177,7 +177,6 @@ enums:
   ValueType:
     permissible_values:
       category:
-      criterion:
       method:
       free_text:
       numeric:
