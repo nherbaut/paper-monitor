@@ -28,6 +28,7 @@ import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.ss.util.CellReference;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.usermodel.XSSFDataValidation;
 import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.Review;
 import top.nextnet.paper.monitor.model.ReviewSubmission;
@@ -245,10 +246,19 @@ public class ReviewExcelExportService {
         DataValidationConstraint constraint = helper.createFormulaListConstraint(formula);
         CellRangeAddressList range = new CellRangeAddressList(firstRow, lastRow, columnIndex, columnIndex);
         DataValidation validation = helper.createValidation(constraint, range);
-        validation.setSuppressDropDownArrow(false);
+        configureDropDownArrow(validation);
         validation.setShowErrorBox(true);
+        validation.setEmptyCellAllowed(true);
         validation.createErrorBox("Invalid value", "Choose one of the allowed categories.");
         sheet.addValidationData(validation);
+    }
+
+    private void configureDropDownArrow(DataValidation validation) {
+        if (validation instanceof XSSFDataValidation) {
+            validation.setSuppressDropDownArrow(true);
+            return;
+        }
+        validation.setSuppressDropDownArrow(false);
     }
 
     private void applyCustomValidation(
