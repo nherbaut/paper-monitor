@@ -33,13 +33,13 @@ public class LogicalFeed extends PanacheEntityBase {
     @Column(length = 500)
     public String description;
 
-    @Column(length = 2000)
+    @Column(length = 20000)
     public String workflowStates;
 
-    @Column(length = 12000)
+    @Column(length = 20000)
     public String eligibilityExclusionTaxonomy;
 
-    @Column(length = 12000)
+    @Column(length = 20000)
     public String eligibilityInclusionTaxonomy;
 
     @Column(length = 255)
