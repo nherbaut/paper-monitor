@@ -503,6 +503,8 @@
 - New
 - Todo
 - Done</textarea>
+            <textarea name="eligibilityExclusionTaxonomy" placeholder="Optional eligibility exclusion taxonomy YAML"></textarea>
+            <textarea name="eligibilityInclusionTaxonomy" placeholder="Optional eligibility inclusion taxonomy YAML"></textarea>
             <div class="two-columns">
                 <div class="rss-source-help">
                     <input type="url" name="rssFeedUrl" value="https://scholar.miage.dev/feed/4.rss" required>
@@ -540,6 +542,8 @@
                         <input type="text" name="name" placeholder="Paper feed name" required>
                         <textarea name="description" placeholder="Optional description"></textarea>
                         <textarea name="workflowStates" required></textarea>
+                        <textarea name="eligibilityExclusionTaxonomy" placeholder="Optional eligibility exclusion taxonomy YAML"></textarea>
+                        <textarea name="eligibilityInclusionTaxonomy" placeholder="Optional eligibility inclusion taxonomy YAML"></textarea>
                         <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
                         <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Email owner and feed admins when RSS adds papers to the default state</label>
                         <button type="submit">Create paper feed</button>
@@ -583,6 +587,8 @@
                             <input type="text" name="name" value="{logicalFeed.name}" required>
                             <textarea name="description">{logicalFeed.description}</textarea>
                             <textarea name="workflowStates" required>{logicalFeed.workflowStatesText}</textarea>
+                            <textarea name="eligibilityExclusionTaxonomy" placeholder="Optional eligibility exclusion taxonomy YAML">{logicalFeed.eligibilityExclusionTaxonomy}</textarea>
+                            <textarea name="eligibilityInclusionTaxonomy" placeholder="Optional eligibility inclusion taxonomy YAML">{logicalFeed.eligibilityInclusionTaxonomy}</textarea>
                             <label><input type="checkbox" name="publicReadable" {#if logicalFeed.publicReadable}checked{/if}> Public read-only feed</label>
                             <label><input type="checkbox" name="notifyOnNewRssPapers" {#if logicalFeed.notifyOnNewRssPapers}checked{/if}> Email owner and feed admins when RSS adds papers to the default state</label>
                             <button type="submit">Save paper feed</button>

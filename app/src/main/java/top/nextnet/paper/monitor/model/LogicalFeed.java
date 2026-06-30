@@ -36,6 +36,12 @@ public class LogicalFeed extends PanacheEntityBase {
     @Column(length = 2000)
     public String workflowStates;
 
+    @Column(length = 12000)
+    public String eligibilityExclusionTaxonomy;
+
+    @Column(length = 12000)
+    public String eligibilityInclusionTaxonomy;
+
     @Column(length = 255)
     public String gitRepoToken;
 
@@ -135,6 +141,10 @@ public class LogicalFeed extends PanacheEntityBase {
 
     public String workflowTreeJson() {
         return workflowConfig().treeJson();
+    }
+
+    public String workflowConfigJson() {
+        return workflowConfig().configJson();
     }
 
     public String initialPaperStatus() {

@@ -231,6 +231,8 @@ public class BackupService {
             item.put("name", logicalFeed.name);
             item.put("description", logicalFeed.description);
             item.put("workflowStates", logicalFeed.workflowStates);
+            item.put("eligibilityExclusionTaxonomy", logicalFeed.eligibilityExclusionTaxonomy);
+            item.put("eligibilityInclusionTaxonomy", logicalFeed.eligibilityInclusionTaxonomy);
             item.put("gitRepoToken", logicalFeed.gitRepoToken);
             item.put("lastProcessedGitCommit", logicalFeed.lastProcessedGitCommit);
             item.put("githubRepoOwner", logicalFeed.githubRepoOwner);
@@ -286,6 +288,9 @@ public class BackupService {
             item.put("publisher", paper.publisher);
             item.put("publishedOn", paper.publishedOn == null ? null : paper.publishedOn.toString());
             item.put("status", paper.status);
+            item.put("eligibilityExclusionCriterionId", paper.eligibilityExclusionCriterionId);
+            item.put("eligibilityExclusionNotes", paper.eligibilityExclusionNotes);
+            item.put("eligibilityInclusionCriteriaJson", paper.eligibilityInclusionCriteriaJson);
             item.put("discoveredAt", paper.discoveredAt.toString());
             item.put("feedId", paper.feed.id);
             item.put("logicalFeedId", paper.logicalFeed.id);
@@ -391,6 +396,8 @@ public class BackupService {
             logicalFeed.name = stringValue(item.get("name"));
             logicalFeed.description = stringValue(item.get("description"));
             logicalFeed.workflowStates = stringValue(item.get("workflowStates"));
+            logicalFeed.eligibilityExclusionTaxonomy = stringValue(item.get("eligibilityExclusionTaxonomy"));
+            logicalFeed.eligibilityInclusionTaxonomy = stringValue(item.get("eligibilityInclusionTaxonomy"));
             logicalFeed.gitRepoToken = stringValue(item.get("gitRepoToken"));
             logicalFeed.lastProcessedGitCommit = stringValue(item.get("lastProcessedGitCommit"));
             logicalFeed.githubRepoOwner = stringValue(item.get("githubRepoOwner"));
@@ -456,6 +463,9 @@ public class BackupService {
             paper.publisher = stringValue(item.get("publisher"));
             paper.publishedOn = localDateValue(item.get("publishedOn"));
             paper.status = stringValue(item.get("status"));
+            paper.eligibilityExclusionCriterionId = stringValue(item.get("eligibilityExclusionCriterionId"));
+            paper.eligibilityExclusionNotes = stringValue(item.get("eligibilityExclusionNotes"));
+            paper.eligibilityInclusionCriteriaJson = stringValue(item.get("eligibilityInclusionCriteriaJson"));
             paper.discoveredAt = instantValue(item.get("discoveredAt"));
             paper.feed = feedsByOldId.get(longValue(item.get("feedId")));
             paper.logicalFeed = logicalFeedsByOldId.get(longValue(item.get("logicalFeedId")));

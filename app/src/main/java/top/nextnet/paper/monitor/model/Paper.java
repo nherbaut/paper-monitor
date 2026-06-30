@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
+import top.nextnet.paper.monitor.service.JsonCodec;
 
 @Entity
 @Table(uniqueConstraints = @UniqueConstraint(columnNames = {"logicalFeed_id", "sourceLink"}))
@@ -71,6 +72,15 @@ public class Paper extends PanacheEntityBase {
     @Column(length = 64)
     public String status = "NEW";
 
+    @Column(length = 128)
+    public String eligibilityExclusionCriterionId;
+
+    @Column(length = 4000)
+    public String eligibilityExclusionNotes;
+
+    @Column(length = 4000)
+    public String eligibilityInclusionCriteriaJson;
+
     @Column(nullable = false)
     public Instant discoveredAt;
 
@@ -111,6 +121,37 @@ public class Paper extends PanacheEntityBase {
             orderedTags.putIfAbsent(value.toLowerCase(Locale.ROOT), value);
         }
         return List.copyOf(orderedTags.values());
+    }
+
+    public List<String> eligibilityInclusionCriteriaIds() {
+        if (eligibilityInclusionCriteriaJson == null || eligibilityInclusionCriteriaJson.isBlank()) {
+            return List.of();
+        }
+        Object parsed = JsonCodec.parse(eligibilityInclusionCriteriaJson);
+        if (!(parsed instanceof List<?> rows)) {
+            return List.of();
+        }
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (Object row : rows) {
+            if (row != null) {
+                values.add(String.valueOf(row));
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    public void setEligibilityInclusionCriteriaIds(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            eligibilityInclusionCriteriaJson = null;
+            return;
+        }
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                normalized.add(value.trim());
+            }
+        }
+        eligibilityInclusionCriteriaJson = normalized.isEmpty() ? null : JsonCodec.stringify(List.copyOf(normalized));
     }
 
     public String tagsToken() {

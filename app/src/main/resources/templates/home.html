@@ -1809,6 +1809,7 @@
                     data-feed-name="{logicalFeed.name}"
                     data-workflow-states="{logicalFeed.workflowStatesToken}"
                     data-workflow-tree='{logicalFeed.workflowTreeJson}'
+                    data-workflow-config='{logicalFeed.workflowConfigJson}'
                     data-state-counts="{logicalFeed.paperCountsToken}">{logicalFeed.readerLabel}</option>
             {/for}
         </select>
@@ -2898,6 +2899,48 @@
         }
     };
 
+    const workflowConfigForLogicalFeed = (logicalFeedId) => {
+        const option = Array.from(logicalFeedFilter.options).find((item) => item.value === logicalFeedId);
+        if (!option?.dataset.workflowConfig) {
+            return null;
+        }
+        try {
+            return JSON.parse(option.dataset.workflowConfig);
+        } catch {
+            return null;
+        }
+    };
+
+    const workflowStateById = (logicalFeedId, stateId) => {
+        const config = workflowConfigForLogicalFeed(logicalFeedId);
+        const states = Array.isArray(config?.states) ? config.states : [];
+        return states.find((state) => state?.id === stateId) || null;
+    };
+
+    const workflowTargetsFromState = (logicalFeedId, stateId) => {
+        const config = workflowConfigForLogicalFeed(logicalFeedId);
+        const transitions = Array.isArray(config?.transitions) ? config.transitions : [];
+        return transitions.find((item) => item?.from === stateId)?.to || [];
+    };
+
+    const taxonomyLeaves = (taxonomyId, logicalFeedId) => {
+        const config = workflowConfigForLogicalFeed(logicalFeedId);
+        const taxonomy = config?.taxonomies?.[taxonomyId];
+        const leaves = [];
+        const walk = (items) => {
+            (Array.isArray(items) ? items : []).forEach((item) => {
+                const children = Array.isArray(item?.children) ? item.children : [];
+                if (!children.length && item?.id) {
+                    leaves.push({ id: item.id, label: item.label || item.id });
+                    return;
+                }
+                walk(children);
+            });
+        };
+        walk(taxonomy?.values);
+        return leaves;
+    };
+
     const workflowStatesFromToken = (token) => {
         if (!token) {
             return [];
@@ -3522,9 +3565,8 @@
     };
 
     const getNextInterestingStatus = (status, logicalFeedId) => {
-        const workflow = workflowStatesForLogicalFeed(logicalFeedId);
-        const index = workflow.indexOf(status);
-        return index >= 0 && index < workflow.length - 1 ? workflow[index + 1] : null;
+        const targets = workflowTargetsFromState(logicalFeedId, status);
+        return targets.length ? targets[0] : null;
     };
 
     const statusLabel = (status) => {
@@ -4928,19 +4970,59 @@
         focusPaperCard(card);
     };
 
-    const updatePaperStatus = async (paperId, nextStatus) => {
+    const updatePaperStatus = async (paperId, nextStatus, params = null) => {
+        const body = params instanceof URLSearchParams ? params : new URLSearchParams({ status: nextStatus });
         const response = await fetch("/papers/" + paperId + "/status", {
             method: "POST",
             headers: {
                 "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
             },
-            body: new URLSearchParams({ status: nextStatus })
+            body
         });
 
         if (!response.ok) {
             const message = await response.text();
             throw new Error(message || "Failed to update paper status");
         }
+    };
+
+    const collectStateRequirementParams = (logicalFeedId, nextStatus) => {
+        const params = new URLSearchParams({ status: nextStatus });
+        const workflowState = workflowStateById(logicalFeedId, nextStatus);
+        const requires = workflowState?.requires || {};
+
+        if (requires.exclusionCriterion) {
+            const choices = taxonomyLeaves(requires.exclusionCriterion.taxonomy, logicalFeedId);
+            const promptMessage = "Enter one exclusion criterion id:\n" + choices.map((item) => item.id + " - " + item.label).join("\n");
+            const selected = window.prompt(promptMessage, choices[0]?.id || "");
+            if (!selected) {
+                return null;
+            }
+            params.set("eligibilityExclusionCriterionId", selected.trim());
+            const notes = window.prompt("Optional exclusion notes", "");
+            if (notes) {
+                params.set("eligibilityExclusionNotes", notes);
+            }
+        }
+
+        if (requires.inclusionCriteria) {
+            const choices = taxonomyLeaves(requires.inclusionCriteria.taxonomy, logicalFeedId);
+            const promptMessage = "Enter one or more inclusion criterion ids, separated by commas:\n"
+                + choices.map((item) => item.id + " - " + item.label).join("\n");
+            const selected = window.prompt(promptMessage, choices[0]?.id || "");
+            if (!selected) {
+                return null;
+            }
+            selected.split(",")
+                .map((value) => value.trim())
+                .filter(Boolean)
+                .forEach((value) => params.append("eligibilityInclusionCriterionIds", value));
+            if (!params.getAll("eligibilityInclusionCriterionIds").length) {
+                return null;
+            }
+        }
+
+        return params;
     };
 
     const syncPaperStatusCounts = (card, previousStatus, nextStatus) => {
@@ -4983,6 +5065,10 @@
         }
         suppressCardClick = true;
         const paperId = card.dataset.paperId;
+        const requestParams = collectStateRequirementParams(card.dataset.logicalFeedId, nextStatus);
+        if (requestParams == null) {
+            return;
+        }
         const transitionToken = ++paperStatusTransitionSequence;
         paperStatusTransitionTokens.set(paperId, transitionToken);
 
@@ -5000,7 +5086,7 @@
         applyLogicalFeedFilter();
 
         try {
-            await updatePaperStatus(paperId, nextStatus);
+            await updatePaperStatus(paperId, nextStatus, requestParams);
         } catch (error) {
             if (paperStatusTransitionTokens.get(paperId) !== transitionToken) {
                 throw error;
@@ -6423,6 +6509,16 @@
             params.set("operation", operation);
             if (operation === "change_state") {
                 params.set("status", status);
+                const requirementParams = collectStateRequirementParams(logicalFeedId, status);
+                if (requirementParams == null) {
+                    setBatchPaperFeedback("State change cancelled.", true);
+                    return;
+                }
+                requirementParams.forEach((value, key) => {
+                    if (key !== "status") {
+                        params.append(key, value);
+                    }
+                });
             } else {
                 params.set("tag", tag);
             }

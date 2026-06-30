@@ -827,6 +827,8 @@ public class HomeResource {
             @RestForm("logicalFeedName") String logicalFeedName,
             @RestForm("logicalFeedDescription") String logicalFeedDescription,
             @RestForm("workflowStates") String workflowStates,
+            @RestForm("eligibilityExclusionTaxonomy") String eligibilityExclusionTaxonomy,
+            @RestForm("eligibilityInclusionTaxonomy") String eligibilityInclusionTaxonomy,
             @RestForm("rssFeedName") String rssFeedName,
             @RestForm("rssFeedUrl") String rssFeedUrl,
             @RestForm("pollIntervalMinutes") Integer pollIntervalMinutes,
@@ -852,8 +854,10 @@ public class HomeResource {
 
         LogicalFeed logicalFeed = new LogicalFeed();
         logicalFeed.name = normalizedLogicalFeedName;
-       logicalFeed.description = normalize(logicalFeedDescription);
+        logicalFeed.description = normalize(logicalFeedDescription);
         logicalFeed.workflowStates = normalizedWorkflowStates;
+        logicalFeed.eligibilityExclusionTaxonomy = normalizeWorkflowTaxonomy(eligibilityExclusionTaxonomy, "Eligibility exclusion criteria");
+        logicalFeed.eligibilityInclusionTaxonomy = normalizeWorkflowTaxonomy(eligibilityInclusionTaxonomy, "Eligibility inclusion criteria");
         logicalFeed.owner = currentUser;
         logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
         logicalFeed.notifyOnNewRssPapers = !"off".equalsIgnoreCase(notifyOnNewRssPapers);
@@ -1302,6 +1306,8 @@ public class HomeResource {
             @RestForm("name") String name,
             @RestForm("description") String description,
             @RestForm("workflowStates") String workflowStates,
+            @RestForm("eligibilityExclusionTaxonomy") String eligibilityExclusionTaxonomy,
+            @RestForm("eligibilityInclusionTaxonomy") String eligibilityInclusionTaxonomy,
             @RestForm("publicReadable") String publicReadable,
             @RestForm("notifyOnNewRssPapers") String notifyOnNewRssPapers
     ) {
@@ -1310,6 +1316,8 @@ public class HomeResource {
             logicalFeed.name = name == null ? null : name.trim();
             logicalFeed.description = normalize(description);
             logicalFeed.workflowStates = normalizeWorkflowStates(workflowStates);
+            logicalFeed.eligibilityExclusionTaxonomy = normalizeWorkflowTaxonomy(eligibilityExclusionTaxonomy, "Eligibility exclusion criteria");
+            logicalFeed.eligibilityInclusionTaxonomy = normalizeWorkflowTaxonomy(eligibilityInclusionTaxonomy, "Eligibility inclusion criteria");
             logicalFeed.owner = requireCurrentUser();
             logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
             logicalFeed.notifyOnNewRssPapers = !"off".equalsIgnoreCase(notifyOnNewRssPapers);
@@ -1330,6 +1338,8 @@ public class HomeResource {
             @RestForm("name") String name,
             @RestForm("description") String description,
             @RestForm("workflowStates") String workflowStates,
+            @RestForm("eligibilityExclusionTaxonomy") String eligibilityExclusionTaxonomy,
+            @RestForm("eligibilityInclusionTaxonomy") String eligibilityInclusionTaxonomy,
             @RestForm("publicReadable") String publicReadable,
             @RestForm("notifyOnNewRssPapers") String notifyOnNewRssPapers
     ) {
@@ -1338,6 +1348,8 @@ public class HomeResource {
             logicalFeed.name = name == null ? null : name.trim();
             logicalFeed.description = normalize(description);
             logicalFeed.workflowStates = normalizeWorkflowStates(workflowStates);
+            logicalFeed.eligibilityExclusionTaxonomy = normalizeWorkflowTaxonomy(eligibilityExclusionTaxonomy, "Eligibility exclusion criteria");
+            logicalFeed.eligibilityInclusionTaxonomy = normalizeWorkflowTaxonomy(eligibilityInclusionTaxonomy, "Eligibility inclusion criteria");
             logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
             logicalFeed.notifyOnNewRssPapers = !"off".equalsIgnoreCase(notifyOnNewRssPapers);
             ensurePublicShareToken(logicalFeed);
@@ -1719,7 +1731,10 @@ public class HomeResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response updatePaperStatus(
             @jakarta.ws.rs.PathParam("id") Long id,
-            @RestForm("status") String status
+            @RestForm("status") String status,
+            @RestForm("eligibilityExclusionCriterionId") String eligibilityExclusionCriterionId,
+            @RestForm("eligibilityExclusionNotes") String eligibilityExclusionNotes,
+            @RestForm("eligibilityInclusionCriterionIds") List<String> eligibilityInclusionCriterionIds
     ) {
         Paper paper = paperRepository.findById(id);
         if (paper == null) {
@@ -1730,13 +1745,21 @@ public class HomeResource {
         }
         try {
             String normalizedStatus = normalizePaperStatus(status);
-            if (!logicalFeedWorkflow(logicalFeedRepository.findById(paper.logicalFeed.id)).contains(normalizedStatus)) {
-                throw new IllegalArgumentException();
-            }
+            LogicalFeed logicalFeed = logicalFeedRepository.findById(paper.logicalFeed.id);
+            WorkflowStateConfig workflow = workflowConfig(logicalFeed);
             String previousStatus = paper.status;
             if (normalizedStatus.equals(previousStatus)) {
                 return Response.noContent().build();
             }
+            validatePaperStatusTransition(
+                    workflow,
+                    logicalFeed,
+                    paper,
+                    previousStatus,
+                    normalizedStatus,
+                    eligibilityExclusionCriterionId,
+                    eligibilityExclusionNotes,
+                    eligibilityInclusionCriterionIds);
             paper.status = normalizedStatus;
             paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
             paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
@@ -1755,7 +1778,10 @@ public class HomeResource {
             @RestForm("paperIds") List<Long> paperIds,
             @RestForm("operation") String operation,
             @RestForm("status") String status,
-            @RestForm("tag") String tag
+            @RestForm("tag") String tag,
+            @RestForm("eligibilityExclusionCriterionId") String eligibilityExclusionCriterionId,
+            @RestForm("eligibilityExclusionNotes") String eligibilityExclusionNotes,
+            @RestForm("eligibilityInclusionCriterionIds") List<String> eligibilityInclusionCriterionIds
     ) {
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, requireCurrentUser());
         List<Long> distinctPaperIds = paperIds == null ? List.of() : paperIds.stream().filter(Objects::nonNull).distinct().toList();
@@ -1769,7 +1795,8 @@ public class HomeResource {
 
         String normalizedOperation = normalizeRequired(operation, "Batch operation is required").toLowerCase(Locale.ROOT);
         switch (normalizedOperation) {
-            case "change_state" -> applyBatchStateChange(logicalFeed, papers, status);
+            case "change_state" -> applyBatchStateChange(logicalFeed, papers, status,
+                    eligibilityExclusionCriterionId, eligibilityExclusionNotes, eligibilityInclusionCriterionIds);
             case "add_tag" -> applyBatchTagAddition(papers, tag);
             case "remove_tag" -> applyBatchTagRemoval(papers, tag);
             default -> throw new WebApplicationException("Unsupported batch operation", Response.Status.BAD_REQUEST);
@@ -1777,9 +1804,17 @@ public class HomeResource {
         return Response.noContent().build();
     }
 
-    private void applyBatchStateChange(LogicalFeed logicalFeed, List<Paper> papers, String status) {
+    private void applyBatchStateChange(
+            LogicalFeed logicalFeed,
+            List<Paper> papers,
+            String status,
+            String eligibilityExclusionCriterionId,
+            String eligibilityExclusionNotes,
+            List<String> eligibilityInclusionCriterionIds
+    ) {
         String normalizedStatus = normalizePaperStatus(status);
-        if (!logicalFeedWorkflow(logicalFeedRepository.findById(logicalFeed.id)).contains(normalizedStatus)) {
+        WorkflowStateConfig workflow = workflowConfig(logicalFeedRepository.findById(logicalFeed.id));
+        if (!workflow.containsLeafState(normalizedStatus)) {
             throw new WebApplicationException("Invalid paper status", Response.Status.BAD_REQUEST);
         }
         boolean changed = false;
@@ -1788,6 +1823,8 @@ public class HomeResource {
             if (normalizedStatus.equals(previousStatus)) {
                 continue;
             }
+            validatePaperStatusTransition(workflow, logicalFeed, paper, previousStatus, normalizedStatus,
+                    eligibilityExclusionCriterionId, eligibilityExclusionNotes, eligibilityInclusionCriterionIds);
             paper.status = normalizedStatus;
             paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
             changed = true;
@@ -1964,6 +2001,17 @@ public class HomeResource {
         }
     }
 
+    private String normalizeWorkflowTaxonomy(String value, String defaultLabel) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return WorkflowStateConfig.normalizeTaxonomyYaml(value, defaultLabel);
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
+    }
+
     private String normalizePaperStatus(String status) {
         if (status == null) {
             throw new IllegalArgumentException();
@@ -1988,6 +2036,94 @@ public class HomeResource {
             return List.of();
         }
         return logicalFeed.workflowStateList();
+    }
+
+    private WorkflowStateConfig workflowConfig(LogicalFeed logicalFeed) {
+        if (logicalFeed == null) {
+            throw new WebApplicationException("Logical feed is required", Response.Status.BAD_REQUEST);
+        }
+        try {
+            return logicalFeed.workflowConfig();
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
+    }
+
+    private void validatePaperStatusTransition(
+            WorkflowStateConfig workflow,
+            LogicalFeed logicalFeed,
+            Paper paper,
+            String previousStatus,
+            String nextStatus,
+            String exclusionCriterionId,
+            String exclusionNotes,
+            List<String> inclusionCriterionIds
+    ) {
+        if (!workflow.containsLeafState(nextStatus)) {
+            throw new WebApplicationException("Invalid paper status", Response.Status.BAD_REQUEST);
+        }
+        if (!workflow.allowsTransition(previousStatus, nextStatus)) {
+            throw new WebApplicationException("Transition not allowed by workflow", Response.Status.BAD_REQUEST);
+        }
+        WorkflowStateConfig.Requirements requirements = workflow.requirementsFor(nextStatus);
+        if (requirements.exclusionCriterion() != null) {
+            String normalizedCriterionId = normalizeOptionalWorkflowCriterion(exclusionCriterionId);
+            if (normalizedCriterionId == null) {
+                throw new WebApplicationException("An eligibility exclusion criterion is required", Response.Status.BAD_REQUEST);
+            }
+            if (!WorkflowStateConfig.standaloneTaxonomyContainsLeaf(
+                    logicalFeed.eligibilityExclusionTaxonomy,
+                    requirements.exclusionCriterion().taxonomy(),
+                    "Eligibility exclusion criteria",
+                    normalizedCriterionId)) {
+                throw new WebApplicationException("Invalid eligibility exclusion criterion", Response.Status.BAD_REQUEST);
+            }
+            paper.eligibilityExclusionCriterionId = normalizedCriterionId;
+            paper.eligibilityExclusionNotes = normalize(exclusionNotes);
+        } else {
+            paper.eligibilityExclusionCriterionId = null;
+            paper.eligibilityExclusionNotes = null;
+        }
+
+        if (requirements.inclusionCriteria() != null) {
+            List<String> normalizedCriteria = normalizeWorkflowCriterionList(inclusionCriterionIds);
+            if (normalizedCriteria.size() < requirements.inclusionCriteria().min()) {
+                throw new WebApplicationException("At least one inclusion criterion is required", Response.Status.BAD_REQUEST);
+            }
+            for (String criterionId : normalizedCriteria) {
+                if (!WorkflowStateConfig.standaloneTaxonomyContainsLeaf(
+                        logicalFeed.eligibilityInclusionTaxonomy,
+                        requirements.inclusionCriteria().taxonomy(),
+                        "Eligibility inclusion criteria",
+                        criterionId)) {
+                    throw new WebApplicationException("Invalid eligibility inclusion criterion", Response.Status.BAD_REQUEST);
+                }
+            }
+            paper.setEligibilityInclusionCriteriaIds(normalizedCriteria);
+        } else {
+            paper.setEligibilityInclusionCriteriaIds(List.of());
+        }
+    }
+
+    private String normalizeOptionalWorkflowCriterion(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return WorkflowStateConfig.normalizeStateSegment(value);
+    }
+
+    private List<String> normalizeWorkflowCriterionList(List<String> values) {
+        if (values == null) {
+            return List.of();
+        }
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String value : values) {
+            if (value == null || value.isBlank()) {
+                continue;
+            }
+            normalized.add(WorkflowStateConfig.normalizeStateSegment(value));
+        }
+        return List.copyOf(normalized);
     }
 
     private LogicalFeed requireLogicalFeed(Long logicalFeedId) {
