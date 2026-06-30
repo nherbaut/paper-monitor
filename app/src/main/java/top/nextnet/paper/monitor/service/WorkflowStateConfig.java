@@ -568,6 +568,12 @@ public final class WorkflowStateConfig {
     private static void validateLegacyGroups(List<Group> groups) {
         Map<String, String> seen = new LinkedHashMap<>();
         for (Group group : groups) {
+            if (group.children().isEmpty()) {
+                if (seen.put(group.name(), group.name()) != null) {
+                    throw new IllegalArgumentException("Duplicate workflow state: " + group.name());
+                }
+                continue;
+            }
             if (seen.put(group.name(), group.name()) != null) {
                 throw new IllegalArgumentException("Duplicate workflow state: " + group.name());
             }
