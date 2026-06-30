@@ -2923,6 +2923,14 @@
         return transitions.find((item) => item?.from === stateId)?.to || [];
     };
 
+    const workflowSourcesToState = (logicalFeedId, stateId) => {
+        const config = workflowConfigForLogicalFeed(logicalFeedId);
+        const transitions = Array.isArray(config?.transitions) ? config.transitions : [];
+        return transitions
+            .filter((item) => Array.isArray(item?.to) && item.to.includes(stateId))
+            .map((item) => item.from);
+    };
+
     const taxonomyLeaves = (taxonomyId, logicalFeedId) => {
         const config = workflowConfigForLogicalFeed(logicalFeedId);
         const taxonomy = config?.taxonomies?.[taxonomyId];
@@ -2981,6 +2989,30 @@
         const options = [];
         groups.forEach((group) => {
             const choices = stateLeafChoices(group);
+            if (choices.length === 1 && choices[0].value === group.name) {
+                options.push({ type: "state", label: group.name, value: group.name });
+                return;
+            }
+            options.push({ type: "group", label: group.name });
+            choices.forEach((choice) => {
+                options.push({ type: "state", label: choice.child || choice.value, value: choice.value });
+            });
+        });
+        return options;
+    };
+
+    const wheelOptionsForReachableStates = (logicalFeedId, stateIds) => {
+        if (!stateIds.length) {
+            return [];
+        }
+        const groups = workflowTreeForLogicalFeed(logicalFeedId);
+        const stateSet = new Set(stateIds);
+        const options = [];
+        groups.forEach((group) => {
+            const choices = stateLeafChoices(group).filter((choice) => stateSet.has(choice.value));
+            if (!choices.length) {
+                return;
+            }
             if (choices.length === 1 && choices[0].value === group.name) {
                 options.push({ type: "state", label: group.name, value: group.name });
                 return;
@@ -4315,16 +4347,11 @@
         if (!card) {
             return;
         }
-        const workflowTree = workflowTreeForLogicalFeed(card.dataset.logicalFeedId);
-        const currentTopStatus = card.dataset.paperTopStatus || normalizeStatus(card.dataset.paperStatus);
-        const currentIndex = workflowTree.findIndex((group) => group?.name === currentTopStatus);
-        let groups = [];
-        if (side === "left" && currentIndex > 0) {
-            groups = workflowTree.slice(0, currentIndex).reverse();
-        } else if (side === "right" && currentIndex >= 0 && currentIndex < workflowTree.length - 1) {
-            groups = workflowTree.slice(currentIndex + 1);
-        }
-        const options = wheelOptionsForGroups(groups);
+        const currentStatus = normalizeStatus(card.dataset.paperStatus);
+        const reachableStates = side === "left"
+            ? workflowSourcesToState(card.dataset.logicalFeedId, currentStatus)
+            : workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
+        const options = wheelOptionsForReachableStates(card.dataset.logicalFeedId, reachableStates);
         const activeIndex = options.findIndex((entry) => entry.type === "state");
         if (activeIndex < 0) {
             clearKeyboardStatePicker();
@@ -4334,7 +4361,7 @@
             card,
             paperId: card.dataset.paperId,
             logicalFeedId: card.dataset.logicalFeedId,
-            currentStatus: normalizeStatus(card.dataset.paperStatus),
+            currentStatus,
             side,
             options,
             activeIndex
@@ -4362,20 +4389,14 @@
         if (!card) {
             return false;
         }
-        const workflowTree = workflowTreeForLogicalFeed(card.dataset.logicalFeedId);
-        const currentTopStatus = card.dataset.paperTopStatus || normalizeStatus(card.dataset.paperStatus);
-        const currentIndex = workflowTree.findIndex((group) => group?.name === currentTopStatus);
-        let groups = [];
-        if (side === "left" && currentIndex > 0) {
-            groups = workflowTree.slice(0, currentIndex).reverse();
-        } else if (side === "right" && currentIndex >= 0 && currentIndex < workflowTree.length - 1) {
-            groups = workflowTree.slice(currentIndex + 1);
-        }
-        const states = groups.flatMap((group) => stateLeafChoices(group).map((choice) => choice.value));
+        const currentStatus = normalizeStatus(card.dataset.paperStatus);
+        const states = side === "left"
+            ? workflowSourcesToState(card.dataset.logicalFeedId, currentStatus)
+            : workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
         if (states.length !== 1) {
             return false;
         }
-        await immediateKeyboardTransition(side, card, states[0], normalizeStatus(card.dataset.paperStatus));
+        await immediateKeyboardTransition(side, card, states[0], currentStatus);
         return true;
     };
 
@@ -4431,13 +4452,20 @@
         const visualTarget = cardDragState.visualTarget || card;
         const deltaX = clientX - cardDragState.startX;
         const deltaY = clientY - cardDragState.startY;
-        const currentIndex = cardDragState.workflow.findIndex((group) => group?.name === cardDragState.currentTopStatus);
         resetCardDragVisual(visualTarget);
         visualTarget.classList.add("drag-armed");
 
-        if (deltaX > STATE_DRAG_TRIGGER_X && currentIndex >= 0 && currentIndex < cardDragState.workflow.length - 1) {
-            const options = wheelOptionsForGroups(cardDragState.workflow.slice(currentIndex + 1));
+        if (deltaX > STATE_DRAG_TRIGGER_X) {
+            const reachableStates = workflowTargetsFromState(card.dataset.logicalFeedId, cardDragState.currentStatus);
+            const options = wheelOptionsForReachableStates(card.dataset.logicalFeedId, reachableStates);
             const selectableIndexes = options.map((entry, index) => entry.type === "state" ? index : -1).filter((index) => index >= 0);
+            if (!selectableIndexes.length) {
+                cardDragState.side = null;
+                cardDragState.options = [];
+                cardDragState.activeIndex = 0;
+                hideStateWheels();
+                return;
+            }
             const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(deltaY / STATE_WHEEL_ROW_HEIGHT)))] ?? 0;
             cardDragState.side = "right";
             cardDragState.options = options;
@@ -4446,9 +4474,17 @@
             leftStateWheel.classList.remove("visible");
             rightStateWheel.classList.add("visible");
             renderStateWheel(rightStateOptions, options, activeIndex);
-        } else if (deltaX < -STATE_DRAG_TRIGGER_X && currentIndex > 0) {
-            const options = wheelOptionsForGroups(cardDragState.workflow.slice(0, currentIndex).reverse());
+        } else if (deltaX < -STATE_DRAG_TRIGGER_X) {
+            const reachableStates = workflowSourcesToState(card.dataset.logicalFeedId, cardDragState.currentStatus);
+            const options = wheelOptionsForReachableStates(card.dataset.logicalFeedId, reachableStates);
             const selectableIndexes = options.map((entry, index) => entry.type === "state" ? index : -1).filter((index) => index >= 0);
+            if (!selectableIndexes.length) {
+                cardDragState.side = null;
+                cardDragState.options = [];
+                cardDragState.activeIndex = 0;
+                hideStateWheels();
+                return;
+            }
             const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(-deltaY / STATE_WHEEL_ROW_HEIGHT)))] ?? 0;
             cardDragState.side = "left";
             cardDragState.options = options;
