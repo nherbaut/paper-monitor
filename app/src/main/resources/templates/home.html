@@ -2482,6 +2482,29 @@
             .filter(Boolean)));
     };
 
+    const resolveCurrentLogicalFeedId = () => {
+        if (logicalFeedFilter?.value) {
+            return logicalFeedFilter.value;
+        }
+        if (loadedLogicalFeedId) {
+            return String(loadedLogicalFeedId);
+        }
+        return "";
+    };
+
+    const syncDoiImportLogicalFeed = () => {
+        if (!doiImportLogicalFeed) {
+            return "";
+        }
+        const selectedFeedId = resolveCurrentLogicalFeedId();
+        if (selectedFeedId && Array.from(doiImportLogicalFeed.options).some((option) => option.value === selectedFeedId)) {
+            doiImportLogicalFeed.value = selectedFeedId;
+            return selectedFeedId;
+        }
+        doiImportLogicalFeed.value = "";
+        return "";
+    };
+
     const resetManualImportPreview = () => {
         if (manualImportPreview) {
             manualImportPreview.classList.add("hidden");
@@ -3615,12 +3638,9 @@
     };
 
     const openDoiImportModal = () => {
-        if (!doiImportModal || !doiImportLogicalFeed || !logicalFeedFilter?.value) {
+        if (!doiImportModal || !doiImportLogicalFeed || !syncDoiImportLogicalFeed()) {
             window.alert("Select a paper feed before importing by DOI.");
             return;
-        }
-        if (Array.from(doiImportLogicalFeed.options).some((option) => option.value === logicalFeedFilter.value)) {
-            doiImportLogicalFeed.value = logicalFeedFilter.value;
         }
         manualImportForm?.reset();
         resetManualImportPreview();
@@ -6175,16 +6195,11 @@
             return logicalFeedFilter?.value || "";
         }
         const selectedFeedId = logicalFeedFilter.value;
-        if (selectedFeedId && Array.from(doiImportLogicalFeed.options).some((option) => option.value === selectedFeedId)) {
-            doiImportLogicalFeed.value = selectedFeedId;
-        }
+        syncDoiImportLogicalFeed();
         renderReviewLauncher();
         return selectedFeedId;
     };
-    if (doiImportLogicalFeed && logicalFeedFilter.value
-            && Array.from(doiImportLogicalFeed.options).some((option) => option.value === logicalFeedFilter.value)) {
-        doiImportLogicalFeed.value = logicalFeedFilter.value;
-    }
+    syncDoiImportLogicalFeed();
     feedDashboard?.querySelectorAll("[data-open-feed]").forEach((button) => {
         button.addEventListener("click", async () => {
             const logicalFeedId = button.dataset.openFeed;
@@ -6310,6 +6325,11 @@
 
     if (manualImportFetch && manualImportDoi) {
         manualImportFetch.addEventListener("click", async () => {
+            if (!syncDoiImportLogicalFeed()) {
+                setManualImportStatus("Select a paper feed first.", true);
+                resetManualImportPreview();
+                return;
+            }
             const { dois, isBatch } = syncManualImportControls();
             if (!dois.length) {
                 setManualImportStatus("Enter a DOI first.", true);
@@ -6356,7 +6376,7 @@
     if (manualImportForm) {
         manualImportForm.addEventListener("submit", (event) => {
             const { dois, isBatch } = syncManualImportControls();
-            if (!doiImportLogicalFeed?.value) {
+            if (!syncDoiImportLogicalFeed()) {
                 event.preventDefault();
                 setManualImportStatus("Select a paper feed first.", true);
                 return;
