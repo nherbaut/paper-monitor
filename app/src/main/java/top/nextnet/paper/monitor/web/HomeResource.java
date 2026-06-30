@@ -1118,8 +1118,7 @@ public class HomeResource {
             @RestForm("doi") String doi,
             @RestForm("pdf") FileUpload pdf
     ) {
-        AppUser currentUser = requireCurrentUser();
-        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, currentUser);
+        LogicalFeed logicalFeed = requireLogicalFeed(logicalFeedId);
         List<String> normalizedDois = normalizeDoiInputs(doi);
         if (normalizedDois.size() > 1 && pdf != null && pdf.fileName() != null && !pdf.fileName().isBlank()) {
             throw new WebApplicationException("Attach a PDF only when importing a single DOI", Response.Status.BAD_REQUEST);
