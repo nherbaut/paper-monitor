@@ -2062,7 +2062,8 @@ public class HomeResource {
         if (!workflow.containsLeafState(nextStatus)) {
             throw new WebApplicationException("Invalid paper status", Response.Status.BAD_REQUEST);
         }
-        if (!workflow.allowsTransition(previousStatus, nextStatus)) {
+        boolean previousStatusIsInWorkflow = workflow.containsLeafState(previousStatus);
+        if (previousStatusIsInWorkflow && !workflow.allowsTransition(previousStatus, nextStatus)) {
             throw new WebApplicationException("Transition not allowed by workflow", Response.Status.BAD_REQUEST);
         }
         WorkflowStateConfig.Requirements requirements = workflow.requirementsFor(nextStatus);
