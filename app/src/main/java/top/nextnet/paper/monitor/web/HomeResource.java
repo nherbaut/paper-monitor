@@ -485,6 +485,17 @@ public class HomeResource {
         return seeOther("/?info=" + urlEncode("Archived paper feed: " + logicalFeed.name));
     }
 
+    @POST
+    @Path("/logical-feeds/{id}/public-url")
+    @Transactional
+    @Produces(MediaType.TEXT_PLAIN)
+    public String ensureLogicalFeedPublicUrl(@jakarta.ws.rs.PathParam("id") Long id) {
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
+        logicalFeed.publicReadable = true;
+        String token = ensurePublicShareToken(logicalFeed);
+        return normalizeBaseUrl() + "/share/feed/" + token;
+    }
+
     @GET
     @Path("/logical-feeds/{id}/diagram")
     @Transactional

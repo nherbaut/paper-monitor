@@ -18,6 +18,7 @@ public class MarkdownConversionService {
             List<String> command = new ArrayList<>();
             command.add("pandoc");
             command.add(inputFile.toString());
+            command.add("--from=markdown-raw_tex");
             if ("pdf".equals(format)) {
                 command.add("--pdf-engine=xelatex");
             }

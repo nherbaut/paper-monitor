@@ -1816,6 +1816,9 @@
                     data-workflow-states="{logicalFeed.workflowStatesToken}"
                     data-workflow-tree='{logicalFeed.workflowTreeJson}'
                     data-workflow-config='{logicalFeed.workflowConfigJson}'
+                    data-public-readable="{#if logicalFeed.publicReadable}true{#else}false{/if}"
+                    data-public-url="{logicalFeed.publicUrl ?: ''}"
+                    data-viewer-can-admin="{#if logicalFeed.viewerCanAdmin}true{#else}false{/if}"
                     data-state-counts="{logicalFeed.paperCountsToken}">{logicalFeed.readerLabel}</option>
             {/for}
         </select>
@@ -2027,6 +2030,10 @@
                         <div class="export-menu-group">
                             <div class="export-menu-group-title">Diagram</div>
                             <button class="secondary" id="reader-diagram-button" type="button">View live diagram</button>
+                        </div>
+                        <div class="export-menu-group">
+                            <div class="export-menu-group-title">Share</div>
+                            <button class="secondary" id="reader-public-url-button" type="button">Copy public URL</button>
                         </div>
                         <div class="export-menu-group">
                             <div class="export-menu-group-title">States</div>
@@ -2297,6 +2304,7 @@
     const readerImportDoiButton = document.getElementById("reader-import-doi-button");
     const readerBatchUpdateButton = document.getElementById("reader-batch-update-button");
     const readerDiagramButton = document.getElementById("reader-diagram-button");
+    const readerPublicUrlButton = document.getElementById("reader-public-url-button");
     const exportStateList = document.getElementById("export-state-list");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
     const feedDashboard = document.getElementById("feed-dashboard");
@@ -2398,6 +2406,16 @@
     const paperRecordById = (paperId) => paperRecords.find((record) => String(record.id) === String(paperId)) || null;
 
     const isMobileViewport = () => window.innerWidth <= 720;
+
+    const copyTextWithFallback = async (text, promptLabel) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch {
+            window.prompt(promptLabel, text);
+            return false;
+        }
+    };
 
     const renderLastSeenLogicalFeed = (logicalFeedName) => {
         if (lastSeenElement) {
@@ -2971,6 +2989,14 @@
         const option = Array.from(logicalFeedFilter.options).find((item) => item.value === logicalFeedId);
         return workflowStatesFromToken(option?.dataset.workflowStates || "");
     };
+
+    const selectedLogicalFeedOption = () => logicalFeedFilter?.selectedOptions?.[0] || null;
+
+    const selectedLogicalFeedCanAdmin = () => selectedLogicalFeedOption()?.dataset.viewerCanAdmin === "true";
+
+    const selectedLogicalFeedIsPublic = () => selectedLogicalFeedOption()?.dataset.publicReadable === "true";
+
+    const selectedLogicalFeedPublicUrl = () => selectedLogicalFeedOption()?.dataset.publicUrl || "";
 
     const selectedWorkflowGroups = () => {
         const selectedOption = logicalFeedFilter.selectedOptions?.[0];
@@ -4811,6 +4837,18 @@
                     ? "Select a paper feed first."
                     : "Open the live workflow diagram for this paper feed.";
             }
+            if (readerPublicUrlButton) {
+                const canAdmin = selectedLogicalFeedCanAdmin();
+                const isPublic = selectedLogicalFeedIsPublic();
+                const shareDisabled = !selectedLogicalFeedId || !canAdmin;
+                readerPublicUrlButton.disabled = shareDisabled;
+                readerPublicUrlButton.textContent = isPublic ? "Copy public URL" : "Make public + copy URL";
+                readerPublicUrlButton.title = shareDisabled
+                    ? "Select a paper feed you can manage first."
+                    : isPublic
+                        ? "Copy the public read-only URL for this paper feed."
+                        : "Make this paper feed public, then copy its read-only URL.";
+            }
             const activeCard = selectedPaperCard();
             if (activeCard) {
                 populatePaperViewMeta(activeCard);
@@ -4901,6 +4939,18 @@
             readerDiagramButton.title = diagramDisabled
                 ? "Select a paper feed first."
                 : "Open the live workflow diagram for this paper feed.";
+        }
+        if (readerPublicUrlButton) {
+            const canAdmin = selectedLogicalFeedCanAdmin();
+            const isPublic = selectedLogicalFeedIsPublic();
+            const shareDisabled = !selectedLogicalFeedId || !canAdmin;
+            readerPublicUrlButton.disabled = shareDisabled;
+            readerPublicUrlButton.textContent = isPublic ? "Copy public URL" : "Make public + copy URL";
+            readerPublicUrlButton.title = shareDisabled
+                ? "Select a paper feed you can manage first."
+                : isPublic
+                    ? "Copy the public read-only URL for this paper feed."
+                    : "Make this paper feed public, then copy its read-only URL.";
         }
         const activeCard = selectedPaperCard();
         if (activeCard) {
@@ -6411,6 +6461,41 @@
         }
         exportTabMenu.open = false;
         window.open("/logical-feeds/" + encodeURIComponent(logicalFeedId) + "/diagram", "_blank", "noopener,noreferrer");
+    });
+    readerPublicUrlButton?.addEventListener("click", async () => {
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        const selectedOption = selectedLogicalFeedOption();
+        if (!logicalFeedId || !selectedOption) {
+            window.alert("Select a paper feed first.");
+            return;
+        }
+        if (!selectedLogicalFeedCanAdmin()) {
+            window.alert("You need admin access on this paper feed to share it publicly.");
+            return;
+        }
+        exportTabMenu.open = false;
+        let publicUrl = selectedLogicalFeedPublicUrl();
+        try {
+            if (!selectedLogicalFeedIsPublic() || !publicUrl) {
+                readerPublicUrlButton.disabled = true;
+                const response = await fetch("/logical-feeds/" + encodeURIComponent(logicalFeedId) + "/public-url", {
+                    method: "POST",
+                    headers: { Accept: "text/plain" }
+                });
+                const body = (await response.text()).trim();
+                if (!response.ok) {
+                    throw new Error(body || "Failed to make the paper feed public.");
+                }
+                publicUrl = body;
+                selectedOption.dataset.publicReadable = "true";
+                selectedOption.dataset.publicUrl = publicUrl;
+            }
+            await copyTextWithFallback(publicUrl, "Copy this public paper feed URL:");
+        } catch (error) {
+            window.alert(error.message || "Failed to copy the public URL.");
+        } finally {
+            applyLogicalFeedFilter();
+        }
     });
     doiImportModalClose?.addEventListener("click", closeDoiImportModal);
     doiImportModal?.addEventListener("click", (event) => {
