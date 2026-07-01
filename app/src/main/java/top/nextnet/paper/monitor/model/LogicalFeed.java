@@ -102,6 +102,9 @@ public class LogicalFeed extends PanacheEntityBase {
     public String publicUrl;
 
     @Transient
+    public String diagramUrl;
+
+    @Transient
     public String gitSyncError;
 
     @Transient

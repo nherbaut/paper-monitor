@@ -2758,9 +2758,13 @@ public class HomeResource {
     private void populateLogicalFeedAccessFlags(List<LogicalFeed> logicalFeeds, AppUser currentUser) {
         for (LogicalFeed logicalFeed : logicalFeeds) {
             logicalFeed.viewerCanAdmin = logicalFeedAccessService.canAdmin(logicalFeed, currentUser);
-            logicalFeed.publicUrl = logicalFeed.publicReadable
+            String publicShareUrl = logicalFeed.publicReadable
                     ? normalizeBaseUrl() + "/share/feed/" + ensurePublicShareToken(logicalFeed)
                     : null;
+            logicalFeed.publicUrl = publicShareUrl;
+            logicalFeed.diagramUrl = publicShareUrl != null
+                    ? publicShareUrl + "/diagram"
+                    : normalizeBaseUrl() + "/logical-feeds/" + logicalFeed.id + "/diagram";
         }
     }
 

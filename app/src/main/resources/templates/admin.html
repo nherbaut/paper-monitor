@@ -569,6 +569,7 @@
                             <p class="meta">{#if logicalFeed.gitRepoUrl}Git: <a href="{logicalFeed.gitRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.gitRepoUrl}</a>{#else}Git mirror pending{/if}</p>
                             <p class="meta">{#if logicalFeed.githubRepoUrl}GitHub: <a href="{logicalFeed.githubRepoUrl}" target="_blank" rel="noreferrer">{logicalFeed.githubRepoOwner}/{logicalFeed.githubRepoName}</a> ({logicalFeed.githubRepoBranch ?: 'main'}){#else}GitHub not connected{/if}</p>
                             <p class="meta">{#if logicalFeed.publicReadable && logicalFeed.publicUrl}Public: <a href="{logicalFeed.publicUrl}" target="_blank" rel="noreferrer">{logicalFeed.publicUrl}</a>{#else}Public sharing disabled{/if}</p>
+                            <p class="meta">Live diagram: <a href="{logicalFeed.diagramUrl}" target="_blank" rel="noreferrer">{logicalFeed.diagramUrl}</a></p>
                         </div>
                         <div class="management-meta-box">
                             <strong>Access</strong>
