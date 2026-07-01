@@ -76,6 +76,10 @@ public final class WorkflowStateConfig {
         return criterionId != null && taxonomy.leafIds().contains(normalizeStateSegment(criterionId));
     }
 
+    public static Taxonomy standaloneTaxonomy(String yaml, String defaultId, String defaultLabel) {
+        return parseStandaloneTaxonomy(yaml, defaultLabel, defaultId);
+    }
+
     private static WorkflowStateConfig legacy(List<?> list) {
         if (list.isEmpty()) {
             throw new IllegalArgumentException("At least one workflow state is required");
@@ -125,6 +129,14 @@ public final class WorkflowStateConfig {
 
     public List<Group> groups() {
         return groups;
+    }
+
+    public List<State> states() {
+        return states;
+    }
+
+    public List<Transition> transitions() {
+        return transitions;
     }
 
     public List<String> topLevelStates() {

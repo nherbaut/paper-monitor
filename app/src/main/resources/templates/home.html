@@ -2019,6 +2019,10 @@
                             <button class="secondary" id="reader-batch-update-button" type="button">Batch update papers</button>
                         </div>
                         <div class="export-menu-group">
+                            <div class="export-menu-group-title">Diagram</div>
+                            <button class="secondary" id="reader-diagram-button" type="button">View live diagram</button>
+                        </div>
+                        <div class="export-menu-group">
                             <div class="export-menu-group-title">States</div>
                             <div class="export-state-grid" id="export-state-list"></div>
                         </div>
@@ -2286,6 +2290,7 @@
     const exportTabMenu = document.getElementById("reader-export-menu");
     const readerImportDoiButton = document.getElementById("reader-import-doi-button");
     const readerBatchUpdateButton = document.getElementById("reader-batch-update-button");
+    const readerDiagramButton = document.getElementById("reader-diagram-button");
     const exportStateList = document.getElementById("export-state-list");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
     const feedDashboard = document.getElementById("feed-dashboard");
@@ -4793,6 +4798,13 @@
                     ? "Select a paper feed with at least one matching paper first."
                     : "Apply a batch update to the currently filtered papers.";
             }
+            if (readerDiagramButton) {
+                const diagramDisabled = !selectedLogicalFeedId;
+                readerDiagramButton.disabled = diagramDisabled;
+                readerDiagramButton.title = diagramDisabled
+                    ? "Select a paper feed first."
+                    : "Open the live workflow diagram for this paper feed.";
+            }
             const activeCard = selectedPaperCard();
             if (activeCard) {
                 populatePaperViewMeta(activeCard);
@@ -4877,6 +4889,13 @@
         exportFormatButtons.forEach((button) => {
             button.disabled = exportDisabled;
         });
+        if (readerDiagramButton) {
+            const diagramDisabled = !selectedLogicalFeedId;
+            readerDiagramButton.disabled = diagramDisabled;
+            readerDiagramButton.title = diagramDisabled
+                ? "Select a paper feed first."
+                : "Open the live workflow diagram for this paper feed.";
+        }
         const activeCard = selectedPaperCard();
         if (activeCard) {
             populatePaperViewMeta(activeCard);
@@ -6377,6 +6396,15 @@
     readerBatchUpdateButton?.addEventListener("click", () => {
         exportTabMenu.open = false;
         openBatchPaperModal();
+    });
+    readerDiagramButton?.addEventListener("click", () => {
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        if (!logicalFeedId) {
+            window.alert("Select a paper feed first.");
+            return;
+        }
+        exportTabMenu.open = false;
+        window.open("/logical-feeds/" + encodeURIComponent(logicalFeedId) + "/diagram", "_blank", "noopener,noreferrer");
     });
     doiImportModalClose?.addEventListener("click", closeDoiImportModal);
     doiImportModal?.addEventListener("click", (event) => {

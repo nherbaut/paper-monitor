@@ -90,6 +90,7 @@ public class HomeResource {
     private final Template logs;
     private final Template login;
     private final Template quickSetup;
+    private final Template feedDiagram;
     private final LogicalFeedRepository logicalFeedRepository;
     private final FeedRepository feedRepository;
     private final PaperRepository paperRepository;
@@ -125,6 +126,7 @@ public class HomeResource {
             @Location("logs") Template logs,
             @Location("login") Template login,
             @Location("quick-setup") Template quickSetup,
+            @Location("feed-diagram") Template feedDiagram,
             LogicalFeedRepository logicalFeedRepository,
             FeedRepository feedRepository,
             PaperRepository paperRepository,
@@ -159,6 +161,7 @@ public class HomeResource {
         this.logs = logs;
         this.login = login;
         this.quickSetup = quickSetup;
+        this.feedDiagram = feedDiagram;
         this.logicalFeedRepository = logicalFeedRepository;
         this.feedRepository = feedRepository;
         this.paperRepository = paperRepository;
@@ -479,6 +482,22 @@ public class HomeResource {
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
         logicalFeed.archived = true;
         return seeOther("/?info=" + urlEncode("Archived paper feed: " + logicalFeed.name));
+    }
+
+    @GET
+    @Path("/logical-feeds/{id}/diagram")
+    @Transactional
+    public TemplateInstance logicalFeedDiagram(@jakarta.ws.rs.PathParam("id") Long id) {
+        AppUser currentUser = currentUserContext.get().user();
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireReadableLogicalFeed(id, currentUser);
+        WorkflowStateConfig workflow = logicalFeed.workflowConfig();
+        List<Paper> papers = paperRepository.findAllForExport(logicalFeed);
+        boolean prisma = workflow.states().stream().anyMatch((state) -> state.report().prismaBucket() != null);
+        return feedDiagram
+                .data("logicalFeed", logicalFeed)
+                .data("prisma", prisma)
+                .data("prismaDiagram", prisma ? buildPrismaDiagramData(logicalFeed, workflow, papers) : null)
+                .data("workflowGroups", prisma ? List.of() : buildGenericWorkflowDiagramData(workflow, papers));
     }
 
     @GET
@@ -2708,6 +2727,155 @@ public class HomeResource {
                     ? normalizeBaseUrl() + "/share/feed/" + ensurePublicShareToken(logicalFeed)
                     : null;
         }
+    }
+
+    private Map<String, Object> buildPrismaDiagramData(LogicalFeed logicalFeed, WorkflowStateConfig workflow, List<Paper> papers) {
+        Map<String, String> prismaBucketByState = new LinkedHashMap<>();
+        for (WorkflowStateConfig.State state : workflow.states()) {
+            if (state.report().prismaBucket() != null) {
+                prismaBucketByState.put(state.id(), state.report().prismaBucket());
+            }
+        }
+
+        Map<String, Long> bucketCounts = new LinkedHashMap<>();
+        for (Paper paper : papers) {
+            String bucket = prismaBucketByState.get(WorkflowStateConfig.normalizeStateId(paper.status));
+            if (bucket != null) {
+                bucketCounts.merge(bucket, 1L, Long::sum);
+            }
+        }
+
+        WorkflowStateConfig.Taxonomy exclusionTaxonomy = WorkflowStateConfig.standaloneTaxonomy(
+                logicalFeed.eligibilityExclusionTaxonomy,
+                "EXCLUSION",
+                "Eligibility exclusion criteria");
+        Map<String, String> exclusionLabels = new LinkedHashMap<>();
+        collectCriterionLabels(exclusionTaxonomy.values(), exclusionLabels);
+
+        Map<String, Long> databaseEligibilityReasons = countEligibilityReasons(
+                papers, prismaBucketByState, "DATABASE_ELIGIBILITY_EXCLUDED");
+        Map<String, Long> otherEligibilityReasons = countEligibilityReasons(
+                papers, prismaBucketByState, "OTHER_ELIGIBILITY_EXCLUDED");
+
+        long previous = bucketCounts.getOrDefault("PREVIOUS", 0L);
+        long databaseIncluded = bucketCounts.getOrDefault("DATABASE_INCLUDED", 0L);
+        long otherIncluded = bucketCounts.getOrDefault("OTHER_INCLUDED", 0L);
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("previous", prismaBox("Previous studies", previous));
+        data.put("databaseIdentified", prismaBox("Records identified from databases", bucketCounts.getOrDefault("DATABASE_IDENTIFIED", 0L)));
+        data.put("databaseScreened", prismaBox("Records screened", bucketCounts.getOrDefault("DATABASE_SCREENED", 0L)));
+        data.put("databaseScreeningExcluded", prismaBox("Records excluded", bucketCounts.getOrDefault("DATABASE_SCREENING_EXCLUDED", 0L)));
+        data.put("databaseSought", prismaBox("Reports sought for retrieval", bucketCounts.getOrDefault("DATABASE_SOUGHT_FOR_RETRIEVAL", 0L)));
+        data.put("databaseNotRetrieved", prismaBox("Reports not retrieved", bucketCounts.getOrDefault("DATABASE_NOT_RETRIEVED", 0L)));
+        data.put("databaseAssessed", prismaBox("Reports assessed for eligibility", bucketCounts.getOrDefault("DATABASE_ASSESSED_FOR_ELIGIBILITY", 0L)));
+        data.put("databaseEligibilityExcluded", prismaBox(
+                "Reports excluded",
+                bucketCounts.getOrDefault("DATABASE_ELIGIBILITY_EXCLUDED", 0L),
+                prismaReasonLines(databaseEligibilityReasons, exclusionLabels)));
+        data.put("databaseIncluded", prismaBox("Studies included in review", databaseIncluded));
+        data.put("otherIdentified", prismaBox("Records identified from other methods", bucketCounts.getOrDefault("OTHER_IDENTIFIED", 0L)));
+        data.put("otherScreened", prismaBox("Records screened", bucketCounts.getOrDefault("OTHER_SCREENED", 0L)));
+        data.put("otherScreeningExcluded", prismaBox("Records excluded", bucketCounts.getOrDefault("OTHER_SCREENING_EXCLUDED", 0L)));
+        data.put("otherSought", prismaBox("Reports sought for retrieval", bucketCounts.getOrDefault("OTHER_SOUGHT_FOR_RETRIEVAL", 0L)));
+        data.put("otherNotRetrieved", prismaBox("Reports not retrieved", bucketCounts.getOrDefault("OTHER_NOT_RETRIEVED", 0L)));
+        data.put("otherAssessed", prismaBox("Reports assessed for eligibility", bucketCounts.getOrDefault("OTHER_ASSESSED_FOR_ELIGIBILITY", 0L)));
+        data.put("otherEligibilityExcluded", prismaBox(
+                "Reports excluded",
+                bucketCounts.getOrDefault("OTHER_ELIGIBILITY_EXCLUDED", 0L),
+                prismaReasonLines(otherEligibilityReasons, exclusionLabels)));
+        data.put("otherIncluded", prismaBox("Studies included in review", otherIncluded));
+        data.put("totalIncluded", prismaBox("Total studies included in review", previous + databaseIncluded + otherIncluded));
+        return data;
+    }
+
+    private List<Map<String, Object>> buildGenericWorkflowDiagramData(WorkflowStateConfig workflow, List<Paper> papers) {
+        Map<String, Long> countsByState = new LinkedHashMap<>();
+        for (Paper paper : papers) {
+            countsByState.merge(WorkflowStateConfig.normalizeStateId(paper.status), 1L, Long::sum);
+        }
+
+        List<Map<String, Object>> groups = new ArrayList<>();
+        for (WorkflowStateConfig.Group group : workflow.groups()) {
+            List<Map<String, Object>> states = new ArrayList<>();
+            long total = 0L;
+            for (String stateId : group.leafStates()) {
+                WorkflowStateConfig.State state = workflow.states().stream()
+                        .filter((candidate) -> candidate.id().equals(stateId))
+                        .findFirst()
+                        .orElse(null);
+                long count = countsByState.getOrDefault(stateId, 0L);
+                total += count;
+                states.add(Map.of(
+                        "id", stateId,
+                        "label", state != null ? state.label() : stateId,
+                        "count", count,
+                        "targets", workflow.transitions().stream()
+                                .filter((transition) -> transition.from().equals(stateId))
+                                .findFirst()
+                                .map(WorkflowStateConfig.Transition::to)
+                                .orElse(List.of())));
+            }
+            groups.add(Map.of(
+                    "name", group.name(),
+                    "count", total,
+                    "states", states));
+        }
+        return groups;
+    }
+
+    private Map<String, Object> prismaBox(String title, long count) {
+        return prismaBox(title, count, List.of());
+    }
+
+    private Map<String, Object> prismaBox(String title, long count, List<Map<String, Object>> details) {
+        Map<String, Object> box = new LinkedHashMap<>();
+        box.put("title", title);
+        box.put("count", count);
+        box.put("details", details);
+        return box;
+    }
+
+    private List<Map<String, Object>> prismaReasonLines(Map<String, Long> countsByCriterionId, Map<String, String> labelsByCriterionId) {
+        List<Map<String, Object>> lines = new ArrayList<>();
+        for (Map.Entry<String, Long> entry : countsByCriterionId.entrySet()) {
+            lines.add(Map.of(
+                    "label", labelsByCriterionId.getOrDefault(entry.getKey(), humanizeWorkflowToken(entry.getKey())),
+                    "count", entry.getValue()));
+        }
+        return lines;
+    }
+
+    private Map<String, Long> countEligibilityReasons(
+            List<Paper> papers,
+            Map<String, String> prismaBucketByState,
+            String targetBucket
+    ) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (Paper paper : papers) {
+            String bucket = prismaBucketByState.get(WorkflowStateConfig.normalizeStateId(paper.status));
+            if (!targetBucket.equals(bucket) || paper.eligibilityExclusionCriterionId == null || paper.eligibilityExclusionCriterionId.isBlank()) {
+                continue;
+            }
+            String criterionId = WorkflowStateConfig.normalizeStateSegment(paper.eligibilityExclusionCriterionId);
+            counts.merge(criterionId, 1L, Long::sum);
+        }
+        return counts;
+    }
+
+    private void collectCriterionLabels(List<WorkflowStateConfig.Criterion> criteria, Map<String, String> labelsById) {
+        for (WorkflowStateConfig.Criterion criterion : criteria) {
+            labelsById.put(criterion.id(), criterion.label());
+            collectCriterionLabels(criterion.children(), labelsById);
+        }
+    }
+
+    private String humanizeWorkflowToken(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        String normalized = value.replace('_', ' ').toLowerCase(Locale.ROOT);
+        return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
     }
 
     private Map<String, Object> paperBrowserItem(Paper paper) {
