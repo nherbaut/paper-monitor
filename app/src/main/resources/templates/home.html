@@ -1761,6 +1761,12 @@
                     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2h12v2H2V2Zm0 3.5h12V14H2V5.5Zm1 1V13h10V6.5H3Zm2 1h6v1H5v-1Zm0 2.5h6v1H5V10Z"/></svg>
                     <span class="nav-action-label">Survey Design (PDE)</span>
                 </a>
+                {#if shareMode && !authenticated && sharedFeedDiagramUrl}
+                <a class="secondary nav-action" href="{sharedFeedDiagramUrl}">
+                    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 12h12v1H2v-1Zm1-2.5 2.4-2.4 1.8 1.8 3.8-4.3 2 2V11H3V9.5Zm8-4.7 1.9-2.3L14 3.4l-2.2 2.2-.8-.8Z"/></svg>
+                    <span class="nav-action-label">Live diagram</span>
+                </a>
+                {/if}
                 {#if authenticated}
                 <a class="secondary nav-action" href="/admin">
                     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.67 1.5 10 3.1c.3.12.59.28.86.47l1.47-.5 1 1.73-1.15 1.03c.04.31.04.63 0 .94l1.15 1.03-1 1.73-1.47-.5c-.27.2-.56.35-.86.47L9.67 14.5H7.33L7 12.9a4.9 4.9 0 0 1-.86-.47l-1.47.5-1-1.73 1.15-1.03a3.7 3.7 0 0 1 0-.94L3.67 8.2l1-1.73 1.47.5c.27-.19.56-.35.86-.47l.33-1.6h2.34ZM8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z"/></svg>

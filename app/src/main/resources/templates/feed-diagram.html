@@ -248,7 +248,7 @@
             <p>{#if prisma}Live PRISMA-style diagram{#else}Live workflow diagram{/if}</p>
         </div>
         <div class="actions">
-            <a class="button" href="/?logicalFeedId={logicalFeed.id}">Open feed</a>
+            <a class="button" href="{backUrl}">Open feed</a>
             <button class="button" type="button" onclick="window.location.reload()">Refresh</button>
         </div>
     </header>

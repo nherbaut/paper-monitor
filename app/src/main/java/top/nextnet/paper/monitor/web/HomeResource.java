@@ -472,7 +472,8 @@ public class HomeResource {
                 .data("errorMessage", normalize(error))
                 .data("shareMode", false)
                 .data("sharedPaper", null)
-                .data("sharedPaperUrl", null);
+                .data("sharedPaperUrl", null)
+                .data("sharedFeedDiagramUrl", null);
     }
 
     @POST
@@ -490,11 +491,32 @@ public class HomeResource {
     public TemplateInstance logicalFeedDiagram(@jakarta.ws.rs.PathParam("id") Long id) {
         AppUser currentUser = currentUserContext.get().user();
         LogicalFeed logicalFeed = logicalFeedAccessService.requireReadableLogicalFeed(id, currentUser);
+        return renderLogicalFeedDiagram(logicalFeed, "/?logicalFeedId=" + logicalFeed.id);
+    }
+
+    @GET
+    @Path("/share/feed/{token}/diagram")
+    @Transactional
+    public TemplateInstance sharedLogicalFeedDiagram(@jakarta.ws.rs.PathParam("token") String token) {
+        LogicalFeed logicalFeed = logicalFeedRepository.findByPublicShareToken(token).orElseThrow(NotFoundException::new);
+        AppUser currentUser = currentUserContext.get().user();
+        boolean canRead = logicalFeedAccessService.canRead(logicalFeed, currentUser);
+        if (!logicalFeed.publicReadable && !canRead) {
+            throw new NotFoundException();
+        }
+        if (currentUser != null && canRead) {
+            return renderLogicalFeedDiagram(logicalFeed, "/?logicalFeedId=" + logicalFeed.id);
+        }
+        return renderLogicalFeedDiagram(logicalFeed, "/share/feed/" + token);
+    }
+
+    private TemplateInstance renderLogicalFeedDiagram(LogicalFeed logicalFeed, String backUrl) {
         WorkflowStateConfig workflow = logicalFeed.workflowConfig();
         List<Paper> papers = paperRepository.findAllForExport(logicalFeed);
         boolean prisma = workflow.states().stream().anyMatch((state) -> state.report().prismaBucket() != null);
         return feedDiagram
                 .data("logicalFeed", logicalFeed)
+                .data("backUrl", backUrl)
                 .data("prisma", prisma)
                 .data("prismaDiagram", prisma ? buildPrismaDiagramData(logicalFeed, workflow, papers) : null)
                 .data("workflowGroups", prisma ? List.of() : buildGenericWorkflowDiagramData(workflow, papers));
@@ -559,7 +581,8 @@ public class HomeResource {
                 .data("errorMessage", null)
                 .data("shareMode", true)
                 .data("sharedPaper", paper)
-                .data("sharedPaperUrl", normalizeBaseUrl() + "/share/paper/" + paper.shareToken);
+                .data("sharedPaperUrl", normalizeBaseUrl() + "/share/paper/" + paper.shareToken)
+                .data("sharedFeedDiagramUrl", null);
         return Response.ok(page.render(), MediaType.TEXT_HTML).build();
     }
 
@@ -600,7 +623,8 @@ public class HomeResource {
                 .data("errorMessage", null)
                 .data("shareMode", true)
                 .data("sharedPaper", null)
-                .data("sharedPaperUrl", null);
+                .data("sharedPaperUrl", null)
+                .data("sharedFeedDiagramUrl", normalizeBaseUrl() + "/share/feed/" + token + "/diagram");
         return Response.ok(page.render(), MediaType.TEXT_HTML).build();
     }
 
