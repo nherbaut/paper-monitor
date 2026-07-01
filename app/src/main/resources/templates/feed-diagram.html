@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{logicalFeed.name} diagram</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f4f1ea;
+            --panel: #ffffff;
+            --ink: #1f2430;
+            --muted: #5e6472;
+            --line: #b9b4c7;
+            --database: #d9cff3;
+            --database-strong: #5d4aa8;
+            --other: #d9d9de;
+            --other-strong: #7a7a84;
+            --previous: #d2d2d7;
+            --total: #d7ddd3;
+            --shadow: 0 18px 36px rgba(31, 36, 48, 0.08);
+            --radius: 24px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(93, 74, 168, 0.08), transparent 28rem),
+                radial-gradient(circle at top right, rgba(122, 122, 132, 0.08), transparent 24rem),
+                var(--bg);
+            color: var(--ink);
+        }
+
+        .page {
+            max-width: 1680px;
+            margin: 0 auto;
+            padding: 2rem 1.25rem 4rem;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: clamp(1.8rem, 2.5vw, 2.8rem);
+        }
+
+        .header p {
+            margin: 0.35rem 0 0;
+            color: var(--muted);
+        }
+
+        .actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .button {
+            border: 0;
+            border-radius: 999px;
+            padding: 0.8rem 1.15rem;
+            background: var(--panel);
+            color: var(--ink);
+            text-decoration: none;
+            box-shadow: var(--shadow);
+            font-weight: 600;
+        }
+
+        .meta {
+            color: var(--muted);
+            margin-bottom: 1.25rem;
+        }
+
+        .prisma-board {
+            display: grid;
+            grid-template-columns: minmax(240px, 1fr) minmax(420px, 1.3fr) minmax(420px, 1.3fr);
+            gap: 1.25rem;
+            align-items: start;
+        }
+
+        .lane {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .lane-header {
+            border-radius: 18px 18px 0 0;
+            padding: 0.9rem 1rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .lane-header.previous {
+            background: #93939a;
+        }
+
+        .lane-header.database {
+            background: var(--database-strong);
+        }
+
+        .lane-header.other {
+            background: var(--other-strong);
+        }
+
+        .box {
+            background: var(--panel);
+            border-radius: var(--radius);
+            padding: 1rem 1.1rem;
+            box-shadow: var(--shadow);
+            border: 1px solid rgba(31, 36, 48, 0.06);
+        }
+
+        .box.previous-box {
+            background: var(--previous);
+        }
+
+        .box.database-box {
+            background: var(--database);
+        }
+
+        .box.other-box {
+            background: var(--other);
+        }
+
+        .box.total-box {
+            background: var(--total);
+        }
+
+        .box h2,
+        .box h3 {
+            margin: 0 0 0.55rem;
+            font-size: 1.1rem;
+        }
+
+        .count {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .count-label {
+            margin-top: 0.35rem;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        .detail-list {
+            margin: 0.8rem 0 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 0.35rem;
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        .detail-list li {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+        }
+
+        .flow {
+            display: grid;
+            gap: 0.8rem;
+        }
+
+        .arrow {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: var(--muted);
+            font-weight: 700;
+            min-height: 1.2rem;
+        }
+
+        .split {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 0.8rem;
+            align-items: start;
+        }
+
+        .generic-board {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1rem;
+        }
+
+        .generic-group {
+            background: var(--panel);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 1rem;
+        }
+
+        .generic-group h2 {
+            margin: 0 0 0.75rem;
+            font-size: 1.1rem;
+        }
+
+        .state-list {
+            display: grid;
+            gap: 0.75rem;
+        }
+
+        .state-card {
+            border-radius: 18px;
+            padding: 0.85rem 0.9rem;
+            background: #f4f5f7;
+        }
+
+        .state-card strong {
+            display: block;
+            margin-bottom: 0.2rem;
+        }
+
+        .state-card .next {
+            color: var(--muted);
+            font-size: 0.9rem;
+            margin-top: 0.4rem;
+        }
+
+        @media (max-width: 1180px) {
+            .prisma-board {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <header class="header">
+        <div>
+            <h1>{logicalFeed.name}</h1>
+            <p>{#if prisma}Live PRISMA-style diagram{#else}Live workflow diagram{/if}</p>
+        </div>
+        <div class="actions">
+            <a class="button" href="/?logicalFeedId={logicalFeed.id}">Open feed</a>
+            <button class="button" type="button" onclick="window.location.reload()">Refresh</button>
+        </div>
+    </header>
+
+    <p class="meta">This page reloads automatically every 30 seconds.</p>
+
+    {#if prisma}
+    <section class="prisma-board">
+        <div class="lane">
+            <div class="lane-header previous">Previous studies</div>
+            <article class="box previous-box">
+                <h2>{prismaDiagram.previous.title}</h2>
+                <div class="count">{prismaDiagram.previous.count}</div>
+                <div class="count-label">already included</div>
+            </article>
+            <div class="arrow">↓</div>
+            <article class="box total-box">
+                <h2>{prismaDiagram.totalIncluded.title}</h2>
+                <div class="count">{prismaDiagram.totalIncluded.count}</div>
+                <div class="count-label">previous + newly included</div>
+            </article>
+        </div>
+
+        <div class="lane">
+            <div class="lane-header database">Identification of new studies via databases and registers</div>
+            <div class="flow">
+                <article class="box database-box">
+                    <h3>{prismaDiagram.databaseIdentified.title}</h3>
+                    <div class="count">{prismaDiagram.databaseIdentified.count}</div>
+                </article>
+                <div class="arrow">↓</div>
+                <div class="split">
+                    <article class="box database-box">
+                        <h3>{prismaDiagram.databaseScreened.title}</h3>
+                        <div class="count">{prismaDiagram.databaseScreened.count}</div>
+                    </article>
+                    <article class="box database-box">
+                        <h3>{prismaDiagram.databaseScreeningExcluded.title}</h3>
+                        <div class="count">{prismaDiagram.databaseScreeningExcluded.count}</div>
+                    </article>
+                </div>
+                <div class="arrow">↓</div>
+                <div class="split">
+                    <article class="box database-box">
+                        <h3>{prismaDiagram.databaseSought.title}</h3>
+                        <div class="count">{prismaDiagram.databaseSought.count}</div>
+                    </article>
+                    <article class="box database-box">
+                        <h3>{prismaDiagram.databaseNotRetrieved.title}</h3>
+                        <div class="count">{prismaDiagram.databaseNotRetrieved.count}</div>
+                    </article>
+                </div>
+                <div class="arrow">↓</div>
+                <div class="split">
+                    <article class="box database-box">
+                        <h3>{prismaDiagram.databaseAssessed.title}</h3>
+                        <div class="count">{prismaDiagram.databaseAssessed.count}</div>
+                    </article>
+                    <article class="box database-box">
+                        <h3>{prismaDiagram.databaseEligibilityExcluded.title}</h3>
+                        <div class="count">{prismaDiagram.databaseEligibilityExcluded.count}</div>
+                        {#if prismaDiagram.databaseEligibilityExcluded.details}
+                        <ul class="detail-list">
+                            {#for line in prismaDiagram.databaseEligibilityExcluded.details}
+                            <li><span>{line.label}</span><strong>{line.count}</strong></li>
+                            {/for}
+                        </ul>
+                        {/if}
+                    </article>
+                </div>
+                <div class="arrow">↓</div>
+                <article class="box database-box">
+                    <h3>{prismaDiagram.databaseIncluded.title}</h3>
+                    <div class="count">{prismaDiagram.databaseIncluded.count}</div>
+                </article>
+            </div>
+        </div>
+
+        <div class="lane">
+            <div class="lane-header other">Identification of new studies via other methods</div>
+            <div class="flow">
+                <article class="box other-box">
+                    <h3>{prismaDiagram.otherIdentified.title}</h3>
+                    <div class="count">{prismaDiagram.otherIdentified.count}</div>
+                </article>
+                <div class="arrow">↓</div>
+                <div class="split">
+                    <article class="box other-box">
+                        <h3>{prismaDiagram.otherScreened.title}</h3>
+                        <div class="count">{prismaDiagram.otherScreened.count}</div>
+                    </article>
+                    <article class="box other-box">
+                        <h3>{prismaDiagram.otherScreeningExcluded.title}</h3>
+                        <div class="count">{prismaDiagram.otherScreeningExcluded.count}</div>
+                    </article>
+                </div>
+                <div class="arrow">↓</div>
+                <div class="split">
+                    <article class="box other-box">
+                        <h3>{prismaDiagram.otherSought.title}</h3>
+                        <div class="count">{prismaDiagram.otherSought.count}</div>
+                    </article>
+                    <article class="box other-box">
+                        <h3>{prismaDiagram.otherNotRetrieved.title}</h3>
+                        <div class="count">{prismaDiagram.otherNotRetrieved.count}</div>
+                    </article>
+                </div>
+                <div class="arrow">↓</div>
+                <div class="split">
+                    <article class="box other-box">
+                        <h3>{prismaDiagram.otherAssessed.title}</h3>
+                        <div class="count">{prismaDiagram.otherAssessed.count}</div>
+                    </article>
+                    <article class="box other-box">
+                        <h3>{prismaDiagram.otherEligibilityExcluded.title}</h3>
+                        <div class="count">{prismaDiagram.otherEligibilityExcluded.count}</div>
+                        {#if prismaDiagram.otherEligibilityExcluded.details}
+                        <ul class="detail-list">
+                            {#for line in prismaDiagram.otherEligibilityExcluded.details}
+                            <li><span>{line.label}</span><strong>{line.count}</strong></li>
+                            {/for}
+                        </ul>
+                        {/if}
+                    </article>
+                </div>
+                <div class="arrow">↓</div>
+                <article class="box other-box">
+                    <h3>{prismaDiagram.otherIncluded.title}</h3>
+                    <div class="count">{prismaDiagram.otherIncluded.count}</div>
+                </article>
+            </div>
+        </div>
+    </section>
+    {#else}
+    <section class="generic-board">
+        {#for group in workflowGroups}
+        <article class="generic-group">
+            <h2>{group.name} ({group.count})</h2>
+            <div class="state-list">
+                {#for state in group.states}
+                <div class="state-card">
+                    <strong>{state.label}</strong>
+                    <div>{state.count} paper{#if state.count != 1}s{/if}</div>
+                    {#if state.targets}
+                    <div class="next">Next: {state.targets}</div>
+                    {/if}
+                </div>
+                {/for}
+            </div>
+        </article>
+        {/for}
+    </section>
+    {/if}
+</div>
+<script>
+    window.setTimeout(() => window.location.reload(), 30000);
+</script>
+</body>
+</html>
