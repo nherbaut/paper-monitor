@@ -1138,25 +1138,28 @@
         }
 
         .keyboard-status-toast {
-            position: absolute;
-            top: 1.2rem;
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 5;
+            position: fixed;
+            right: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 50;
             display: none;
             align-items: center;
+            justify-content: center;
             gap: 0.6rem;
-            padding: 0.55rem 0.8rem;
-            border: 1px solid var(--line);
-            border-radius: 999px;
-            background: color-mix(in srgb, var(--panel) 94%, white);
-            box-shadow: 0 12px 30px rgba(77, 56, 38, 0.14);
+            min-height: 2.75rem;
+            padding: 0.65rem max(1rem, env(safe-area-inset-right))
+                calc(0.65rem + env(safe-area-inset-bottom))
+                max(1rem, env(safe-area-inset-left));
+            border-top: 1px solid var(--line);
+            background: color-mix(in srgb, var(--panel) 97%, white);
+            box-shadow: 0 -8px 24px rgba(77, 56, 38, 0.1);
             color: var(--ink);
-            max-width: calc(100% - 3rem);
+            text-align: center;
         }
 
         .keyboard-status-toast.visible {
-            display: inline-flex;
+            display: flex;
         }
 
         .pdf-scroll {
@@ -2189,7 +2192,6 @@
 
             <aside class="panel pdf-panel" id="pdf-panel">
                 <button class="icon-button secondary pdf-close-button" id="pdf-close" type="button" title="Close viewer">×</button>
-                <div class="keyboard-status-toast" id="keyboard-status-toast"></div>
                 <div class="pdf-toolbar">
                     <div id="content-panel-label" class="meta"></div>
                     <div class="toolbar-actions">
@@ -2247,6 +2249,7 @@
         </div>
     </section>
 </main>
+<div class="keyboard-status-toast" id="keyboard-status-toast" role="status" aria-live="polite"></div>
 <div id="reader-bootstrap"
      data-initial-paper-id="{initialPaperId ?: ''}"
      data-initial-logical-feed-id="{initialLogicalFeedId ?: ''}"
