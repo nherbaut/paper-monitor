@@ -1043,6 +1043,23 @@
             background: rgba(255, 255, 255, 0.75);
             border: 1px solid transparent;
             color: var(--ink);
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+        }
+
+        .state-wheel-shortcut {
+            display: inline-grid;
+            place-items: center;
+            flex: 0 0 1.65rem;
+            width: 1.65rem;
+            height: 1.65rem;
+            border-radius: 0.5rem;
+            border: 1px solid var(--line);
+            background: var(--panel);
+            color: var(--muted);
+            font-size: 0.82rem;
+            font-weight: 700;
         }
 
         .state-wheel-option.active {
@@ -2380,6 +2397,7 @@
     let cardDragState = null;
     let activeTouchStatusDrag = null;
     let keyboardStatePicker = null;
+    let keyboardShortcutPicker = null;
     let keyboardStatusUndo = null;
     let suppressCardClick = false;
     let paperStatusTransitionSequence = 0;
@@ -4209,7 +4227,15 @@
             }
             const option = document.createElement("div");
             option.className = "state-wheel-option" + (index === activeIndex ? " active" : "");
-            option.textContent = statusLabel(entry.label);
+            if (entry.shortcut) {
+                const shortcut = document.createElement("span");
+                shortcut.className = "state-wheel-shortcut";
+                shortcut.textContent = entry.shortcut;
+                option.appendChild(shortcut);
+            }
+            const label = document.createElement("span");
+            label.textContent = statusLabel(entry.label);
+            option.appendChild(label);
             container.appendChild(option);
         });
     };
@@ -4351,6 +4377,74 @@
     const clearKeyboardStatePicker = () => {
         keyboardStatePicker = null;
         hideStateWheels();
+    };
+
+    const numberStateWheelOptions = (options, firstShortcut) => {
+        let shortcut = firstShortcut;
+        const numberedOptions = options.map((entry) => {
+            if (entry.type !== "state" || shortcut > 9) {
+                return { ...entry };
+            }
+            return { ...entry, shortcut: String(shortcut++) };
+        });
+        return { options: numberedOptions, nextShortcut: shortcut };
+    };
+
+    const renderKeyboardShortcutPicker = () => {
+        hideStateWheels();
+        if (!keyboardShortcutPicker) {
+            return;
+        }
+        if (keyboardShortcutPicker.leftOptions.length) {
+            leftStateWheel.classList.add("visible");
+            renderStateWheel(leftStateOptions, keyboardShortcutPicker.leftOptions, -1);
+        }
+        if (keyboardShortcutPicker.rightOptions.length) {
+            rightStateWheel.classList.add("visible");
+            renderStateWheel(rightStateOptions, keyboardShortcutPicker.rightOptions, -1);
+        }
+    };
+
+    const clearKeyboardShortcutPicker = () => {
+        keyboardShortcutPicker = null;
+        hideStateWheels();
+    };
+
+    const startKeyboardShortcutPicker = () => {
+        const card = selectedPaperCard();
+        if (!card) {
+            return;
+        }
+        const currentStatus = normalizeStatus(card.dataset.paperStatus);
+        const outgoingStates = workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
+        const incomingStates = workflowSourcesToState(card.dataset.logicalFeedId, currentStatus);
+        const outgoing = numberStateWheelOptions(
+            wheelOptionsForReachableStates(card.dataset.logicalFeedId, outgoingStates),
+            1
+        );
+        const incoming = numberStateWheelOptions(
+            wheelOptionsForReachableStates(card.dataset.logicalFeedId, incomingStates),
+            outgoing.nextShortcut
+        );
+        const transitions = [...outgoing.options, ...incoming.options]
+            .filter((entry) => entry.type === "state" && entry.shortcut);
+        if (!transitions.length) {
+            return;
+        }
+        clearKeyboardStatePicker();
+        keyboardShortcutPicker = {
+            card,
+            currentStatus,
+            rightOptions: outgoing.options,
+            leftOptions: incoming.options,
+            transitions
+        };
+        renderKeyboardShortcutPicker();
+    };
+
+    const shortcutDigitFromEvent = (event) => {
+        const match = /^(?:Digit|Numpad)([1-9])$/.exec(event.code);
+        return match ? match[1] : null;
     };
 
     const clearKeyboardStatusToast = () => {
@@ -6217,9 +6311,36 @@
             }
         }
 
-        if (event.key === "Escape" && keyboardStatePicker) {
+        if (event.key === "Escape" && (keyboardStatePicker || keyboardShortcutPicker)) {
             event.preventDefault();
             clearKeyboardStatePicker();
+            clearKeyboardShortcutPicker();
+            return;
+        }
+
+        if (event.key === "Shift" && !event.repeat && selectedPaperId) {
+            startKeyboardShortcutPicker();
+            return;
+        }
+
+        if (keyboardShortcutPicker) {
+            const shortcut = shortcutDigitFromEvent(event);
+            if (shortcut) {
+                event.preventDefault();
+                const transition = keyboardShortcutPicker.transitions
+                    .find((entry) => entry.shortcut === shortcut);
+                if (!transition) {
+                    return;
+                }
+                const { card, currentStatus } = keyboardShortcutPicker;
+                const side = keyboardShortcutPicker.rightOptions.includes(transition) ? "right" : "left";
+                clearKeyboardShortcutPicker();
+                try {
+                    await immediateKeyboardTransition(side, card, transition.value, currentStatus);
+                } catch (error) {
+                    window.alert(error.message || "Failed to update paper status");
+                }
+            }
             return;
         }
 
@@ -6322,6 +6443,18 @@
             }
             renderKeyboardStatePicker();
             return;
+        }
+    });
+
+    window.addEventListener("keyup", (event) => {
+        if (event.key === "Shift" && keyboardShortcutPicker) {
+            clearKeyboardShortcutPicker();
+        }
+    });
+
+    window.addEventListener("blur", () => {
+        if (keyboardShortcutPicker) {
+            clearKeyboardShortcutPicker();
         }
     });
 
