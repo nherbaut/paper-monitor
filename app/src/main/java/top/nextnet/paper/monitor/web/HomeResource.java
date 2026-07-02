@@ -77,6 +77,7 @@ import top.nextnet.paper.monitor.service.PaperEventService;
 import top.nextnet.paper.monitor.service.PaperGitSyncService;
 import top.nextnet.paper.monitor.service.PaperPdfImportService;
 import top.nextnet.paper.monitor.service.PaperStorageService;
+import top.nextnet.paper.monitor.service.QuickSetupWorkflows;
 import top.nextnet.paper.monitor.service.ReviewService;
 import top.nextnet.paper.monitor.service.TtsService;
 import top.nextnet.paper.monitor.service.WorkflowStateConfig;
@@ -782,15 +783,9 @@ public class HomeResource {
         return quickSetup.data("mode", "confirm")
                 .data("paperFeedName", normalizedPaperFeedName)
                 .data("rssUrl", normalizedRssUrl)
-                .data("workflowYaml", """
-                        - DISCARDED
-                        - NEW
-                        - TODO
-                        - DONE
-                        """)
-                .data("defaultPaperStatus", "NEW")
-                .data("confirmUrl", "/admin/quick-setup/run?paperFeedName=" + urlEncode(normalizedPaperFeedName)
-                        + "&rssUrl=" + urlEncode(normalizedRssUrl))
+                .data("kanbanWorkflowYaml", QuickSetupWorkflows.KANBAN)
+                .data("prismaWorkflowYaml", QuickSetupWorkflows.PRISMA)
+                .data("confirmUrl", "/admin/quick-setup/run")
                 .data("cancelUrl", "/admin");
     }
 
@@ -799,16 +794,19 @@ public class HomeResource {
     @Transactional
     public TemplateInstance quickSetupRun(
             @QueryParam("paperFeedName") String paperFeedName,
-            @QueryParam("rssUrl") String rssUrl
+            @QueryParam("rssUrl") String rssUrl,
+            @QueryParam("workflowType") String workflowType
     ) {
         requireCurrentUser();
         String normalizedPaperFeedName = normalizeRequired(paperFeedName, "paperFeedName is required");
         String normalizedRssUrl = normalizeRequired(rssUrl, "rssUrl is required");
+        String normalizedWorkflowType = requireQuickSetupWorkflowType(workflowType);
         return quickSetup.data("mode", "running")
                 .data("paperFeedName", normalizedPaperFeedName)
                 .data("rssUrl", normalizedRssUrl)
                 .data("executeUrl", "/admin/quick-setup/execute?paperFeedName=" + urlEncode(normalizedPaperFeedName)
-                        + "&rssUrl=" + urlEncode(normalizedRssUrl))
+                        + "&rssUrl=" + urlEncode(normalizedRssUrl)
+                        + "&workflowType=" + urlEncode(normalizedWorkflowType))
                 .data("cancelUrl", "/admin");
     }
 
@@ -818,19 +816,22 @@ public class HomeResource {
     @Produces(MediaType.TEXT_PLAIN)
     public Response quickSetupExecute(
             @QueryParam("paperFeedName") String paperFeedName,
-            @QueryParam("rssUrl") String rssUrl
+            @QueryParam("rssUrl") String rssUrl,
+            @QueryParam("workflowType") String workflowType
     ) {
         AppUser currentUser = requireCurrentUser();
         try {
             String normalizedPaperFeedName = normalizeRequired(paperFeedName, "paperFeedName is required");
             String normalizedRssUrl = normalizeRequired(rssUrl, "rssUrl is required");
+            String normalizedWorkflowType = requireQuickSetupWorkflowType(workflowType);
             if (logicalFeedRepository.find("name", normalizedPaperFeedName).firstResultOptional().isPresent()) {
                 throw new WebApplicationException("A paper feed with this name already exists", Response.Status.BAD_REQUEST);
             }
             if (feedRepository.findByUrl(normalizedRssUrl).isPresent()) {
                 throw new WebApplicationException("An RSS feed with this URL already exists", Response.Status.BAD_REQUEST);
             }
-            LogicalFeed logicalFeed = createQuickSetupPaperFeed(currentUser, normalizedPaperFeedName, normalizedRssUrl);
+            LogicalFeed logicalFeed = createQuickSetupPaperFeed(
+                    currentUser, normalizedPaperFeedName, normalizedRssUrl, normalizedWorkflowType);
             return Response.ok("/?logicalFeedId=" + logicalFeed.id).type(MediaType.TEXT_PLAIN).build();
         } catch (WebApplicationException e) {
             return rethrowOrPlainText(e);
@@ -2222,16 +2223,18 @@ public class HomeResource {
         });
     }
 
-    private LogicalFeed createQuickSetupPaperFeed(AppUser owner, String paperFeedName, String rssUrl) {
+    private LogicalFeed createQuickSetupPaperFeed(
+            AppUser owner,
+            String paperFeedName,
+            String rssUrl,
+            String workflowType
+    ) {
+        String workflowYaml = QuickSetupWorkflows.yamlFor(workflowType);
+        WorkflowStateConfig workflow = WorkflowStateConfig.parse(workflowYaml);
         LogicalFeed logicalFeed = new LogicalFeed();
         logicalFeed.name = paperFeedName;
         logicalFeed.description = "Created from quick setup";
-        logicalFeed.workflowStates = """
-                - DISCARDED
-                - NEW
-                - TODO
-                - DONE
-                """;
+        logicalFeed.workflowStates = workflowYaml;
         logicalFeed.owner = owner;
         logicalFeed.publicReadable = false;
         logicalFeedRepository.persist(logicalFeed);
@@ -2240,13 +2243,23 @@ public class HomeResource {
         feed.name = paperFeedName + " RSS";
         feed.url = rssUrl;
         feed.pollIntervalMinutes = 60;
-        feed.defaultPaperStatus = "NEW";
+        feed.defaultPaperStatus = workflow.initialPaperStatus();
         feed.logicalFeed = logicalFeed;
         feedRepository.persist(feed);
 
         paperGitSyncService.syncLogicalFeed(logicalFeed);
         feedPollingService.pollFeedById(feed.id);
         return logicalFeed;
+    }
+
+    private String requireQuickSetupWorkflowType(String workflowType) {
+        String normalized = QuickSetupWorkflows.normalizeType(workflowType);
+        try {
+            QuickSetupWorkflows.yamlFor(normalized);
+            return normalized;
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
     }
 
     private String stripPdfSuffix(String fileName) {
@@ -2802,23 +2815,47 @@ public class HomeResource {
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("previous", prismaBox("Previous studies", previous));
-        data.put("databaseIdentified", prismaBox("Records identified from databases", bucketCounts.getOrDefault("DATABASE_IDENTIFIED", 0L)));
-        data.put("databaseScreened", prismaBox("Records screened", bucketCounts.getOrDefault("DATABASE_SCREENED", 0L)));
+        data.put("databaseIdentified", prismaBox("Records identified from databases",
+                countPapersInBuckets(papers, prismaBucketByState,
+                        "DATABASE_IDENTIFIED", "DATABASE_SCREENED", "DATABASE_SCREENING_EXCLUDED",
+                        "DATABASE_SOUGHT_FOR_RETRIEVAL", "DATABASE_NOT_RETRIEVED",
+                        "DATABASE_ASSESSED_FOR_ELIGIBILITY", "DATABASE_ELIGIBILITY_EXCLUDED", "DATABASE_INCLUDED")));
+        data.put("databaseScreened", prismaBox("Records screened",
+                countPapersInBuckets(papers, prismaBucketByState,
+                        "DATABASE_SCREENED", "DATABASE_SOUGHT_FOR_RETRIEVAL", "DATABASE_NOT_RETRIEVED",
+                        "DATABASE_ASSESSED_FOR_ELIGIBILITY", "DATABASE_ELIGIBILITY_EXCLUDED", "DATABASE_INCLUDED")));
         data.put("databaseScreeningExcluded", prismaBox("Records excluded", bucketCounts.getOrDefault("DATABASE_SCREENING_EXCLUDED", 0L)));
-        data.put("databaseSought", prismaBox("Reports sought for retrieval", bucketCounts.getOrDefault("DATABASE_SOUGHT_FOR_RETRIEVAL", 0L)));
+        data.put("databaseSought", prismaBox("Reports sought for retrieval",
+                countPapersInBuckets(papers, prismaBucketByState,
+                        "DATABASE_SOUGHT_FOR_RETRIEVAL", "DATABASE_NOT_RETRIEVED",
+                        "DATABASE_ASSESSED_FOR_ELIGIBILITY", "DATABASE_ELIGIBILITY_EXCLUDED", "DATABASE_INCLUDED")));
         data.put("databaseNotRetrieved", prismaBox("Reports not retrieved", bucketCounts.getOrDefault("DATABASE_NOT_RETRIEVED", 0L)));
-        data.put("databaseAssessed", prismaBox("Reports assessed for eligibility", bucketCounts.getOrDefault("DATABASE_ASSESSED_FOR_ELIGIBILITY", 0L)));
+        data.put("databaseAssessed", prismaBox("Reports assessed for eligibility",
+                countPapersInBuckets(papers, prismaBucketByState,
+                        "DATABASE_ASSESSED_FOR_ELIGIBILITY", "DATABASE_ELIGIBILITY_EXCLUDED", "DATABASE_INCLUDED")));
         data.put("databaseEligibilityExcluded", prismaBox(
                 "Reports excluded",
                 bucketCounts.getOrDefault("DATABASE_ELIGIBILITY_EXCLUDED", 0L),
                 prismaReasonLines(databaseEligibilityReasons, exclusionLabels)));
         data.put("databaseIncluded", prismaBox("Studies included in review", databaseIncluded));
-        data.put("otherIdentified", prismaBox("Records identified from other methods", bucketCounts.getOrDefault("OTHER_IDENTIFIED", 0L)));
-        data.put("otherScreened", prismaBox("Records screened", bucketCounts.getOrDefault("OTHER_SCREENED", 0L)));
+        data.put("otherIdentified", prismaBox("Records identified from other methods",
+                countPapersInBuckets(papers, prismaBucketByState,
+                        "OTHER_IDENTIFIED", "OTHER_SCREENED", "OTHER_SCREENING_EXCLUDED",
+                        "OTHER_SOUGHT_FOR_RETRIEVAL", "OTHER_NOT_RETRIEVED",
+                        "OTHER_ASSESSED_FOR_ELIGIBILITY", "OTHER_ELIGIBILITY_EXCLUDED", "OTHER_INCLUDED")));
+        data.put("otherScreened", prismaBox("Records screened",
+                countPapersInBuckets(papers, prismaBucketByState,
+                        "OTHER_SCREENED", "OTHER_SOUGHT_FOR_RETRIEVAL", "OTHER_NOT_RETRIEVED",
+                        "OTHER_ASSESSED_FOR_ELIGIBILITY", "OTHER_ELIGIBILITY_EXCLUDED", "OTHER_INCLUDED")));
         data.put("otherScreeningExcluded", prismaBox("Records excluded", bucketCounts.getOrDefault("OTHER_SCREENING_EXCLUDED", 0L)));
-        data.put("otherSought", prismaBox("Reports sought for retrieval", bucketCounts.getOrDefault("OTHER_SOUGHT_FOR_RETRIEVAL", 0L)));
+        data.put("otherSought", prismaBox("Reports sought for retrieval",
+                countPapersInBuckets(papers, prismaBucketByState,
+                        "OTHER_SOUGHT_FOR_RETRIEVAL", "OTHER_NOT_RETRIEVED",
+                        "OTHER_ASSESSED_FOR_ELIGIBILITY", "OTHER_ELIGIBILITY_EXCLUDED", "OTHER_INCLUDED")));
         data.put("otherNotRetrieved", prismaBox("Reports not retrieved", bucketCounts.getOrDefault("OTHER_NOT_RETRIEVED", 0L)));
-        data.put("otherAssessed", prismaBox("Reports assessed for eligibility", bucketCounts.getOrDefault("OTHER_ASSESSED_FOR_ELIGIBILITY", 0L)));
+        data.put("otherAssessed", prismaBox("Reports assessed for eligibility",
+                countPapersInBuckets(papers, prismaBucketByState,
+                        "OTHER_ASSESSED_FOR_ELIGIBILITY", "OTHER_ELIGIBILITY_EXCLUDED", "OTHER_INCLUDED")));
         data.put("otherEligibilityExcluded", prismaBox(
                 "Reports excluded",
                 bucketCounts.getOrDefault("OTHER_ELIGIBILITY_EXCLUDED", 0L),
@@ -2826,6 +2863,18 @@ public class HomeResource {
         data.put("otherIncluded", prismaBox("Studies included in review", otherIncluded));
         data.put("totalIncluded", prismaBox("Total studies included in review", previous + databaseIncluded + otherIncluded));
         return data;
+    }
+
+    private long countPapersInBuckets(
+            List<Paper> papers,
+            Map<String, String> prismaBucketByState,
+            String... includedBuckets
+    ) {
+        Set<String> buckets = Set.of(includedBuckets);
+        return papers.stream()
+                .map((paper) -> prismaBucketByState.get(WorkflowStateConfig.normalizeStateId(paper.status)))
+                .filter(buckets::contains)
+                .count();
     }
 
     private List<Map<String, Object>> buildGenericWorkflowDiagramData(WorkflowStateConfig workflow, List<Paper> papers) {

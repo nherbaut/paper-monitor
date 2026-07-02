@@ -40,13 +40,11 @@ Once you are signed in, you can bootstrap a paper feed from a single URL:
 This flow:
 
 - shows a confirmation recap first
-- creates a paper feed with the default workflow
-  - `DISCARDED`
-  - `NEW`
-  - `TODO`
-  - `DONE`
+- lets you choose a workflow:
+  - a four-state Kanban where moves are limited to adjacent `DISCARDED`, `NEW`, `TODO`, and `DONE` states
+  - a PRISMA workflow with placeholder `ex1`, `ex2`, `inc1`, and `inc2` criteria
 - creates one RSS feed attached to that paper feed
-- forces imported papers from that RSS feed into the `NEW` state
+- imports papers into the selected workflow's initial state
 - polls the RSS feed immediately
 - redirects to the reader filtered on the newly created paper feed
 

@@ -39,6 +39,16 @@
             color: var(--muted);
             line-height: 1.5;
         }
+        fieldset {
+            display: grid;
+            gap: 0.75rem;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        fieldset label {
+            line-height: 1.4;
+        }
         .actions {
             display: flex;
             gap: 0.75rem;
@@ -95,14 +105,38 @@
         <ul>
             <li><strong>Paper feed:</strong> {paperFeedName}</li>
             <li><strong>RSS feed URL:</strong> {rssUrl}</li>
-            <li><strong>RSS imported state:</strong> {defaultPaperStatus}</li>
         </ul>
-        <p class="meta">Workflow that will be created:</p>
-        <pre>{workflowYaml}</pre>
-        <div class="actions">
-            <a class="button" href="{confirmUrl}">Create, poll, and open this paper feed</a>
-            <a class="button secondary" href="{cancelUrl}">Cancel</a>
-        </div>
+        <form method="get" action="{confirmUrl}">
+            <input type="hidden" name="paperFeedName" value="{paperFeedName}">
+            <input type="hidden" name="rssUrl" value="{rssUrl}">
+            <fieldset>
+                <legend>Choose a workflow</legend>
+                <label>
+                    <input type="radio" name="workflowType" value="kanban" checked>
+                    <strong>Kanban</strong> - Discarded, New, Todo, and Done; papers can only move between adjacent states.
+                </label>
+                <label>
+                    <input type="radio" name="workflowType" value="prisma">
+                    <strong>PRISMA</strong> - systematic-review workflow with placeholder ex1/ex2 and inc1/inc2 criteria.
+                </label>
+            </fieldset>
+            <p class="meta">Workflow that will be created:</p>
+            <pre id="kanban-workflow">{kanbanWorkflowYaml}</pre>
+            <pre id="prisma-workflow" hidden>{prismaWorkflowYaml}</pre>
+            <div class="actions">
+                <button class="button" type="submit">Create, poll, and open this paper feed</button>
+                <a class="button secondary" href="{cancelUrl}">Cancel</a>
+            </div>
+        </form>
+        <script>
+            const workflowOptions = document.querySelectorAll('input[name="workflowType"]');
+            const kanbanWorkflow = document.getElementById("kanban-workflow");
+            const prismaWorkflow = document.getElementById("prisma-workflow");
+            workflowOptions.forEach((option) => option.addEventListener("change", () => {
+                kanbanWorkflow.hidden = option.value !== "kanban";
+                prismaWorkflow.hidden = option.value !== "prisma";
+            }));
+        </script>
         {/if}
 
         {#if mode == 'running'}
