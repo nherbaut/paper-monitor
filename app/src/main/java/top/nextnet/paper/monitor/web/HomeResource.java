@@ -2873,6 +2873,7 @@ public class HomeResource {
         Set<String> buckets = Set.of(includedBuckets);
         return papers.stream()
                 .map((paper) -> prismaBucketByState.get(WorkflowStateConfig.normalizeStateId(paper.status)))
+                .filter(Objects::nonNull)
                 .filter(buckets::contains)
                 .count();
     }
