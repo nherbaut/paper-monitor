@@ -2401,6 +2401,7 @@
     let activeTouchStatusDrag = null;
     let keyboardStatePicker = null;
     let keyboardShortcutPicker = null;
+    let keyboardShortcutShiftHeld = false;
     let keyboardStatusUndo = null;
     let suppressCardClick = false;
     let paperStatusTransitionSequence = 0;
@@ -6322,6 +6323,7 @@
         }
 
         if (event.key === "Shift" && !event.repeat && selectedPaperId) {
+            keyboardShortcutShiftHeld = true;
             startKeyboardShortcutPicker();
             return;
         }
@@ -6342,6 +6344,10 @@
                     await immediateKeyboardTransition(side, card, transition.value, currentStatus);
                 } catch (error) {
                     window.alert(error.message || "Failed to update paper status");
+                } finally {
+                    if (keyboardShortcutShiftHeld) {
+                        startKeyboardShortcutPicker();
+                    }
                 }
             }
             return;
@@ -6450,12 +6456,16 @@
     });
 
     window.addEventListener("keyup", (event) => {
-        if (event.key === "Shift" && keyboardShortcutPicker) {
-            clearKeyboardShortcutPicker();
+        if (event.key === "Shift") {
+            keyboardShortcutShiftHeld = false;
+            if (keyboardShortcutPicker) {
+                clearKeyboardShortcutPicker();
+            }
         }
     });
 
     window.addEventListener("blur", () => {
+        keyboardShortcutShiftHeld = false;
         if (keyboardShortcutPicker) {
             clearKeyboardShortcutPicker();
         }
