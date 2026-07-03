@@ -1068,6 +1068,117 @@
             color: #602714;
         }
 
+        body.classification-mode {
+            overflow: hidden;
+        }
+
+        .classification-view {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 20;
+            padding: clamp(1rem, 3vh, 2.5rem) clamp(15rem, 22vw, 20rem);
+            background:
+                radial-gradient(circle at 50% -20%, rgba(224, 149, 112, 0.2), transparent 42%),
+                color-mix(in srgb, var(--bg) 96%, white);
+        }
+
+        body.classification-mode .classification-view {
+            display: grid;
+        }
+
+        .classification-surface {
+            width: min(100%, 82ch);
+            min-height: 0;
+            margin: 0 auto;
+            display: grid;
+            grid-template-rows: auto auto minmax(0, 1fr);
+            gap: clamp(0.75rem, 1.8vh, 1.35rem);
+            padding: clamp(1.2rem, 3vh, 2.4rem);
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            background: color-mix(in srgb, var(--panel) 97%, white);
+            box-shadow: 0 28px 70px rgba(77, 56, 38, 0.16);
+            overflow: hidden;
+        }
+
+        .classification-kicker {
+            margin: 0;
+            color: var(--accent);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        .classification-title {
+            margin: 0.25rem 0 0;
+            font-family: "Fraunces", Georgia, serif;
+            font-size: var(--classification-title-size, clamp(1.55rem, 3.5vw, 2.65rem));
+            line-height: 1.12;
+            text-wrap: balance;
+        }
+
+        .classification-meta {
+            margin: 0;
+            color: var(--muted);
+            font-size: clamp(0.88rem, 1.35vw, 1rem);
+            line-height: 1.55;
+        }
+
+        .classification-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.65rem;
+        }
+
+        .classification-tag {
+            padding: 0.25rem 0.55rem;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 0.78rem;
+        }
+
+        .classification-abstract {
+            min-height: 0;
+            overflow: auto;
+            overscroll-behavior: contain;
+            padding: clamp(0.85rem, 1.8vh, 1.25rem);
+            border-radius: 16px;
+            background: color-mix(in srgb, var(--panel) 82%, var(--bg));
+            scrollbar-gutter: stable;
+            font-family: "Source Serif 4", Georgia, serif;
+            font-size: var(--classification-abstract-size, clamp(0.98rem, 1.55vw, 1.16rem));
+            line-height: 1.68;
+        }
+
+        .classification-abstract p {
+            margin: 0;
+        }
+
+        .classification-empty {
+            display: none;
+            place-items: center;
+            min-height: 0;
+            text-align: center;
+        }
+
+        .classification-surface.empty > :not(.classification-empty) {
+            display: none;
+        }
+
+        .classification-surface.empty .classification-empty {
+            display: grid;
+        }
+
+        @media (max-width: 720px) {
+            .classification-view {
+                padding-inline: 1rem;
+            }
+        }
+
         .meta {
             color: var(--muted);
             font-size: 0.95rem;
@@ -1160,6 +1271,12 @@
 
         .keyboard-status-toast.visible {
             display: flex;
+        }
+
+        .keyboard-status-toast.error {
+            border-top-color: #b75b3d;
+            background: color-mix(in srgb, #f5ddd4 92%, var(--panel));
+            color: #6f2917;
         }
 
         .pdf-scroll {
@@ -2249,6 +2366,25 @@
         </div>
     </section>
 </main>
+<section class="classification-view" id="classification-view" aria-label="Paper classification" aria-hidden="true">
+    <article class="classification-surface" id="classification-surface">
+        <div>
+            <p class="classification-kicker" id="classification-kicker">Focused classification</p>
+            <h2 class="classification-title" id="classification-title"></h2>
+        </div>
+        <div>
+            <p class="classification-meta" id="classification-meta"></p>
+            <div class="classification-tags" id="classification-tags"></div>
+        </div>
+        <div class="classification-abstract" id="classification-abstract"></div>
+        <div class="classification-empty">
+            <div>
+                <h2>No papers remaining</h2>
+                <p class="meta">Release Shift to return to the paper feed.</p>
+            </div>
+        </div>
+    </article>
+</section>
 <div class="keyboard-status-toast" id="keyboard-status-toast" role="status" aria-live="polite"></div>
 <div id="reader-bootstrap"
      data-initial-paper-id="{initialPaperId ?: ''}"
@@ -2349,6 +2485,13 @@
     const rightStateWheel = document.getElementById("right-state-wheel");
     const leftStateOptions = document.getElementById("left-state-options");
     const rightStateOptions = document.getElementById("right-state-options");
+    const classificationView = document.getElementById("classification-view");
+    const classificationSurface = document.getElementById("classification-surface");
+    const classificationKicker = document.getElementById("classification-kicker");
+    const classificationTitle = document.getElementById("classification-title");
+    const classificationMeta = document.getElementById("classification-meta");
+    const classificationTags = document.getElementById("classification-tags");
+    const classificationAbstract = document.getElementById("classification-abstract");
     const pdfPanel = document.getElementById("pdf-panel");
     const pdfScroll = document.querySelector(".pdf-scroll");
     const pdfFrame = document.getElementById("pdf-frame");
@@ -2402,10 +2545,12 @@
     let keyboardStatePicker = null;
     let keyboardShortcutPicker = null;
     let keyboardShortcutShiftHeld = false;
+    let classificationModeActive = false;
     let keyboardStatusUndo = null;
     let suppressCardClick = false;
     let paperStatusTransitionSequence = 0;
     const paperStatusTransitionTokens = new Map();
+    const paperStatusPersistenceQueues = new Map();
     let stateSearchQuery = "";
     let stateSearchVisibleLimit = 10;
     let selectedTagFilters = [];
@@ -4383,6 +4528,135 @@
         hideStateWheels();
     };
 
+    const canClassifyCard = (card) => {
+        return Boolean(card)
+            && authenticated
+            && card.dataset.paperCanEditTags === "true";
+    };
+
+    const fitClassificationTypography = () => {
+        if (!classificationModeActive || classificationSurface.classList.contains("empty")) {
+            return;
+        }
+        classificationSurface.style.setProperty("--classification-title-size", "");
+        classificationSurface.style.setProperty("--classification-abstract-size", "");
+        classificationAbstract.scrollTop = 0;
+        requestAnimationFrame(() => {
+            let titleSize = 2.65;
+            let abstractSize = 1.16;
+            while (classificationSurface.scrollHeight > classificationSurface.clientHeight && titleSize > 1.55) {
+                titleSize -= 0.1;
+                classificationSurface.style.setProperty("--classification-title-size", titleSize + "rem");
+            }
+            while (classificationAbstract.scrollHeight > classificationAbstract.clientHeight && abstractSize > 0.98) {
+                abstractSize -= 0.03;
+                classificationSurface.style.setProperty("--classification-abstract-size", abstractSize + "rem");
+            }
+        });
+    };
+
+    const renderClassificationPaper = (card) => {
+        if (!card) {
+            return;
+        }
+        classificationSurface.classList.remove("empty");
+        classificationKicker.textContent = statusLabel(normalizeStatus(card.dataset.paperStatus));
+        classificationTitle.textContent = card.dataset.paperTitle || "Untitled paper";
+        classificationMeta.textContent = "";
+        [
+            card.dataset.paperAuthors || "Unknown authors",
+            (card.dataset.paperVenue || "Unknown venue") + " · " + (card.dataset.paperPublishedOn || "unknown"),
+            "From feed: " + (card.dataset.paperFeedName || "Unknown feed")
+        ].forEach((line, index) => {
+            if (index > 0) {
+                classificationMeta.appendChild(document.createElement("br"));
+            }
+            classificationMeta.appendChild(document.createTextNode(line));
+        });
+        classificationTags.innerHTML = "";
+        (card.dataset.paperTags || "")
+            .split("|")
+            .map((tag) => tag.trim())
+            .filter(Boolean)
+            .forEach((tag) => {
+                const badge = document.createElement("span");
+                badge.className = "classification-tag";
+                badge.textContent = tag;
+                classificationTags.appendChild(badge);
+            });
+        classificationAbstract.innerHTML = "";
+        const summary = (card.dataset.paperSummary || "").trim();
+        if (!summary) {
+            const missing = document.createElement("p");
+            missing.className = "meta";
+            missing.textContent = "No abstract available for this paper.";
+            classificationAbstract.appendChild(missing);
+        } else {
+            summary.split(/\n+/).forEach((paragraph) => {
+                const element = document.createElement("p");
+                element.textContent = paragraph;
+                classificationAbstract.appendChild(element);
+            });
+        }
+        fitClassificationTypography();
+    };
+
+    const selectPaperForClassification = (card) => {
+        if (!canClassifyCard(card)) {
+            return false;
+        }
+        currentRenderToken += 1;
+        ttsPlayer.pause();
+        allPaperCards().forEach((item) => item.classList.remove("active"));
+        card.classList.add("active");
+        selectedPaperId = card.dataset.paperId;
+        selectedPdfUrl = null;
+        selectedDownloadUrl = card.dataset.pdfUrl || "";
+        selectedContentKind = "card";
+        markPaperViewed(selectedPaperId, card);
+        renderClassificationPaper(card);
+        return true;
+    };
+
+    const showClassificationEmpty = () => {
+        selectedPaperId = null;
+        allPaperCards().forEach((item) => item.classList.remove("active"));
+        classificationSurface.classList.add("empty");
+        hideStateWheels();
+    };
+
+    const enterClassificationMode = () => {
+        let card = selectedPaperCard();
+        if (!canClassifyCard(card)) {
+            card = visiblePaperCards().find(canClassifyCard) || null;
+        }
+        if (!card) {
+            return false;
+        }
+        classificationModeActive = true;
+        document.body.classList.add("classification-mode");
+        classificationView.setAttribute("aria-hidden", "false");
+        selectPaperForClassification(card);
+        return true;
+    };
+
+    const exitClassificationMode = () => {
+        if (!classificationModeActive) {
+            return;
+        }
+        classificationModeActive = false;
+        document.body.classList.remove("classification-mode");
+        classificationView.setAttribute("aria-hidden", "true");
+        classificationSurface.classList.remove("empty");
+        const card = selectedPaperCard();
+        if (card) {
+            focusPaperCard(card);
+            return;
+        }
+        selectedContentKind = null;
+        applyLayoutState();
+    };
+
     const numberStateWheelOptions = (options, firstShortcut) => {
         let shortcut = firstShortcut;
         const numberedOptions = options.map((entry) => {
@@ -4416,7 +4690,7 @@
 
     const startKeyboardShortcutPicker = () => {
         const card = selectedPaperCard();
-        if (!card) {
+        if (!card || (classificationModeActive && !canClassifyCard(card))) {
             return;
         }
         const currentStatus = normalizeStatus(card.dataset.paperStatus);
@@ -4458,6 +4732,7 @@
         keyboardStatusUndo = null;
         if (keyboardStatusToast) {
             keyboardStatusToast.classList.remove("visible");
+            keyboardStatusToast.classList.remove("error");
             keyboardStatusToast.textContent = "";
         }
     };
@@ -4475,6 +4750,15 @@
         };
         keyboardStatusToast.textContent = text;
         keyboardStatusToast.classList.add("visible");
+    };
+
+    const showKeyboardStatusError = (text) => {
+        clearKeyboardStatusToast();
+        if (!keyboardStatusToast) {
+            return;
+        }
+        keyboardStatusToast.textContent = text;
+        keyboardStatusToast.classList.add("visible", "error");
     };
 
     const startKeyboardStatePicker = (side) => {
@@ -4505,7 +4789,13 @@
     };
 
     const immediateKeyboardTransition = async (side, card, nextStatus, previousStatus) => {
-        await applyPaperStatusTransition(card, nextStatus, previousStatus, { advanceFocus: true });
+        const applied = await applyPaperStatusTransition(card, nextStatus, previousStatus, {
+            advanceFocus: true,
+            backgroundPersistence: classificationModeActive
+        });
+        if (!applied) {
+            return false;
+        }
         const nextCard = selectedPaperCard();
         showKeyboardStatusToast(
             "Moved to " + statusLabel(nextStatus) + ". Press " + (side === "left" ? "→" : "←") + " to undo.",
@@ -4517,6 +4807,7 @@
                 nextCardId: nextCard?.dataset.paperId || null
             }
         );
+        return true;
     };
 
     const maybeStartImmediateKeyboardTransition = async (side) => {
@@ -4546,7 +4837,7 @@
         const { card, previousStatus, nextStatus } = keyboardStatusUndo;
         clearKeyboardStatusToast();
         await applyPaperStatusTransition(card, previousStatus, nextStatus, { advanceFocus: false });
-        openPaperCard(card);
+        openPaperCard(findCardByPaperId(card.dataset.paperId) || card);
         return true;
     };
 
@@ -5195,6 +5486,20 @@
         }
     };
 
+    const enqueuePaperStatusUpdate = (paperId, nextStatus, params) => {
+        const previous = paperStatusPersistenceQueues.get(paperId) || Promise.resolve();
+        const queued = previous
+            .catch(() => undefined)
+            .then(() => updatePaperStatus(paperId, nextStatus, params));
+        paperStatusPersistenceQueues.set(paperId, queued);
+        queued.finally(() => {
+            if (paperStatusPersistenceQueues.get(paperId) === queued) {
+                paperStatusPersistenceQueues.delete(paperId);
+            }
+        }).catch(() => undefined);
+        return queued;
+    };
+
     const collectStateRequirementParams = (logicalFeedId, nextStatus) => {
         const params = new URLSearchParams({ status: nextStatus });
         const workflowState = workflowStateById(logicalFeedId, nextStatus);
@@ -5259,9 +5564,10 @@
         options = {}
     ) => {
         if (!nextStatus || nextStatus === normalizeStatus(card.dataset.paperStatus)) {
-            return;
+            return false;
         }
         const advanceFocus = options.advanceFocus === true;
+        const backgroundPersistence = options.backgroundPersistence === true;
         const selectedPaperIdBeforeChange = selectedPaperId;
         const visibleCardsBeforeChange = advanceFocus ? visiblePaperCards() : [];
         const currentIndex = advanceFocus
@@ -5276,7 +5582,7 @@
         const paperId = card.dataset.paperId;
         const requestParams = collectStateRequirementParams(card.dataset.logicalFeedId, nextStatus);
         if (requestParams == null) {
-            return;
+            return false;
         }
         const transitionToken = ++paperStatusTransitionSequence;
         paperStatusTransitionTokens.set(paperId, transitionToken);
@@ -5294,44 +5600,77 @@
         }
         applyLogicalFeedFilter();
 
-        try {
-            await updatePaperStatus(paperId, nextStatus, requestParams);
-        } catch (error) {
-            if (paperStatusTransitionTokens.get(paperId) !== transitionToken) {
-                throw error;
+        if (advanceFocus) {
+            let nextCard = nextPaperId ? findCardByPaperId(nextPaperId) : null;
+            if (!nextCard || nextCard.hidden) {
+                nextCard = visiblePaperCards()[0] || null;
             }
-            card.dataset.paperStatus = previousStatus;
-            card.dataset.paperTopStatus = previousStatus.includes("/") ? previousStatus.split("/")[0] : previousStatus;
-            if (record) {
-                record.paperStatus = previousStatus;
-                record.paperTopStatus = previousStatus.includes("/") ? previousStatus.split("/")[0] : previousStatus;
-            }
-            syncPaperStatusCounts(card, normalizeStatus(nextStatus), previousStatus);
-            applyLogicalFeedFilter();
-            if (selectedPaperIdBeforeChange === paperId) {
-                openPaperCard(card);
-            }
-            throw error;
-        } finally {
-            if (paperStatusTransitionTokens.get(paperId) === transitionToken) {
-                paperStatusTransitionTokens.delete(paperId);
+            if (classificationModeActive) {
+                if (nextCard && selectPaperForClassification(nextCard)) {
+                    renderClassificationPaper(nextCard);
+                } else {
+                    showClassificationEmpty();
+                }
+            } else if (nextCard) {
+                openPaperCard(nextCard);
             }
         }
 
-        if (!advanceFocus) {
-            return;
+        const persistTransition = async () => {
+            try {
+                await enqueuePaperStatusUpdate(paperId, nextStatus, requestParams);
+            } catch (error) {
+                if (paperStatusTransitionTokens.get(paperId) !== transitionToken) {
+                    return;
+                }
+                card.dataset.paperStatus = previousStatus;
+                card.dataset.paperTopStatus = previousStatus.includes("/") ? previousStatus.split("/")[0] : previousStatus;
+                if (record) {
+                    record.paperStatus = previousStatus;
+                    record.paperTopStatus = previousStatus.includes("/") ? previousStatus.split("/")[0] : previousStatus;
+                }
+                syncPaperStatusCounts(card, normalizeStatus(nextStatus), previousStatus);
+                applyLogicalFeedFilter();
+                if (!backgroundPersistence && selectedPaperIdBeforeChange === paperId) {
+                    openPaperCard(findCardByPaperId(paperId) || card);
+                }
+                if (classificationModeActive && keyboardShortcutShiftHeld) {
+                    const selectedCard = selectedPaperCard();
+                    if (selectedCard) {
+                        renderClassificationPaper(selectedCard);
+                        startKeyboardShortcutPicker();
+                    }
+                }
+                throw error;
+            } finally {
+                if (paperStatusTransitionTokens.get(paperId) === transitionToken) {
+                    paperStatusTransitionTokens.delete(paperId);
+                }
+            }
+        };
+
+        if (backgroundPersistence) {
+            persistTransition().catch((error) => {
+                showKeyboardStatusError(
+                    "Could not save “" + (card.dataset.paperTitle || "paper") + "”. Its previous state was restored."
+                );
+                console.error("[paper-monitor] Background state update failed", error);
+            });
+            return true;
         }
-        if (nextPaperId) {
+
+        await persistTransition();
+        if (!advanceFocus) {
+            return true;
+        }
+        if (!classificationModeActive && nextPaperId) {
             const nextCard = findCardByPaperId(nextPaperId);
-            if (nextCard && !nextCard.hidden) {
+            if (nextCard && !nextCard.hidden && selectedPaperId === selectedPaperIdBeforeChange) {
                 openPaperCard(nextCard);
-                return;
+                return true;
             }
         }
-        const remainingCards = visiblePaperCards();
-        if (remainingCards.length) {
-            openPaperCard(remainingCards[0]);
-        }
+        return true;
     };
 
     const renderPdf = (pdfUrl) => {
@@ -6315,16 +6654,22 @@
             }
         }
 
-        if (event.key === "Escape" && (keyboardStatePicker || keyboardShortcutPicker)) {
+        if (event.key === "Escape" && (keyboardStatePicker || keyboardShortcutPicker || classificationModeActive)) {
             event.preventDefault();
+            keyboardShortcutShiftHeld = false;
             clearKeyboardStatePicker();
             clearKeyboardShortcutPicker();
+            exitClassificationMode();
             return;
         }
 
-        if (event.key === "Shift" && !event.repeat && selectedPaperId) {
+        if (event.key === "Shift" && !event.repeat) {
             keyboardShortcutShiftHeld = true;
-            startKeyboardShortcutPicker();
+            if (enterClassificationMode()) {
+                startKeyboardShortcutPicker();
+            } else {
+                keyboardShortcutShiftHeld = false;
+            }
             return;
         }
 
@@ -6461,6 +6806,7 @@
             if (keyboardShortcutPicker) {
                 clearKeyboardShortcutPicker();
             }
+            exitClassificationMode();
         }
     });
 
@@ -6469,6 +6815,7 @@
         if (keyboardShortcutPicker) {
             clearKeyboardShortcutPicker();
         }
+        exitClassificationMode();
     });
 
     fullscreenToggle.addEventListener("click", () => {
@@ -6480,6 +6827,7 @@
     window.addEventListener("resize", () => {
         applyNotesCollapsedState();
         queuePdfRefit();
+        fitClassificationTypography();
     });
 
     themeToggle.addEventListener("click", () => {
