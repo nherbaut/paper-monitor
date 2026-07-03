@@ -4,6 +4,7 @@ import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -313,7 +314,7 @@ public class PaperGitSyncService {
 
     private void importNotesBlob(Path repoPath, String commit, String repoFilePath, Paper paper) throws IOException {
         byte[] data = gitShowBytes(repoPath, commit + ":" + repoFilePath);
-        paper.notes = new String(data);
+        paper.notes = PaperMarkdownFrontMatter.extractNotes(new String(data, StandardCharsets.UTF_8));
     }
 
     private void exportWorkingTree(LogicalFeed logicalFeed, Path repoPath) throws IOException {
@@ -324,15 +325,23 @@ public class PaperGitSyncService {
         for (String state : logicalFeed.workflowStateList()) {
             Path stateDirectory = repoPath.resolve(pathForState(state));
             for (Paper paper : paperRepository.findByLogicalFeedAndStatus(logicalFeed, state)) {
-                Files.writeString(stateDirectory.resolve(repoNotesFileName(paper)), nonBlank(paper.notes, ""));
-                if (paper.uploadedPdfPath == null) {
+                Path pdfSource = null;
+                String pdfFileName = null;
+                if (paper.uploadedPdfPath != null) {
+                    Path candidate = paperStorageService.resolve(paper.uploadedPdfPath);
+                    if (Files.exists(candidate)) {
+                        pdfSource = candidate;
+                        pdfFileName = repoFileName(paper);
+                    }
+                }
+                Files.writeString(
+                        stateDirectory.resolve(repoNotesFileName(paper)),
+                        PaperMarkdownFrontMatter.render(paper, pdfFileName),
+                        StandardCharsets.UTF_8);
+                if (pdfSource == null) {
                     continue;
                 }
-                Path source = paperStorageService.resolve(paper.uploadedPdfPath);
-                if (!Files.exists(source)) {
-                    continue;
-                }
-                Files.copy(source, stateDirectory.resolve(repoFileName(paper)), StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(pdfSource, stateDirectory.resolve(pdfFileName), StandardCopyOption.REPLACE_EXISTING);
             }
         }
         exportReviewSubmissions(logicalFeed, repoPath);
@@ -400,7 +409,9 @@ public class PaperGitSyncService {
                 + "Managed PDF files use the pattern `paper-<id>--<name>.pdf`.\n"
                 + "Managed notes files use the pattern `paper-<id>--<name>.md`.\n"
                 + "Managed review submissions are exported under `reviews/review-<id>--<title>/paper-<id>--<title>.json`.\n"
-                + "Editing a managed notes file updates the paper notes in the application.\n"
+                + "Managed notes files start with generated `paper-monitor/paper/v1` YAML front matter.\n"
+                + "The front matter is read-only and regenerated from Paper Monitor metadata.\n"
+                + "Editing the Markdown body below the front matter updates the paper notes in the application.\n"
                 + "Moving a managed PDF between state directories changes the paper state.\n"
                 + "Moving a managed notes file between state directories changes the paper state.\n"
                 + "Committing a single new PDF with a DOI in the commit message creates a new paper.\n";
