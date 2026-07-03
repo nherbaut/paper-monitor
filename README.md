@@ -4,6 +4,7 @@ Repository layout:
 
 - `app/`: Quarkus application
 - `data/`: local runtime data for the app
+- `firefox-extension/`: authenticated provider PDF capture extension
 - `piper-api/`: HTTP sidecar for Piper TTS
 
 ## Run the app
@@ -28,6 +29,26 @@ cd app
 ```
 
 For the containerized stack, the repository `docker-compose.yml` uses a regular PostgreSQL service instead.
+
+## Firefox PDF capture
+
+For providers that require a browser or institutional login, install the
+development extension from `firefox-extension/`:
+
+1. Open `about:debugging#/runtime/this-firefox`.
+2. Select **Load Temporary Add-on**.
+3. Select `firefox-extension/manifest.json`.
+4. Open a paper in Paper Monitor and choose
+   **Paper actions → Capture provider PDF**.
+5. Start the PDF download in the provider tab opened by the extension.
+
+The extension copies the authenticated PDF response to Paper Monitor while
+leaving Firefox's original download unchanged. It requests access to all sites
+so it can support arbitrary publication and institutional domains. Captures are
+limited to 50 MiB and expire after ten minutes.
+
+See [`firefox-extension/README.md`](firefox-extension/README.md) for permissions,
+packaging, and unsupported provider behavior.
 
 ## Quick setup
 

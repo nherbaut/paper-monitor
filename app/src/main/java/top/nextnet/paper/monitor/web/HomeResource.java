@@ -1878,7 +1878,7 @@ public class HomeResource {
             if (normalizedStatus.equals(previousStatus)) {
                 continue;
             }
-            validatePaperStatusTransition(workflow, logicalFeed, paper, previousStatus, normalizedStatus,
+            validatePaperStatusAssignment(workflow, logicalFeed, paper, previousStatus, normalizedStatus,
                     eligibilityExclusionCriterionId, eligibilityExclusionNotes, eligibilityInclusionCriterionIds);
             paper.status = normalizedStatus;
             paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
@@ -2114,11 +2114,40 @@ public class HomeResource {
             String exclusionNotes,
             List<String> inclusionCriterionIds
     ) {
+        validatePaperStatusChange(workflow, logicalFeed, paper, previousStatus, nextStatus,
+                exclusionCriterionId, exclusionNotes, inclusionCriterionIds, true);
+    }
+
+    private void validatePaperStatusAssignment(
+            WorkflowStateConfig workflow,
+            LogicalFeed logicalFeed,
+            Paper paper,
+            String previousStatus,
+            String nextStatus,
+            String exclusionCriterionId,
+            String exclusionNotes,
+            List<String> inclusionCriterionIds
+    ) {
+        validatePaperStatusChange(workflow, logicalFeed, paper, previousStatus, nextStatus,
+                exclusionCriterionId, exclusionNotes, inclusionCriterionIds, false);
+    }
+
+    private void validatePaperStatusChange(
+            WorkflowStateConfig workflow,
+            LogicalFeed logicalFeed,
+            Paper paper,
+            String previousStatus,
+            String nextStatus,
+            String exclusionCriterionId,
+            String exclusionNotes,
+            List<String> inclusionCriterionIds,
+            boolean enforceTransition
+    ) {
         if (!workflow.containsLeafState(nextStatus)) {
             throw new WebApplicationException("Invalid paper status", Response.Status.BAD_REQUEST);
         }
         boolean previousStatusIsInWorkflow = workflow.containsLeafState(previousStatus);
-        if (previousStatusIsInWorkflow && !workflow.allowsTransition(previousStatus, nextStatus)) {
+        if (enforceTransition && previousStatusIsInWorkflow && !workflow.allowsTransition(previousStatus, nextStatus)) {
             throw new WebApplicationException("Transition not allowed by workflow", Response.Status.BAD_REQUEST);
         }
         WorkflowStateConfig.Requirements requirements = workflow.requirementsFor(nextStatus);

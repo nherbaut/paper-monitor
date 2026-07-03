@@ -34,6 +34,8 @@ public class AuthFilter implements ContainerRequestFilter {
             "signup",
             "auth/forward",
             "api/pde/openai-extractions/consume",
+            "api/pdf-captures/upload",
+            "api/pdf-captures/failure",
             "auth/oidc/start",
             "auth/oidc/callback",
             "auth/github/start",

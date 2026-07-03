@@ -2320,6 +2320,7 @@
                                 <button class="secondary" id="paper-speak" type="button">Speak</button>
                                 <button class="secondary" id="paper-download" type="button">Download paper</button>
                                 <button class="secondary" id="paper-import-pdf" type="button">Fetch source PDF</button>
+                                <button class="secondary" id="paper-capture-pdf" type="button">Capture provider PDF</button>
                                 <button class="secondary" id="paper-remove-pdf" type="button">Remove PDF</button>
                                 <button class="secondary" id="paper-share" type="button">Share URL</button>
                             </div>
@@ -2506,6 +2507,7 @@
     const paperSpeakButton = document.getElementById("paper-speak");
     const paperDownloadButton = document.getElementById("paper-download");
     const paperImportPdfButton = document.getElementById("paper-import-pdf");
+    const paperCapturePdfButton = document.getElementById("paper-capture-pdf");
     const paperRemovePdfButton = document.getElementById("paper-remove-pdf");
     const paperShareButton = document.getElementById("paper-share");
     const paperTagEditor = document.getElementById("paper-tag-editor");
@@ -2546,6 +2548,9 @@
     let keyboardShortcutPicker = null;
     let keyboardShortcutShiftHeld = false;
     let classificationModeActive = false;
+    let activePdfCapture = null;
+    let pdfCapturePollTimer = null;
+    let pdfCaptureExtensionReady = false;
     let keyboardStatusUndo = null;
     let suppressCardClick = false;
     let paperStatusTransitionSequence = 0;
@@ -2558,6 +2563,7 @@
     let reviewSummaries = [];
     const themeStorageKey = "paper-monitor.theme";
     const notesCollapsedStorageKey = "paper-monitor.notes-collapsed";
+    const pdfCaptureStorageKey = "paper-monitor.active-pdf-capture";
     const KEYBOARD_STATUS_TOAST_MS = 2200;
     const initialPaperId = readerBootstrap?.dataset.initialPaperId || "";
     const initialLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || "";
@@ -2878,6 +2884,7 @@
             && authenticated
             && activeCard.dataset.paperCanEditTags === "true";
         const importUrl = supportedSourcePdfUrl(activeCard);
+        const providerUrl = providerPageUrl(activeCard);
         const downloadUrl = downloadablePaperUrl(activeCard);
         readerLayout.classList.toggle("with-notes", hasReaderContent);
         paperList.classList.toggle("hidden", hasReaderContent);
@@ -2898,6 +2905,15 @@
                 : !canEditPaper
                     ? "You need admin access on this paper feed to fetch a source PDF."
                     : "No supported source PDF link is available."
+        );
+        setActionAvailability(
+            paperCapturePdfButton,
+            Boolean(canEditPaper && providerUrl),
+            !authenticated
+                ? "Sign in with edit access to capture a provider PDF."
+                : !canEditPaper
+                    ? "You need admin access on this paper feed to capture a provider PDF."
+                    : "No provider page is available for this paper."
         );
         setActionAvailability(
             paperRemovePdfButton,
@@ -3009,6 +3025,15 @@
             }
         }
         return null;
+    };
+
+    const providerPageUrl = (card) => {
+        if (!card) {
+            return null;
+        }
+        return [card.dataset.paperOpenAccessLink, card.dataset.paperSourceLink]
+            .map((value) => (value || "").trim())
+            .find((value) => value.startsWith("https://") || value.startsWith("http://")) || null;
     };
 
     const downloadablePaperUrl = (card) => {
@@ -6185,6 +6210,174 @@
         showPdfForCard(card);
     };
 
+    const stopPdfCapturePolling = () => {
+        if (pdfCapturePollTimer) {
+            window.clearTimeout(pdfCapturePollTimer);
+            pdfCapturePollTimer = null;
+        }
+    };
+
+    const rememberActivePdfCapture = () => {
+        if (!activePdfCapture) {
+            window.localStorage.removeItem(pdfCaptureStorageKey);
+            return;
+        }
+        window.localStorage.setItem(pdfCaptureStorageKey, JSON.stringify({
+            captureId: activePdfCapture.captureId,
+            paperId: activePdfCapture.paperId,
+            expiresAt: activePdfCapture.expiresAt
+        }));
+    };
+
+    const markCapturedPdfAvailable = (paperId, pdfUrl) => {
+        const card = findCardByPaperId(paperId);
+        const normalizedPdfUrl = pdfUrl || "/papers/" + paperId + "/pdf";
+        if (!card) {
+            return;
+        }
+        card.dataset.pdfUrl = normalizedPdfUrl;
+        const record = paperRecordById(paperId);
+        if (record) {
+            record.pdfUrl = normalizedPdfUrl;
+        }
+        const pdfPresence = card.querySelector(".pdf-presence");
+        if (pdfPresence) {
+            pdfPresence.classList.add("has-pdf");
+            pdfPresence.title = "PDF attached";
+            pdfPresence.innerHTML = "<span aria-hidden=\"true\">📄</span>";
+        }
+        if (selectedPaperId === String(paperId)) {
+            selectedDownloadUrl = normalizedPdfUrl;
+            applyLayoutState();
+        }
+    };
+
+    const handlePdfCaptureStatus = (status) => {
+        if (!activePdfCapture || String(status.captureId) !== String(activePdfCapture.captureId)) {
+            return;
+        }
+        if (status.status === "UPLOADED") {
+            stopPdfCapturePolling();
+            markCapturedPdfAvailable(activePdfCapture.paperId, status.pdfUrl);
+            notesStatus.textContent = "Provider PDF captured";
+            paperCapturePdfButton.textContent = "Capture provider PDF";
+            activePdfCapture = null;
+            rememberActivePdfCapture();
+            return;
+        }
+        if (status.status === "FAILED" || status.status === "EXPIRED") {
+            stopPdfCapturePolling();
+            notesStatus.textContent = status.error || (status.status === "EXPIRED"
+                ? "PDF capture expired"
+                : "PDF capture failed");
+            paperCapturePdfButton.textContent = "Capture provider PDF";
+            activePdfCapture = null;
+            rememberActivePdfCapture();
+            return;
+        }
+        notesStatus.textContent = status.message || (status.status === "UPLOADING"
+            ? "Uploading captured PDF..."
+            : "Capture armed. Download the PDF in the provider tab.");
+    };
+
+    const pollPdfCaptureStatus = async () => {
+        if (!activePdfCapture) {
+            return;
+        }
+        try {
+            const response = await fetch(
+                "/papers/" + activePdfCapture.paperId + "/pdf-captures/" + activePdfCapture.captureId,
+                { headers: { Accept: "application/json" } }
+            );
+            if (response.ok) {
+                handlePdfCaptureStatus(await response.json());
+            } else if (response.status === 403 || response.status === 404) {
+                stopPdfCapturePolling();
+                activePdfCapture = null;
+                rememberActivePdfCapture();
+                notesStatus.textContent = "PDF capture is no longer available";
+            }
+        } catch (error) {
+            console.warn("[paper-monitor] Could not poll PDF capture status", error);
+        }
+        if (activePdfCapture) {
+            pdfCapturePollTimer = window.setTimeout(pollPdfCaptureStatus, 2000);
+        }
+    };
+
+    const startProviderPdfCapture = async () => {
+        const card = selectedPaperCard();
+        if (!card || !canClassifyCard(card) || !providerPageUrl(card)) {
+            return;
+        }
+        stopPdfCapturePolling();
+        const response = await fetch("/papers/" + card.dataset.paperId + "/pdf-captures", {
+            method: "POST",
+            headers: { Accept: "application/json" }
+        });
+        if (!response.ok) {
+            const message = await response.text();
+            throw new Error(message || "Failed to create PDF capture");
+        }
+        const capture = await response.json();
+        if (!capture.providerUrl) {
+            throw new Error("No provider page is available for this paper");
+        }
+        capture.uploadUrl = new URL(capture.uploadUrl, window.location.origin).href;
+        activePdfCapture = capture;
+        rememberActivePdfCapture();
+        paperCapturePdfButton.textContent = "Capture armed";
+        notesStatus.textContent = pdfCaptureExtensionReady
+            ? "Opening provider page..."
+            : "Waiting for the Paper Monitor Firefox extension...";
+        window.postMessage({
+            bridge: "paper-monitor-pdf-capture",
+            type: "ARM_CAPTURE",
+            capture
+        }, window.location.origin);
+        window.setTimeout(() => {
+            if (activePdfCapture && !pdfCaptureExtensionReady) {
+                notesStatus.textContent = "Paper Monitor Firefox extension not detected";
+            }
+        }, 1500);
+        pdfCapturePollTimer = window.setTimeout(pollPdfCaptureStatus, 1000);
+    };
+
+    const restoreActivePdfCapture = () => {
+        if (!authenticated || activePdfCapture) {
+            return;
+        }
+        try {
+            const stored = JSON.parse(window.localStorage.getItem(pdfCaptureStorageKey) || "null");
+            if (!stored || Date.parse(stored.expiresAt) <= Date.now()) {
+                window.localStorage.removeItem(pdfCaptureStorageKey);
+                return;
+            }
+            activePdfCapture = stored;
+            notesStatus.textContent = "Checking provider PDF capture...";
+            pollPdfCaptureStatus();
+        } catch {
+            window.localStorage.removeItem(pdfCaptureStorageKey);
+        }
+    };
+
+    window.addEventListener("message", (event) => {
+        if (event.source !== window || event.origin !== window.location.origin) {
+            return;
+        }
+        const message = event.data;
+        if (!message || message.bridge !== "paper-monitor-pdf-capture-extension") {
+            return;
+        }
+        pdfCaptureExtensionReady = true;
+        if (message.type === "READY") {
+            return;
+        }
+        if (message.type === "CAPTURE_STATUS") {
+            handlePdfCaptureStatus(message.status || {});
+        }
+    });
+
     allPaperCards().forEach(bindPaperCard);
 
     window.addEventListener("mousemove", (event) => {
@@ -6530,6 +6723,16 @@
             await importSupportedSourcePdf();
         } catch (error) {
             pdfPanelMeta.textContent = error.message || "Failed to import remote PDF";
+        }
+    });
+
+    paperCapturePdfButton.addEventListener("click", async () => {
+        closePaperActionsMenu();
+        try {
+            await startProviderPdfCapture();
+        } catch (error) {
+            notesStatus.textContent = error.message || "Failed to arm PDF capture";
+            paperCapturePdfButton.textContent = "Capture provider PDF";
         }
     });
 
@@ -7344,6 +7547,7 @@
         openInitialPaper();
         maybeLoadMoreVisiblePapers();
     }
+    restoreActivePdfCapture();
 
 </script>
 </body>
