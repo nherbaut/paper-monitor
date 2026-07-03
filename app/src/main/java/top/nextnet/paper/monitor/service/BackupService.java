@@ -286,6 +286,7 @@ public class BackupService {
             item.put("tags", paper.tags);
             item.put("authors", paper.authors);
             item.put("publisher", paper.publisher);
+            item.put("recordType", paper.recordTypeValue());
             item.put("publishedOn", paper.publishedOn == null ? null : paper.publishedOn.toString());
             item.put("status", paper.status);
             item.put("eligibilityExclusionCriterionId", paper.eligibilityExclusionCriterionId);
@@ -461,6 +462,7 @@ public class BackupService {
             paper.tags = stringValue(item.get("tags"));
             paper.authors = stringValue(item.get("authors"));
             paper.publisher = stringValue(item.get("publisher"));
+            paper.recordType = normalizeRecordType(stringValue(item.get("recordType")));
             paper.publishedOn = localDateValue(item.get("publishedOn"));
             paper.status = stringValue(item.get("status"));
             paper.eligibilityExclusionCriterionId = stringValue(item.get("eligibilityExclusionCriterionId"));
@@ -519,6 +521,12 @@ public class BackupService {
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private String normalizeRecordType(String value) {
+        return Paper.TYPE_GRAY_LITERATURE.equals(value)
+                ? Paper.TYPE_GRAY_LITERATURE
+                : Paper.TYPE_PAPER;
     }
 
     private Long longValue(Object value) {

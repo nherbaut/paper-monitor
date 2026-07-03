@@ -334,6 +334,8 @@ public final class WorkflowStateConfig {
                 requires.put("inclusionNotes", "optional");
             }
             item.put("requires", requires);
+            item.put("report", Map.of(
+                    "prismaBucket", state.report().prismaBucket() == null ? "" : state.report().prismaBucket()));
             stateItems.add(item);
         }
         payload.put("states", stateItems);

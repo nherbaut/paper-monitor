@@ -29,6 +29,7 @@ class QuickSetupWorkflowsTest {
         WorkflowStateConfig workflow = WorkflowStateConfig.parse(QuickSetupWorkflows.PRISMA);
 
         assertEquals("IDENTIFICATION/DATABASE_IDENTIFIED", workflow.initialPaperStatus());
+        assertTrue(workflow.configJson().contains("\"prismaBucket\":\"OTHER_IDENTIFIED\""));
         assertTrue(workflow.containsTaxonomyLeaf("EXCLUSION", "EX1"));
         assertTrue(workflow.containsTaxonomyLeaf("EXCLUSION", "EX2"));
         assertTrue(workflow.containsTaxonomyLeaf("INCLUSION", "INC1"));

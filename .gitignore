@@ -39,6 +39,7 @@ nb-configuration.xml
 # Local environment
 .env
 /data/
+/app/data/
 /piper-api/.venv/
 /piper-api/__pycache__/
 

@@ -30,6 +30,9 @@ import top.nextnet.paper.monitor.service.JsonCodec;
 @Table(uniqueConstraints = @UniqueConstraint(columnNames = {"logicalFeed_id", "sourceLink"}))
 public class Paper extends PanacheEntityBase {
 
+    public static final String TYPE_PAPER = "PAPER";
+    public static final String TYPE_GRAY_LITERATURE = "GRAY_LITERATURE";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     public Long id;
@@ -66,6 +69,9 @@ public class Paper extends PanacheEntityBase {
 
     @Column(length = 255)
     public String publisher;
+
+    @Column(nullable = false, length = 32, columnDefinition = "varchar(32) default 'PAPER'")
+    public String recordType = TYPE_PAPER;
 
     public LocalDate publishedOn;
 
@@ -110,6 +116,14 @@ public class Paper extends PanacheEntityBase {
         }
         int separator = status.indexOf('/');
         return separator < 0 ? status : status.substring(0, separator);
+    }
+
+    public String recordTypeValue() {
+        return TYPE_GRAY_LITERATURE.equals(recordType) ? TYPE_GRAY_LITERATURE : TYPE_PAPER;
+    }
+
+    public boolean isGrayLiterature() {
+        return TYPE_GRAY_LITERATURE.equals(recordTypeValue());
     }
 
     public List<String> tagList() {

@@ -31,6 +31,7 @@ final class PaperMarkdownFrontMatter {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("schema", SCHEMA);
         metadata.put("paper_id", paper.id);
+        metadata.put("record_type", paper.recordTypeValue());
         metadata.put("bibliography", bibliography(paper));
         metadata.put("links", links(paper));
         metadata.put("source", source(paper));

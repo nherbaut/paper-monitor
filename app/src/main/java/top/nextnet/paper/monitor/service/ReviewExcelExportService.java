@@ -36,7 +36,8 @@ import top.nextnet.paper.monitor.model.ReviewSubmission;
 @ApplicationScoped
 public class ReviewExcelExportService {
 
-    private static final List<String> BASE_HEADERS = List.of("Title", "Authors", "Venue", "Year", "DOI");
+    private static final List<String> BASE_HEADERS = List.of(
+            "Title", "Authors", "Venue", "Year", "DOI", "Record type", "Source URL");
 
     private final ReviewService reviewService;
 
@@ -138,6 +139,8 @@ public class ReviewExcelExportService {
             writeTextCell(row, 2, paper.publisher, styles.wrap());
             writeTextCell(row, 3, paper.publishedOn == null ? null : String.valueOf(paper.publishedOn.getYear()), styles.wrap());
             writeTextCell(row, 4, deriveDoi(paper), styles.wrap());
+            writeTextCell(row, 5, paper.recordTypeValue(), styles.wrap());
+            writeTextCell(row, 6, paper.sourceLink, styles.wrap());
 
             for (int index = 0; index < columns.size(); index++) {
                 FieldColumn column = columns.get(index);

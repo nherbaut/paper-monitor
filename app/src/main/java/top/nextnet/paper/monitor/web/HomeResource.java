@@ -27,6 +27,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.io.IOException;
 import java.io.ByteArrayOutputStream;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
@@ -1224,6 +1226,66 @@ public class HomeResource {
         return seeOther(location);
     }
 
+    @POST
+    @Path("/papers/import-url")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response importGrayLiterature(
+            @RestForm("logicalFeedId") Long logicalFeedId,
+            @RestForm("url") String url,
+            @RestForm("title") String title,
+            @RestForm("authors") String authors,
+            @RestForm("publisher") String publisher,
+            @RestForm("publishedOn") String publishedOn,
+            @RestForm("summary") String summary,
+            @RestForm("status") String status,
+            @RestForm("eligibilityExclusionCriterionId") String exclusionCriterionId,
+            @RestForm("eligibilityExclusionNotes") String exclusionNotes,
+            @RestForm("eligibilityInclusionCriterionIds") List<String> inclusionCriterionIds
+    ) {
+        LogicalFeed logicalFeed = requireLogicalFeed(logicalFeedId);
+        String sourceLink = normalizeGrayLiteratureUrl(url);
+        if (paperRepository.findByLogicalFeedAndSourceLink(logicalFeed, sourceLink).isPresent()) {
+            throw new WebApplicationException("This URL is already present in the paper feed",
+                    Response.Status.CONFLICT);
+        }
+
+        String normalizedTitle = normalize(title);
+        if (normalizedTitle == null) {
+            throw new WebApplicationException("Title is required", Response.Status.BAD_REQUEST);
+        }
+
+        WorkflowStateConfig workflow = logicalFeed.workflowConfig();
+        String normalizedStatus = normalize(status);
+        if (normalizedStatus == null) {
+            normalizedStatus = defaultGrayLiteratureStatus(workflow);
+        } else {
+            normalizedStatus = WorkflowStateConfig.normalizeStateId(normalizedStatus);
+        }
+
+        Paper paper = new Paper();
+        paper.recordType = Paper.TYPE_GRAY_LITERATURE;
+        paper.title = normalizedTitle;
+        paper.sourceLink = sourceLink;
+        paper.authors = normalize(authors);
+        paper.publisher = normalize(publisher);
+        paper.summary = normalize(summary);
+        paper.publishedOn = parseOptionalDate(publishedOn);
+        paper.status = normalizedStatus;
+        paper.discoveredAt = Instant.now();
+        paper.feed = getOrCreateGrayLiteratureFeed(logicalFeed);
+        paper.logicalFeed = logicalFeed;
+
+        validatePaperStatusAssignment(workflow, logicalFeed, paper, null, normalizedStatus,
+                exclusionCriterionId, exclusionNotes,
+                inclusionCriterionIds == null ? List.of() : inclusionCriterionIds);
+        paperRepository.persist(paper);
+        paperEventService.log(paper, "FETCH", "Imported gray literature URL " + sourceLink);
+        paperGitSyncService.syncLogicalFeed(logicalFeed);
+        return Response.status(Response.Status.CREATED).entity(JsonCodec.stringify(paperBrowserItem(paper))).build();
+    }
+
     @GET
     @Path("/papers/import-doi/preview")
     @Produces(MediaType.APPLICATION_JSON)
@@ -2252,6 +2314,69 @@ public class HomeResource {
         });
     }
 
+    private Feed getOrCreateGrayLiteratureFeed(LogicalFeed logicalFeed) {
+        String syntheticUrl = "gray-literature://logical-feed/" + logicalFeed.id;
+        return feedRepository.findByUrl(syntheticUrl).orElseGet(() -> {
+            Feed feed = new Feed();
+            feed.name = "Manual gray literature: " + logicalFeed.name;
+            feed.url = syntheticUrl;
+            feed.pollIntervalMinutes = 525600;
+            feed.logicalFeed = logicalFeed;
+            feedRepository.persist(feed);
+            return feed;
+        });
+    }
+
+    static String normalizeGrayLiteratureUrl(String value) {
+        String normalized = value == null ? null : value.trim();
+        if (normalized == null || normalized.isEmpty()) {
+            throw new WebApplicationException("URL is required", Response.Status.BAD_REQUEST);
+        }
+        try {
+            URI parsed = new URI(normalized);
+            String scheme = parsed.getScheme() == null ? null : parsed.getScheme().toLowerCase(Locale.ROOT);
+            if ((!"http".equals(scheme) && !"https".equals(scheme))
+                    || parsed.getHost() == null || parsed.getUserInfo() != null) {
+                throw new WebApplicationException("URL must be an HTTP or HTTPS URL",
+                        Response.Status.BAD_REQUEST);
+            }
+            int port = parsed.getPort();
+            if (("http".equals(scheme) && port == 80) || ("https".equals(scheme) && port == 443)) {
+                port = -1;
+            }
+            String path = parsed.getRawPath();
+            if (path == null || path.isEmpty()) {
+                path = "/";
+            }
+            return new URI(scheme, null, parsed.getHost().toLowerCase(Locale.ROOT), port,
+                    path, parsed.getRawQuery(), null).toASCIIString();
+        } catch (URISyntaxException e) {
+            throw new WebApplicationException("Invalid URL", Response.Status.BAD_REQUEST);
+        }
+    }
+
+    private String defaultGrayLiteratureStatus(WorkflowStateConfig workflow) {
+        return workflow.states().stream()
+                .filter(state -> state.report() != null
+                        && "OTHER_IDENTIFIED".equals(state.report().prismaBucket()))
+                .map(WorkflowStateConfig.State::id)
+                .findFirst()
+                .orElse(workflow.initialPaperStatus());
+    }
+
+    private LocalDate parseOptionalDate(String value) {
+        String normalized = normalize(value);
+        if (normalized == null) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(normalized);
+        } catch (java.time.format.DateTimeParseException e) {
+            throw new WebApplicationException("Published date must use YYYY-MM-DD",
+                    Response.Status.BAD_REQUEST);
+        }
+    }
+
     private LogicalFeed createQuickSetupPaperFeed(
             AppUser owner,
             String paperFeedName,
@@ -3002,6 +3127,7 @@ public class HomeResource {
         item.put("logicalFeedName", paper.logicalFeed != null ? paper.logicalFeed.name : "");
         item.put("logicalFeedId", paper.logicalFeed != null ? paper.logicalFeed.id : null);
         item.put("paperStatus", paper.status != null ? paper.status : "NEW");
+        item.put("paperRecordType", paper.recordTypeValue());
         item.put("paperTopStatus", paper.topLevelStatus());
         item.put("pdfUrl", paper.uploadedPdfPath != null ? "/papers/" + paper.id + "/pdf" : "");
         item.put("paperTitle", paper.title);

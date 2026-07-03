@@ -63,6 +63,7 @@ class PaperMarkdownFrontMatterTest {
 
         assertEquals(PaperMarkdownFrontMatter.SCHEMA, metadata.get("schema"));
         assertEquals(42L, ((Number) metadata.get("paper_id")).longValue());
+        assertEquals(Paper.TYPE_PAPER, metadata.get("record_type"));
         @SuppressWarnings("unchecked")
         var bibliography = (java.util.Map<String, Object>) metadata.get("bibliography");
         @SuppressWarnings("unchecked")

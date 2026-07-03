@@ -2115,6 +2115,38 @@
         </div>
     </dialog>
 
+    <dialog class="review-modal" id="url-import-modal">
+        <div class="review-modal-body">
+            <div class="review-modal-header">
+                <div>
+                    <h3>Import gray literature</h3>
+                    <p class="meta" id="url-import-modal-status">Add a web resource to the current paper feed.</p>
+                </div>
+                <button class="icon-button secondary" id="url-import-modal-close" type="button" title="Close">×</button>
+            </div>
+            <form class="stack" id="url-import-form">
+                <label class="meta" for="url-import-url">Source URL</label>
+                <input id="url-import-url" name="url" type="url" placeholder="https://example.org/report" required>
+                <label class="meta" for="url-import-title">Title</label>
+                <input id="url-import-title" name="title" type="text" required>
+                <label class="meta" for="url-import-authors">Authors</label>
+                <input id="url-import-authors" name="authors" type="text" placeholder="Jane Doe, John Smith">
+                <label class="meta" for="url-import-publisher">Organization or publisher</label>
+                <input id="url-import-publisher" name="publisher" type="text">
+                <label class="meta" for="url-import-published-on">Published date</label>
+                <input id="url-import-published-on" name="publishedOn" type="date">
+                <label class="meta" for="url-import-summary">Description or abstract</label>
+                <textarea id="url-import-summary" name="summary" rows="6"></textarea>
+                <label class="meta" for="url-import-status">Initial state</label>
+                <select id="url-import-status" name="status" required></select>
+                <p class="meta hidden" id="url-import-feedback"></p>
+                <div class="manual-import-actions">
+                    <button class="secondary" id="url-import-submit" type="submit">Import resource</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
     <dialog class="review-modal" id="batch-paper-modal">
         <div class="review-modal-body">
             <div class="review-modal-header">
@@ -2159,6 +2191,7 @@
                         <div class="export-menu-group">
                             <div class="export-menu-group-title">Import</div>
                             <button class="secondary" id="reader-import-doi-button" type="button">Import by DOI</button>
+                            <button class="secondary" id="reader-import-url-button" type="button">Import gray literature</button>
                         </div>
                         <div class="export-menu-group">
                             <div class="export-menu-group-title">Batch update</div>
@@ -2221,6 +2254,7 @@
                          data-logical-feed-name="{paper.logicalFeed.name}"
                          data-logical-feed-id="{paper.logicalFeed.id}"
                          data-paper-status="{paper.status ?: 'NEW'}"
+                         data-paper-record-type="{paper.recordTypeValue}"
                          data-paper-top-status="{paper.topLevelStatus}"
                          data-paper-id="{paper.id}"
                          data-pdf-url="{#if paper.uploadedPdfPath}/papers/{paper.id}/pdf{/if}"
@@ -2239,6 +2273,9 @@
                          data-paper-is-fresh="{#if paper.freshBadge}true{#else}false{/if}">
                     <div class="card-feed-row">
                         <div class="pill">{paper.logicalFeed.name}</div>
+                        {#if paper.grayLiterature}
+                        <span class="paper-status-badge">Gray literature</span>
+                        {/if}
                         {#if paper.newBadge || paper.freshBadge}
                         <div class="paper-status-badges">
                             {#if paper.newBadge}
@@ -2430,6 +2467,14 @@
     const doiImportModal = document.getElementById("doi-import-modal");
     const doiImportModalClose = document.getElementById("doi-import-modal-close");
     const doiImportModalStatus = document.getElementById("manual-import-modal-status");
+    const urlImportModal = document.getElementById("url-import-modal");
+    const urlImportModalClose = document.getElementById("url-import-modal-close");
+    const urlImportModalStatus = document.getElementById("url-import-modal-status");
+    const urlImportForm = document.getElementById("url-import-form");
+    const urlImportUrl = document.getElementById("url-import-url");
+    const urlImportStatus = document.getElementById("url-import-status");
+    const urlImportFeedback = document.getElementById("url-import-feedback");
+    const urlImportSubmit = document.getElementById("url-import-submit");
     const batchPaperModal = document.getElementById("batch-paper-modal");
     const batchPaperModalClose = document.getElementById("batch-paper-modal-close");
     const batchPaperModalStatus = document.getElementById("batch-paper-modal-status");
@@ -2459,6 +2504,7 @@
     const exportTabButton = document.getElementById("reader-export-button");
     const exportTabMenu = document.getElementById("reader-export-menu");
     const readerImportDoiButton = document.getElementById("reader-import-doi-button");
+    const readerImportUrlButton = document.getElementById("reader-import-url-button");
     const readerBatchUpdateButton = document.getElementById("reader-batch-update-button");
     const readerDiagramButton = document.getElementById("reader-diagram-button");
     const readerPublicUrlButton = document.getElementById("reader-public-url-button");
@@ -3963,6 +4009,52 @@
         }, 0);
     };
 
+    const setUrlImportFeedback = (message, error = false) => {
+        if (!urlImportFeedback) {
+            return;
+        }
+        urlImportFeedback.textContent = message || "";
+        urlImportFeedback.classList.toggle("hidden", !message);
+        urlImportFeedback.classList.toggle("error", error);
+    };
+
+    const closeUrlImportModal = () => {
+        if (typeof urlImportModal?.close === "function") {
+            urlImportModal.close();
+        } else {
+            urlImportModal?.removeAttribute("open");
+        }
+    };
+
+    const openUrlImportModal = () => {
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        const config = workflowConfigForLogicalFeed(logicalFeedId);
+        if (!urlImportModal || !logicalFeedId || !Array.isArray(config?.states)) {
+            window.alert("Select a paper feed before importing gray literature.");
+            return;
+        }
+        urlImportForm?.reset();
+        urlImportStatus.replaceChildren();
+        config.states.forEach((state) => {
+            const option = document.createElement("option");
+            option.value = state.id;
+            option.textContent = state.label || state.id;
+            if (state?.report?.prismaBucket === "OTHER_IDENTIFIED") {
+                option.selected = true;
+            }
+            urlImportStatus.append(option);
+        });
+        setUrlImportFeedback("");
+        const feedName = logicalFeedFilter.selectedOptions?.[0]?.dataset?.feedName || "the current paper feed";
+        urlImportModalStatus.textContent = "Add a web resource to " + feedName + ".";
+        if (typeof urlImportModal.showModal === "function") {
+            urlImportModal.showModal();
+        } else {
+            urlImportModal.setAttribute("open", "open");
+        }
+        window.setTimeout(() => urlImportUrl?.focus(), 0);
+    };
+
     const setBatchPaperFeedback = (message, isError = false) => {
         if (!batchPaperFormFeedback) {
             return;
@@ -4585,7 +4677,8 @@
             return;
         }
         classificationSurface.classList.remove("empty");
-        classificationKicker.textContent = statusLabel(normalizeStatus(card.dataset.paperStatus));
+        classificationKicker.textContent = statusLabel(normalizeStatus(card.dataset.paperStatus))
+            + (card.dataset.paperRecordType === "GRAY_LITERATURE" ? " · Gray literature" : "");
         classificationTitle.textContent = card.dataset.paperTitle || "Untitled paper";
         classificationMeta.textContent = "";
         [
@@ -4986,6 +5079,7 @@
         article.dataset.logicalFeedName = record.logicalFeedName || "";
         article.dataset.logicalFeedId = record.logicalFeedId == null ? "" : String(record.logicalFeedId);
         article.dataset.paperStatus = record.paperStatus || "NEW";
+        article.dataset.paperRecordType = record.paperRecordType || "PAPER";
         article.dataset.paperTopStatus = record.paperTopStatus || normalizeStatus(record.paperStatus);
         article.dataset.paperId = String(record.id);
         article.dataset.pdfUrl = record.pdfUrl || "";
@@ -5005,6 +5099,9 @@
         article.innerHTML =
             '<div class="card-feed-row">'
                 + '<div class="pill">' + escapeHtml(record.logicalFeedName || "") + '</div>'
+                + (record.paperRecordType === "GRAY_LITERATURE"
+                    ? '<span class="paper-status-badge">Gray literature</span>'
+                    : '')
                 + ((record.paperIsNew || record.paperIsFresh)
                     ? '<div class="paper-status-badges">'
                         + (record.paperIsNew ? '<span class="paper-status-badge new-badge">New</span>' : '')
@@ -7146,6 +7243,10 @@
         exportTabMenu.open = false;
         openDoiImportModal();
     });
+    readerImportUrlButton?.addEventListener("click", () => {
+        exportTabMenu.open = false;
+        openUrlImportModal();
+    });
     readerBatchUpdateButton?.addEventListener("click", () => {
         exportTabMenu.open = false;
         openBatchPaperModal();
@@ -7198,6 +7299,51 @@
     doiImportModal?.addEventListener("click", (event) => {
         if (event.target === doiImportModal) {
             closeDoiImportModal();
+        }
+    });
+    urlImportModalClose?.addEventListener("click", closeUrlImportModal);
+    urlImportModal?.addEventListener("click", (event) => {
+        if (event.target === urlImportModal) {
+            closeUrlImportModal();
+        }
+    });
+    urlImportForm?.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        const status = urlImportStatus?.value || "";
+        const requirementParams = collectStateRequirementParams(logicalFeedId, status);
+        if (!requirementParams) {
+            return;
+        }
+        const params = new URLSearchParams(new FormData(urlImportForm));
+        params.set("logicalFeedId", logicalFeedId);
+        requirementParams.forEach((value, key) => {
+            if (key !== "status") {
+                params.append(key, value);
+            }
+        });
+        urlImportSubmit.disabled = true;
+        setUrlImportFeedback("Importing...");
+        try {
+            const response = await fetch("/papers/import-url", {
+                method: "POST",
+                headers: {
+                    "Accept": "application/json",
+                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+                },
+                body: params
+            });
+            const body = await response.text();
+            if (!response.ok) {
+                throw new Error(body || "Failed to import the resource.");
+            }
+            paperRecords.push(JSON.parse(body));
+            closeUrlImportModal();
+            applyLogicalFeedFilter();
+        } catch (error) {
+            setUrlImportFeedback(error.message || "Failed to import the resource.", true);
+        } finally {
+            urlImportSubmit.disabled = false;
         }
     });
     batchPaperModalClose?.addEventListener("click", closeBatchPaperModal);

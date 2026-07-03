@@ -237,6 +237,7 @@ public class ReviewService {
     public Map<String, Object> paperSnapshot(Paper paper) {
         Map<String, Object> snapshot = new LinkedHashMap<>();
         snapshot.put("id", String.valueOf(paper.id));
+        snapshot.put("record_type", paper.recordTypeValue());
         snapshot.put("title", paper.title);
         snapshot.put("authors", authorsList(paper.authors));
         snapshot.put("abstract", paper.summary);
