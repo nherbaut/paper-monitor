@@ -245,6 +245,8 @@ public class BackupService {
             item.put("githubSyncUserId", logicalFeed.githubSyncUser == null ? null : logicalFeed.githubSyncUser.id);
             item.put("publicReadable", logicalFeed.publicReadable);
             item.put("notifyOnNewRssPapers", logicalFeed.notifyOnNewRssPapers);
+            item.put("lastRssDigestSentAt", logicalFeed.lastRssDigestSentAt == null
+                    ? null : logicalFeed.lastRssDigestSentAt.toString());
             item.put("archived", logicalFeed.archived);
             item.put("publicShareToken", logicalFeed.publicShareToken);
             item.put("ownerId", logicalFeed.owner == null ? null : logicalFeed.owner.id);
@@ -412,6 +414,10 @@ public class BackupService {
             logicalFeed.notifyOnNewRssPapers = item.containsKey("notifyOnNewRssPapers")
                     ? boolValue(item.get("notifyOnNewRssPapers"))
                     : true;
+            logicalFeed.lastRssDigestSentAt = item.containsKey("lastRssDigestSentAt")
+                    && item.get("lastRssDigestSentAt") != null
+                    ? instantValue(item.get("lastRssDigestSentAt"))
+                    : Instant.now();
             logicalFeed.archived = item.containsKey("archived") && boolValue(item.get("archived"));
             logicalFeed.publicShareToken = stringValue(item.get("publicShareToken"));
             logicalFeed.owner = usersByOldId.get(longValue(item.get("ownerId")));

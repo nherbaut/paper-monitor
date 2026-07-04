@@ -25,6 +25,13 @@ public class LogicalFeedRepository implements PanacheRepository<LogicalFeed> {
         return count("publicReadable", true) > 0;
     }
 
+    public List<Long> findActiveIds() {
+        return getEntityManager()
+                .createQuery("select logicalFeed.id from LogicalFeed logicalFeed where logicalFeed.archived = false",
+                        Long.class)
+                .getResultList();
+    }
+
     public java.util.Optional<LogicalFeed> findByPublicShareToken(String token) {
         return find("publicShareToken", token).firstResultOptional();
     }

@@ -72,6 +72,8 @@ public class LogicalFeed extends PanacheEntityBase {
     @Column(nullable = false, columnDefinition = "boolean default true")
     public boolean notifyOnNewRssPapers = true;
 
+    public Instant lastRssDigestSentAt = Instant.now();
+
     @Column(nullable = false, columnDefinition = "boolean default false")
     public boolean archived;
 

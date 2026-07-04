@@ -520,7 +520,7 @@
                 </div>
             </div>
             <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
-            <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Email owner and feed admins when RSS adds papers to the default state</label>
+            <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Send owner and feed admins a daily RSS paper digest</label>
             <button type="submit">Create paper feed and RSS feed</button>
         </form>
     </section>
@@ -545,7 +545,7 @@
                         <textarea name="eligibilityExclusionTaxonomy" placeholder="Optional eligibility exclusion taxonomy YAML"></textarea>
                         <textarea name="eligibilityInclusionTaxonomy" placeholder="Optional eligibility inclusion taxonomy YAML"></textarea>
                         <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
-                        <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Email owner and feed admins when RSS adds papers to the default state</label>
+                        <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Send owner and feed admins a daily RSS paper digest</label>
                         <button type="submit">Create paper feed</button>
                     </form>
                 </div>
@@ -591,7 +591,7 @@
                             <textarea name="eligibilityExclusionTaxonomy" placeholder="Optional eligibility exclusion taxonomy YAML">{logicalFeed.eligibilityExclusionTaxonomy}</textarea>
                             <textarea name="eligibilityInclusionTaxonomy" placeholder="Optional eligibility inclusion taxonomy YAML">{logicalFeed.eligibilityInclusionTaxonomy}</textarea>
                             <label><input type="checkbox" name="publicReadable" {#if logicalFeed.publicReadable}checked{/if}> Public read-only feed</label>
-                            <label><input type="checkbox" name="notifyOnNewRssPapers" {#if logicalFeed.notifyOnNewRssPapers}checked{/if}> Email owner and feed admins when RSS adds papers to the default state</label>
+                            <label><input type="checkbox" name="notifyOnNewRssPapers" {#if logicalFeed.notifyOnNewRssPapers}checked{/if}> Send owner and feed admins a daily RSS paper digest</label>
                             <button type="submit">Save paper feed</button>
                         </form>
                         <form action="/logical-feeds/{logicalFeed.id}/share" method="post">
