@@ -206,6 +206,18 @@ public final class WorkflowStateConfig {
         return transitionTargetsBySource.getOrDefault(normalizedFrom, List.of()).contains(normalizedTo);
     }
 
+    public List<String> transitionTargets(String from) {
+        String normalizedFrom = normalizeStateId(from);
+        if (normalizedFrom == null) {
+            return List.of();
+        }
+        return transitionTargetsBySource.getOrDefault(normalizedFrom, List.of());
+    }
+
+    public State state(String state) {
+        return statesById.get(normalizeStateId(state));
+    }
+
     public Requirements requirementsFor(String state) {
         State workflowState = statesById.get(normalizeStateId(state));
         return workflowState == null ? Requirements.none() : workflowState.requirements();

@@ -1886,6 +1886,49 @@ public class HomeResource {
         return Response.noContent().build();
     }
 
+    @GET
+    @Path("/papers/{id}/transition")
+    @Transactional
+    public Response transitionPaperFromEmail(
+            @jakarta.ws.rs.PathParam("id") Long id,
+            @QueryParam("status") String status
+    ) {
+        Paper paper = paperRepository.findById(id);
+        if (paper == null) {
+            throw new NotFoundException();
+        }
+        String fallback = "/?paperId=" + paper.id + "&logicalFeedId=" + paper.logicalFeed.id;
+        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
+        }
+        try {
+            String normalizedStatus = normalizePaperStatus(status);
+            LogicalFeed logicalFeed = logicalFeedRepository.findById(paper.logicalFeed.id);
+            WorkflowStateConfig workflow = workflowConfig(logicalFeed);
+            String previousStatus = paper.status;
+            if (normalizedStatus.equals(previousStatus)) {
+                return seeOther(fallback + "&info=" + urlEncode("Paper already in " + stateLabel(workflow, normalizedStatus) + "."));
+            }
+            validatePaperStatusTransition(
+                    workflow,
+                    logicalFeed,
+                    paper,
+                    previousStatus,
+                    normalizedStatus,
+                    null,
+                    null,
+                    List.of());
+            paper.status = normalizedStatus;
+            paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
+            paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
+            return seeOther(fallback + "&info=" + urlEncode("Moved paper to " + stateLabel(workflow, normalizedStatus) + "."));
+        } catch (WebApplicationException e) {
+            return seeOther(fallback + "&error=" + urlEncode("Could not change state: " + safeMessage(e)));
+        } catch (RuntimeException e) {
+            return seeOther(fallback + "&error=" + urlEncode("Could not change state."));
+        }
+    }
+
     @POST
     @Path("/papers/batch")
     @Transactional
@@ -3113,11 +3156,24 @@ public class HomeResource {
         }
     }
 
+    private String stateLabel(WorkflowStateConfig workflow, String stateId) {
+        WorkflowStateConfig.State state = workflow == null ? null : workflow.state(stateId);
+        return state == null ? humanizeWorkflowToken(stateId) : state.label();
+    }
+
+    private String safeMessage(WebApplicationException exception) {
+        if (exception == null || exception.getMessage() == null || exception.getMessage().isBlank()) {
+            return "transition not allowed";
+        }
+        return exception.getMessage();
+    }
+
     private String humanizeWorkflowToken(String value) {
         if (value == null || value.isBlank()) {
             return "";
         }
-        String normalized = value.replace('_', ' ').toLowerCase(Locale.ROOT);
+        String leaf = value.contains("/") ? value.substring(value.lastIndexOf('/') + 1) : value;
+        String normalized = leaf.replace('_', ' ').toLowerCase(Locale.ROOT);
         return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
     }
 

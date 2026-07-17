@@ -4,9 +4,12 @@ import io.quarkus.logging.Log;
 import io.quarkus.mailer.Mail;
 import io.quarkus.mailer.Mailer;
 import jakarta.enterprise.context.ApplicationScoped;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.net.URI;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -24,13 +27,16 @@ public class NotificationService {
 
     private final Mailer mailer;
     private final String fromAddress;
+    private final String baseUrl;
 
     public NotificationService(
             Mailer mailer,
-            @ConfigProperty(name = "paper-monitor.mail.from", defaultValue = "no-reply@paper-monitor.local") String fromAddress
+            @ConfigProperty(name = "paper-monitor.mail.from", defaultValue = "no-reply@paper-monitor.local") String fromAddress,
+            @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl
     ) {
         this.mailer = mailer;
         this.fromAddress = fromAddress;
+        this.baseUrl = normalizeBaseUrl(baseUrl);
     }
 
     public void sendUserAccountNotification(AppUser target, String subject, String body) {
@@ -98,13 +104,17 @@ public class NotificationService {
             return;
         }
 
-        RenderedDigest digest = renderRssDigest(logicalFeed, papers, digestDate);
+        RenderedDigest digest = renderRssDigest(logicalFeed, papers, digestDate, baseUrl);
         for (String recipient : recipients) {
             sendMultipart(recipient, digest.subject(), digest.text(), digest.html());
         }
     }
 
     static RenderedDigest renderRssDigest(LogicalFeed logicalFeed, List<Paper> papers, LocalDate digestDate) {
+        return renderRssDigest(logicalFeed, papers, digestDate, null);
+    }
+
+    static RenderedDigest renderRssDigest(LogicalFeed logicalFeed, List<Paper> papers, LocalDate digestDate, String baseUrl) {
         int count = papers.size();
         String paperWord = count == 1 ? "paper" : "papers";
         String feedName = safe(logicalFeed == null ? null : logicalFeed.name);
@@ -128,8 +138,9 @@ public class NotificationService {
             sections.append("<h2 style=\"margin:28px 0 14px;font-size:14px;letter-spacing:.04em;color:#39705f\">")
                     .append(escapeHtml(entry.getKey())).append("</h2>");
             for (Paper paper : entry.getValue()) {
-                appendTextPaper(text, paper);
-                appendHtmlPaper(sections, paper);
+                List<TransitionAction> actions = transitionActions(logicalFeed, paper, baseUrl);
+                appendTextPaper(text, paper, actions);
+                appendHtmlPaper(sections, paper, actions);
             }
         }
 
@@ -148,7 +159,7 @@ public class NotificationService {
         return new RenderedDigest(subject, text.toString(), html);
     }
 
-    private static void appendTextPaper(StringBuilder text, Paper paper) {
+    private static void appendTextPaper(StringBuilder text, Paper paper, List<TransitionAction> actions) {
         text.append("\n- ").append(safe(paper.title))
                 .append("\n  Status: ").append(safe(paper.status))
                 .append("\n  Authors: ").append(safe(paper.authors))
@@ -158,10 +169,16 @@ public class NotificationService {
         if (safeHttpUrl(paper.openAccessLink) != null) {
             text.append("\n  Open access: ").append(paper.openAccessLink.trim());
         }
+        if (!actions.isEmpty()) {
+            text.append("\n  Change state:");
+            for (TransitionAction action : actions) {
+                text.append("\n    - ").append(action.label()).append(": ").append(action.url());
+            }
+        }
         text.append("\n");
     }
 
-    private static void appendHtmlPaper(StringBuilder html, Paper paper) {
+    private static void appendHtmlPaper(StringBuilder html, Paper paper, List<TransitionAction> actions) {
         String sourceUrl = safeHttpUrl(paper.sourceLink);
         String openAccessUrl = safeHttpUrl(paper.openAccessLink);
         String title = escapeHtml(safe(paper.title));
@@ -180,7 +197,43 @@ public class NotificationService {
             html.append("<p style=\"margin:10px 0 0\"><a href=\"").append(escapeHtml(openAccessUrl))
                     .append("\" style=\"color:#39705f;font-size:13px\">Open-access copy</a></p>");
         }
+        if (!actions.isEmpty()) {
+            html.append("<div style=\"margin:14px 0 0\">")
+                    .append("<div style=\"font-size:11px;font-weight:bold;letter-spacing:.04em;text-transform:uppercase;color:#78847f;margin:0 0 8px\">Change state</div>");
+            for (TransitionAction action : actions) {
+                html.append("<a href=\"").append(escapeHtml(action.url()))
+                        .append("\" style=\"display:inline-block;margin:0 8px 8px 0;padding:8px 11px;border-radius:999px;")
+                        .append("background:#173f35;color:#ffffff;text-decoration:none;font-size:12px;font-weight:bold\">")
+                        .append(escapeHtml(action.label())).append("</a>");
+            }
+            html.append("</div>");
+        }
         html.append("</article>");
+    }
+
+    private static List<TransitionAction> transitionActions(LogicalFeed logicalFeed, Paper paper, String baseUrl) {
+        if (logicalFeed == null || paper == null || paper.id == null || baseUrl == null || baseUrl.isBlank()) {
+            return List.of();
+        }
+        WorkflowStateConfig workflow;
+        try {
+            workflow = logicalFeed.workflowConfig();
+        } catch (IllegalArgumentException e) {
+            return List.of();
+        }
+        List<TransitionAction> actions = new ArrayList<>();
+        for (String target : workflow.transitionTargets(paper.status)) {
+            WorkflowStateConfig.Requirements requirements = workflow.requirementsFor(target);
+            if (requirements.exclusionCriterion() != null || requirements.inclusionCriteria() != null) {
+                continue;
+            }
+            WorkflowStateConfig.State state = workflow.state(target);
+            String label = state == null ? target : state.label();
+            String url = normalizeBaseUrl(baseUrl) + "/papers/" + paper.id + "/transition?status="
+                    + URLEncoder.encode(target, StandardCharsets.UTF_8);
+            actions.add(new TransitionAction(target, label, url));
+        }
+        return actions;
     }
 
     private void sendText(String to, String subject, String body) {
@@ -230,6 +283,11 @@ public class NotificationService {
         }
     }
 
+    private static String normalizeBaseUrl(String value) {
+        String normalized = value == null || value.isBlank() ? "http://localhost:8080" : value.trim();
+        return normalized.endsWith("/") ? normalized.substring(0, normalized.length() - 1) : normalized;
+    }
+
     private static String escapeHtml(String value) {
         return value.replace("&", "&amp;")
                 .replace("<", "&lt;")
@@ -239,5 +297,8 @@ public class NotificationService {
     }
 
     record RenderedDigest(String subject, String text, String html) {
+    }
+
+    record TransitionAction(String status, String label, String url) {
     }
 }
