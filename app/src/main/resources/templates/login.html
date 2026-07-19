@@ -80,6 +80,17 @@
             text-transform: uppercase;
             letter-spacing: 0.08em;
         }
+        .privacy-policy {
+            margin-top: 1rem;
+            font-size: 0.95rem;
+        }
+        .privacy-policy h2 {
+            margin: 0 0 0.5rem;
+            font-size: 1.05rem;
+        }
+        .privacy-policy p {
+            margin: 0.55rem 0;
+        }
     </style>
 </head>
 <body>
@@ -128,6 +139,13 @@
             <button class="secondary" type="submit">Create account</button>
         </form>
         {/if}
+    </section>
+    <section class="panel privacy-policy" aria-labelledby="privacy-title">
+        <h2 id="privacy-title">Privacy Policy</h2>
+        <p class="meta">Paper Monitor collects and stores only the information needed to provide the service, such as account details, authentication state, paper feeds, PDFs, notes, settings, and activity required to operate your enabled features.</p>
+        <p class="meta">When you connect external services such as Google Drive, GitHub, or an OIDC provider, Paper Monitor uses that access only to perform the feature you enabled, such as sign-in, repository export, or PDF sync.</p>
+        <p class="meta">We do not sell your data. We do not share your data with anyone except where required to operate the service or complete an integration you explicitly use.</p>
+        <p class="meta">You can contact the service administrator to request access to, correction of, or deletion of your account data.</p>
     </section>
 </main>
 </body>

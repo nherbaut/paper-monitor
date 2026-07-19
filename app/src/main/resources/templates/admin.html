@@ -470,6 +470,7 @@
             <button class="settings-nav-button" data-settings-target="rss" type="button">RSS Feed Management</button>
             <button class="settings-nav-button" data-settings-target="tts" type="button">TTS Management</button>
             <button class="settings-nav-button" data-settings-target="pde" type="button">PDE Settings</button>
+            <button class="settings-nav-button" data-settings-target="google-drive" type="button">Google Drive</button>
             <button class="settings-nav-button" data-settings-target="users" type="button">User Management</button>
             <button class="settings-nav-button" data-settings-target="backup" type="button">Backup</button>
             <a class="settings-nav-button settings-nav-link" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Survey Design (PDE)</a>
@@ -831,6 +832,75 @@
                         <button class="secondary" type="submit">Remove personal OpenAI key</button>
                     </form>
                     {/if}
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="settings-panel hidden" data-settings-panel="google-drive">
+        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M3.1 11.5 5.8 7h4.4l2.7 4.5H8.5l-1 1.7H4.1l-1-1.7Zm.6-.9L6.2 6.2 4.4 3.1 1 8.9l1 1.7h1.7Zm8.6 0h1.7l1-1.7-3.4-5.8H8l2.5 4.3 1.8 3.2ZM5.4 3.1 7.2 6.2h1.6L7 3.1H5.4Z"/></svg></span><span>Google Drive</span></h2>
+        <p class="meta">Copy hosted PDFs into a folder in your own Google Drive account.</p>
+        <div class="stack-layout">
+            <div class="management-card">
+                <div class="management-card-body">
+                    <div class="management-card-header">
+                        <strong>Connection</strong>
+                        <span class="meta">Google Drive sync is personal to your account.</span>
+                    </div>
+                    <div class="status-row">
+                        <span class="status-badge {#if ttsSettings.hasGoogleDriveConnection}good{#else}warn{/if}">
+                            {#if ttsSettings.hasGoogleDriveConnection}Connected{#else}Not connected{/if}
+                        </span>
+                        {#if ttsSettings.googleDriveEmail}
+                        <span class="status-badge">{ttsSettings.googleDriveEmail}</span>
+                        {/if}
+                        <span class="status-badge {#if googleDriveEnabled}good{#else}warn{/if}">
+                            {#if googleDriveEnabled}Server configured{#else}Server not configured{/if}
+                        </span>
+                    </div>
+                    {#if googleDriveEnabled}
+                    <a class="open-link" href="/auth/google-drive/start?returnTo=/admin">Connect Google Drive</a>
+                    {#if ttsSettings.hasGoogleDriveConnection}
+                    <form action="/admin/google-drive/disconnect" method="post">
+                        <button class="secondary" type="submit">Disconnect Google Drive</button>
+                    </form>
+                    {/if}
+                    {#else}
+                    <p class="meta">Set Google OAuth client configuration on the server to enable this feature.</p>
+                    {/if}
+                </div>
+            </div>
+            <div class="management-card">
+                <div class="management-card-body">
+                    <div class="management-card-header">
+                        <strong>Destination folder</strong>
+                        <span class="meta">Paste a Google Drive folder URL or folder ID.</span>
+                    </div>
+                    <form action="/admin/google-drive" method="post">
+                        <input type="text" name="folder" value="{ttsSettings.googleDriveFolderId ?: ''}" placeholder="https://drive.google.com/drive/folders/...">
+                        <label class="checkbox-row">
+                            <input type="checkbox" name="enabled" {#if ttsSettings.googleDriveSyncEnabled}checked{/if}>
+                            <span>Sync new hosted PDFs to this folder</span>
+                        </label>
+                        <button type="submit">Save Google Drive settings</button>
+                    </form>
+                    <div class="status-row">
+                        <span class="status-badge {#if ttsSettings.googleDriveReady}good{#else}warn{/if}">
+                            {#if ttsSettings.googleDriveReady}Ready{#else}Not ready{/if}
+                        </span>
+                        {#if ttsSettings.googleDriveFolderName}
+                        <span class="status-badge">Folder: {ttsSettings.googleDriveFolderName}</span>
+                        {/if}
+                    </div>
+                    {#if ttsSettings.googleDriveLastSyncError}
+                    <p class="meta">Last sync error: {ttsSettings.googleDriveLastSyncError}</p>
+                    {/if}
+                    {#if ttsSettings.googleDriveLastSyncAt}
+                    <p class="meta">Last synced: {ttsSettings.googleDriveLastSyncAt}</p>
+                    {/if}
+                    <form action="/admin/google-drive/backfill" method="post">
+                        <button class="secondary" type="submit" {#if !ttsSettings.googleDriveReady}disabled{/if}>Backfill existing PDFs</button>
+                    </form>
                 </div>
             </div>
         </div>

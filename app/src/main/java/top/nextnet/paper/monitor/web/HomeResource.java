@@ -70,6 +70,8 @@ import top.nextnet.paper.monitor.service.EmailDomainPolicyService;
 import top.nextnet.paper.monitor.service.FeedPollingService;
 import top.nextnet.paper.monitor.service.GithubAuthService;
 import top.nextnet.paper.monitor.service.GithubRepositoryService;
+import top.nextnet.paper.monitor.service.GoogleDriveAuthService;
+import top.nextnet.paper.monitor.service.GoogleDriveSyncService;
 import top.nextnet.paper.monitor.service.JsonCodec;
 import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
 import top.nextnet.paper.monitor.service.MarkdownConversionService;
@@ -113,6 +115,8 @@ public class HomeResource {
     private final OidcService oidcService;
     private final GithubAuthService githubAuthService;
     private final GithubRepositoryService githubRepositoryService;
+    private final GoogleDriveAuthService googleDriveAuthService;
+    private final GoogleDriveSyncService googleDriveSyncService;
     private final LogicalFeedAccessService logicalFeedAccessService;
     private final MarkdownConversionService markdownConversionService;
     private final NotificationService notificationService;
@@ -149,6 +153,8 @@ public class HomeResource {
             OidcService oidcService,
             GithubAuthService githubAuthService,
             GithubRepositoryService githubRepositoryService,
+            GoogleDriveAuthService googleDriveAuthService,
+            GoogleDriveSyncService googleDriveSyncService,
             LogicalFeedAccessService logicalFeedAccessService,
             MarkdownConversionService markdownConversionService,
             ReviewService reviewService,
@@ -184,6 +190,8 @@ public class HomeResource {
         this.oidcService = oidcService;
         this.githubAuthService = githubAuthService;
         this.githubRepositoryService = githubRepositoryService;
+        this.googleDriveAuthService = googleDriveAuthService;
+        this.googleDriveSyncService = googleDriveSyncService;
         this.logicalFeedAccessService = logicalFeedAccessService;
         this.markdownConversionService = markdownConversionService;
         this.reviewService = reviewService;
@@ -403,6 +411,41 @@ public class HomeResource {
                     .type(MediaType.TEXT_PLAIN)
                     .entity(e.getMessage())
                     .build();
+        }
+    }
+
+    @GET
+    @Path("/auth/google-drive/start")
+    @Transactional
+    public Response startGoogleDriveConnection(@QueryParam("returnTo") String returnTo) {
+        requireCurrentUser();
+        try {
+            return Response.status(Response.Status.SEE_OTHER)
+                    .header(HttpHeaders.LOCATION, googleDriveAuthService.startConnection(returnTo).toString())
+                    .build();
+        } catch (IOException e) {
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#google-drive");
+        }
+    }
+
+    @GET
+    @Path("/auth/google-drive/callback")
+    @Transactional
+    public Response finishGoogleDriveConnection(
+            @QueryParam("state") String state,
+            @QueryParam("code") String code,
+            @QueryParam("error") String error
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        if (error != null && !error.isBlank()) {
+            return seeOther("/admin?error=" + urlEncode("Google Drive connection failed: " + error) + "#google-drive");
+        }
+        try {
+            GoogleDriveAuthService.GoogleDriveConnectionResult result =
+                    googleDriveAuthService.finishConnection(currentUser, state, code);
+            return seeOther("/admin?info=" + urlEncode("Google Drive connected") + "#google-drive");
+        } catch (IOException | IllegalArgumentException e) {
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#google-drive");
         }
     }
 
@@ -700,6 +743,7 @@ public class HomeResource {
                 .data("userManagementUsers", userManagementUsers)
                 .data("oidcEnabled", oidcService.isEnabled())
                 .data("githubEnabled", githubAuthService.isEnabled())
+                .data("googleDriveEnabled", googleDriveAuthService.isEnabled())
                 .data("infoMessage", normalize(info))
                 .data("errorMessage", normalize(error));
     }
@@ -874,6 +918,47 @@ public class HomeResource {
         AppUser currentUser = requireCurrentUser();
         authService.clearOwnPdeOpenAiKey(currentUser);
         return seeOther("/admin?info=" + urlEncode("Personal OpenAI key removed") + "#pde");
+    }
+
+    @POST
+    @Path("/admin/google-drive")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response updateGoogleDriveSettings(
+            @RestForm("folder") String folder,
+            @RestForm("enabled") String enabled
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        try {
+            googleDriveSyncService.updateSettings(currentUser, folder, isChecked(enabled));
+            return seeOther("/admin?info=" + urlEncode("Google Drive settings updated") + "#google-drive");
+        } catch (IllegalArgumentException | IOException e) {
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#google-drive");
+        }
+    }
+
+    @POST
+    @Path("/admin/google-drive/disconnect")
+    @Transactional
+    public Response disconnectGoogleDrive() {
+        googleDriveAuthService.disconnect(requireCurrentUser());
+        return seeOther("/admin?info=" + urlEncode("Google Drive disconnected") + "#google-drive");
+    }
+
+    @POST
+    @Path("/admin/google-drive/backfill")
+    @Transactional
+    public Response backfillGoogleDrive() {
+        AppUser currentUser = requireCurrentUser();
+        List<LogicalFeed> adminLogicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser).stream()
+                .filter(logicalFeed -> logicalFeedAccessService.canAdmin(logicalFeed, currentUser))
+                .toList();
+        GoogleDriveSyncService.BackfillResult result = googleDriveSyncService.backfill(currentUser, adminLogicalFeeds);
+        String message = "Google Drive backfill synced " + result.synced() + " PDF(s)";
+        if (result.failed() > 0) {
+            message += " and failed " + result.failed() + " PDF(s)";
+        }
+        return seeOther("/admin?info=" + urlEncode(message) + "#google-drive");
     }
 
     @POST
@@ -1179,6 +1264,7 @@ public class HomeResource {
             @RestForm("doi") String doi,
             @RestForm("pdf") FileUpload pdf
     ) {
+        AppUser currentUser = requireCurrentUser();
         LogicalFeed logicalFeed = requireLogicalFeed(logicalFeedId);
         List<String> normalizedDois = normalizeDoiInputs(doi);
         if (normalizedDois.size() > 1 && pdf != null && pdf.fileName() != null && !pdf.fileName().isBlank()) {
@@ -1210,6 +1296,9 @@ public class HomeResource {
         }
         if (!importedPapers.isEmpty()) {
             paperGitSyncService.syncLogicalFeed(logicalFeed);
+            importedPapers.stream()
+                    .filter(paper -> paper.uploadedPdfPath != null && !paper.uploadedPdfPath.isBlank())
+                    .forEach(paper -> googleDriveSyncService.syncPaperForUser(currentUser, paper));
         }
 
         String location = singleDoiRedirect(logicalFeed.id, normalizedDois.size() == 1
@@ -1611,6 +1700,7 @@ public class HomeResource {
             @RestForm("summary") String summary,
             @RestForm("sourceLink") String sourceLink
     ) {
+        AppUser currentUser = requireCurrentUser();
         LogicalFeed logicalFeed = requireLogicalFeed(logicalFeedId);
         PaperStorageService.StoredPdf storedPdf;
         try {
@@ -1643,6 +1733,7 @@ public class HomeResource {
         paperRepository.persist(paper);
         paperEventService.log(paper, "PDF_UPLOADED", "Uploaded from admin");
         paperGitSyncService.syncLogicalFeed(logicalFeed);
+        googleDriveSyncService.syncPaperForUser(currentUser, paper);
         return seeOther("/admin");
     }
 
@@ -1711,6 +1802,7 @@ public class HomeResource {
         paper.uploadedPdfFileName = storedPdf.originalFileName();
         paperEventService.log(paper, "PDF_UPLOADED", "Attached PDF " + storedPdf.originalFileName());
         paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
+        googleDriveSyncService.syncPaperForUser(requireCurrentUser(), paper);
         return Response.noContent().build();
     }
 
@@ -1722,7 +1814,8 @@ public class HomeResource {
         if (paper == null) {
             throw new NotFoundException();
         }
-        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+        AppUser currentUser = requireCurrentUser();
+        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, currentUser)) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
         try {
@@ -1732,6 +1825,7 @@ public class HomeResource {
             paper.uploadedPdfFileName = importedPdf.storedPdf().originalFileName();
             paperEventService.log(paper, "PDF_UPLOADED", "Imported PDF from " + importedPdf.sourceUrl());
             paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
+            googleDriveSyncService.syncPaperForUser(currentUser, paper);
             return Response.noContent().build();
         } catch (IllegalArgumentException e) {
             throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);

@@ -31,6 +31,7 @@ import top.nextnet.paper.monitor.model.PdfCapture;
 import top.nextnet.paper.monitor.repo.PaperRepository;
 import top.nextnet.paper.monitor.repo.PdfCaptureRepository;
 import top.nextnet.paper.monitor.service.CurrentUserContext;
+import top.nextnet.paper.monitor.service.GoogleDriveSyncService;
 import top.nextnet.paper.monitor.service.JsonCodec;
 import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
 import top.nextnet.paper.monitor.service.PaperEventService;
@@ -51,6 +52,7 @@ public class PdfCaptureResource {
     private final PaperStorageService paperStorageService;
     private final PaperEventService paperEventService;
     private final PaperGitSyncService paperGitSyncService;
+    private final GoogleDriveSyncService googleDriveSyncService;
 
     public PdfCaptureResource(
             CurrentUserContext currentUserContext,
@@ -59,7 +61,8 @@ public class PdfCaptureResource {
             PdfCaptureRepository pdfCaptureRepository,
             PaperStorageService paperStorageService,
             PaperEventService paperEventService,
-            PaperGitSyncService paperGitSyncService
+            PaperGitSyncService paperGitSyncService,
+            GoogleDriveSyncService googleDriveSyncService
     ) {
         this.currentUserContext = currentUserContext;
         this.logicalFeedAccessService = logicalFeedAccessService;
@@ -68,6 +71,7 @@ public class PdfCaptureResource {
         this.paperStorageService = paperStorageService;
         this.paperEventService = paperEventService;
         this.paperGitSyncService = paperGitSyncService;
+        this.googleDriveSyncService = googleDriveSyncService;
     }
 
     @POST
@@ -176,6 +180,7 @@ public class PdfCaptureResource {
             capture.error = "Previous PDF could not be removed";
         }
         paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
+        googleDriveSyncService.syncPaperForUser(capture.createdBy, paper);
 
         Map<String, Object> payload = statusPayload(capture);
         payload.put("pdfUrl", "/papers/" + paper.id + "/pdf");

@@ -32,6 +32,31 @@ public class UserSettings extends PanacheEntityBase {
 
     public Instant githubAccessTokenUpdatedAt;
 
+    @Column(length = 2048)
+    public String googleDriveRefreshToken;
+
+    public Instant googleDriveConnectedAt;
+
+    @Column(length = 255)
+    public String googleDriveEmail;
+
+    @Column(length = 255)
+    public String googleDriveDisplayName;
+
+    @Column(length = 255)
+    public String googleDriveFolderId;
+
+    @Column(length = 1000)
+    public String googleDriveFolderName;
+
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    public boolean googleDriveSyncEnabled;
+
+    public Instant googleDriveLastSyncAt;
+
+    @Column(length = 2000)
+    public String googleDriveLastSyncError;
+
     @Column(length = 512)
     public String pdeOpenAiApiKey;
 
@@ -64,6 +89,18 @@ public class UserSettings extends PanacheEntityBase {
 
     public boolean hasGithubAccessToken() {
         return githubAccessToken != null && !githubAccessToken.isBlank();
+    }
+
+    public boolean hasGoogleDriveConnection() {
+        return googleDriveRefreshToken != null && !googleDriveRefreshToken.isBlank();
+    }
+
+    public boolean hasGoogleDriveFolder() {
+        return googleDriveFolderId != null && !googleDriveFolderId.isBlank();
+    }
+
+    public boolean googleDriveReady() {
+        return googleDriveSyncEnabled && hasGoogleDriveConnection() && hasGoogleDriveFolder();
     }
 
     public boolean hasPdeOpenAiApiKey() {
