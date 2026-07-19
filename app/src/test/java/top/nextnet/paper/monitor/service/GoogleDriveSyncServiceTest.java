@@ -28,4 +28,12 @@ class GoogleDriveSyncServiceTest {
     void rejectsNonDriveText() {
         assertThrows(IllegalArgumentException.class, () -> GoogleDriveSyncService.extractFolderId("not a folder"));
     }
+
+    @Test
+    void detectsFullDriveScope() {
+        assertEquals(true, GoogleDriveSyncService.hasFullDriveScope(
+                "openid email https://www.googleapis.com/auth/drive profile"));
+        assertEquals(false, GoogleDriveSyncService.hasFullDriveScope(
+                "openid email https://www.googleapis.com/auth/drive.file profile"));
+    }
 }

@@ -858,6 +858,10 @@
                             {#if googleDriveEnabled}Server configured{#else}Server not configured{/if}
                         </span>
                     </div>
+                    <p class="meta">Requested scopes: {googleDriveRequestedScopes}</p>
+                    {#if ttsSettings.googleDriveGrantedScopes}
+                    <p class="meta">Granted scopes: {ttsSettings.googleDriveGrantedScopes}</p>
+                    {/if}
                     {#if googleDriveEnabled}
                     <a class="open-link" href="/auth/google-drive/start?returnTo=/admin">Connect Google Drive</a>
                     {#if ttsSettings.hasGoogleDriveConnection}

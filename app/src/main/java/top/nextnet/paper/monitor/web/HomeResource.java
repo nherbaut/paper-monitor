@@ -742,6 +742,7 @@ public class HomeResource {
                 .data("oidcEnabled", oidcService.isEnabled())
                 .data("githubEnabled", githubAuthService.isEnabled())
                 .data("googleDriveEnabled", googleDriveAuthService.isEnabled())
+                .data("googleDriveRequestedScopes", googleDriveAuthService.requestedScopes())
                 .data("infoMessage", normalize(info))
                 .data("errorMessage", normalize(error));
     }

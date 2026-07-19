@@ -35,6 +35,9 @@ public class UserSettings extends PanacheEntityBase {
     @Column(length = 2048)
     public String googleDriveRefreshToken;
 
+    @Column(length = 1000)
+    public String googleDriveGrantedScopes;
+
     public Instant googleDriveConnectedAt;
 
     @Column(length = 255)

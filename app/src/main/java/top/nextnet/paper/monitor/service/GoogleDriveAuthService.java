@@ -16,6 +16,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.GoogleDriveLoginRequest;
@@ -67,15 +69,17 @@ public class GoogleDriveAuthService {
         this.authService = authService;
         this.clientId = clientId == null ? "" : clientId.trim();
         this.clientSecret = clientSecret == null ? "" : clientSecret.trim();
-        this.scopes = scopes == null || scopes.isBlank()
-                ? "openid email profile https://www.googleapis.com/auth/drive"
-                : scopes.trim();
+        this.scopes = normalizeScopes(scopes);
         this.enabled = enabled;
         this.baseUrl = trimTrailingSlash(baseUrl, "http://localhost:8080");
     }
 
     public boolean isEnabled() {
         return enabled && !clientId.isBlank() && !clientSecret.isBlank();
+    }
+
+    public String requestedScopes() {
+        return scopes;
     }
 
     @Transactional
@@ -124,6 +128,7 @@ public class GoogleDriveAuthService {
         Map<String, Object> profile = userInfo(accessToken);
         UserSettings settings = authService.ensureSettings(user);
         settings.googleDriveRefreshToken = refreshToken;
+        settings.googleDriveGrantedScopes = stringValue(tokenResponse.get("scope"));
         settings.googleDriveConnectedAt = Instant.now();
         settings.googleDriveEmail = stringValue(profile.get("email"));
         settings.googleDriveDisplayName = firstNonBlank(stringValue(profile.get("name")), settings.googleDriveEmail);
@@ -138,6 +143,7 @@ public class GoogleDriveAuthService {
         }
         UserSettings settings = authService.ensureSettings(user);
         settings.googleDriveRefreshToken = null;
+        settings.googleDriveGrantedScopes = null;
         settings.googleDriveConnectedAt = null;
         settings.googleDriveEmail = null;
         settings.googleDriveDisplayName = null;
@@ -162,6 +168,10 @@ public class GoogleDriveAuthService {
         String accessToken = stringValue(response.get("access_token"));
         if (accessToken == null) {
             throw new IOException("Google token refresh response did not include an access token");
+        }
+        String grantedScopes = stringValue(response.get("scope"));
+        if (grantedScopes != null) {
+            settings.googleDriveGrantedScopes = grantedScopes;
         }
         return accessToken;
     }
@@ -256,6 +266,18 @@ public class GoogleDriveAuthService {
             return "/admin#google-drive";
         }
         return returnTo;
+    }
+
+    static String normalizeScopes(String rawScopes) {
+        String value = rawScopes == null || rawScopes.isBlank()
+                ? "openid email profile https://www.googleapis.com/auth/drive"
+                : rawScopes.trim();
+        value = value.replace(',', ' ');
+        return Arrays.stream(value.split("\\s+"))
+                .map(scope -> scope.replace("\"", "").replace("'", "").trim())
+                .filter(scope -> !scope.isBlank())
+                .distinct()
+                .collect(Collectors.joining(" "));
     }
 
     public record GoogleDriveConnectionResult(AppUser user, String returnTo) {

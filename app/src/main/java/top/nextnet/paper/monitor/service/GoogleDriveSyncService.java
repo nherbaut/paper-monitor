@@ -85,6 +85,9 @@ public class GoogleDriveSyncService {
         if (enabled && folderId == null) {
             throw new IllegalArgumentException("A Google Drive folder URL or ID is required");
         }
+        if (enabled && settings.googleDriveGrantedScopes != null && !hasFullDriveScope(settings.googleDriveGrantedScopes)) {
+            throw new IllegalArgumentException("Google Drive access was granted without the full Drive scope. Disconnect and reconnect Google Drive, then approve the Drive files permission.");
+        }
         if (folderId != null && settings.hasGoogleDriveConnection()) {
             DriveFolder folder = validateFolder(settings, folderId);
             settings.googleDriveFolderId = folder.id();
@@ -292,6 +295,13 @@ public class GoogleDriveSyncService {
             return "Google Drive sync failed";
         }
         return value.length() <= maxLength ? value : value.substring(0, maxLength);
+    }
+
+    static boolean hasFullDriveScope(String scopes) {
+        if (scopes == null || scopes.isBlank()) {
+            return false;
+        }
+        return List.of(scopes.split("\\s+")).contains("https://www.googleapis.com/auth/drive");
     }
 
     private record DriveFolder(String id, String name) {
