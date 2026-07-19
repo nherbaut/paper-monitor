@@ -1,6 +1,7 @@
 package top.nextnet.paper.monitor.service;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.net.URI;
@@ -38,6 +39,7 @@ public class GoogleDriveAuthService {
     private final String baseUrl;
     private final SecureRandom secureRandom = new SecureRandom();
 
+    @Inject
     public GoogleDriveAuthService(
             GoogleDriveLoginRequestRepository loginRequestRepository,
             AuthService authService,

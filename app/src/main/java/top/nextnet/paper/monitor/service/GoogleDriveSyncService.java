@@ -1,6 +1,7 @@
 package top.nextnet.paper.monitor.service;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -44,6 +45,7 @@ public class GoogleDriveSyncService {
     private final PaperRepository paperRepository;
     private final PaperStorageService paperStorageService;
 
+    @Inject
     public GoogleDriveSyncService(
             AuthService authService,
             GoogleDriveAuthService googleDriveAuthService,
