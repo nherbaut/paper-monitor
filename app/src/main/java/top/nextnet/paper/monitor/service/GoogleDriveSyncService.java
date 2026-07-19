@@ -251,6 +251,9 @@ public class GoogleDriveSyncService {
         }
         String body = new String(response.body(), StandardCharsets.UTF_8).trim();
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
+            if (response.statusCode() == 403 && body.contains("ACCESS_TOKEN_SCOPE_INSUFFICIENT")) {
+                throw new IOException("Google Drive access was granted with insufficient scopes. Set PAPER_MONITOR_GOOGLE_SCOPES to include https://www.googleapis.com/auth/drive, then disconnect and reconnect Google Drive.");
+            }
             throw new IOException(body.isEmpty() ? defaultMessage + " (HTTP " + response.statusCode() + ")" : body);
         }
         Object parsed = JsonCodec.parse(body);

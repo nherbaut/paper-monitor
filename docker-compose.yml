@@ -9,6 +9,10 @@ services:
             - PAPER_MONITOR_PDE_PUBLIC_BASE_URL=http://localhost:8091
             - PAPER_MONITOR_PDE_API_BASE_URL=http://paper-data-extractor:8091
             - PAPER_MONITOR_PDE_INTERNAL_API_TOKEN=dev-pde-internal-token
+            - PAPER_MONITOR_GOOGLE_ENABLED=${PAPER_MONITOR_GOOGLE_ENABLED:-false}
+            - PAPER_MONITOR_GOOGLE_CLIENT_ID=${PAPER_MONITOR_GOOGLE_CLIENT_ID:-}
+            - PAPER_MONITOR_GOOGLE_CLIENT_SECRET=${PAPER_MONITOR_GOOGLE_CLIENT_SECRET:-}
+            - PAPER_MONITOR_GOOGLE_SCOPES=${PAPER_MONITOR_GOOGLE_SCOPES:-openid email profile https://www.googleapis.com/auth/drive}
             - QUARKUS_DATASOURCE_JDBC_URL=jdbc:postgresql://paper-monitor-postgres:5432/paper_monitor
             - QUARKUS_DATASOURCE_USERNAME=paper_monitor
             - QUARKUS_DATASOURCE_PASSWORD=paper_monitor
