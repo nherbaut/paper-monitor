@@ -103,26 +103,32 @@ public class GoogleDriveSyncService {
 
     @Transactional
     public BackfillResult backfill(AppUser user, List<LogicalFeed> logicalFeeds) {
-        if (user == null || logicalFeeds == null || logicalFeeds.isEmpty()) {
-            return new BackfillResult(0, 0);
+        UserSettings settings = authService.ensureSettings(user);
+        if (!settings.googleDriveReady()) {
+            throw new IllegalArgumentException("Google Drive sync is not ready. Connect Google Drive, save a destination folder, and enable sync first.");
+        }
+        if (logicalFeeds == null || logicalFeeds.isEmpty()) {
+            return new BackfillResult(0, 0, 0);
         }
         List<Long> logicalFeedIds = logicalFeeds.stream()
                 .filter(logicalFeed -> logicalFeed != null && logicalFeed.id != null)
                 .map(logicalFeed -> logicalFeed.id)
                 .toList();
+        int eligible = 0;
         int synced = 0;
         int failed = 0;
         for (Paper paper : paperRepository.findAllForLogicalFeedIds(logicalFeedIds)) {
             if (paper.uploadedPdfPath == null || paper.uploadedPdfPath.isBlank()) {
                 continue;
             }
+            eligible += 1;
             if (syncPaperForUser(user, paper)) {
                 synced += 1;
             } else {
                 failed += 1;
             }
         }
-        return new BackfillResult(synced, failed);
+        return new BackfillResult(eligible, synced, failed);
     }
 
     @Transactional
@@ -310,6 +316,6 @@ public class GoogleDriveSyncService {
     private record DriveFile(String id, String name, String webViewLink) {
     }
 
-    public record BackfillResult(int synced, int failed) {
+    public record BackfillResult(int eligible, int synced, int failed) {
     }
 }

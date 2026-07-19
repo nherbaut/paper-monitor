@@ -952,12 +952,16 @@ public class HomeResource {
         List<LogicalFeed> adminLogicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser).stream()
                 .filter(logicalFeed -> logicalFeedAccessService.canAdmin(logicalFeed, currentUser))
                 .toList();
-        GoogleDriveSyncService.BackfillResult result = googleDriveSyncService.backfill(currentUser, adminLogicalFeeds);
-        String message = "Google Drive backfill synced " + result.synced() + " PDF(s)";
-        if (result.failed() > 0) {
-            message += " and failed " + result.failed() + " PDF(s)";
+        try {
+            GoogleDriveSyncService.BackfillResult result = googleDriveSyncService.backfill(currentUser, adminLogicalFeeds);
+            String message = "Google Drive backfill found " + result.eligible() + " hosted PDF(s) and synced " + result.synced() + " PDF(s)";
+            if (result.failed() > 0) {
+                message += "; " + result.failed() + " failed";
+            }
+            return seeOther("/admin?info=" + urlEncode(message) + "#google-drive");
+        } catch (IllegalArgumentException e) {
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#google-drive");
         }
-        return seeOther("/admin?info=" + urlEncode(message) + "#google-drive");
     }
 
     @POST
