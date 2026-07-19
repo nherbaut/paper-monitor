@@ -38,6 +38,12 @@ public class GoogleDrivePdfSync extends PanacheEntityBase {
     @Column(length = 1000)
     public String driveWebViewLink;
 
+    @Column(length = 255)
+    public String driveFolderId;
+
+    @Column(length = 1000)
+    public String driveFolderName;
+
     @Column(length = 1000)
     public String syncedStoredPdfPath;
 

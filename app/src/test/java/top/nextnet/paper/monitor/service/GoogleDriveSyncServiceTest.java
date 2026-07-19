@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
+import top.nextnet.paper.monitor.model.LogicalFeed;
 
 class GoogleDriveSyncServiceTest {
 
@@ -35,5 +36,18 @@ class GoogleDriveSyncServiceTest {
                 "openid email https://www.googleapis.com/auth/drive profile"));
         assertEquals(false, GoogleDriveSyncService.hasFullDriveScope(
                 "openid email https://www.googleapis.com/auth/drive.file profile"));
+    }
+
+    @Test
+    void usesPaperFeedNameForFolder() {
+        LogicalFeed logicalFeed = new LogicalFeed();
+        logicalFeed.name = "  Review 2026  ";
+
+        assertEquals("Review 2026", GoogleDriveSyncService.paperFeedFolderName(logicalFeed));
+    }
+
+    @Test
+    void escapesDriveQueryStrings() {
+        assertEquals("Bob\\'s \\\\ Feed", GoogleDriveSyncService.driveQueryEscape("Bob's \\ Feed"));
     }
 }

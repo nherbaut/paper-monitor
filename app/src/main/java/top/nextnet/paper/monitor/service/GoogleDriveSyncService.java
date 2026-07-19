@@ -152,6 +152,8 @@ public class GoogleDriveSyncService {
             sync.driveFileId = driveFile.id();
             sync.driveFileName = driveFile.name();
             sync.driveWebViewLink = driveFile.webViewLink();
+            sync.driveFolderId = driveFile.folderId();
+            sync.driveFolderName = driveFile.folderName();
             sync.syncedStoredPdfPath = paper.uploadedPdfPath;
             sync.syncedOriginalFileName = paper.uploadedPdfFileName;
             sync.syncedAt = Instant.now();
@@ -210,13 +212,15 @@ public class GoogleDriveSyncService {
     private DriveFile uploadOrUpdate(UserSettings settings, GoogleDrivePdfSync sync, Paper paper) throws IOException {
         String accessToken = googleDriveAuthService.accessToken(settings);
         String fileName = driveFileName(paper);
+        DriveFolder targetFolder = ensurePaperFeedFolder(settings, paper, accessToken);
         byte[] pdfBytes = Files.readAllBytes(paperStorageService.resolve(paper.uploadedPdfPath));
         String boundary = "paper-monitor-" + UUID.randomUUID();
-        byte[] body = multipartBody(boundary, metadata(fileName, settings.googleDriveFolderId), pdfBytes);
+        byte[] body = multipartBody(boundary, metadata(fileName, targetFolder.id()), pdfBytes);
         String url = sync.driveFileId == null || sync.driveFileId.isBlank()
                 ? DRIVE_UPLOAD_BASE_URL + "/files?uploadType=multipart&fields=id,name,webViewLink&supportsAllDrives=true"
                 : DRIVE_UPLOAD_BASE_URL + "/files/" + encodePath(sync.driveFileId)
-                        + "?uploadType=multipart&fields=id,name,webViewLink&supportsAllDrives=true";
+                        + "?uploadType=multipart&fields=id,name,webViewLink&supportsAllDrives=true"
+                        + moveQuery(sync.driveFolderId, targetFolder.id());
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
                 .header("Authorization", "Bearer " + accessToken)
@@ -225,7 +229,61 @@ public class GoogleDriveSyncService {
                 ? builder.POST(HttpRequest.BodyPublishers.ofByteArray(body)).build()
                 : builder.method("PATCH", HttpRequest.BodyPublishers.ofByteArray(body)).build();
         Map<String, Object> payload = sendObject(request, "Failed to sync PDF to Google Drive");
-        return new DriveFile(stringValue(payload.get("id")), stringValue(payload.get("name")), stringValue(payload.get("webViewLink")));
+        return new DriveFile(
+                stringValue(payload.get("id")),
+                stringValue(payload.get("name")),
+                stringValue(payload.get("webViewLink")),
+                targetFolder.id(),
+                targetFolder.name());
+    }
+
+    private DriveFolder ensurePaperFeedFolder(UserSettings settings, Paper paper, String accessToken) throws IOException {
+        String parentFolderId = settings.googleDriveFolderId;
+        String folderName = paperFeedFolderName(paper == null ? null : paper.logicalFeed);
+        DriveFolder existing = findFolder(accessToken, parentFolderId, folderName);
+        if (existing != null) {
+            return existing;
+        }
+        return createFolder(accessToken, parentFolderId, folderName);
+    }
+
+    private DriveFolder findFolder(String accessToken, String parentFolderId, String folderName) throws IOException {
+        String query = "'" + driveQueryEscape(parentFolderId) + "' in parents"
+                + " and name = '" + driveQueryEscape(folderName) + "'"
+                + " and mimeType = '" + FOLDER_MIME_TYPE + "'"
+                + " and trashed = false";
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(DRIVE_API_BASE_URL + "/files?q=" + encodeQueryParam(query)
+                        + "&pageSize=1&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true"))
+                .header("Authorization", "Bearer " + accessToken)
+                .GET()
+                .build();
+        Map<String, Object> payload = sendObject(request, "Failed to find Google Drive paper-feed folder");
+        Object files = payload.get("files");
+        if (!(files instanceof Iterable<?> iterable)) {
+            return null;
+        }
+        for (Object item : iterable) {
+            if (item instanceof Map<?, ?> map) {
+                return new DriveFolder(stringValue(map.get("id")), stringValue(map.get("name")));
+            }
+        }
+        return null;
+    }
+
+    private DriveFolder createFolder(String accessToken, String parentFolderId, String folderName) throws IOException {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("name", folderName);
+        metadata.put("mimeType", FOLDER_MIME_TYPE);
+        metadata.put("parents", List.of(parentFolderId));
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(DRIVE_API_BASE_URL + "/files?fields=id,name&supportsAllDrives=true"))
+                .header("Authorization", "Bearer " + accessToken)
+                .header("Content-Type", "application/json; charset=UTF-8")
+                .POST(HttpRequest.BodyPublishers.ofString(JsonCodec.stringify(metadata)))
+                .build();
+        Map<String, Object> payload = sendObject(request, "Failed to create Google Drive paper-feed folder");
+        return new DriveFolder(stringValue(payload.get("id")), stringValue(payload.get("name")));
     }
 
     private Map<String, Object> metadata(String fileName, String folderId) {
@@ -284,8 +342,36 @@ public class GoogleDriveSyncService {
         return fileName.toLowerCase(Locale.ROOT).endsWith(".pdf") ? fileName : fileName + ".pdf";
     }
 
+    static String paperFeedFolderName(LogicalFeed logicalFeed) {
+        if (logicalFeed == null || logicalFeed.name == null || logicalFeed.name.isBlank()) {
+            return "Paper Feed";
+        }
+        return logicalFeed.name.trim();
+    }
+
     private String encodePath(String value) {
         return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
+    }
+
+    private String encodeQueryParam(String value) {
+        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
+    }
+
+    private String moveQuery(String previousFolderId, String targetFolderId) {
+        if (targetFolderId == null || targetFolderId.isBlank() || targetFolderId.equals(previousFolderId)) {
+            return "";
+        }
+        String query = "&addParents=" + encodeQueryParam(targetFolderId);
+        if (previousFolderId != null && !previousFolderId.isBlank()) {
+            query += "&removeParents=" + encodeQueryParam(previousFolderId);
+        }
+        return query;
+    }
+
+    static String driveQueryEscape(String value) {
+        return (value == null ? "" : value)
+                .replace("\\", "\\\\")
+                .replace("'", "\\'");
     }
 
     private String stringValue(Object value) {
@@ -313,7 +399,7 @@ public class GoogleDriveSyncService {
     private record DriveFolder(String id, String name) {
     }
 
-    private record DriveFile(String id, String name, String webViewLink) {
+    private record DriveFile(String id, String name, String webViewLink, String folderId, String folderName) {
     }
 
     public record BackfillResult(int eligible, int synced, int failed) {
