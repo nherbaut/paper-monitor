@@ -497,7 +497,6 @@ public class HomeResource {
                 .filter((logicalFeed) -> !logicalFeed.archived)
                 .toList();
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
-        paperGitSyncService.syncLogicalFeeds(logicalFeeds);
         List<LogicalFeed> adminLogicalFeeds = logicalFeeds.stream()
                 .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
                 .toList();
@@ -698,7 +697,6 @@ public class HomeResource {
                 ? logicalFeedRepository.findAllForAdminView()
                 : logicalFeedAccessService.readableLogicalFeeds(currentUser);
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
-        paperGitSyncService.syncLogicalFeeds(logicalFeeds);
         List<LogicalFeed> adminLogicalFeeds = logicalFeeds.stream()
                 .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
                 .toList();
