@@ -144,6 +144,10 @@ public class LogicalFeed extends PanacheEntityBase {
         return workflowConfig().topLevelToken();
     }
 
+    public String workflowLeafStatesToken() {
+        return String.join("|", workflowStateList());
+    }
+
     public String workflowTreeJson() {
         return workflowConfig().treeJson();
     }
