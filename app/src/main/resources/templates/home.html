@@ -7224,16 +7224,12 @@
         });
     });
     feedDashboard?.querySelectorAll("[data-open-new-papers]").forEach((button) => {
-        button.addEventListener("click", async () => {
+        button.addEventListener("click", () => {
             const logicalFeedId = button.dataset.openNewPapers;
             if (!logicalFeedFilter || !logicalFeedId) {
                 return;
             }
-            await openLogicalFeed(logicalFeedId, {
-                primaryTab: "tags",
-                tagFilters: ["new-papers"],
-                scroll: true
-            });
+            window.location.href = "/classify?logicalFeedId=" + encodeURIComponent(logicalFeedId);
         });
     });
     feedDashboard?.querySelectorAll(".feed-dashboard-card-menu").forEach((menu) => {
