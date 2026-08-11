@@ -96,7 +96,6 @@ public class HomeResource {
     private final Template login;
     private final Template quickSetup;
     private final Template feedDiagram;
-    private final Template classification;
     private final LogicalFeedRepository logicalFeedRepository;
     private final FeedRepository feedRepository;
     private final PaperRepository paperRepository;
@@ -135,7 +134,6 @@ public class HomeResource {
             @Location("login") Template login,
             @Location("quick-setup") Template quickSetup,
             @Location("feed-diagram") Template feedDiagram,
-            @Location("classification") Template classification,
             LogicalFeedRepository logicalFeedRepository,
             FeedRepository feedRepository,
             PaperRepository paperRepository,
@@ -173,7 +171,6 @@ public class HomeResource {
         this.login = login;
         this.quickSetup = quickSetup;
         this.feedDiagram = feedDiagram;
-        this.classification = classification;
         this.logicalFeedRepository = logicalFeedRepository;
         this.feedRepository = feedRepository;
         this.paperRepository = paperRepository;
@@ -521,7 +518,9 @@ public class HomeResource {
                 .data("shareMode", false)
                 .data("sharedPaper", null)
                 .data("sharedPaperUrl", null)
-                .data("sharedFeedDiagramUrl", null);
+                .data("sharedFeedDiagramUrl", null)
+                .data("classificationQueueMode", false)
+                .data("startClassificationMode", false);
     }
 
     @GET
@@ -533,52 +532,42 @@ public class HomeResource {
             @QueryParam("error") String error
     ) {
         AppUser currentUser = requireCurrentUser();
-        List<LogicalFeed> adminLogicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser).stream()
+        List<LogicalFeed> logicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser).stream()
                 .filter((logicalFeed) -> !logicalFeed.archived)
-                .filter((logicalFeed) -> logicalFeedAccessService.canAdmin(logicalFeed, currentUser))
                 .toList();
-        populateLogicalFeedAccessFlags(adminLogicalFeeds, currentUser);
-        List<Long> adminLogicalFeedIds = adminLogicalFeeds.stream()
-                .map((logicalFeed) -> logicalFeed.id)
-                .filter(Objects::nonNull)
+        populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
+        List<LogicalFeed> adminLogicalFeeds = logicalFeeds.stream()
+                .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
                 .toList();
-        List<Paper> allQueuePapers = classificationQueuePapers(adminLogicalFeedIds);
-        Map<Long, Long> queueCountsByLogicalFeedId = new LinkedHashMap<>();
-        for (Paper paper : allQueuePapers) {
-            if (paper.logicalFeed != null && paper.logicalFeed.id != null) {
-                queueCountsByLogicalFeedId.merge(paper.logicalFeed.id, 1L, Long::sum);
+        if (logicalFeedId == null) {
+            if (adminLogicalFeeds.size() == 1) {
+                logicalFeedId = adminLogicalFeeds.getFirst().id;
+            } else {
+                return index(null, null, info, firstNonBlank(error, "Select a paper feed before opening RSS classification."));
             }
         }
-        for (LogicalFeed logicalFeed : adminLogicalFeeds) {
-            logicalFeed.paperCountsByState = Map.of("classification", queueCountsByLogicalFeedId.getOrDefault(logicalFeed.id, 0L));
-        }
-        List<Paper> visiblePapers = allQueuePapers;
-        if (logicalFeedId != null) {
-            boolean canUseRequestedFeed = adminLogicalFeedIds.contains(logicalFeedId);
-            if (!canUseRequestedFeed) {
-                throw new NotFoundException();
-            }
-            visiblePapers = allQueuePapers.stream()
-                    .filter((paper) -> paper.logicalFeed != null && logicalFeedId.equals(paper.logicalFeed.id))
-                    .toList();
-        }
-        populatePaperBadges(visiblePapers);
-        for (Paper paper : visiblePapers) {
-            paper.viewerCanEdit = true;
-        }
-        Long selectedLogicalFeedId = logicalFeedId;
-        if (selectedLogicalFeedId == null && adminLogicalFeeds.size() == 1) {
-            selectedLogicalFeedId = adminLogicalFeeds.getFirst().id;
-        }
-        return classification
-                .data("papers", visiblePapers)
-                .data("logicalFeeds", adminLogicalFeeds)
-                .data("selectedLogicalFeedId", selectedLogicalFeedId)
+        logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, currentUser);
+        populatePaperCounts(logicalFeeds);
+        populateLogicalFeedDashboardStats(logicalFeeds);
+        return home.data("recentPapers", List.of())
+                .data("initialPaperId", null)
+                .data("initialLogicalFeedId", logicalFeedId)
+                .data("logicalFeeds", logicalFeeds)
+                .data("adminLogicalFeeds", adminLogicalFeeds)
                 .data("currentUser", currentUser)
+                .data("canAdmin", currentUserContext.get().isAdmin())
                 .data("authenticated", true)
+                .data("masquerading", currentUserContext.get().isMasquerading())
+                .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
                 .data("infoMessage", normalize(info))
-                .data("errorMessage", normalize(error));
+                .data("errorMessage", normalize(error))
+                .data("shareMode", false)
+                .data("sharedPaper", null)
+                .data("sharedPaperUrl", null)
+                .data("sharedFeedDiagramUrl", null)
+                .data("classificationQueueMode", true)
+                .data("startClassificationMode", true);
     }
 
     @POST
@@ -642,7 +631,10 @@ public class HomeResource {
     @Path("/api/papers/browser")
     @Transactional
     @Produces(MediaType.APPLICATION_JSON)
-    public List<Map<String, Object>> browserPapers(@QueryParam("logicalFeedId") Long logicalFeedId) {
+    public List<Map<String, Object>> browserPapers(
+            @QueryParam("logicalFeedId") Long logicalFeedId,
+            @QueryParam("classificationQueue") @DefaultValue("false") boolean classificationQueue
+    ) {
         AppUser currentUser = currentUserContext.get().user();
         if (currentUser == null) {
             throw new NotFoundException();
@@ -651,10 +643,16 @@ public class HomeResource {
             return List.of();
         }
         LogicalFeed logicalFeed = logicalFeedAccessService.requireReadableLogicalFeed(logicalFeedId, currentUser);
-        List<Paper> papers = new ArrayList<>(paperRepository.findAllForReader(logicalFeed));
+        boolean canAdmin = logicalFeedAccessService.canAdmin(logicalFeed, currentUser);
+        if (classificationQueue && !canAdmin) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
+        }
+        List<Paper> papers = classificationQueue
+                ? new ArrayList<>(classificationQueuePapers(List.of(logicalFeed.id)))
+                : new ArrayList<>(paperRepository.findAllForReader(logicalFeed));
         populatePaperBadges(papers);
         for (Paper paper : papers) {
-            paper.viewerCanEdit = logicalFeedAccessService.canAdmin(paper.logicalFeed, currentUser);
+            paper.viewerCanEdit = canAdmin;
         }
         return papers.stream().map(this::paperBrowserItem).toList();
     }
@@ -698,7 +696,9 @@ public class HomeResource {
                 .data("shareMode", true)
                 .data("sharedPaper", paper)
                 .data("sharedPaperUrl", normalizeBaseUrl() + "/share/paper/" + paper.shareToken)
-                .data("sharedFeedDiagramUrl", null);
+                .data("sharedFeedDiagramUrl", null)
+                .data("classificationQueueMode", false)
+                .data("startClassificationMode", false);
         return Response.ok(page.render(), MediaType.TEXT_HTML).build();
     }
 
@@ -740,7 +740,9 @@ public class HomeResource {
                 .data("shareMode", true)
                 .data("sharedPaper", null)
                 .data("sharedPaperUrl", null)
-                .data("sharedFeedDiagramUrl", normalizeBaseUrl() + "/share/feed/" + token + "/diagram");
+                .data("sharedFeedDiagramUrl", normalizeBaseUrl() + "/share/feed/" + token + "/diagram")
+                .data("classificationQueueMode", false)
+                .data("startClassificationMode", false);
         return Response.ok(page.render(), MediaType.TEXT_HTML).build();
     }
 

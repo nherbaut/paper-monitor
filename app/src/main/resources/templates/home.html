@@ -1907,7 +1907,7 @@
                 </a>
                 {/if}
                 {#if authenticated}
-                <a class="secondary nav-action" href="/classify">
+                <a class="secondary nav-action" href="/classify" id="classify-rss-link">
                     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5h12v2H2v-2Zm1 4h10v7H3v-7Zm1 1v5h8v-5H4Zm1 1h3v1H5v-1Zm0 2h5v1H5v-1Z"/></svg>
                     <span class="nav-action-label">Classify RSS papers</span>
                 </a>
@@ -2434,7 +2434,9 @@
      data-initial-paper-id="{initialPaperId ?: ''}"
      data-initial-logical-feed-id="{initialLogicalFeedId ?: ''}"
      data-authenticated="{#if authenticated}true{#else}false{/if}"
-     data-share-mode="{#if shareMode}true{#else}false{/if}"></div>
+     data-share-mode="{#if shareMode}true{#else}false{/if}"
+     data-classification-queue-mode="{#if classificationQueueMode}true{#else}false{/if}"
+     data-start-classification-mode="{#if startClassificationMode}true{#else}false{/if}"></div>
 <script type="module">
     import { marked } from "https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.esm.js";
     import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.min.mjs";
@@ -2532,6 +2534,7 @@
     const themeToggleLabel = document.getElementById("theme-toggle-label");
     const fullscreenToggle = document.getElementById("fullscreen-toggle");
     const fullscreenToggleLabel = document.getElementById("fullscreen-toggle-label");
+    const classifyRssLink = document.getElementById("classify-rss-link");
     const readerLayout = document.querySelector(".reader-layout");
     const paperList = document.getElementById("paper-list");
     const leftStateWheel = document.getElementById("left-state-wheel");
@@ -2621,6 +2624,8 @@
     const initialLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || "";
     const authenticated = readerBootstrap?.dataset.authenticated === "true";
     const shareMode = readerBootstrap?.dataset.shareMode === "true";
+    const classificationQueueMode = readerBootstrap?.dataset.classificationQueueMode === "true";
+    const startClassificationMode = readerBootstrap?.dataset.startClassificationMode === "true";
     let loadedLogicalFeedId = shareMode ? String(readerBootstrap?.dataset.initialLogicalFeedId || "") : "";
     let notesCollapsed = false;
     let pdfResizeObserver = null;
@@ -7182,11 +7187,22 @@
         }
     };
 
+    const syncClassificationLink = () => {
+        if (!classifyRssLink) {
+            return;
+        }
+        const selectedFeedId = logicalFeedFilter?.value || "";
+        classifyRssLink.href = selectedFeedId
+            ? "/classify?logicalFeedId=" + encodeURIComponent(selectedFeedId)
+            : "/classify";
+    };
+
     const syncSelectedLogicalFeed = () => {
         selectedTagFilters = [];
         stateSearchVisibleLimit = 10;
         renderExportStateOptions();
         renderFrontPagePanels();
+        syncClassificationLink();
         if (!doiImportLogicalFeed) {
             renderReviewLauncher();
             return logicalFeedFilter?.value || "";
@@ -7196,6 +7212,7 @@
         renderReviewLauncher();
         return selectedFeedId;
     };
+    syncClassificationLink();
     syncDoiImportLogicalFeed();
     feedDashboard?.querySelectorAll("[data-open-feed]").forEach((button) => {
         button.addEventListener("click", async () => {
@@ -7605,6 +7622,19 @@
         });
     }
 
+    const syncClassificationQueueState = () => {
+        if (!classificationQueueMode || !paperRecords.length) {
+            return;
+        }
+        const firstRecord = paperRecords[0];
+        const firstStatus = normalizeStatus(firstRecord.paperStatus);
+        activeStatusTab = firstRecord.paperTopStatus || (firstStatus.includes("/") ? firstStatus.split("/")[0] : firstStatus);
+        activeChildStatus = firstStatus.includes("/") ? firstStatus : null;
+        activePrimaryTab = "state";
+        stateSearchQuery = "";
+        selectedTagFilters = [];
+    };
+
     const loadBrowserPapers = async (logicalFeedId) => {
         if (shareMode || !authenticated) {
             return;
@@ -7614,7 +7644,11 @@
             papersLoaded = false;
             return;
         }
-        const response = await fetch("/api/papers/browser?logicalFeedId=" + encodeURIComponent(logicalFeedId), {
+        const params = new URLSearchParams({ logicalFeedId });
+        if (classificationQueueMode) {
+            params.set("classificationQueue", "true");
+        }
+        const response = await fetch("/api/papers/browser?" + params.toString(), {
             headers: { Accept: "application/json" }
         });
         const body = await response.text();
@@ -7623,6 +7657,7 @@
         }
         paperRecords = JSON.parse(body);
         papersLoaded = true;
+        syncClassificationQueueState();
         const firstRecord = paperRecords[0];
         const feedName = firstRecord?.logicalFeedName || logicalFeedFilter?.selectedOptions?.[0]?.dataset?.feedName;
         if (feedName) {
@@ -7696,7 +7731,13 @@
     }
     applyLayoutState();
     if (browserPapersReady) {
-        openInitialPaper();
+        if (startClassificationMode) {
+            if (enterClassificationMode()) {
+                startKeyboardShortcutPicker();
+            }
+        } else {
+            openInitialPaper();
+        }
         maybeLoadMoreVisiblePapers();
     }
     restoreActivePdfCapture();
