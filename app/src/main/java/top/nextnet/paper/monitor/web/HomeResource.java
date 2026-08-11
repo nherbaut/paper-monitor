@@ -79,6 +79,7 @@ import top.nextnet.paper.monitor.service.OidcService;
 import top.nextnet.paper.monitor.service.PaperEventService;
 import top.nextnet.paper.monitor.service.PaperGitSyncService;
 import top.nextnet.paper.monitor.service.PaperPdfImportService;
+import top.nextnet.paper.monitor.service.PaperStateRepairService;
 import top.nextnet.paper.monitor.service.PaperStorageService;
 import top.nextnet.paper.monitor.service.QuickSetupWorkflows;
 import top.nextnet.paper.monitor.service.ReviewService;
@@ -107,6 +108,7 @@ public class HomeResource {
     private final PaperEventService paperEventService;
     private final PaperGitSyncService paperGitSyncService;
     private final PaperPdfImportService paperPdfImportService;
+    private final PaperStateRepairService paperStateRepairService;
     private final PaperStorageService paperStorageService;
     private final TtsService ttsService;
     private final BackupService backupService;
@@ -145,6 +147,7 @@ public class HomeResource {
             PaperEventService paperEventService,
             PaperGitSyncService paperGitSyncService,
             PaperPdfImportService paperPdfImportService,
+            PaperStateRepairService paperStateRepairService,
             PaperStorageService paperStorageService,
             TtsService ttsService,
             BackupService backupService,
@@ -182,6 +185,7 @@ public class HomeResource {
         this.paperEventService = paperEventService;
         this.paperGitSyncService = paperGitSyncService;
         this.paperPdfImportService = paperPdfImportService;
+        this.paperStateRepairService = paperStateRepairService;
         this.paperStorageService = paperStorageService;
         this.ttsService = ttsService;
         this.backupService = backupService;
@@ -1560,6 +1564,7 @@ public class HomeResource {
         }
         try (var inputStream = java.nio.file.Files.newInputStream(backupZip.uploadedFile())) {
             backupService.importZip(inputStream);
+            paperStateRepairService.repairAll();
             return seeOther("/admin");
         } catch (IOException e) {
             throw new WebApplicationException("Failed to import backup", Response.Status.INTERNAL_SERVER_ERROR);
@@ -1623,6 +1628,7 @@ public class HomeResource {
             logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
             logicalFeed.notifyOnNewRssPapers = !"off".equalsIgnoreCase(notifyOnNewRssPapers);
             ensurePublicShareToken(logicalFeed);
+            paperStateRepairService.repairLogicalFeed(logicalFeed);
             return seeOther("/admin");
         } catch (WebApplicationException e) {
             return rethrowOrPlainText(e);
