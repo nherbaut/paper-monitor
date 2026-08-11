@@ -133,6 +133,20 @@ public class PaperRepository implements PanacheRepository<Paper> {
                 .list();
     }
 
+    public List<Paper> findRssImportsForClassification(List<Long> logicalFeedIds) {
+        if (logicalFeedIds == null || logicalFeedIds.isEmpty()) {
+            return List.of();
+        }
+        return find("select p from Paper p "
+                        + "join fetch p.logicalFeed "
+                        + "join fetch p.feed f "
+                        + "where p.logicalFeed.id in ?1 "
+                        + "and (f.url like 'http://%' or f.url like 'https://%') "
+                        + "order by p.publishedOn desc nulls last, p.discoveredAt desc",
+                logicalFeedIds)
+                .list();
+    }
+
     public Map<Long, Map<String, Long>> countByLogicalFeedAndStatus() {
         List<Object[]> rows = getEntityManager().createQuery(
                         "select p.logicalFeed.id, p.status, count(p) "

@@ -62,6 +62,7 @@ class NotificationServiceTest {
     @Test
     void rendersStateTransitionLinksForValidOutgoingStatesWithoutCriteria() {
         LogicalFeed logicalFeed = new LogicalFeed();
+        logicalFeed.id = 7L;
         logicalFeed.name = "trust";
         logicalFeed.workflowStates = """
                 version: 2
@@ -95,6 +96,8 @@ class NotificationServiceTest {
         NotificationService.RenderedDigest digest = NotificationService.renderRssDigest(
                 logicalFeed, List.of(paper), LocalDate.of(2026, 7, 4), "https://papers.example.test/");
 
+        assertTrue(digest.text().contains("Classify these papers:\nhttps://papers.example.test/classify?logicalFeedId=7"));
+        assertTrue(digest.html().contains("href=\"https://papers.example.test/classify?logicalFeedId=7\""));
         assertTrue(digest.text().contains("To review: https://papers.example.test/papers/42/transition?status=TODO"));
         assertTrue(digest.html().contains("href=\"https://papers.example.test/papers/42/transition?status=TODO\""));
         assertFalse(digest.html().contains("status=DONE"));

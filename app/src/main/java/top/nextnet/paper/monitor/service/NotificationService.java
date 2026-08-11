@@ -121,6 +121,7 @@ public class NotificationService {
         String subject = count + " new " + paperWord + " in " + feedName;
         LocalDate effectiveDate = digestDate == null ? LocalDate.now() : digestDate;
         String displayDate = effectiveDate.format(DateTimeFormatter.ofPattern("d MMMM uuuu", Locale.ENGLISH));
+        String classificationUrl = classificationUrl(logicalFeed, baseUrl);
 
         Map<String, List<Paper>> papersByFeed = new LinkedHashMap<>();
         for (Paper paper : papers) {
@@ -131,6 +132,9 @@ public class NotificationService {
         StringBuilder text = new StringBuilder();
         text.append(count).append(" new ").append(paperWord).append(" added to ")
                 .append(feedName).append("\nDaily update for ").append(displayDate).append("\n");
+        if (classificationUrl != null) {
+            text.append("\nClassify these papers:\n").append(classificationUrl).append("\n");
+        }
 
         StringBuilder sections = new StringBuilder();
         for (Map.Entry<String, List<Paper>> entry : papersByFeed.entrySet()) {
@@ -152,6 +156,7 @@ public class NotificationService {
                 + "<p style=\"margin:0;color:#dbe9e2\">Added to <strong>" + escapeHtml(feedName) + "</strong></p></div>"
                 + "<div style=\"background:#fff;padding:18px 28px 30px\">"
                 + "<p style=\"margin:0;color:#78847f;font-size:13px\">Daily update for " + escapeHtml(displayDate) + "</p>"
+                + classificationCallToActionHtml(classificationUrl)
                 + sections
                 + "</div><div style=\"background:#e8eee9;padding:16px 28px;border-radius:0 0 14px 14px;"
                 + "font-size:12px;line-height:1.5;color:#64716c\">You received this email because you administer the "
@@ -234,6 +239,25 @@ public class NotificationService {
             actions.add(new TransitionAction(target, label, url));
         }
         return actions;
+    }
+
+    private static String classificationUrl(LogicalFeed logicalFeed, String baseUrl) {
+        if (logicalFeed == null || logicalFeed.id == null || baseUrl == null || baseUrl.isBlank()) {
+            return null;
+        }
+        return normalizeBaseUrl(baseUrl) + "/classify?logicalFeedId=" + logicalFeed.id;
+    }
+
+    private static String classificationCallToActionHtml(String classificationUrl) {
+        if (classificationUrl == null || classificationUrl.isBlank()) {
+            return "";
+        }
+        return "<div style=\"margin:18px 0 24px;padding:16px;border:1px solid #d7e3dc;border-radius:12px;background:#f2f8f5\">"
+                + "<p style=\"margin:0 0 12px;color:#31463d;font-size:14px;line-height:1.45\">"
+                + "Review and classify the new RSS papers from the dedicated queue.</p>"
+                + "<a href=\"" + escapeHtml(classificationUrl) + "\" style=\"display:inline-block;padding:10px 14px;"
+                + "border-radius:8px;background:#173f35;color:#ffffff;text-decoration:none;font-size:13px;font-weight:bold\">"
+                + "Classify RSS papers</a></div>";
     }
 
     private void sendText(String to, String subject, String body) {

@@ -96,6 +96,7 @@ public class HomeResource {
     private final Template login;
     private final Template quickSetup;
     private final Template feedDiagram;
+    private final Template classification;
     private final LogicalFeedRepository logicalFeedRepository;
     private final FeedRepository feedRepository;
     private final PaperRepository paperRepository;
@@ -134,6 +135,7 @@ public class HomeResource {
             @Location("login") Template login,
             @Location("quick-setup") Template quickSetup,
             @Location("feed-diagram") Template feedDiagram,
+            @Location("classification") Template classification,
             LogicalFeedRepository logicalFeedRepository,
             FeedRepository feedRepository,
             PaperRepository paperRepository,
@@ -171,6 +173,7 @@ public class HomeResource {
         this.login = login;
         this.quickSetup = quickSetup;
         this.feedDiagram = feedDiagram;
+        this.classification = classification;
         this.logicalFeedRepository = logicalFeedRepository;
         this.feedRepository = feedRepository;
         this.paperRepository = paperRepository;
@@ -519,6 +522,63 @@ public class HomeResource {
                 .data("sharedPaper", null)
                 .data("sharedPaperUrl", null)
                 .data("sharedFeedDiagramUrl", null);
+    }
+
+    @GET
+    @Path("/classify")
+    @Transactional
+    public TemplateInstance classifyRssPapers(
+            @QueryParam("logicalFeedId") Long logicalFeedId,
+            @QueryParam("info") String info,
+            @QueryParam("error") String error
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        List<LogicalFeed> adminLogicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser).stream()
+                .filter((logicalFeed) -> !logicalFeed.archived)
+                .filter((logicalFeed) -> logicalFeedAccessService.canAdmin(logicalFeed, currentUser))
+                .toList();
+        populateLogicalFeedAccessFlags(adminLogicalFeeds, currentUser);
+        List<Long> adminLogicalFeedIds = adminLogicalFeeds.stream()
+                .map((logicalFeed) -> logicalFeed.id)
+                .filter(Objects::nonNull)
+                .toList();
+        List<Paper> allQueuePapers = classificationQueuePapers(adminLogicalFeedIds);
+        Map<Long, Long> queueCountsByLogicalFeedId = new LinkedHashMap<>();
+        for (Paper paper : allQueuePapers) {
+            if (paper.logicalFeed != null && paper.logicalFeed.id != null) {
+                queueCountsByLogicalFeedId.merge(paper.logicalFeed.id, 1L, Long::sum);
+            }
+        }
+        for (LogicalFeed logicalFeed : adminLogicalFeeds) {
+            logicalFeed.paperCountsByState = Map.of("classification", queueCountsByLogicalFeedId.getOrDefault(logicalFeed.id, 0L));
+        }
+        List<Paper> visiblePapers = allQueuePapers;
+        if (logicalFeedId != null) {
+            boolean canUseRequestedFeed = adminLogicalFeedIds.contains(logicalFeedId);
+            if (!canUseRequestedFeed) {
+                throw new NotFoundException();
+            }
+            visiblePapers = allQueuePapers.stream()
+                    .filter((paper) -> paper.logicalFeed != null && logicalFeedId.equals(paper.logicalFeed.id))
+                    .toList();
+        }
+        populatePaperBadges(visiblePapers);
+        for (Paper paper : visiblePapers) {
+            paper.viewerCanEdit = true;
+        }
+        Long selectedLogicalFeedId = logicalFeedId;
+        if (selectedLogicalFeedId == null && adminLogicalFeeds.size() == 1) {
+            selectedLogicalFeedId = adminLogicalFeeds.getFirst().id;
+        }
+        return classification
+                .data("papers", visiblePapers)
+                .data("logicalFeeds", adminLogicalFeeds)
+                .data("selectedLogicalFeedId", selectedLogicalFeedId)
+                .data("currentUser", currentUser)
+                .data("authenticated", true)
+                .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
+                .data("infoMessage", normalize(info))
+                .data("errorMessage", normalize(error));
     }
 
     @POST
@@ -3272,6 +3332,25 @@ public class HomeResource {
         String leaf = value.contains("/") ? value.substring(value.lastIndexOf('/') + 1) : value;
         String normalized = leaf.replace('_', ' ').toLowerCase(Locale.ROOT);
         return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
+    }
+
+    private List<Paper> classificationQueuePapers(List<Long> logicalFeedIds) {
+        return paperRepository.findRssImportsForClassification(logicalFeedIds).stream()
+                .filter(HomeResource::isPaperInRssIntakeState)
+                .toList();
+    }
+
+    static boolean isPaperInRssIntakeState(Paper paper) {
+        if (paper == null || paper.feed == null || paper.status == null || paper.status.isBlank()) {
+            return false;
+        }
+        try {
+            String intakeStatus = paper.feed.initialPaperStatus();
+            return WorkflowStateConfig.normalizeStateId(paper.status)
+                    .equals(WorkflowStateConfig.normalizeStateId(intakeStatus));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return false;
+        }
     }
 
     private Map<String, Object> paperBrowserItem(Paper paper) {
