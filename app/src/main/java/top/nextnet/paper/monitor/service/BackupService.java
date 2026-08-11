@@ -263,7 +263,6 @@ public class BackupService {
             item.put("name", feed.name);
             item.put("url", feed.url);
             item.put("pollIntervalMinutes", feed.pollIntervalMinutes);
-            item.put("defaultPaperStatus", feed.defaultPaperStatus);
             item.put("lastPolledAt", feed.lastPolledAt == null ? null : feed.lastPolledAt.toString());
             item.put("lastError", feed.lastError);
             item.put("logicalFeedId", feed.logicalFeed.id);
@@ -445,7 +444,6 @@ public class BackupService {
             feed.name = stringValue(item.get("name"));
             feed.url = stringValue(item.get("url"));
             feed.pollIntervalMinutes = intValue(item.get("pollIntervalMinutes"));
-            feed.defaultPaperStatus = stringValue(item.get("defaultPaperStatus"));
             feed.lastPolledAt = instantValue(item.get("lastPolledAt"));
             feed.lastError = stringValue(item.get("lastError"));
             feed.logicalFeed = logicalFeedsByOldId.get(longValue(item.get("logicalFeedId")));

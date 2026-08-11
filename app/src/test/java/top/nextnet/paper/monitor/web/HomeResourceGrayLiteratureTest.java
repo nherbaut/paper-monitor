@@ -30,7 +30,7 @@ class HomeResourceGrayLiteratureTest {
     }
 
     @Test
-    void detectsPapersStillInTheirRssFeedIntakeState() {
+    void detectsPapersStillInTheirPaperFeedIntakeState() {
         LogicalFeed logicalFeed = new LogicalFeed();
         logicalFeed.workflowStates = """
                 version: 2
@@ -44,18 +44,19 @@ class HomeResourceGrayLiteratureTest {
                 - from: NEW
                   to:
                   - TRIAGE
-                """;
+        """;
         Feed feed = new Feed();
         feed.logicalFeed = logicalFeed;
-        feed.defaultPaperStatus = "TRIAGE";
+        feed.url = "https://example.org/rss";
 
         Paper paper = new Paper();
         paper.feed = feed;
-        paper.status = "triage";
+        paper.logicalFeed = logicalFeed;
+        paper.status = "new";
 
         assertEquals(true, HomeResource.isPaperInRssIntakeState(paper));
 
-        paper.status = "NEW";
+        paper.status = "TRIAGE";
         assertEquals(false, HomeResource.isPaperInRssIntakeState(paper));
     }
 }

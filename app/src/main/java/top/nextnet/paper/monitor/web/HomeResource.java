@@ -30,7 +30,6 @@ import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
@@ -1685,7 +1684,6 @@ public class HomeResource {
             @RestForm("url") String url,
             @RestForm("pollIntervalMinutes") Integer pollIntervalMinutes,
             @RestForm("logicalFeedId") Long logicalFeedId,
-            @RestForm("defaultPaperStatus") String defaultPaperStatus,
             @RestForm("returnTo") String returnTo
     ) {
         LogicalFeed logicalFeed = requireLogicalFeed(logicalFeedId);
@@ -1694,7 +1692,6 @@ public class HomeResource {
         feed.url = url == null ? null : url.trim();
         feed.pollIntervalMinutes = pollIntervalMinutes == null ? 60 : pollIntervalMinutes;
         feed.logicalFeed = logicalFeed;
-        feed.defaultPaperStatus = normalizeFeedDefaultStatus(logicalFeed, defaultPaperStatus);
         feedRepository.persist(feed);
         paperGitSyncService.syncLogicalFeed(logicalFeed);
         String fallbackReturnTo = "/?logicalFeedId=" + logicalFeed.id;
@@ -1710,8 +1707,7 @@ public class HomeResource {
             @RestForm("name") String name,
             @RestForm("url") String url,
             @RestForm("pollIntervalMinutes") Integer pollIntervalMinutes,
-            @RestForm("logicalFeedId") Long logicalFeedId,
-            @RestForm("defaultPaperStatus") String defaultPaperStatus
+            @RestForm("logicalFeedId") Long logicalFeedId
     ) {
         Feed feed = logicalFeedAccessService.requireAdminFeed(id, requireCurrentUser());
         LogicalFeed logicalFeed = requireLogicalFeed(logicalFeedId);
@@ -1720,7 +1716,6 @@ public class HomeResource {
         feed.pollIntervalMinutes = pollIntervalMinutes == null ? 60 : pollIntervalMinutes;
         LogicalFeed previousLogicalFeed = feed.logicalFeed;
         feed.logicalFeed = logicalFeed;
-        feed.defaultPaperStatus = normalizeFeedDefaultStatus(logicalFeed, defaultPaperStatus);
         if (previousLogicalFeed != null) {
             paperGitSyncService.syncLogicalFeed(previousLogicalFeed);
         }
@@ -2193,25 +2188,18 @@ public class HomeResource {
     }
 
     private void populatePaperBadges(List<Paper> papers) {
-        Instant newThreshold = Instant.now().minus(7, ChronoUnit.DAYS);
         List<Long> paperIds = papers.stream().map((paper) -> paper.id).toList();
         Map<Long, List<top.nextnet.paper.monitor.model.PaperEvent>> eventsByPaperId = paperEventRepository.findByPaperIds(paperIds);
         for (Paper paper : papers) {
-            paper.newBadge = paper.discoveredAt != null && !paper.discoveredAt.isBefore(newThreshold);
+            paper.newBadge = isPaperInRssIntakeState(paper);
             boolean noteViewed = false;
-            boolean userStateChanged = false;
             for (top.nextnet.paper.monitor.model.PaperEvent event : eventsByPaperId.getOrDefault(paper.id, List.of())) {
                 if ("NOTE_VIEWED".equals(event.type)) {
                     noteViewed = true;
                 }
-                if ("STATE_CHANGED".equals(event.type) && (event.details == null || !event.details.contains("(git)"))) {
-                    userStateChanged = true;
-                }
             }
             paper.freshBadge = paper.newBadge
-                    && "NEW".equals(paper.topLevelStatus())
-                    && !noteViewed
-                    && !userStateChanged;
+                    && !noteViewed;
         }
     }
 
@@ -2599,7 +2587,6 @@ public class HomeResource {
         feed.name = paperFeedName + " RSS";
         feed.url = rssUrl;
         feed.pollIntervalMinutes = 60;
-        feed.defaultPaperStatus = workflow.initialPaperStatus();
         feed.logicalFeed = logicalFeed;
         feedRepository.persist(feed);
 
@@ -2625,19 +2612,6 @@ public class HomeResource {
         return fileName.toLowerCase().endsWith(".pdf")
                 ? fileName.substring(0, fileName.length() - 4)
                 : fileName;
-    }
-
-    private String normalizeFeedDefaultStatus(LogicalFeed logicalFeed, String status) {
-        String normalized = normalize(status);
-        if (normalized == null) {
-            return null;
-        }
-        String normalizedStatus = normalizePaperStatus(normalized);
-        if (!logicalFeedWorkflow(logicalFeed).contains(normalizedStatus)) {
-            throw new WebApplicationException("defaultPaperStatus must belong to the selected logical feed workflow",
-                    Response.Status.BAD_REQUEST);
-        }
-        return normalizedStatus;
     }
 
     private String renderTabExportMarkdown(LogicalFeed logicalFeed, String filterLabel, List<Paper> papers) {
@@ -3089,32 +3063,11 @@ public class HomeResource {
         Map<Long, LogicalFeed> logicalFeedById = logicalFeeds.stream()
                 .collect(java.util.stream.Collectors.toMap((logicalFeed) -> logicalFeed.id, (logicalFeed) -> logicalFeed));
         List<Paper> papers = paperRepository.findAllForLogicalFeedIds(new ArrayList<>(logicalFeedById.keySet()));
-        Instant newThreshold = Instant.now().minus(7, ChronoUnit.DAYS);
-        Map<Long, List<top.nextnet.paper.monitor.model.PaperEvent>> eventsByPaperId = paperEventRepository.findByPaperIds(
-                papers.stream().map((paper) -> paper.id).toList());
         for (LogicalFeed logicalFeed : logicalFeeds) {
             logicalFeed.recentNewPaperCount = 0L;
         }
         for (Paper paper : papers) {
-            if (paper.logicalFeed == null || paper.discoveredAt == null || paper.discoveredAt.isBefore(newThreshold)) {
-                continue;
-            }
-            if (!"NEW".equals(paper.topLevelStatus())) {
-                continue;
-            }
-            if (paper.feed == null || paper.feed.url == null
-                    || paper.feed.url.startsWith("upload://")
-                    || paper.feed.url.startsWith("doi://")) {
-                continue;
-            }
-            boolean userStateChanged = false;
-            for (top.nextnet.paper.monitor.model.PaperEvent event : eventsByPaperId.getOrDefault(paper.id, List.of())) {
-                if ("STATE_CHANGED".equals(event.type) && (event.details == null || !event.details.contains("(git)"))) {
-                    userStateChanged = true;
-                    break;
-                }
-            }
-            if (userStateChanged) {
+            if (paper.logicalFeed == null || !isPaperInRssIntakeState(paper)) {
                 continue;
             }
             LogicalFeed logicalFeed = logicalFeedById.get(paper.logicalFeed.id);
@@ -3343,11 +3296,16 @@ public class HomeResource {
     }
 
     static boolean isPaperInRssIntakeState(Paper paper) {
-        if (paper == null || paper.feed == null || paper.status == null || paper.status.isBlank()) {
+        if (paper == null || paper.feed == null || paper.logicalFeed == null
+                || paper.status == null || paper.status.isBlank()) {
+            return false;
+        }
+        if (paper.feed.url == null
+                || (!paper.feed.url.startsWith("http://") && !paper.feed.url.startsWith("https://"))) {
             return false;
         }
         try {
-            String intakeStatus = paper.feed.initialPaperStatus();
+            String intakeStatus = paper.logicalFeed.initialPaperStatus();
             return WorkflowStateConfig.normalizeStateId(paper.status)
                     .equals(WorkflowStateConfig.normalizeStateId(intakeStatus));
         } catch (IllegalArgumentException | IllegalStateException e) {

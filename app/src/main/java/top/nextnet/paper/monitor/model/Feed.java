@@ -38,9 +38,6 @@ public class Feed extends PanacheEntityBase {
 
     public Integer lastPollCreatedPaperCount;
 
-    @Column(length = 64)
-    public String defaultPaperStatus;
-
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(nullable = false)
     public LogicalFeed logicalFeed;
@@ -49,9 +46,6 @@ public class Feed extends PanacheEntityBase {
     public List<Paper> papers = new ArrayList<>();
 
     public String initialPaperStatus() {
-        if (defaultPaperStatus != null && !defaultPaperStatus.isBlank()) {
-            return defaultPaperStatus;
-        }
         return logicalFeed.initialPaperStatus();
     }
 

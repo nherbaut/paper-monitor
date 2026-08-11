@@ -685,14 +685,11 @@
                                 <strong data-poll-label>Daily</strong>
                             </div>
                         </div>
-                        <select name="logicalFeedId" required data-default-state-feed-select>
+                        <select name="logicalFeedId" required>
                             <option value="">Attach to paper feed</option>
                             {#for logicalFeed in adminLogicalFeeds}
-                            <option value="{logicalFeed.id}" data-workflow-states="{logicalFeed.workflowLeafStatesToken}" data-initial-state="{logicalFeed.initialPaperStatus}">{logicalFeed.name}</option>
+                            <option value="{logicalFeed.id}">{logicalFeed.name}</option>
                             {/for}
-                        </select>
-                        <select name="defaultPaperStatus" data-default-state-select>
-                            <option value="">Use paper feed initial state</option>
                         </select>
                         <button type="submit">Create RSS feed</button>
                     </form>
@@ -721,7 +718,7 @@
                         <div class="management-meta-box">
                             <strong>Attachment</strong>
                             <p class="meta">Paper feed: {feed.logicalFeed.name}</p>
-                            <p class="meta">Default state: {feed.defaultPaperStatus ?: feed.logicalFeed.initialPaperStatus}</p>
+                            <p class="meta">New paper state: {feed.logicalFeed.initialPaperStatus}</p>
                         </div>
                         <div class="management-meta-box">
                             <strong>Polling</strong>
@@ -746,15 +743,9 @@
                                     <strong data-poll-label>Daily</strong>
                                 </div>
                             </div>
-                            <select name="logicalFeedId" required data-default-state-feed-select>
+                            <select name="logicalFeedId" required>
                                 {#for logicalFeed in adminLogicalFeeds}
-                                <option value="{logicalFeed.id}" data-workflow-states="{logicalFeed.workflowLeafStatesToken}" data-initial-state="{logicalFeed.initialPaperStatus}" {#if logicalFeed.id == feed.logicalFeed.id}selected{/if}>{logicalFeed.name}</option>
-                                {/for}
-                            </select>
-                            <select name="defaultPaperStatus" data-default-state-select data-current-default="{feed.defaultPaperStatus ?: ''}">
-                                <option value="">Use paper feed initial state</option>
-                                {#for state in feed.logicalFeed.workflowStateList}
-                                <option value="{state}" {#if feed.defaultPaperStatus == state}selected{/if}>{state}</option>
+                                <option value="{logicalFeed.id}" {#if logicalFeed.id == feed.logicalFeed.id}selected{/if}>{logicalFeed.name}</option>
                                 {/for}
                             </select>
                             <button type="submit">Save RSS feed</button>
@@ -1135,46 +1126,6 @@
         sync();
         slider.addEventListener("input", sync);
         slider.addEventListener("change", sync);
-    });
-
-    document.querySelectorAll("[data-default-state-feed-select]").forEach((feedSelect) => {
-        const form = feedSelect.closest("form");
-        const stateSelect = form?.querySelector("[data-default-state-select]");
-        if (!stateSelect) {
-            return;
-        }
-
-        const populateDefaultStates = () => {
-            const selectedOption = feedSelect.selectedOptions && feedSelect.selectedOptions[0];
-            const states = (selectedOption?.dataset.workflowStates || "")
-                .split("|")
-                .map((state) => state.trim())
-                .filter(Boolean);
-            const currentDefault = stateSelect.dataset.currentDefault || stateSelect.value || "";
-            stateSelect.replaceChildren();
-            const inherited = document.createElement("option");
-            inherited.value = "";
-            const initialState = selectedOption?.dataset.initialState || "paper feed initial state";
-            inherited.textContent = "Use paper feed initial state (" + initialState + ")";
-            stateSelect.append(inherited);
-            states.forEach((state) => {
-                const option = document.createElement("option");
-                option.value = state;
-                option.textContent = state;
-                option.selected = state === currentDefault;
-                stateSelect.append(option);
-            });
-            if (currentDefault && !states.includes(currentDefault)) {
-                stateSelect.value = "";
-                stateSelect.dataset.currentDefault = "";
-            }
-        };
-
-        populateDefaultStates();
-        feedSelect.addEventListener("change", () => {
-            stateSelect.dataset.currentDefault = "";
-            populateDefaultStates();
-        });
     });
 
     const settingsNavButtons = document.querySelectorAll("[data-settings-target]");
