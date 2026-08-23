@@ -1363,6 +1363,42 @@
             color: #6f2917;
         }
 
+        .state-feedback-pop {
+            position: fixed;
+            right: clamp(1rem, 3vw, 2rem);
+            bottom: clamp(4.5rem, 8vh, 6rem);
+            z-index: 45;
+            width: min(26vw, 180px);
+            min-width: 96px;
+            aspect-ratio: 1;
+            display: grid;
+            place-items: center;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(10px) scale(0.94);
+            transition: opacity 180ms ease, transform 180ms ease;
+        }
+
+        .state-feedback-pop.visible {
+            opacity: 0.94;
+            transform: translateY(0) scale(1);
+        }
+
+        .state-feedback-pop img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 14px 24px rgba(77, 56, 38, 0.22));
+        }
+
+        @media (max-width: 720px) {
+            .state-feedback-pop {
+                width: 34vw;
+                min-width: 88px;
+                bottom: 5rem;
+            }
+        }
+
         .pdf-scroll {
             height: 70vh;
             overflow: auto;
@@ -2526,6 +2562,9 @@
     </article>
 </section>
 <div class="keyboard-status-toast" id="keyboard-status-toast" role="status" aria-live="polite"></div>
+<div class="state-feedback-pop" id="state-feedback-pop" aria-hidden="true">
+    <img id="state-feedback-image" alt="">
+</div>
 <div id="reader-bootstrap"
      data-initial-paper-id="{initialPaperId ?: ''}"
      data-initial-logical-feed-id="{initialLogicalFeedId ?: ''}"
@@ -2659,6 +2698,8 @@
     const pdfPanelMeta = document.getElementById("pdf-panel-meta");
     const pdfClose = document.getElementById("pdf-close");
     const keyboardStatusToast = document.getElementById("keyboard-status-toast");
+    const stateFeedbackPop = document.getElementById("state-feedback-pop");
+    const stateFeedbackImage = document.getElementById("state-feedback-image");
     const paperActionsMenu = document.getElementById("paper-actions-menu");
     const paperZoomOutButton = document.getElementById("paper-zoom-out");
     const paperZoomInButton = document.getElementById("paper-zoom-in");
@@ -2723,6 +2764,14 @@
     const notesCollapsedStorageKey = "paper-monitor.notes-collapsed";
     const pdfCaptureStorageKey = "paper-monitor.active-pdf-capture";
     const KEYBOARD_STATUS_TOAST_MS = 2200;
+    const STATE_FEEDBACK_POP_MS = 1200;
+    const STATE_FEEDBACK_FRAME_COUNT = 15;
+    const STATE_FEEDBACK_FOLDERS = {
+        DISCARDED: "discarded",
+        TODO: "todo",
+        DONE: "done"
+    };
+    let stateFeedbackTimer = null;
     const initialPaperId = readerBootstrap?.dataset.initialPaperId || "";
     const initialLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || "";
     const authenticated = readerBootstrap?.dataset.authenticated === "true";
@@ -5093,6 +5142,38 @@
         keyboardStatusToast.classList.add("visible", "error");
     };
 
+    const topLevelStatus = (status) => {
+        const normalized = normalizeStatus(status);
+        return normalized.includes("/") ? normalized.split("/")[0] : normalized;
+    };
+
+    const hideStateFeedbackPop = () => {
+        if (stateFeedbackTimer) {
+            window.clearTimeout(stateFeedbackTimer);
+            stateFeedbackTimer = null;
+        }
+        stateFeedbackPop?.classList.remove("visible");
+    };
+
+    const showStateFeedbackPop = (status) => {
+        if (!stateFeedbackPop || !stateFeedbackImage) {
+            return;
+        }
+        const folder = STATE_FEEDBACK_FOLDERS[topLevelStatus(status)];
+        if (!folder) {
+            return;
+        }
+        hideStateFeedbackPop();
+        const frameNumber = Math.floor(Math.random() * STATE_FEEDBACK_FRAME_COUNT) + 1;
+        const frameName = "frame_" + String(frameNumber).padStart(2, "0") + ".png";
+        stateFeedbackImage.onload = () => {
+            requestAnimationFrame(() => stateFeedbackPop.classList.add("visible"));
+        };
+        stateFeedbackImage.onerror = hideStateFeedbackPop;
+        stateFeedbackImage.src = "/assets/state-feedback/" + folder + "/" + frameName;
+        stateFeedbackTimer = window.setTimeout(hideStateFeedbackPop, STATE_FEEDBACK_POP_MS);
+    };
+
     const startKeyboardStatePicker = (side) => {
         const card = selectedPaperCard();
         if (!card) {
@@ -5935,6 +6016,7 @@
             closeViewer();
         }
         applyLogicalFeedFilter();
+        showStateFeedbackPop(nextStatus);
 
         if (advanceFocus) {
             let nextCard = nextPaperId ? findCardByPaperId(nextPaperId) : null;
