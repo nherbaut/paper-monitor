@@ -1092,7 +1092,7 @@
             min-height: 0;
             margin: 0 auto;
             display: grid;
-            grid-template-rows: auto auto minmax(0, 1fr);
+            grid-template-rows: auto auto auto minmax(0, 1fr) auto;
             gap: clamp(0.75rem, 1.8vh, 1.35rem);
             padding: clamp(1.2rem, 3vh, 2.4rem);
             border: 1px solid var(--line);
@@ -1100,6 +1100,37 @@
             background: color-mix(in srgb, var(--panel) 97%, white);
             box-shadow: 0 28px 70px rgba(77, 56, 38, 0.16);
             overflow: hidden;
+        }
+
+        .classification-queue-header {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.7rem 0.85rem;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--panel) 82%, var(--bg));
+        }
+
+        body.classification-queue-mode .classification-queue-header {
+            display: flex;
+        }
+
+        .classification-queue-title {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .classification-progress {
+            color: var(--ink);
+            font-weight: 800;
+        }
+
+        .classification-exit {
+            white-space: nowrap;
         }
 
         .classification-kicker {
@@ -1141,6 +1172,45 @@
             font-size: 0.78rem;
         }
 
+        .classification-links,
+        .classification-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .classification-links:empty,
+        .classification-actions:empty {
+            display: none;
+        }
+
+        .classification-links a,
+        .classification-actions button {
+            min-height: 2.35rem;
+            padding: 0.55rem 0.75rem;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            color: var(--ink);
+            text-decoration: none;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .classification-actions button.primary {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .classification-footer {
+            color: var(--muted);
+            font-size: 0.88rem;
+            line-height: 1.45;
+        }
+
         .classification-abstract {
             min-height: 0;
             overflow: auto;
@@ -1165,7 +1235,7 @@
             text-align: center;
         }
 
-        .classification-surface.empty > :not(.classification-empty) {
+        .classification-surface.empty > :not(.classification-empty):not(.classification-queue-header) {
             display: none;
         }
 
@@ -1176,6 +1246,20 @@
         @media (max-width: 720px) {
             .classification-view {
                 padding-inline: 1rem;
+            }
+
+            .classification-queue-header,
+            .classification-links,
+            .classification-actions {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .classification-exit,
+            .classification-links a,
+            .classification-actions button {
+                width: 100%;
+                text-align: center;
             }
         }
 
@@ -2412,6 +2496,13 @@
 </main>
 <section class="classification-view" id="classification-view" aria-label="Paper classification" aria-hidden="true">
     <article class="classification-surface" id="classification-surface">
+        <div class="classification-queue-header" id="classification-queue-header">
+            <p class="classification-queue-title">
+                RSS classification queue
+                <span class="classification-progress" id="classification-progress"></span>
+            </p>
+            <a class="secondary classification-exit" id="classification-exit" href="/">Open normal reader</a>
+        </div>
         <div>
             <p class="classification-kicker" id="classification-kicker">Focused classification</p>
             <h2 class="classification-title" id="classification-title"></h2>
@@ -2420,11 +2511,16 @@
             <p class="classification-meta" id="classification-meta"></p>
             <div class="classification-tags" id="classification-tags"></div>
         </div>
+        <div class="classification-links" id="classification-links"></div>
         <div class="classification-abstract" id="classification-abstract"></div>
+        <div>
+            <div class="classification-actions" id="classification-actions"></div>
+            <p class="classification-footer" id="classification-footer">Use the buttons, number keys, or arrow keys to move this paper.</p>
+        </div>
         <div class="classification-empty">
             <div>
-                <h2>No papers remaining</h2>
-                <p class="meta">Release Shift to return to the paper feed.</p>
+                <h2 id="classification-empty-title">No papers remaining</h2>
+                <p class="meta" id="classification-empty-message">Release Shift to return to the paper feed.</p>
             </div>
         </div>
     </article>
@@ -2543,11 +2639,18 @@
     const rightStateOptions = document.getElementById("right-state-options");
     const classificationView = document.getElementById("classification-view");
     const classificationSurface = document.getElementById("classification-surface");
+    const classificationProgress = document.getElementById("classification-progress");
+    const classificationExit = document.getElementById("classification-exit");
     const classificationKicker = document.getElementById("classification-kicker");
     const classificationTitle = document.getElementById("classification-title");
     const classificationMeta = document.getElementById("classification-meta");
     const classificationTags = document.getElementById("classification-tags");
+    const classificationLinks = document.getElementById("classification-links");
     const classificationAbstract = document.getElementById("classification-abstract");
+    const classificationActions = document.getElementById("classification-actions");
+    const classificationFooter = document.getElementById("classification-footer");
+    const classificationEmptyTitle = document.getElementById("classification-empty-title");
+    const classificationEmptyMessage = document.getElementById("classification-empty-message");
     const pdfPanel = document.getElementById("pdf-panel");
     const pdfScroll = document.querySelector(".pdf-scroll");
     const pdfFrame = document.getElementById("pdf-frame");
@@ -2626,6 +2729,7 @@
     const shareMode = readerBootstrap?.dataset.shareMode === "true";
     const classificationQueueMode = readerBootstrap?.dataset.classificationQueueMode === "true";
     const startClassificationMode = readerBootstrap?.dataset.startClassificationMode === "true";
+    document.body.classList.toggle("classification-queue-mode", classificationQueueMode);
     let loadedLogicalFeedId = shareMode ? String(readerBootstrap?.dataset.initialLogicalFeedId || "") : "";
     let notesCollapsed = false;
     let pdfResizeObserver = null;
@@ -4688,6 +4792,7 @@
             return;
         }
         classificationSurface.classList.remove("empty");
+        updateClassificationQueueProgress(card);
         classificationKicker.textContent = statusLabel(normalizeStatus(card.dataset.paperStatus))
             + (card.dataset.paperRecordType === "GRAY_LITERATURE" ? " · Gray literature" : "");
         classificationTitle.textContent = card.dataset.paperTitle || "Untitled paper";
@@ -4727,7 +4832,78 @@
                 classificationAbstract.appendChild(element);
             });
         }
+        renderClassificationLinks(card);
+        renderClassificationActions(card);
         fitClassificationTypography();
+    };
+
+    const updateClassificationQueueProgress = (card = selectedPaperCard()) => {
+        if (!classificationQueueMode || !classificationProgress) {
+            return;
+        }
+        const cards = visiblePaperCards().filter(canClassifyCard);
+        const index = cards.findIndex((item) => item.dataset.paperId === card?.dataset.paperId);
+        const position = index >= 0 ? index + 1 : Math.min(cards.length, 1);
+        const feedName = card?.dataset.logicalFeedName || logicalFeedFilter?.selectedOptions?.[0]?.dataset?.feedName || "paper feed";
+        classificationProgress.textContent = cards.length
+            ? " - " + position + " of " + cards.length + " in " + feedName
+            : " - none waiting in " + feedName;
+        if (classificationExit) {
+            const logicalFeedId = card?.dataset.logicalFeedId || logicalFeedFilter?.value || "";
+            classificationExit.href = logicalFeedId ? "/?logicalFeedId=" + encodeURIComponent(logicalFeedId) : "/";
+        }
+    };
+
+    const appendClassificationLink = (label, href) => {
+        if (!classificationLinks || !href) {
+            return;
+        }
+        const link = document.createElement("a");
+        link.href = href;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.textContent = label;
+        classificationLinks.appendChild(link);
+    };
+
+    const renderClassificationLinks = (card) => {
+        if (!classificationLinks) {
+            return;
+        }
+        classificationLinks.innerHTML = "";
+        appendClassificationLink("Source", card.dataset.paperSourceLink || "");
+        appendClassificationLink("Open access", card.dataset.paperOpenAccessLink || "");
+        appendClassificationLink("PDF", card.dataset.pdfUrl || "");
+    };
+
+    const renderClassificationActions = (card) => {
+        if (!classificationActions || !classificationFooter) {
+            return;
+        }
+        classificationActions.innerHTML = "";
+        const currentStatus = normalizeStatus(card.dataset.paperStatus);
+        const targets = workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
+        targets.forEach((target, index) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = index === 0 ? "primary" : "";
+            button.textContent = workflowStateById(card.dataset.logicalFeedId, target)?.label || statusLabel(target);
+            button.addEventListener("click", async () => {
+                try {
+                    await applyPaperStatusTransition(card, target, currentStatus, {
+                        advanceFocus: true,
+                        backgroundPersistence: classificationModeActive
+                    });
+                    startKeyboardShortcutPicker();
+                } catch (error) {
+                    window.alert(error.message || "Failed to update paper status");
+                }
+            });
+            classificationActions.appendChild(button);
+        });
+        classificationFooter.textContent = targets.length
+            ? "Choose a state, use number shortcuts, or use left/right arrows to classify."
+            : "This state has no configured outgoing transitions. Use the normal reader to inspect this paper.";
     };
 
     const selectPaperForClassification = (card) => {
@@ -4751,7 +4927,34 @@
         selectedPaperId = null;
         allPaperCards().forEach((item) => item.classList.remove("active"));
         classificationSurface.classList.add("empty");
+        updateClassificationQueueProgress();
+        if (classificationActions) {
+            classificationActions.innerHTML = "";
+        }
+        if (classificationLinks) {
+            classificationLinks.innerHTML = "";
+        }
+        if (classificationFooter) {
+            classificationFooter.textContent = "";
+        }
+        if (classificationEmptyTitle) {
+            classificationEmptyTitle.textContent = classificationQueueMode
+                ? "No papers waiting for classification"
+                : "No papers remaining";
+        }
+        if (classificationEmptyMessage) {
+            classificationEmptyMessage.textContent = classificationQueueMode
+                ? "All RSS papers in this paper feed have been classified."
+                : "Release Shift to return to the paper feed.";
+        }
         hideStateWheels();
+    };
+
+    const showEmptyClassificationMode = () => {
+        classificationModeActive = true;
+        document.body.classList.add("classification-mode");
+        classificationView.setAttribute("aria-hidden", "false");
+        showClassificationEmpty();
     };
 
     const enterClassificationMode = () => {
@@ -7730,6 +7933,8 @@
         if (startClassificationMode) {
             if (enterClassificationMode()) {
                 startKeyboardShortcutPicker();
+            } else if (classificationQueueMode) {
+                showEmptyClassificationMode();
             }
         } else {
             openInitialPaper();
