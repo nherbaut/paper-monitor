@@ -105,6 +105,69 @@
             color: var(--accent);
         }
 
+        .scholar-picker {
+            display: grid;
+            gap: 0.75rem;
+            padding: 0.85rem;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.52);
+        }
+
+        .scholar-picker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .scholar-picker-header p,
+        .scholar-result p {
+            margin: 0;
+        }
+
+        .scholar-tabs {
+            display: flex;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+        }
+
+        .scholar-tab.active {
+            border-color: var(--accent);
+            background: rgba(179, 79, 46, 0.12);
+            color: #6f2d19;
+        }
+
+        .scholar-results {
+            display: grid;
+            gap: 0.55rem;
+            max-height: 22rem;
+            overflow: auto;
+        }
+
+        .scholar-result {
+            display: grid;
+            gap: 0.45rem;
+            padding: 0.7rem;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--panel) 85%, white);
+        }
+
+        .scholar-result-query {
+            max-height: 4.8rem;
+            overflow: hidden;
+            color: var(--ink);
+            font-size: 0.9rem;
+            line-height: 1.35;
+        }
+
+        .scholar-result-meta {
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
         .masquerade-banner {
             display: flex;
             justify-content: space-between;
@@ -497,7 +560,7 @@
         <form action="/admin/setup" method="post">
             <div class="two-columns">
                 <input type="text" name="logicalFeedName" placeholder="Paper feed name" required>
-                <input type="text" name="rssFeedName" placeholder="RSS feed name" value="Default paper feed">
+                <input type="text" name="rssFeedName" placeholder="RSS feed name" value="Default paper feed" data-scholar-name-field>
             </div>
             <textarea name="logicalFeedDescription" placeholder="Optional paper feed description"></textarea>
             <textarea name="workflowStates" required>- Discarded
@@ -508,8 +571,8 @@
             <textarea name="eligibilityInclusionTaxonomy" placeholder="Optional eligibility inclusion taxonomy YAML"></textarea>
             <div class="two-columns">
                 <div class="rss-source-help">
-                    <input type="url" name="rssFeedUrl" value="https://scholar.miage.dev/feed/4.rss" required>
-                    <span class="meta">Need an RSS source? Open <a href="https://scholar.miage.dev/feeds" target="_blank" rel="noreferrer">Miage Scholar feeds</a> in a new tab, pick a feed, then paste its URL here.</span>
+                    <input type="url" name="rssFeedUrl" value="https://scholar.miage.dev/feed/4.rss" required data-scholar-url-field>
+                    <span class="meta">Choose from MIAGE Scholar below, or paste any RSS URL manually.</span>
                 </div>
                 <div class="poll-slider">
                     <input type="range" min="0" max="2" step="1" value="0" data-poll-slider>
@@ -519,6 +582,18 @@
                         <strong data-poll-label>Daily</strong>
                     </div>
                 </div>
+            </div>
+            <div class="scholar-picker" data-scholar-picker>
+                <div class="scholar-picker-header">
+                    <p class="meta"><strong>Choose from MIAGE Scholar</strong><br>Pick an existing RSS feed or create one from a recent Scholar query.</p>
+                    <div class="scholar-tabs">
+                        <button class="secondary scholar-tab active" type="button" data-scholar-tab="feeds">Existing feeds</button>
+                        <button class="secondary scholar-tab" type="button" data-scholar-tab="history">Recent queries</button>
+                    </div>
+                </div>
+                <input type="search" data-scholar-search placeholder="Search query, id, URL, or permalink">
+                <p class="meta" data-scholar-status>Loading Scholar feeds...</p>
+                <div class="scholar-results" data-scholar-results></div>
             </div>
             <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
             <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Send owner and feed admins a daily RSS paper digest</label>
@@ -675,8 +750,20 @@
                 <summary>Create RSS feed</summary>
                 <div class="management-card-body">
                     <form action="/feeds" method="post">
-                        <input type="text" name="name" placeholder="RSS feed name" required>
-                        <input type="url" name="url" placeholder="https://example.com/feed.xml" required>
+                        <input type="text" name="name" placeholder="RSS feed name" required data-scholar-name-field>
+                        <input type="url" name="url" placeholder="https://example.com/feed.xml" required data-scholar-url-field>
+                        <div class="scholar-picker" data-scholar-picker>
+                            <div class="scholar-picker-header">
+                                <p class="meta"><strong>Choose from MIAGE Scholar</strong><br>Pick an existing RSS feed or create one from a recent Scholar query.</p>
+                                <div class="scholar-tabs">
+                                    <button class="secondary scholar-tab active" type="button" data-scholar-tab="feeds">Existing feeds</button>
+                                    <button class="secondary scholar-tab" type="button" data-scholar-tab="history">Recent queries</button>
+                                </div>
+                            </div>
+                            <input type="search" data-scholar-search placeholder="Search query, id, URL, or permalink">
+                            <p class="meta" data-scholar-status>Loading Scholar feeds...</p>
+                            <div class="scholar-results" data-scholar-results></div>
+                        </div>
                         <div class="poll-slider">
                             <input type="range" min="0" max="2" step="1" value="0" data-poll-slider>
                             <input type="hidden" name="pollIntervalMinutes" value="1440" data-poll-minutes>
@@ -1126,6 +1213,146 @@
         sync();
         slider.addEventListener("input", sync);
         slider.addEventListener("change", sync);
+    });
+
+    const scholarCache = {
+        feeds: null,
+        history: null
+    };
+
+    const scholarText = (value) => value == null ? "" : String(value);
+
+    const scholarSnippet = (value, maxLength = 260) => {
+        const normalized = scholarText(value).replace(/\s+/g, " ").trim();
+        return normalized.length > maxLength ? normalized.slice(0, maxLength - 1) + "..." : normalized;
+    };
+
+    const scholarFeedName = (item, prefix) => {
+        const id = item.id || item.queryId || "";
+        return (prefix || "Scholar feed") + (id ? " " + id : "");
+    };
+
+    const fetchScholarRows = async (kind) => {
+        if (scholarCache[kind]) {
+            return scholarCache[kind];
+        }
+        const response = await fetch(kind === "history" ? "/api/scholar/history" : "/api/scholar/feeds", {
+            headers: { Accept: "application/json" }
+        });
+        const body = await response.text();
+        if (!response.ok) {
+            throw new Error(body || "Could not load MIAGE Scholar sources.");
+        }
+        scholarCache[kind] = JSON.parse(body);
+        return scholarCache[kind];
+    };
+
+    const fillScholarForm = (picker, name, url) => {
+        const form = picker.closest("form");
+        const nameField = form?.querySelector("[data-scholar-name-field]");
+        const urlField = form?.querySelector("[data-scholar-url-field]");
+        if (nameField && name) {
+            nameField.value = name;
+        }
+        if (urlField && url) {
+            urlField.value = url;
+            urlField.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+    };
+
+    const createFeedFromScholarHistory = async (picker, item, status) => {
+        const queryId = item.queryId || item.id;
+        if (!queryId) {
+            status.textContent = "This history entry has no query id.";
+            return;
+        }
+        status.textContent = "Creating RSS feed from Scholar query " + queryId + "...";
+        const response = await fetch("/api/scholar/history/" + encodeURIComponent(queryId) + "/feed", {
+            method: "POST",
+            headers: { Accept: "application/json" }
+        });
+        const body = await response.text();
+        if (!response.ok) {
+            throw new Error(body || "Could not create RSS feed from this Scholar query.");
+        }
+        const created = JSON.parse(body);
+        fillScholarForm(picker, scholarFeedName(created, "Scholar query"), created.rssUrl);
+        status.textContent = "Selected Scholar query " + queryId + ".";
+    };
+
+    const renderScholarPicker = async (picker) => {
+        const activeTab = picker.dataset.scholarActiveTab || "feeds";
+        const search = scholarText(picker.querySelector("[data-scholar-search]")?.value).toLowerCase().trim();
+        const status = picker.querySelector("[data-scholar-status]");
+        const results = picker.querySelector("[data-scholar-results]");
+        if (!status || !results) {
+            return;
+        }
+        picker.querySelectorAll("[data-scholar-tab]").forEach((button) => {
+            button.classList.toggle("active", button.dataset.scholarTab === activeTab);
+        });
+        status.textContent = activeTab === "history" ? "Loading recent Scholar queries..." : "Loading Scholar feeds...";
+        results.innerHTML = "";
+        try {
+            const rows = await fetchScholarRows(activeTab);
+            const filtered = rows.filter((item) => {
+                const haystack = [
+                    item.id,
+                    item.queryId,
+                    item.query,
+                    item.rssUrl,
+                    item.permalinkUrl
+                ].map(scholarText).join(" ").toLowerCase();
+                return !search || haystack.includes(search);
+            }).slice(0, 20);
+            status.textContent = filtered.length
+                ? "Showing " + filtered.length + " Scholar " + (activeTab === "history" ? "queries." : "feeds.")
+                : "No Scholar source matches this search.";
+            filtered.forEach((item) => {
+                const card = document.createElement("div");
+                card.className = "scholar-result";
+                const query = document.createElement("p");
+                query.className = "scholar-result-query";
+                query.textContent = scholarSnippet(item.query || item.rssUrl || item.permalinkUrl || "Untitled Scholar source");
+                const meta = document.createElement("p");
+                meta.className = "scholar-result-meta";
+                meta.textContent = activeTab === "history"
+                    ? "Query " + (item.queryId || item.id || "?") + " · " + (item.count ?? "?") + " result(s) · " + (item.timestamp || "unknown date")
+                    : "Feed " + (item.id || "?") + " · " + (item.count ?? "?") + " paper(s) · " + (item.hit ?? "?") + " hit(s)";
+                const choose = document.createElement("button");
+                choose.className = "secondary";
+                choose.type = "button";
+                choose.textContent = activeTab === "history" ? "Create RSS from this query" : "Use this feed";
+                choose.addEventListener("click", async () => {
+                    try {
+                        if (activeTab === "history") {
+                            await createFeedFromScholarHistory(picker, item, status);
+                        } else {
+                            fillScholarForm(picker, scholarFeedName(item, "Scholar feed"), item.rssUrl);
+                            status.textContent = "Selected Scholar feed " + (item.id || "") + ".";
+                        }
+                    } catch (error) {
+                        status.textContent = error.message || "Scholar selection failed.";
+                    }
+                });
+                card.append(query, meta, choose);
+                results.appendChild(card);
+            });
+        } catch (error) {
+            status.textContent = error.message || "Could not load MIAGE Scholar sources.";
+        }
+    };
+
+    document.querySelectorAll("[data-scholar-picker]").forEach((picker) => {
+        picker.dataset.scholarActiveTab = "feeds";
+        picker.querySelectorAll("[data-scholar-tab]").forEach((button) => {
+            button.addEventListener("click", () => {
+                picker.dataset.scholarActiveTab = button.dataset.scholarTab || "feeds";
+                renderScholarPicker(picker);
+            });
+        });
+        picker.querySelector("[data-scholar-search]")?.addEventListener("input", () => renderScholarPicker(picker));
+        renderScholarPicker(picker);
     });
 
     const settingsNavButtons = document.querySelectorAll("[data-settings-target]");

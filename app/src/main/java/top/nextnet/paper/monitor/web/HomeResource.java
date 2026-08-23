@@ -83,6 +83,7 @@ import top.nextnet.paper.monitor.service.PaperStateRepairService;
 import top.nextnet.paper.monitor.service.PaperStorageService;
 import top.nextnet.paper.monitor.service.QuickSetupWorkflows;
 import top.nextnet.paper.monitor.service.ReviewService;
+import top.nextnet.paper.monitor.service.ScholarService;
 import top.nextnet.paper.monitor.service.TtsService;
 import top.nextnet.paper.monitor.service.WorkflowStateConfig;
 
@@ -122,6 +123,7 @@ public class HomeResource {
     private final MarkdownConversionService markdownConversionService;
     private final NotificationService notificationService;
     private final ReviewService reviewService;
+    private final ScholarService scholarService;
     private final Instance<CurrentUserContext> currentUserContext;
     private final String baseUrl;
     private final String paperDataExtractorBaseUrl;
@@ -160,6 +162,7 @@ public class HomeResource {
             LogicalFeedAccessService logicalFeedAccessService,
             MarkdownConversionService markdownConversionService,
             ReviewService reviewService,
+            ScholarService scholarService,
             NotificationService notificationService,
             Instance<CurrentUserContext> currentUserContext,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl,
@@ -198,6 +201,7 @@ public class HomeResource {
         this.logicalFeedAccessService = logicalFeedAccessService;
         this.markdownConversionService = markdownConversionService;
         this.reviewService = reviewService;
+        this.scholarService = scholarService;
         this.notificationService = notificationService;
         this.currentUserContext = currentUserContext;
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.trim();
@@ -1027,6 +1031,33 @@ public class HomeResource {
         } catch (IllegalArgumentException e) {
             return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#google-drive");
         }
+    }
+
+    @GET
+    @Path("/api/scholar/feeds")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response scholarFeeds() {
+        requireCurrentUser();
+        return Response.ok(JsonCodec.stringify(scholarService.feeds()), MediaType.APPLICATION_JSON).build();
+    }
+
+    @GET
+    @Path("/api/scholar/history")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response scholarHistory() {
+        requireCurrentUser();
+        return Response.ok(JsonCodec.stringify(scholarService.history()), MediaType.APPLICATION_JSON).build();
+    }
+
+    @POST
+    @Path("/api/scholar/history/{queryId}/feed")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response scholarHistoryFeed(@jakarta.ws.rs.PathParam("queryId") Long queryId) {
+        requireCurrentUser();
+        if (queryId == null) {
+            throw new WebApplicationException("queryId is required", Response.Status.BAD_REQUEST);
+        }
+        return Response.ok(JsonCodec.stringify(scholarService.createFeedFromHistory(queryId)), MediaType.APPLICATION_JSON).build();
     }
 
     @POST

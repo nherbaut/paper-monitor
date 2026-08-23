@@ -541,6 +541,69 @@
             margin: 0;
         }
 
+        .scholar-picker {
+            display: grid;
+            gap: 0.75rem;
+            padding: 0.85rem;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--panel) 86%, var(--bg));
+        }
+
+        .scholar-picker-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .scholar-picker-header p,
+        .scholar-result p {
+            margin: 0;
+        }
+
+        .scholar-tabs {
+            display: flex;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+        }
+
+        .scholar-tab.active {
+            border-color: var(--accent);
+            background: color-mix(in srgb, var(--accent-soft) 70%, var(--panel));
+            color: var(--accent);
+        }
+
+        .scholar-results {
+            display: grid;
+            gap: 0.55rem;
+            max-height: 22rem;
+            overflow: auto;
+        }
+
+        .scholar-result {
+            display: grid;
+            gap: 0.45rem;
+            padding: 0.7rem;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: var(--panel);
+        }
+
+        .scholar-result-query {
+            max-height: 4.8rem;
+            overflow: hidden;
+            color: var(--ink);
+            font-size: 0.9rem;
+            line-height: 1.35;
+        }
+
+        .scholar-result-meta {
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
         .inline-spinner {
             display: inline-block;
             width: 0.9rem;
@@ -2029,7 +2092,7 @@
                 {#if authenticated}
                 <a class="secondary nav-action" href="/classify" id="classify-rss-link">
                     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 2.5h12v2H2v-2Zm1 4h10v7H3v-7Zm1 1v5h8v-5H4Zm1 1h3v1H5v-1Zm0 2h5v1H5v-1Z"/></svg>
-                    <span class="nav-action-label">Classify RSS papers</span>
+                    <span class="nav-action-label">Classify new papers</span>
                 </a>
                 <a class="secondary nav-action" href="/admin">
                     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.67 1.5 10 3.1c.3.12.59.28.86.47l1.47-.5 1 1.73-1.15 1.03c.04.31.04.63 0 .94l1.15 1.03-1 1.73-1.47-.5c-.27.2-.56.35-.86.47L9.67 14.5H7.33L7 12.9a4.9 4.9 0 0 1-.86-.47l-1.47.5-1-1.73 1.15-1.03a3.7 3.7 0 0 1 0-.94L3.67 8.2l1-1.73 1.47.5c.27-.19.56-.35.86-.47l.33-1.6h2.34ZM8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z"/></svg>
@@ -2089,8 +2152,8 @@
 
     {#if authenticated && logicalFeeds.isEmpty}
     <section class="panel panel-wide getting-started-callout">
-        <p class="meta">You do not have any paper feed yet. The setup flow in admin is a quick and easy way to get started.</p>
-        <a class="secondary" href="/admin#setup">Open quick setup</a>
+        <p class="meta">You do not have any paper feed yet. A paper feed is your workspace for RSS papers, notes, PDFs, and classification states.</p>
+        <a class="secondary" href="/admin#setup">Create your first paper feed</a>
     </section>
     {/if}
 
@@ -2130,7 +2193,7 @@
                     <button class="feed-dashboard-stat feed-dashboard-stat-button" type="button"
                             data-open-new-papers="{logicalFeed.id}"
                             {#if logicalFeed.recentNewPaperCount == 0}disabled title="No papers are waiting for classification."{/if}>
-                        <span class="meta meta-with-icon"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 2 9.8 5.6 14 6.2l-3 2.9.7 4.1L8 11.3l-3.7 1.9.7-4.1-3-2.9 4.2-.6L8 2Z"/></svg><span>New papers</span></span>
+                        <span class="meta meta-with-icon"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 2 9.8 5.6 14 6.2l-3 2.9.7 4.1L8 11.3l-3.7 1.9.7-4.1-3-2.9 4.2-.6L8 2Z"/></svg><span>Classify new papers</span></span>
                         <strong>{logicalFeed.recentNewPaperCount}</strong>
                     </button>
                 </div>
@@ -2185,11 +2248,22 @@
                 <input type="hidden" name="pollIntervalMinutes" value="1440">
                 <input type="hidden" id="feed-create-return-to" name="returnTo">
                 <label class="meta" for="feed-create-name">RSS feed name</label>
-                <input id="feed-create-name" name="name" type="text" placeholder="My RSS source" required>
+                <input id="feed-create-name" name="name" type="text" placeholder="My RSS source" required data-scholar-name-field>
                 <label class="meta" for="feed-create-url">RSS feed URL</label>
-                <input id="feed-create-url" name="url" type="url" placeholder="https://example.org/feed.xml" required>
-                <p class="meta">Paste the RSS feed URL and pick a short label for it. You can later manage polling in Admin if needed.</p>
-                <p class="meta">Need a source? Open <a href="https://scholar.miage.dev/feeds" target="_blank" rel="noreferrer">Miage Scholar feeds</a> in a new tab, pick a feed, then paste its URL here.</p>
+                <input id="feed-create-url" name="url" type="url" placeholder="https://example.org/feed.xml" required data-scholar-url-field>
+                <p class="meta">Choose a MIAGE Scholar source below, or paste any RSS feed URL manually.</p>
+                <div class="scholar-picker" data-scholar-picker>
+                    <div class="scholar-picker-header">
+                        <p class="meta"><strong>Choose from MIAGE Scholar</strong><br>Pick an existing RSS feed or create one from a recent Scholar query.</p>
+                        <div class="scholar-tabs">
+                            <button class="secondary scholar-tab active" type="button" data-scholar-tab="feeds">Existing feeds</button>
+                            <button class="secondary scholar-tab" type="button" data-scholar-tab="history">Recent queries</button>
+                        </div>
+                    </div>
+                    <input type="search" data-scholar-search placeholder="Search query, id, URL, or permalink">
+                    <p class="meta" data-scholar-status>Loading Scholar feeds...</p>
+                    <div class="scholar-results" data-scholar-results></div>
+                </div>
                 <div class="manual-import-actions">
                     <button class="secondary" type="submit">Add RSS feed</button>
                 </div>
@@ -2551,7 +2625,7 @@
         <div class="classification-abstract" id="classification-abstract"></div>
         <div>
             <div class="classification-actions" id="classification-actions"></div>
-            <p class="classification-footer" id="classification-footer">Use the buttons, number keys, or arrow keys to move this paper.</p>
+            <p class="classification-footer" id="classification-footer">Choose the next state for this paper. Once classified, it leaves this queue.</p>
         </div>
         <div class="classification-empty">
             <div>
@@ -4092,6 +4166,146 @@
         }
     };
 
+    const scholarCache = {
+        feeds: null,
+        history: null
+    };
+
+    const scholarText = (value) => value == null ? "" : String(value);
+
+    const scholarSnippet = (value, maxLength = 260) => {
+        const normalized = scholarText(value).replace(/\s+/g, " ").trim();
+        return normalized.length > maxLength ? normalized.slice(0, maxLength - 1) + "..." : normalized;
+    };
+
+    const scholarFeedName = (item, prefix) => {
+        const id = item.id || item.queryId || "";
+        return (prefix || "Scholar feed") + (id ? " " + id : "");
+    };
+
+    const fetchScholarRows = async (kind) => {
+        if (scholarCache[kind]) {
+            return scholarCache[kind];
+        }
+        const response = await fetch(kind === "history" ? "/api/scholar/history" : "/api/scholar/feeds", {
+            headers: { Accept: "application/json" }
+        });
+        const body = await response.text();
+        if (!response.ok) {
+            throw new Error(body || "Could not load MIAGE Scholar sources.");
+        }
+        scholarCache[kind] = JSON.parse(body);
+        return scholarCache[kind];
+    };
+
+    const fillScholarForm = (picker, name, url) => {
+        const form = picker.closest("form");
+        const nameField = form?.querySelector("[data-scholar-name-field]");
+        const urlField = form?.querySelector("[data-scholar-url-field]");
+        if (nameField && name) {
+            nameField.value = name;
+        }
+        if (urlField && url) {
+            urlField.value = url;
+            urlField.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+    };
+
+    const createFeedFromScholarHistory = async (picker, item, status) => {
+        const queryId = item.queryId || item.id;
+        if (!queryId) {
+            status.textContent = "This history entry has no query id.";
+            return;
+        }
+        status.textContent = "Creating RSS feed from Scholar query " + queryId + "...";
+        const response = await fetch("/api/scholar/history/" + encodeURIComponent(queryId) + "/feed", {
+            method: "POST",
+            headers: { Accept: "application/json" }
+        });
+        const body = await response.text();
+        if (!response.ok) {
+            throw new Error(body || "Could not create RSS feed from this Scholar query.");
+        }
+        const created = JSON.parse(body);
+        fillScholarForm(picker, scholarFeedName(created, "Scholar query"), created.rssUrl);
+        status.textContent = "Selected Scholar query " + queryId + ".";
+    };
+
+    const renderScholarPicker = async (picker) => {
+        const activeTab = picker.dataset.scholarActiveTab || "feeds";
+        const search = scholarText(picker.querySelector("[data-scholar-search]")?.value).toLowerCase().trim();
+        const status = picker.querySelector("[data-scholar-status]");
+        const results = picker.querySelector("[data-scholar-results]");
+        if (!status || !results) {
+            return;
+        }
+        picker.querySelectorAll("[data-scholar-tab]").forEach((button) => {
+            button.classList.toggle("active", button.dataset.scholarTab === activeTab);
+        });
+        status.textContent = activeTab === "history" ? "Loading recent Scholar queries..." : "Loading Scholar feeds...";
+        results.innerHTML = "";
+        try {
+            const rows = await fetchScholarRows(activeTab);
+            const filtered = rows.filter((item) => {
+                const haystack = [
+                    item.id,
+                    item.queryId,
+                    item.query,
+                    item.rssUrl,
+                    item.permalinkUrl
+                ].map(scholarText).join(" ").toLowerCase();
+                return !search || haystack.includes(search);
+            }).slice(0, 20);
+            status.textContent = filtered.length
+                ? "Showing " + filtered.length + " Scholar " + (activeTab === "history" ? "queries." : "feeds.")
+                : "No Scholar source matches this search.";
+            filtered.forEach((item) => {
+                const card = document.createElement("div");
+                card.className = "scholar-result";
+                const query = document.createElement("p");
+                query.className = "scholar-result-query";
+                query.textContent = scholarSnippet(item.query || item.rssUrl || item.permalinkUrl || "Untitled Scholar source");
+                const meta = document.createElement("p");
+                meta.className = "scholar-result-meta";
+                meta.textContent = activeTab === "history"
+                    ? "Query " + (item.queryId || item.id || "?") + " · " + (item.count ?? "?") + " result(s) · " + (item.timestamp || "unknown date")
+                    : "Feed " + (item.id || "?") + " · " + (item.count ?? "?") + " paper(s) · " + (item.hit ?? "?") + " hit(s)";
+                const choose = document.createElement("button");
+                choose.className = "secondary";
+                choose.type = "button";
+                choose.textContent = activeTab === "history" ? "Create RSS from this query" : "Use this feed";
+                choose.addEventListener("click", async () => {
+                    try {
+                        if (activeTab === "history") {
+                            await createFeedFromScholarHistory(picker, item, status);
+                        } else {
+                            fillScholarForm(picker, scholarFeedName(item, "Scholar feed"), item.rssUrl);
+                            status.textContent = "Selected Scholar feed " + (item.id || "") + ".";
+                        }
+                    } catch (error) {
+                        status.textContent = error.message || "Scholar selection failed.";
+                    }
+                });
+                card.append(query, meta, choose);
+                results.appendChild(card);
+            });
+        } catch (error) {
+            status.textContent = error.message || "Could not load MIAGE Scholar sources.";
+        }
+    };
+
+    document.querySelectorAll("[data-scholar-picker]").forEach((picker) => {
+        picker.dataset.scholarActiveTab = "feeds";
+        picker.querySelectorAll("[data-scholar-tab]").forEach((button) => {
+            button.addEventListener("click", () => {
+                picker.dataset.scholarActiveTab = button.dataset.scholarTab || "feeds";
+                renderScholarPicker(picker);
+            });
+        });
+        picker.querySelector("[data-scholar-search]")?.addEventListener("input", () => renderScholarPicker(picker));
+        renderScholarPicker(picker);
+    });
+
     const openFeedCreateModal = (logicalFeedId, logicalFeedName) => {
         if (!feedCreateModal || !feedCreateLogicalFeedId || !feedCreateReturnTo) {
             return;
@@ -4951,7 +5165,7 @@
             classificationActions.appendChild(button);
         });
         classificationFooter.textContent = targets.length
-            ? "Choose a state, use number shortcuts, or use left/right arrows to classify."
+            ? "Choose the next state for this paper. Once classified, it leaves this queue."
             : "This state has no configured outgoing transitions. Use the normal reader to inspect this paper.";
     };
 
