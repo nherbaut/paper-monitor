@@ -47,7 +47,7 @@ public class ReviewExcelExportService {
 
     public byte[] exportSurveyWorkbook(Review review) throws IOException {
         List<Paper> papers = reviewService.papersInLiveScope(review);
-        Map<Long, ReviewSubmission> submissionsByPaperId = reviewService.submissionsByPaperId(review);
+        Map<Long, ReviewSubmission> submissionsByPaperId = reviewService.completeSubmissionsByPaperId(review);
         Map<String, Object> formSchema = reviewService.formSchema(review);
         Map<String, Object> scales = asObjectMap(formSchema.get("scales"));
         List<Map<String, Object>> topLevelFields = objectMapList(formSchema.get("fields"));

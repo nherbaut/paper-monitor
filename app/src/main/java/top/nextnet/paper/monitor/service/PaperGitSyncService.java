@@ -395,6 +395,9 @@ public class PaperGitSyncService {
             Path reviewDirectory = reviewsDirectory.resolve(reviewDirectoryName(review));
             Files.createDirectories(reviewDirectory);
             for (ReviewSubmission submission : reviewSubmissionRepository.findByReview(review)) {
+                if (!submission.complete) {
+                    continue;
+                }
                 Files.writeString(
                         reviewDirectory.resolve(reviewSubmissionFileName(submission)),
                         JsonCodec.stringify(reviewSubmissionPayload(review, submission)));

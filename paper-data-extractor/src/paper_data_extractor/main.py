@@ -22,6 +22,7 @@ from paper_data_extractor.models import (
     ClassificationResponse,
     ModelVisibilityRequest,
     ModelSummary,
+    ReviewDesignDerivationRequest,
     ReviewDesignRequest,
     ReviewDesignResponse,
     ReviewDesignSummary,
@@ -38,13 +39,14 @@ from paper_data_extractor.review_schema import (
 )
 from paper_data_extractor.review_designs import (
     create_review_design,
+    create_review_design_derivation,
+    create_review_design_revision,
     delete_review_design,
     download_metamodel_json_schema,
     download_metamodel_yaml,
     list_review_designs,
     load_review_design,
     review_design_to_preview,
-    review_design_yaml_text,
 )
 from paper_data_extractor.taxonomy import (
     compose_taxonomies,
@@ -158,7 +160,14 @@ async def require_authenticated_user(request: Request, call_next):
         return await call_next(request)
 
     internal_token = (request.headers.get("X-PDE-Internal-Token") or "").strip()
-    if internal_api_token and internal_token == internal_api_token:
+    trusted_internal_request = bool(internal_api_token and internal_token == internal_api_token)
+    forwarded_user_id = (request.headers.get("X-Forwarded-User-Id") or "").strip()
+    forwarded_username = (request.headers.get("X-Forwarded-Username") or "").strip()
+    if trusted_internal_request and forwarded_user_id and forwarded_username:
+        request.state.current_user = forwarded_current_user(request, forwarded_user_id, forwarded_username)
+        return await call_next(request)
+
+    if trusted_internal_request:
         request.state.current_user = CurrentUser(
             id="paper-monitor-service",
             username="paper-monitor",
@@ -168,12 +177,15 @@ async def require_authenticated_user(request: Request, call_next):
         )
         return await call_next(request)
 
-    forwarded_user_id = (request.headers.get("X-Forwarded-User-Id") or "").strip()
-    forwarded_username = (request.headers.get("X-Forwarded-Username") or "").strip()
     if not forwarded_user_id or not forwarded_username:
         return await call_next(request)
 
-    request.state.current_user = CurrentUser(
+    request.state.current_user = forwarded_current_user(request, forwarded_user_id, forwarded_username)
+    return await call_next(request)
+
+
+def forwarded_current_user(request: Request, forwarded_user_id: str, forwarded_username: str) -> CurrentUser:
+    return CurrentUser(
         id=forwarded_user_id,
         username=forwarded_username,
         email=(request.headers.get("X-Forwarded-Email") or "").strip(),
@@ -183,7 +195,6 @@ async def require_authenticated_user(request: Request, call_next):
         pde_openai_quota_limit=parse_positive_int(request.headers.get("X-Forwarded-PDE-OpenAI-Quota-Limit"), 2),
         pde_openai_quota_used=parse_positive_int(request.headers.get("X-Forwarded-PDE-OpenAI-Quota-Used"), 0),
     )
-    return await call_next(request)
 
 
 def current_user(request: Request) -> CurrentUser | None:
@@ -268,11 +279,15 @@ def index(request: Request) -> HTMLResponse:
 
 @app.get("/reviews", response_class=HTMLResponse)
 def reviews_index(request: Request) -> HTMLResponse:
+    user = current_user(request)
     return templates.TemplateResponse(
         request,
         "reviews.html",
         {
-            "reviews": list_review_designs(),
+            "reviews": list_review_designs(
+                current_user_id=user.id if user else None,
+                is_admin=bool(user.is_admin) if user else False,
+            ),
             "pde_base_path": PDE_BASE_PATH,
             "auth_context": auth_context(request),
         },
@@ -546,8 +561,12 @@ def validate_model_yaml(request: YamlValidationRequest) -> TaxonomyExtractionRes
 
 
 @app.get("/api/review-designs", response_model=list[ReviewDesignSummary])
-def review_designs() -> list[ReviewDesignSummary]:
-    return [ReviewDesignSummary(**item) for item in list_review_designs()]
+def review_designs(request: Request) -> list[ReviewDesignSummary]:
+    user = current_user(request)
+    return [ReviewDesignSummary(**item) for item in list_review_designs(
+        current_user_id=user.id if user else None,
+        is_admin=bool(user.is_admin) if user else False,
+    )]
 
 
 @app.post("/api/review-designs", response_model=ReviewDesignResponse)
@@ -570,8 +589,13 @@ def create_review_design_endpoint(body: ReviewDesignRequest, request: Request) -
 
 
 @app.get("/api/review-designs/{review_design_id}", response_model=ReviewDesignResponse)
-def review_design(review_design_id: str) -> ReviewDesignResponse:
-    loaded = load_review_design(review_design_id)
+def review_design(review_design_id: str, request: Request) -> ReviewDesignResponse:
+    user = current_user(request)
+    loaded = load_review_design(
+        review_design_id,
+        current_user_id=user.id if user else None,
+        is_admin=bool(user.is_admin) if user else False,
+    )
     preview = review_design_to_preview(loaded)
     return ReviewDesignResponse(
         id=loaded["id"],
@@ -582,10 +606,56 @@ def review_design(review_design_id: str) -> ReviewDesignResponse:
     )
 
 
+@app.post("/api/review-designs/{review_design_id}/derivations", response_model=ReviewDesignResponse)
+def derive_review_design(
+    review_design_id: str,
+    body: ReviewDesignDerivationRequest,
+    request: Request,
+) -> ReviewDesignResponse:
+    user = require_authenticated(request)
+    created = create_review_design_derivation(
+        review_design_id,
+        body.title,
+        [item.model_dump() for item in body.research_questions],
+        owner_id=user.id,
+        owner_username=user.username,
+        owner_display_name=user.display_name,
+        is_admin=user.is_admin,
+    )
+    preview = review_design_to_preview(created)
+    return ReviewDesignResponse(id=created["id"], **preview)
+
+
+@app.post("/api/review-designs/{review_design_id}/revisions", response_model=ReviewDesignResponse)
+def revise_review_design(
+    review_design_id: str,
+    body: ReviewDesignDerivationRequest,
+    request: Request,
+) -> ReviewDesignResponse:
+    user = require_authenticated(request)
+    created = create_review_design_revision(
+        review_design_id,
+        body.title,
+        [item.model_dump() for item in body.research_questions],
+        owner_id=user.id,
+        owner_username=user.username,
+        owner_display_name=user.display_name,
+        is_admin=user.is_admin,
+    )
+    preview = review_design_to_preview(created)
+    return ReviewDesignResponse(id=created["id"], **preview)
+
+
 @app.get("/api/review-designs/{review_design_id}/download", response_class=PlainTextResponse)
-def download_review_design(review_design_id: str) -> PlainTextResponse:
+def download_review_design(review_design_id: str, request: Request) -> PlainTextResponse:
+    user = current_user(request)
+    loaded = load_review_design(
+        review_design_id,
+        current_user_id=user.id if user else None,
+        is_admin=bool(user.is_admin) if user else False,
+    )
     return PlainTextResponse(
-        content=review_design_yaml_text(review_design_id),
+        content=yaml_text(loaded),
         headers={"Content-Disposition": f'attachment; filename="{review_design_id}.yaml"'},
     )
 
@@ -597,7 +667,12 @@ def review_template_endpoint(
     format: str | None = None,
     download: bool = False,
 ) -> Response:
-    preview = review_design_to_preview(load_review_design(review_id))
+    user = current_user(request)
+    preview = review_design_to_preview(load_review_design(
+        review_id,
+        current_user_id=user.id if user else None,
+        is_admin=bool(user.is_admin) if user else False,
+    ))
     selected_format = resolve_review_format(request, format)
     filename_base = slug_filename(preview["review_design"]["id"])
 
@@ -668,8 +743,13 @@ def review_template_endpoint(
 
 
 @app.get("/review/{review_id}/shacl")
-def review_template_shacl(review_id: str, download: bool = False) -> Response:
-    preview = review_design_to_preview(load_review_design(review_id))
+def review_template_shacl(review_id: str, request: Request, download: bool = False) -> Response:
+    user = current_user(request)
+    preview = review_design_to_preview(load_review_design(
+        review_id,
+        current_user_id=user.id if user else None,
+        is_admin=bool(user.is_admin) if user else False,
+    ))
     filename_base = slug_filename(preview["review_design"]["id"])
     return artifact_response(
         review_linkml_schema_to_shacl_ttl(preview["review_linkml_schema"]),
@@ -681,9 +761,13 @@ def review_template_shacl(review_id: str, download: bool = False) -> Response:
 
 @app.get("/review/{review_id}/graph", response_class=HTMLResponse)
 def review_graph_endpoint(review_id: str, request: Request) -> HTMLResponse:
-    loaded = load_review_design(review_id)
-    preview = review_design_to_preview(loaded)
     user = current_user(request)
+    loaded = load_review_design(
+        review_id,
+        current_user_id=user.id if user else None,
+        is_admin=bool(user.is_admin) if user else False,
+    )
+    preview = review_design_to_preview(loaded)
     selected_models = []
     for model_id in loaded.get("selected_model_ids") or []:
         try:
@@ -712,8 +796,8 @@ def review_graph_endpoint(review_id: str, request: Request) -> HTMLResponse:
 
 @app.delete("/api/review-designs/{review_design_id}", status_code=204)
 def remove_review_design(review_design_id: str, request: Request) -> Response:
-    require_authenticated(request)
-    delete_review_design(review_design_id)
+    user = require_authenticated(request)
+    delete_review_design(review_design_id, current_user_id=user.id, is_admin=user.is_admin)
     return Response(status_code=204)
 
 

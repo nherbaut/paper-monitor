@@ -37,7 +37,7 @@ public class ReviewReportService {
 
     public Map<String, Object> aggregate(Review review) {
         List<Paper> liveScopePapers = reviewService.papersInLiveScope(review);
-        Map<Long, ReviewSubmission> submissionsByPaperId = reviewService.submissionsByPaperId(review);
+        Map<Long, ReviewSubmission> submissionsByPaperId = reviewService.completeSubmissionsByPaperId(review);
         Map<String, Object> formSchema = reviewService.formSchema(review);
 
         int reviewedCount = 0;

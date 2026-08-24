@@ -32,6 +32,9 @@ public class ReviewSubmission extends PanacheEntityBase {
     @Column(nullable = false, columnDefinition = "TEXT")
     public String payloadJson;
 
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    public boolean complete = true;
+
     @Column(nullable = false)
     public Instant updatedAt;
 }

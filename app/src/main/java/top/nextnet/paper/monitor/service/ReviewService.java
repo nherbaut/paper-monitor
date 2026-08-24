@@ -81,7 +81,7 @@ public class ReviewService {
             throw new BadRequestException("Select at least one state");
         }
         String normalizedTemplateId = normalizeRequired(templateId, "Review template is required");
-        PaperDataExtractorService.ReviewTemplateDetail template = paperDataExtractorService.loadReviewTemplate(normalizedTemplateId);
+        PaperDataExtractorService.ReviewTemplateDetail template = paperDataExtractorService.loadReviewTemplate(normalizedTemplateId, owner);
         Map<String, Object> reviewDesign = template.reviewDesign();
         String title = firstNonBlank(
                 stringValue(reviewDesign.get("title")),
@@ -90,21 +90,103 @@ public class ReviewService {
         Review review = reviewRepository.findByOwnerAndLogicalFeed(owner, logicalFeed).orElseGet(Review::new);
         review.owner = owner;
         review.logicalFeed = logicalFeed;
-        review.title = title;
-        review.templateId = normalizedTemplateId;
-        review.templateTitle = title;
         review.selectedStatesJson = JsonCodec.stringify(normalizedStates);
-        review.reviewDesignJson = JsonCodec.stringify(reviewDesign);
-        review.formSchemaJson = JsonCodec.stringify(template.formSchema());
-        review.reviewJsonSchemaJson = JsonCodec.stringify(template.reviewJsonSchema());
-        review.reviewLinkmlSchemaJson = JsonCodec.stringify(template.reviewLinkmlSchema());
         Instant now = Instant.now();
         review.updatedAt = now;
         if (review.createdAt == null) {
+            review.title = title;
+            review.templateId = normalizedTemplateId;
+            review.templateTitle = title;
+            review.reviewDesignJson = JsonCodec.stringify(reviewDesign);
+            review.formSchemaJson = JsonCodec.stringify(template.formSchema());
+            review.reviewJsonSchemaJson = JsonCodec.stringify(template.reviewJsonSchema());
+            review.reviewLinkmlSchemaJson = JsonCodec.stringify(template.reviewLinkmlSchema());
             review.createdAt = now;
             reviewRepository.persist(review);
+        } else if (!Objects.equals(review.templateId, normalizedTemplateId)) {
+            activateRevision(review, template);
         }
         return review;
+    }
+
+    @Transactional
+    public MigrationResult activateRevision(Review review, PaperDataExtractorService.ReviewTemplateDetail template) {
+        Map<String, Object> oldDesign = asObjectMap(JsonCodec.parse(review.reviewDesignJson));
+        Map<String, Object> newDesign = template.reviewDesign();
+
+        review.title = firstNonBlank(stringValue(newDesign.get("title")), template.id());
+        review.templateId = template.id();
+        review.templateTitle = review.title;
+        review.reviewDesignJson = JsonCodec.stringify(newDesign);
+        review.formSchemaJson = JsonCodec.stringify(template.formSchema());
+        review.reviewJsonSchemaJson = JsonCodec.stringify(template.reviewJsonSchema());
+        review.reviewLinkmlSchemaJson = JsonCodec.stringify(template.reviewLinkmlSchema());
+        review.updatedAt = Instant.now();
+
+        int completed = 0;
+        int drafts = 0;
+        for (ReviewSubmission submission : reviewSubmissionRepository.findByReview(review)) {
+            Map<String, Object> oldValues = submissionValues(submission);
+            Map<String, Object> migrated = migrateSubmissionValues(
+                    oldDesign, newDesign, template.formSchema(), oldValues);
+            submission.payloadJson = JsonCodec.stringify(submissionInstance(review, submission.paper, migrated));
+            submission.updatedAt = Instant.now();
+            submission.complete = isValidSubmission(review, migrated);
+            if (submission.complete) {
+                completed++;
+            } else {
+                drafts++;
+            }
+        }
+        return new MigrationResult(completed, drafts);
+    }
+
+    Map<String, Object> migrateSubmissionValues(
+            Map<String, Object> oldDesign,
+            Map<String, Object> newDesign,
+            Map<String, Object> newFormSchema,
+            Map<String, Object> oldValues
+    ) {
+        Map<String, String> oldSlotsByKey = researchQuestionSlotsByKey(oldDesign);
+        Map<String, String> newSlotsByKey = researchQuestionSlotsByKey(newDesign);
+        Set<String> oldRqSlots = new HashSet<>(oldSlotsByKey.values());
+        Set<String> newFieldIds = new HashSet<>();
+        for (Map<String, Object> field : objectMapList(newFormSchema.get("fields"))) {
+            collectMigrationFieldIds(field, newFieldIds);
+        }
+        Map<String, Object> migrated = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : oldValues.entrySet()) {
+            if (!oldRqSlots.contains(entry.getKey()) && newFieldIds.contains(entry.getKey())) {
+                migrated.put(entry.getKey(), entry.getValue());
+            }
+        }
+        for (Map.Entry<String, String> entry : oldSlotsByKey.entrySet()) {
+            String newSlot = newSlotsByKey.get(entry.getKey());
+            if (newSlot != null && oldValues.containsKey(entry.getValue())) {
+                migrated.put(newSlot, oldValues.get(entry.getValue()));
+            }
+        }
+        return migrated;
+    }
+
+    private void collectMigrationFieldIds(Map<String, Object> field, Set<String> fieldIds) {
+        collectFieldIds(field, fieldIds);
+        collectCriterionIds(objectMapList(field.get("values")), fieldIds);
+        for (Map<String, Object> subfield : objectMapList(field.get("subdimensions"))) {
+            collectMigrationFieldIds(subfield, fieldIds);
+        }
+    }
+
+    private void collectCriterionIds(List<Map<String, Object>> options, Set<String> fieldIds) {
+        for (Map<String, Object> option : options) {
+            for (Map<String, Object> criterion : objectMapList(option.get("criteria"))) {
+                String criterionId = stringValue(criterion.get("id"));
+                if (criterionId != null) {
+                    fieldIds.add(criterionId);
+                }
+            }
+            collectCriterionIds(objectMapList(option.get("children")), fieldIds);
+        }
     }
 
     public List<String> selectedStates(Review review) {
@@ -139,6 +221,12 @@ public class ReviewService {
         return reviewSubmissionRepository.findByReviewIndexedByPaperId(review);
     }
 
+    public Map<Long, ReviewSubmission> completeSubmissionsByPaperId(Review review) {
+        Map<Long, ReviewSubmission> submissions = new LinkedHashMap<>(submissionsByPaperId(review));
+        submissions.entrySet().removeIf((entry) -> !entry.getValue().complete);
+        return submissions;
+    }
+
     public ReviewPaperContext requireReviewPaper(Review review, Long paperId) {
         Paper paper = paperRepository.findForReader(paperId).orElseThrow(NotFoundException::new);
         if (!Objects.equals(paper.logicalFeed.id, review.logicalFeed.id)) {
@@ -159,6 +247,7 @@ public class ReviewService {
         submission.paper = paper;
         submission.payloadJson = JsonCodec.stringify(submissionInstance(review, paper, values));
         submission.updatedAt = Instant.now();
+        submission.complete = true;
         if (submission.id == null) {
             reviewSubmissionRepository.persist(submission);
         }
@@ -253,6 +342,27 @@ public class ReviewService {
             return formSchemaId;
         }
         return review.templateId;
+    }
+
+    private boolean isValidSubmission(Review review, Map<String, Object> values) {
+        try {
+            validateSubmission(review, values);
+            return true;
+        } catch (ReviewValidationException ignored) {
+            return false;
+        }
+    }
+
+    private Map<String, String> researchQuestionSlotsByKey(Map<String, Object> reviewDesign) {
+        Map<String, String> slots = new LinkedHashMap<>();
+        for (Map<String, Object> question : objectMapList(reviewDesign.get("research_questions"))) {
+            String key = stringValue(question.get("key"));
+            String slot = stringValue(question.get("slot_id"));
+            if (key != null && slot != null) {
+                slots.put(key, slot);
+            }
+        }
+        return slots;
     }
 
     private List<String> authorsList(String authors) {
@@ -512,5 +622,8 @@ public class ReviewService {
         private final List<ValidationError> errors = new ArrayList<>();
         private final Set<String> fieldIds = new HashSet<>();
         private final Set<String> activeCriterionIds = new HashSet<>();
+    }
+
+    public record MigrationResult(int completedSubmissions, int draftSubmissions) {
     }
 }

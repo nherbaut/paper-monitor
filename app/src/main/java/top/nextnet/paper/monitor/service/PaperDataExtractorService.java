@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import top.nextnet.paper.monitor.model.AppUser;
 
 @ApplicationScoped
 public class PaperDataExtractorService {
@@ -37,8 +38,8 @@ public class PaperDataExtractorService {
         this.internalApiToken = internalApiToken == null ? "" : internalApiToken.trim();
     }
 
-    public List<ReviewTemplateSummary> listReviewTemplates() {
-        Object payload = getJson("/api/review-designs");
+    public List<ReviewTemplateSummary> listReviewTemplates(AppUser user) {
+        Object payload = getJson("/api/review-designs", user);
         if (!(payload instanceof List<?> rows)) {
             return List.of();
         }
@@ -49,13 +50,45 @@ public class PaperDataExtractorService {
             }
             templates.add(new ReviewTemplateSummary(
                     stringValue(item.get("id")),
-                    stringValue(item.get("title"))));
+                    stringValue(item.get("title")),
+                    stringValue(item.get("derivation_id")),
+                    integerValue(item.get("revision")),
+                    booleanValue(item.get("is_latest_revision"), true),
+                    booleanValue(item.get("owned_by_current_user"), false),
+                    booleanValue(item.get("can_write"), false)));
         }
-        return templates;
+        return templates.stream().filter(ReviewTemplateSummary::latestRevision).toList();
     }
 
-    public ReviewTemplateDetail loadReviewTemplate(String templateId) {
-        Object payload = getJson("/api/review-designs/" + urlEncode(templateId));
+    public ReviewTemplateDetail loadReviewTemplate(String templateId, AppUser user) {
+        return detail(getJson("/api/review-designs/" + urlEncode(templateId), user));
+    }
+
+    public ReviewTemplateDetail deriveReviewTemplate(
+            String templateId,
+            String title,
+            List<Map<String, Object>> researchQuestions,
+            AppUser user
+    ) {
+        return detail(postJson(
+                "/api/review-designs/" + urlEncode(templateId) + "/derivations",
+                Map.of("title", title, "research_questions", researchQuestions),
+                user));
+    }
+
+    public ReviewTemplateDetail reviseReviewTemplate(
+            String templateId,
+            String title,
+            List<Map<String, Object>> researchQuestions,
+            AppUser user
+    ) {
+        return detail(postJson(
+                "/api/review-designs/" + urlEncode(templateId) + "/revisions",
+                Map.of("title", title, "research_questions", researchQuestions),
+                user));
+    }
+
+    private ReviewTemplateDetail detail(Object payload) {
         if (!(payload instanceof Map<?, ?> map)) {
             throw new IllegalStateException("Unexpected review template payload");
         }
@@ -67,18 +100,50 @@ public class PaperDataExtractorService {
                 copyObjectMap(map.get("review_linkml_schema")));
     }
 
-    private Object getJson(String path) {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + path))
+    private Object getJson(String path, AppUser user) {
+        HttpRequest request = requestBuilder(path, user)
                 .timeout(Duration.ofSeconds(15))
-                .header("Accept", "application/json")
-                .header("X-PDE-Internal-Token", internalApiToken)
                 .GET()
                 .build();
+        return sendJson(request);
+    }
+
+    private Object postJson(String path, Map<String, Object> payload, AppUser user) {
+        HttpRequest request = requestBuilder(path, user)
+                .timeout(Duration.ofSeconds(30))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(JsonCodec.stringify(payload), StandardCharsets.UTF_8))
+                .build();
+        return sendJson(request);
+    }
+
+    private HttpRequest.Builder requestBuilder(String path, AppUser user) {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(baseUrl + path))
+                .header("Accept", "application/json")
+                .header("X-PDE-Internal-Token", internalApiToken);
+        if (user != null) {
+            builder.header("X-Forwarded-User-Id", String.valueOf(user.id));
+            builder.header("X-Forwarded-Username", safeHeader(user.username));
+            builder.header("X-Forwarded-Display-Name", safeHeader(user.displayLabel()));
+            builder.header("X-Forwarded-Email", safeHeader(user.email));
+            builder.header("X-Forwarded-Admin", String.valueOf(user.isAdmin()));
+        }
+        return builder;
+    }
+
+    private Object sendJson(HttpRequest request) {
         try {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new WebApplicationException("Paper Data Extractor returned " + response.statusCode(),
-                        Response.Status.BAD_GATEWAY);
+                Response.Status status = switch (response.statusCode()) {
+                    case 400, 409, 422 -> Response.Status.BAD_REQUEST;
+                    case 403 -> Response.Status.FORBIDDEN;
+                    case 404 -> Response.Status.NOT_FOUND;
+                    default -> Response.Status.BAD_GATEWAY;
+                };
+                throw new WebApplicationException(response.body().isBlank()
+                        ? "Paper Data Extractor returned " + response.statusCode()
+                        : response.body(), status);
             }
             return JsonCodec.parse(response.body());
         } catch (IOException | InterruptedException e) {
@@ -125,6 +190,25 @@ public class PaperDataExtractorService {
         return value == null ? null : String.valueOf(value);
     }
 
+    private Integer integerValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        try {
+            return value == null ? null : Integer.valueOf(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private boolean booleanValue(Object value, boolean fallback) {
+        return value == null ? fallback : Boolean.parseBoolean(String.valueOf(value));
+    }
+
+    private String safeHeader(String value) {
+        return value == null ? "" : value.replace("\r", " ").replace("\n", " ").trim();
+    }
+
     private String trimTrailingSlash(String value) {
         String trimmed = value == null ? DEFAULT_BASE_URL : value.trim();
         while (trimmed.endsWith("/")) {
@@ -149,7 +233,15 @@ public class PaperDataExtractorService {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
-    public record ReviewTemplateSummary(String id, String title) {
+    public record ReviewTemplateSummary(
+            String id,
+            String title,
+            String derivationId,
+            Integer revision,
+            boolean latestRevision,
+            boolean ownedByCurrentUser,
+            boolean canWrite
+    ) {
     }
 
     public record ReviewTemplateDetail(

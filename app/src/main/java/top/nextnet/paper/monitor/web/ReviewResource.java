@@ -84,10 +84,60 @@ public class ReviewResource {
     @Path("/api/review-templates")
     @Produces(MediaType.APPLICATION_JSON)
     public List<ReviewTemplateView> reviewTemplates() {
-        requireCurrentUser();
-        return paperDataExtractorService.listReviewTemplates().stream()
-                .map((template) -> new ReviewTemplateView(template.id(), template.title()))
+        AppUser currentUser = requireCurrentUser();
+        return paperDataExtractorService.listReviewTemplates(currentUser).stream()
+                .map((template) -> new ReviewTemplateView(
+                        template.id(),
+                        template.title(),
+                        template.derivationId(),
+                        template.revision(),
+                        template.ownedByCurrentUser(),
+                        template.canWrite()))
                 .toList();
+    }
+
+    @GET
+    @Path("/api/review-templates/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> reviewTemplate(@PathParam("id") String id) {
+        AppUser currentUser = requireCurrentUser();
+        return reviewTemplatePayload(paperDataExtractorService.loadReviewTemplate(id, currentUser));
+    }
+
+    @POST
+    @Path("/api/review-templates/{id}/derivations")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> deriveReviewTemplate(@PathParam("id") String id, Map<String, Object> payload) {
+        AppUser currentUser = requireCurrentUser();
+        PaperDataExtractorService.ReviewTemplateDetail created = paperDataExtractorService.deriveReviewTemplate(
+                id,
+                requiredPayloadString(payload, "title", "A review design title is required"),
+                objectMapList(payload == null ? null : payload.get("research_questions")),
+                currentUser);
+        return reviewTemplatePayload(created);
+    }
+
+    @POST
+    @Path("/api/reviews/{id}/revisions")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> reviseReview(
+            @PathParam("id") Long id,
+            Map<String, Object> payload
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        Review reviewEntity = reviewService.requireReview(id, currentUser);
+        PaperDataExtractorService.ReviewTemplateDetail created = paperDataExtractorService.reviseReviewTemplate(
+                reviewEntity.templateId,
+                requiredPayloadString(payload, "title", "A review design title is required"),
+                objectMapList(payload == null ? null : payload.get("research_questions")),
+                currentUser);
+        ReviewService.MigrationResult migration = reviewService.activateRevision(reviewEntity, created);
+        Map<String, Object> response = new LinkedHashMap<>(reviewTemplatePayload(created));
+        response.put("completedSubmissions", migration.completedSubmissions());
+        response.put("draftSubmissions", migration.draftSubmissions());
+        return response;
     }
 
     @GET
@@ -135,7 +185,7 @@ public class ReviewResource {
         int analyzedCount = 0;
         for (Paper paper : papers) {
             ReviewSubmission submission = submissions.get(paper.id);
-            if (submission != null) {
+            if (submission != null && submission.complete) {
                 analyzedCount += 1;
             }
             rows.add(new ReviewRowView(
@@ -144,11 +194,13 @@ public class ReviewResource {
                     paper.status,
                     paper.uploadedPdfPath != null,
                     submission != null,
+                    submission != null && submission.complete,
                     submission == null ? null : submission.updatedAt));
         }
         int totalCount = rows.size();
         int remainingCount = Math.max(0, totalCount - analyzedCount);
         double analyzedRatio = totalCount == 0 ? 0D : (double) analyzedCount / (double) totalCount;
+        Map<String, Object> design = objectMap(JsonCodec.parse(reviewEntity.reviewDesignJson));
         return review.data("review", reviewEntity)
                 .data("logicalFeed", reviewEntity.logicalFeed)
                 .data("selectedStates", reviewService.selectedStates(reviewEntity))
@@ -158,6 +210,10 @@ public class ReviewResource {
                 .data("analyzedPercent", Math.round(analyzedRatio * 100.0d))
                 .data("analyzedAngle", analyzedRatio * 360.0d)
                 .data("rows", rows)
+                .data("canRevise", design.get("derivation_id") != null)
+                .data("reviewRevision", design.get("revision"))
+                .data("researchQuestionsBase64", encodeBase64(JsonCodec.stringify(
+                        researchQuestions(design, reviewService.formSchema(reviewEntity)))))
                 .data("currentUser", currentUser)
                 .data("masquerading", currentUserContext.isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.masqueradeAdminDisplayLabel());
@@ -336,6 +392,65 @@ public class ReviewResource {
         return cast;
     }
 
+    private List<Map<String, Object>> objectMapList(Object value) {
+        if (!(value instanceof List<?> rows)) {
+            return List.of();
+        }
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object row : rows) {
+            result.add(objectMap(row));
+        }
+        return result;
+    }
+
+    private String requiredPayloadString(Map<String, Object> payload, String key, String message) {
+        String value = payload == null || payload.get(key) == null ? null : String.valueOf(payload.get(key)).trim();
+        if (value == null || value.isBlank()) {
+            throw new WebApplicationException(message, Status.BAD_REQUEST);
+        }
+        return value;
+    }
+
+    private Map<String, Object> reviewTemplatePayload(PaperDataExtractorService.ReviewTemplateDetail detail) {
+        Map<String, Object> design = detail.reviewDesign();
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("id", detail.id());
+        response.put("title", design.get("title"));
+        response.put("derivationId", design.get("derivation_id"));
+        response.put("revision", design.get("revision"));
+        response.put("researchQuestions", researchQuestions(design, detail.formSchema()));
+        return response;
+    }
+
+    private List<Map<String, Object>> researchQuestions(
+            Map<String, Object> design,
+            Map<String, Object> formSchema
+    ) {
+        List<Map<String, Object>> explicit = objectMapList(design.get("research_questions"));
+        if (!explicit.isEmpty()) {
+            return explicit;
+        }
+        List<Map<String, Object>> inferred = new ArrayList<>();
+        for (Map<String, Object> field : objectMapList(formSchema.get("fields"))) {
+            String id = String.valueOf(field.getOrDefault("id", ""));
+            if (!id.matches("rq_[1-9][0-9]*") || !"free_text".equals(field.get("value_type"))) {
+                continue;
+            }
+            String label = String.valueOf(field.getOrDefault("label", "")).trim();
+            if (label.matches("(?i)RQ\\s*[1-9][0-9]*")) {
+                label = "";
+            }
+            Map<String, Object> question = new LinkedHashMap<>();
+            question.put("key", null);
+            question.put("slot_id", id);
+            question.put("ordinal", inferred.size() + 1);
+            question.put("question", label);
+            question.put("required", Boolean.parseBoolean(String.valueOf(field.getOrDefault("required", false))));
+            inferred.add(question);
+        }
+        return inferred;
+    }
+
     private String encodeBase64(String value) {
         return Base64.getEncoder().encodeToString(value.getBytes(StandardCharsets.UTF_8));
     }
@@ -354,7 +469,14 @@ public class ReviewResource {
         }
     }
 
-    public record ReviewTemplateView(String id, String title) {
+    public record ReviewTemplateView(
+            String id,
+            String title,
+            String derivationId,
+            Integer revision,
+            boolean ownedByCurrentUser,
+            boolean canWrite
+    ) {
     }
 
     public record ReviewSummaryView(Long id, String title, Long logicalFeedId, String logicalFeedName, List<String> selectedStates) {
@@ -366,6 +488,7 @@ public class ReviewResource {
             String state,
             boolean hasPdf,
             boolean hasSubmission,
+            boolean complete,
             Instant updatedAt
     ) {
     }

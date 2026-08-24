@@ -618,6 +618,33 @@
             margin: 0;
         }
 
+        .rq-editor-list {
+            display: grid;
+            gap: 0.75rem;
+            max-height: min(50vh, 32rem);
+            overflow-y: auto;
+        }
+
+        .rq-editor-row {
+            display: grid;
+            gap: 0.55rem;
+            padding: 0.8rem;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+        }
+
+        .rq-editor-row.dragging { opacity: 0.45; }
+        .rq-editor-row-header, .rq-editor-actions, .rq-required {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .rq-editor-row-header { justify-content: space-between; }
+        .rq-code { color: var(--accent); font-weight: 700; }
+        .rq-required input { width: auto; margin: 0; }
+        .rq-question { min-height: 4.5rem; resize: vertical; }
+
         .scholar-picker {
             display: grid;
             gap: 0.75rem;
@@ -2968,6 +2995,7 @@
                 <select id="review-template-select" name="templateId" required>
                     <option value="">Loading templates...</option>
                 </select>
+                <button class="secondary" id="review-customize-button" type="button" disabled>Customize research questions</button>
                 <div>
                     <p class="meta">States included in the live survey scope</p>
                     <div class="review-state-list" id="review-state-list"></div>
@@ -2977,6 +3005,25 @@
                     <button class="secondary" id="review-create-button" type="submit">Create survey</button>
                 </div>
             </form>
+        </div>
+    </dialog>
+
+    <dialog class="review-modal" id="rq-design-modal">
+        <div class="review-modal-body">
+            <div class="review-modal-header">
+                <div>
+                    <h3>Research questions</h3>
+                    <p class="meta" id="rq-design-status">Define the questions answered for every paper.</p>
+                </div>
+                <button class="icon-button secondary" id="rq-design-close" type="button" title="Close">×</button>
+            </div>
+            <label class="meta" for="rq-design-title">Private design title</label>
+            <input id="rq-design-title" maxlength="255" required>
+            <div class="rq-editor-list" id="rq-editor-list"></div>
+            <div class="manual-import-actions">
+                <button class="secondary" id="rq-add-button" type="button">Add question</button>
+                <button id="rq-save-button" type="button">Generate design</button>
+            </div>
         </div>
     </dialog>
 
@@ -3544,7 +3591,17 @@
     const reviewMenuStatus = document.getElementById("review-menu-status");
     const reviewCreateForm = document.getElementById("review-create-form");
     const reviewTemplateSelect = document.getElementById("review-template-select");
+    const reviewCustomizeButton = document.getElementById("review-customize-button");
     const reviewStateList = document.getElementById("review-state-list");
+    const rqDesignModal = document.getElementById("rq-design-modal");
+    const rqDesignClose = document.getElementById("rq-design-close");
+    const rqDesignTitle = document.getElementById("rq-design-title");
+    const rqDesignStatus = document.getElementById("rq-design-status");
+    const rqEditorList = document.getElementById("rq-editor-list");
+    const rqAddButton = document.getElementById("rq-add-button");
+    const rqSaveButton = document.getElementById("rq-save-button");
+    let rqBaseTemplateId = null;
+    let draggedRqRow = null;
     const feedCreateModal = document.getElementById("feed-create-modal");
     const feedCreateModalTitle = document.getElementById("feed-create-modal-title");
     const feedCreateModalStatus = document.getElementById("feed-create-modal-status");
@@ -5209,6 +5266,115 @@
         }
     };
 
+    const closeRqDesignModal = () => {
+        if (!rqDesignModal) return;
+        if (typeof rqDesignModal.close === "function") rqDesignModal.close();
+        else rqDesignModal.removeAttribute("open");
+    };
+
+    const refreshRqOrdinals = () => {
+        Array.from(rqEditorList?.children || []).forEach((row, index) => {
+            row.querySelector(".rq-code").textContent = "RQ " + (index + 1);
+            row.querySelector(".rq-question").setAttribute("aria-label", "Research question " + (index + 1));
+        });
+    };
+
+    const createRqRow = (question = {}) => {
+        const row = document.createElement("div");
+        row.className = "rq-editor-row";
+        row.draggable = true;
+        row.dataset.key = question.key || "";
+
+        const header = document.createElement("div");
+        header.className = "rq-editor-row-header";
+        const code = document.createElement("span");
+        code.className = "rq-code";
+        const actions = document.createElement("div");
+        actions.className = "rq-editor-actions";
+        [["↑", "Move question up", -1], ["↓", "Move question down", 1]].forEach(([icon, title, direction]) => {
+            const button = document.createElement("button");
+            button.className = "icon-button secondary";
+            button.type = "button";
+            button.title = title;
+            button.textContent = icon;
+            button.addEventListener("click", () => {
+                const sibling = direction < 0 ? row.previousElementSibling : row.nextElementSibling;
+                if (!sibling) return;
+                if (direction < 0) rqEditorList.insertBefore(row, sibling);
+                else rqEditorList.insertBefore(sibling, row);
+                refreshRqOrdinals();
+            });
+            actions.append(button);
+        });
+        const remove = document.createElement("button");
+        remove.className = "icon-button secondary";
+        remove.type = "button";
+        remove.title = "Remove question";
+        remove.textContent = "×";
+        remove.addEventListener("click", () => {
+            if (rqEditorList.children.length <= 1) {
+                rqDesignStatus.textContent = "A design must contain at least one research question.";
+                return;
+            }
+            row.remove();
+            refreshRqOrdinals();
+        });
+        actions.append(remove);
+        header.append(code, actions);
+
+        const input = document.createElement("textarea");
+        input.className = "rq-question";
+        input.maxLength = 2000;
+        input.placeholder = "What should the reviewer determine from this paper?";
+        input.value = question.question || "";
+        const requiredLabel = document.createElement("label");
+        requiredLabel.className = "rq-required meta";
+        const required = document.createElement("input");
+        required.type = "checkbox";
+        required.className = "rq-required-input";
+        required.checked = Boolean(question.required);
+        requiredLabel.append(required, document.createTextNode("Required before the paper is complete"));
+        row.append(header, input, requiredLabel);
+
+        row.addEventListener("dragstart", () => {
+            draggedRqRow = row;
+            row.classList.add("dragging");
+        });
+        row.addEventListener("dragend", () => {
+            draggedRqRow = null;
+            row.classList.remove("dragging");
+            refreshRqOrdinals();
+        });
+        return row;
+    };
+
+    const renderRqEditor = (questions) => {
+        rqEditorList.innerHTML = "";
+        const rows = questions.length ? questions : new Array(7).fill(null).map(() => Object.create(null));
+        rows.forEach((question) => rqEditorList.append(createRqRow(question)));
+        refreshRqOrdinals();
+    };
+
+    const collectResearchQuestions = () => Array.from(rqEditorList.children).map((row) => {
+        const result = {
+            "question": row.querySelector(".rq-question").value.trim(),
+            "required": row.querySelector(".rq-required-input").checked
+        };
+        if (row.dataset.key) result.key = row.dataset.key;
+        return result;
+    });
+
+    if (rqEditorList) {
+        rqEditorList.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            if (!draggedRqRow) return;
+            const target = event.target.closest(".rq-editor-row");
+            if (!target || target === draggedRqRow) return;
+            const after = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
+            rqEditorList.insertBefore(draggedRqRow, after ? target.nextSibling : target);
+        });
+    }
+
     const scholarCache = {
         feeds: null,
         history: null
@@ -5712,9 +5878,10 @@
         reviewTemplates.forEach((template) => {
             const option = document.createElement("option");
             option.value = template.id;
-            option.textContent = template.title;
+            option.textContent = template.title + (template.revision ? " · revision " + template.revision : "");
             reviewTemplateSelect.appendChild(option);
         });
+        if (reviewCustomizeButton) reviewCustomizeButton.disabled = !reviewTemplateSelect.value;
     };
 
     const loadReviewWorkspace = async () => {
@@ -9681,6 +9848,99 @@
                 setBatchPaperFeedback(error.message || "Failed to apply batch update.", true);
             } finally {
                 batchPaperApply.disabled = false;
+            }
+        });
+    }
+
+    if (reviewTemplateSelect && reviewCustomizeButton) {
+        reviewTemplateSelect.addEventListener("change", () => {
+            reviewCustomizeButton.disabled = !reviewTemplateSelect.value;
+        });
+    }
+
+    if (reviewCustomizeButton) {
+        reviewCustomizeButton.addEventListener("click", async () => {
+            const templateId = reviewTemplateSelect.value;
+            if (!templateId) return;
+            reviewCustomizeButton.disabled = true;
+            reviewMenuStatus.textContent = "Loading research questions...";
+            try {
+                const response = await fetch("/api/review-templates/" + encodeURIComponent(templateId), {
+                    headers: {"Accept": "application/json"}
+                });
+                const body = await response.text();
+                if (!response.ok) throw new Error(body || "Failed to load review design.");
+                const detail = JSON.parse(body);
+                rqBaseTemplateId = templateId;
+                rqDesignTitle.value = detail.title + " with custom research questions";
+                rqDesignStatus.textContent = "Define the questions answered for every paper.";
+                renderRqEditor(detail.researchQuestions || []);
+                closeReviewCreateModal();
+                if (typeof rqDesignModal.showModal === "function") rqDesignModal.showModal();
+                else rqDesignModal.setAttribute("open", "open");
+            } catch (error) {
+                reviewMenuStatus.textContent = error.message || "Failed to load review design.";
+            } finally {
+                reviewCustomizeButton.disabled = !reviewTemplateSelect.value;
+            }
+        });
+    }
+
+    if (rqAddButton) {
+        rqAddButton.addEventListener("click", () => {
+            if (rqEditorList.children.length >= 50) {
+                rqDesignStatus.textContent = "A design can contain at most 50 research questions.";
+                return;
+            }
+            rqEditorList.append(createRqRow());
+            refreshRqOrdinals();
+            rqEditorList.lastElementChild.querySelector(".rq-question").focus();
+        });
+    }
+
+    if (rqDesignClose) {
+        rqDesignClose.addEventListener("click", () => {
+            closeRqDesignModal();
+            openReviewCreateModal(logicalFeedFilter.value);
+        });
+    }
+
+    if (rqSaveButton) {
+        rqSaveButton.addEventListener("click", async () => {
+            const title = rqDesignTitle.value.trim();
+            const questions = collectResearchQuestions();
+            if (!title) {
+                rqDesignStatus.textContent = "Enter a title for the private design.";
+                return;
+            }
+            const missingIndex = questions.findIndex((question) => !question.question);
+            if (missingIndex >= 0) {
+                rqDesignStatus.textContent = "Enter a question for RQ " + (missingIndex + 1) + ".";
+                rqEditorList.children[missingIndex].querySelector(".rq-question").focus();
+                return;
+            }
+            rqSaveButton.disabled = true;
+            rqDesignStatus.textContent = "Generating the private review design...";
+            const logicalFeedId = logicalFeedFilter.value;
+            try {
+                const response = await fetch("/api/review-templates/" + encodeURIComponent(rqBaseTemplateId) + "/derivations", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json", "Accept": "application/json"},
+                    body: JSON.stringify({"title": title, "research_questions": questions})
+                });
+                const body = await response.text();
+                if (!response.ok) throw new Error(body || "Failed to generate review design.");
+                const created = JSON.parse(body);
+                closeRqDesignModal();
+                await loadReviewWorkspace();
+                openReviewCreateModal(logicalFeedId);
+                reviewTemplateSelect.value = created.id;
+                reviewCustomizeButton.disabled = false;
+                reviewMenuStatus.textContent = "Private design generated. Select the survey states and create the survey.";
+            } catch (error) {
+                rqDesignStatus.textContent = error.message || "Failed to generate review design.";
+            } finally {
+                rqSaveButton.disabled = false;
             }
         });
     }

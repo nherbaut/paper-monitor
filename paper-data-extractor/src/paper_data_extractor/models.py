@@ -49,11 +49,29 @@ class ReviewDesignRequest(BaseModel):
     model_ids: list[str]
 
 
+class ResearchQuestionInput(BaseModel):
+    key: str | None = None
+    question: str
+    required: bool = False
+
+
+class ReviewDesignDerivationRequest(BaseModel):
+    title: str
+    research_questions: list[ResearchQuestionInput]
+
+
 class ReviewDesignSummary(BaseModel):
     id: str
     title: str
     target_entity: str | None = None
     selected_model_ids: list[str] = Field(default_factory=list)
+    is_public: bool = True
+    owned_by_current_user: bool = False
+    can_write: bool = False
+    owner_display_name: str | None = None
+    derivation_id: str | None = None
+    revision: int | None = None
+    is_latest_revision: bool = True
 
 
 class ReviewDesignResponse(BaseModel):

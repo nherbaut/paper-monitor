@@ -225,7 +225,7 @@ function renderReviewDesignList(container, designs) {
                 ${escapeHtml(design.title)}
             </button>
             <div class="model-option-actions d-flex flex-wrap gap-2 justify-content-end">
-                ${IS_AUTHENTICATED ? '<button class="btn btn-outline-danger btn-sm" type="button" data-action="delete-review-design">Delete</button>' : ""}
+                ${design.can_write ? '<button class="btn btn-outline-danger btn-sm" type="button" data-action="delete-review-design">Delete</button>' : ""}
             </div>
         `;
         item.querySelector("[data-action='open-review-design']").addEventListener("click", () => openReviewDesign(design.id));

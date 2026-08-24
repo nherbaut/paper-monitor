@@ -58,6 +58,7 @@
             text-decoration: none;
         }
         .back-link:hover, .open-link:hover, .pdf-link:hover { border-color: #b9c6d6; }
+        button.back-link { font: inherit; cursor: pointer; }
         .hero-actions {
             display: flex;
             justify-content: flex-end;
@@ -208,6 +209,25 @@
         .submission-badge.todo { background: #fff7e8; color: #8a5a08; }
         .row-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
         .empty { padding: 1rem 0; color: var(--muted); }
+        dialog {
+            width: min(42rem, calc(100vw - 1.5rem));
+            max-height: calc(100vh - 2rem);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 1rem;
+            color: var(--ink);
+        }
+        dialog::backdrop { background: rgb(15 23 42 / 0.45); }
+        .rq-list { display: grid; gap: 0.75rem; max-height: 50vh; overflow-y: auto; margin: 1rem 0; }
+        .rq-row { border: 1px solid var(--line); border-radius: 8px; padding: 0.75rem; display: grid; gap: 0.55rem; }
+        .rq-row.dragging { opacity: 0.45; }
+        .rq-row-header, .dialog-actions, .rq-required { display: flex; align-items: center; gap: 0.5rem; }
+        .rq-row-header { justify-content: space-between; }
+        .rq-code { color: var(--accent); font-weight: 700; }
+        .rq-row textarea, dialog input[type="text"] { width: 100%; padding: 0.7rem; border: 1px solid var(--line); border-radius: 6px; }
+        .rq-row textarea { min-height: 5rem; resize: vertical; }
+        .rq-required input { margin: 0; }
+        .dialog-actions { justify-content: flex-end; flex-wrap: wrap; }
         @media (max-width: 820px) {
             .hero-grid { grid-template-columns: 1fr; }
             .progress-panel { grid-template-columns: 1fr; justify-items: start; }
@@ -258,6 +278,9 @@
             <div>
                 <a class="back-link" href="/?logicalFeedId={logicalFeed.id}">Back to paper feed</a>
                 <div class="hero-actions">
+                    {#if canRevise}
+                    <button class="back-link" id="revise-rq-button" type="button">Revise research questions</button>
+                    {/if}
                     <details class="action-menu">
                         <summary class="back-link">Download report</summary>
                         <div class="action-menu-panel">
@@ -313,8 +336,8 @@
                     {/if}
                 </td>
                 <td data-label="Form">
-                    <span class="submission-badge {#if row.hasSubmission}done{#else}todo{/if}">
-                        {#if row.hasSubmission}Saved{#else}Blank{/if}
+                    <span class="submission-badge {#if row.complete}done{#else}todo{/if}">
+                        {#if row.complete}Saved{#else if row.hasSubmission}Draft{#else}Blank{/if}
                     </span>
                     {#if row.updatedAt}
                     <div class="meta">Updated {row.updatedAt}</div>
@@ -336,5 +359,113 @@
         </table>
     </section>
 </main>
+{#if canRevise}
+<dialog id="revise-rq-dialog">
+    <h2>Revise research questions</h2>
+    <p class="meta">Revision {reviewRevision}. Existing answers follow their question when reordered or reworded. Incomplete migrations become drafts.</p>
+    <label for="revision-title">Design title</label>
+    <input id="revision-title" type="text" maxlength="255" value="{review.title}">
+    <div class="rq-list" id="revision-rq-list"></div>
+    <p class="meta" id="revision-status"></p>
+    <div class="dialog-actions">
+        <button class="back-link" id="revision-add" type="button">Add question</button>
+        <button class="back-link" id="revision-cancel" type="button">Cancel</button>
+        <button class="back-link" id="revision-save" type="button">Create revision</button>
+    </div>
+</dialog>
+<script>
+(() => {
+    const questions = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob("{researchQuestionsBase64}"), c => c.charCodeAt(0))));
+    const dialog = document.getElementById("revise-rq-dialog");
+    const list = document.getElementById("revision-rq-list");
+    const status = document.getElementById("revision-status");
+    let dragged = null;
+
+    const refresh = () => Array.from(list.children).forEach((row, index) => {
+        row.querySelector(".rq-code").textContent = "RQ " + (index + 1);
+    });
+    const addRow = (question = {}) => {
+        const row = document.createElement("div");
+        row.className = "rq-row";
+        row.draggable = true;
+        row.dataset.key = question.key || "";
+        const header = document.createElement("div");
+        header.className = "rq-row-header";
+        const code = document.createElement("span");
+        code.className = "rq-code";
+        const remove = document.createElement("button");
+        remove.className = "back-link";
+        remove.type = "button";
+        remove.title = "Remove question";
+        remove.textContent = "×";
+        remove.addEventListener("click", () => {
+            if (list.children.length <= 1) return;
+            row.remove();
+            refresh();
+        });
+        header.append(code, remove);
+        const input = document.createElement("textarea");
+        input.className = "rq-question";
+        input.maxLength = 2000;
+        input.value = question.question || "";
+        const requiredLabel = document.createElement("label");
+        requiredLabel.className = "rq-required meta";
+        const required = document.createElement("input");
+        required.type = "checkbox";
+        required.className = "rq-required-input";
+        required.checked = Boolean(question.required);
+        requiredLabel.append(required, document.createTextNode("Required before the paper is complete"));
+        row.append(header, input, requiredLabel);
+        row.addEventListener("dragstart", () => { dragged = row; row.classList.add("dragging"); });
+        row.addEventListener("dragend", () => { dragged = null; row.classList.remove("dragging"); refresh(); });
+        list.append(row);
+        refresh();
+    };
+    questions.forEach(addRow);
+    list.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        const target = event.target.closest(".rq-row");
+        if (!dragged || !target || target === dragged) return;
+        const after = event.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2;
+        list.insertBefore(dragged, after ? target.nextSibling : target);
+    });
+    document.getElementById("revise-rq-button").addEventListener("click", () => dialog.showModal());
+    document.getElementById("revision-cancel").addEventListener("click", () => dialog.close());
+    document.getElementById("revision-add").addEventListener("click", () => {
+        if (list.children.length < 50) addRow();
+    });
+    document.getElementById("revision-save").addEventListener("click", async (event) => {
+        const title = document.getElementById("revision-title").value.trim();
+        const researchQuestions = Array.from(list.children).map((row) => {
+            const value = {
+                "question": row.querySelector(".rq-question").value.trim(),
+                "required": row.querySelector(".rq-required-input").checked
+            };
+            if (row.dataset.key) value.key = row.dataset.key;
+            return value;
+        });
+        if (!title || researchQuestions.some((item) => !item.question)) {
+            status.textContent = "Enter a title and text for every research question.";
+            return;
+        }
+        event.currentTarget.disabled = true;
+        status.textContent = "Creating revision and migrating answers...";
+        try {
+            const response = await fetch("/api/reviews/{review.id}/revisions", {
+                method: "POST",
+                headers: {"Content-Type": "application/json", "Accept": "application/json"},
+                body: JSON.stringify({"title": title, "research_questions": researchQuestions})
+            });
+            const body = await response.text();
+            if (!response.ok) throw new Error(body || "Failed to create revision.");
+            window.location.reload();
+        } catch (error) {
+            status.textContent = error.message || "Failed to create revision.";
+            event.currentTarget.disabled = false;
+        }
+    });
+})();
+</script>
+{/if}
 </body>
 </html>

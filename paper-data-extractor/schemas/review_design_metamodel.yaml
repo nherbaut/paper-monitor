@@ -19,7 +19,20 @@ classes:
       - title
       - target_entity
       - selected_model_ids
+      - derivation_id
+      - revision
+      - derived_from_review_design_id
+      - previous_revision_id
+      - research_questions
       - composed_model
+
+  ResearchQuestion:
+    slots:
+      - key
+      - slot_id
+      - ordinal
+      - question
+      - required
 
   DataExtractionModel:
     slots:
@@ -99,6 +112,32 @@ slots:
   selected_model_ids:
     range: string
     multivalued: true
+
+  derivation_id:
+    range: string
+
+  revision:
+    range: integer
+
+  derived_from_review_design_id:
+    range: string
+
+  previous_revision_id:
+    range: string
+
+  research_questions:
+    range: ResearchQuestion
+    multivalued: true
+    inlined: true
+
+  key:
+    range: string
+
+  slot_id:
+    range: string
+
+  ordinal:
+    range: integer
 
   composed_model:
     range: DataExtractionModel
