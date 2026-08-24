@@ -46,6 +46,28 @@ class ReviewRevisionMigrationTest {
         assertFalse(migrated.containsKey("removed_field"));
     }
 
+    @Test
+    void preservesBaseDesignAnswersWhenCreatingFirstDerivation() {
+        Map<String, Object> newDesign = Map.of("research_questions", List.of(
+                question("question-a", "rq_1"),
+                question("question-b", "rq_2")));
+        Map<String, Object> formSchema = Map.of("fields", List.of(
+                field("paper_class"), field("rq_1"), field("rq_2")));
+        Map<String, Object> oldValues = Map.of(
+                "paper_class", "evaluation_research",
+                "rq_1", "Existing answer A",
+                "rq_2", "Existing answer B",
+                "rq_3", "Removed answer");
+
+        Map<String, Object> migrated = service.migrateSubmissionValues(
+                Map.of(), newDesign, formSchema, oldValues);
+
+        assertEquals("evaluation_research", migrated.get("paper_class"));
+        assertEquals("Existing answer A", migrated.get("rq_1"));
+        assertEquals("Existing answer B", migrated.get("rq_2"));
+        assertFalse(migrated.containsKey("rq_3"));
+    }
+
     private Map<String, Object> question(String key, String slotId) {
         return Map.of("key", key, "slot_id", slotId);
     }

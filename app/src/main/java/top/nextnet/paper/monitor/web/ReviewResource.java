@@ -128,13 +128,20 @@ public class ReviewResource {
     ) {
         AppUser currentUser = requireCurrentUser();
         Review reviewEntity = reviewService.requireReview(id, currentUser);
-        PaperDataExtractorService.ReviewTemplateDetail created = paperDataExtractorService.reviseReviewTemplate(
-                reviewEntity.templateId,
-                requiredPayloadString(payload, "title", "A review design title is required"),
-                objectMapList(payload == null ? null : payload.get("research_questions")),
-                currentUser);
+        logicalFeedAccessService.requireAdminLogicalFeed(reviewEntity.logicalFeed.id, currentUser);
+        Map<String, Object> currentDesign = objectMap(JsonCodec.parse(reviewEntity.reviewDesignJson));
+        String title = requiredPayloadString(payload, "title", "A review design title is required");
+        List<Map<String, Object>> researchQuestions = objectMapList(
+                payload == null ? null : payload.get("research_questions"));
+        boolean derivedDesign = currentDesign.get("derivation_id") != null;
+        PaperDataExtractorService.ReviewTemplateDetail created = derivedDesign
+                ? paperDataExtractorService.reviseReviewTemplate(
+                        reviewEntity.templateId, title, researchQuestions, currentUser)
+                : paperDataExtractorService.deriveReviewTemplate(
+                        reviewEntity.templateId, title, researchQuestions, currentUser);
         ReviewService.MigrationResult migration = reviewService.activateRevision(reviewEntity, created);
         Map<String, Object> response = new LinkedHashMap<>(reviewTemplatePayload(created));
+        response.put("createdDerivation", !derivedDesign);
         response.put("completedSubmissions", migration.completedSubmissions());
         response.put("draftSubmissions", migration.draftSubmissions());
         return response;
@@ -201,6 +208,7 @@ public class ReviewResource {
         int remainingCount = Math.max(0, totalCount - analyzedCount);
         double analyzedRatio = totalCount == 0 ? 0D : (double) analyzedCount / (double) totalCount;
         Map<String, Object> design = objectMap(JsonCodec.parse(reviewEntity.reviewDesignJson));
+        boolean derivedDesign = design.get("derivation_id") != null;
         return review.data("review", reviewEntity)
                 .data("logicalFeed", reviewEntity.logicalFeed)
                 .data("selectedStates", reviewService.selectedStates(reviewEntity))
@@ -210,7 +218,9 @@ public class ReviewResource {
                 .data("analyzedPercent", Math.round(analyzedRatio * 100.0d))
                 .data("analyzedAngle", analyzedRatio * 360.0d)
                 .data("rows", rows)
-                .data("canRevise", design.get("derivation_id") != null)
+                .data("canCustomizeResearchQuestions",
+                        logicalFeedAccessService.canAdmin(reviewEntity.logicalFeed, currentUser))
+                .data("derivedReviewDesign", derivedDesign)
                 .data("reviewRevision", design.get("revision"))
                 .data("researchQuestionsBase64", encodeBase64(JsonCodec.stringify(
                         researchQuestions(design, reviewService.formSchema(reviewEntity)))))

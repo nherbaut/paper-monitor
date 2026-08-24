@@ -278,8 +278,8 @@
             <div>
                 <a class="back-link" href="/?logicalFeedId={logicalFeed.id}">Back to paper feed</a>
                 <div class="hero-actions">
-                    {#if canRevise}
-                    <button class="back-link" id="revise-rq-button" type="button">Revise research questions</button>
+                    {#if canCustomizeResearchQuestions}
+                    <button class="back-link" id="revise-rq-button" type="button">{#if derivedReviewDesign}Revise research questions{#else}Customize research questions{/if}</button>
                     {/if}
                     <details class="action-menu">
                         <summary class="back-link">Download report</summary>
@@ -359,10 +359,14 @@
         </table>
     </section>
 </main>
-{#if canRevise}
+{#if canCustomizeResearchQuestions}
 <dialog id="revise-rq-dialog">
-    <h2>Revise research questions</h2>
+    <h2>{#if derivedReviewDesign}Revise research questions{#else}Customize research questions{/if}</h2>
+    {#if derivedReviewDesign}
     <p class="meta">Revision {reviewRevision}. Existing answers follow their question when reordered or reworded. Incomplete migrations become drafts.</p>
+    {#else}
+    <p class="meta">Create a private review design from this survey. Existing answers are migrated to the matching research-question positions.</p>
+    {/if}
     <label for="revision-title">Design title</label>
     <input id="revision-title" type="text" maxlength="255" value="{review.title}">
     <div class="rq-list" id="revision-rq-list"></div>
@@ -370,7 +374,7 @@
     <div class="dialog-actions">
         <button class="back-link" id="revision-add" type="button">Add question</button>
         <button class="back-link" id="revision-cancel" type="button">Cancel</button>
-        <button class="back-link" id="revision-save" type="button">Create revision</button>
+        <button class="back-link" id="revision-save" type="button">{#if derivedReviewDesign}Create revision{#else}Create private design{/if}</button>
     </div>
 </dialog>
 <script>
@@ -421,7 +425,11 @@
         list.append(row);
         refresh();
     };
-    questions.forEach(addRow);
+    if (questions.length) {
+        questions.forEach(addRow);
+    } else {
+        for (let index = 0; index < 7; index += 1) addRow();
+    }
     list.addEventListener("dragover", (event) => {
         event.preventDefault();
         const target = event.target.closest(".rq-row");
@@ -449,7 +457,7 @@
             return;
         }
         event.currentTarget.disabled = true;
-        status.textContent = "Creating revision and migrating answers...";
+        status.textContent = "{#if derivedReviewDesign}Creating revision{#else}Creating private design{/if} and migrating answers...";
         try {
             const response = await fetch("/api/reviews/{review.id}/revisions", {
                 method: "POST",
@@ -457,10 +465,10 @@
                 body: JSON.stringify({"title": title, "research_questions": researchQuestions})
             });
             const body = await response.text();
-            if (!response.ok) throw new Error(body || "Failed to create revision.");
+            if (!response.ok) throw new Error(body || "Failed to update the research questions.");
             window.location.reload();
         } catch (error) {
-            status.textContent = error.message || "Failed to create revision.";
+            status.textContent = error.message || "Failed to update the research questions.";
             event.currentTarget.disabled = false;
         }
     });
