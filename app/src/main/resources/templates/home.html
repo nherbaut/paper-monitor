@@ -483,11 +483,64 @@
             margin: 0;
         }
 
+        .reader-header-title-group {
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+
         .reader-header-actions {
             display: flex;
             flex-wrap: wrap;
             gap: 0.65rem;
             align-items: center;
+        }
+
+        .reader-view-switch {
+            display: inline-grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.15rem;
+            padding: 0.18rem;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--panel-quiet) 88%, var(--bg));
+        }
+
+        .reader-view-switch button {
+            width: auto;
+            min-height: 2rem;
+            padding: 0.35rem 0.55rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--muted);
+            box-shadow: none;
+            font: inherit;
+            font-size: 0.82rem;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .reader-view-switch button.active {
+            background: var(--panel);
+            color: var(--ink);
+            box-shadow: 0 1px 4px rgba(42, 48, 59, 0.14);
+        }
+
+        .reader-view-switch button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .reader-view-switch .lucide-icon {
+            width: 1rem;
+            height: 1rem;
         }
 
         .export-state-grid {
@@ -1140,10 +1193,8 @@
             position: fixed;
             inset: 0;
             z-index: 20;
-            padding: clamp(1rem, 3vh, 2.5rem) clamp(15rem, 22vw, 20rem);
-            background:
-                radial-gradient(circle at 50% -20%, rgba(224, 149, 112, 0.2), transparent 42%),
-                color-mix(in srgb, var(--bg) 96%, white);
+            padding: clamp(0.75rem, 2vh, 1.5rem);
+            background: color-mix(in srgb, var(--bg) 88%, #f4f7fb);
         }
 
         body.classification-mode .classification-view {
@@ -1151,18 +1202,14 @@
         }
 
         .classification-surface {
-            width: min(100%, 82ch);
+            width: min(100%, 1100px);
+            height: 100%;
             min-height: 0;
             margin: 0 auto;
             display: grid;
-            grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-            gap: clamp(0.75rem, 1.8vh, 1.35rem);
-            padding: clamp(1.2rem, 3vh, 2.4rem);
-            border: 1px solid var(--line);
-            border-radius: 24px;
-            background: color-mix(in srgb, var(--panel) 97%, white);
-            box-shadow: 0 28px 70px rgba(77, 56, 38, 0.16);
-            overflow: hidden;
+            grid-template-rows: auto minmax(0, 1fr) auto auto;
+            gap: clamp(0.55rem, 1.4vh, 1rem);
+            overflow: visible;
         }
 
         .classification-queue-header {
@@ -1196,6 +1243,191 @@
             white-space: nowrap;
         }
 
+        .classification-queue-header .reader-view-switch {
+            flex: 0 0 auto;
+        }
+
+        .classification-deck {
+            position: relative;
+            width: min(100%, 610px);
+            min-height: 0;
+            margin: 0 auto;
+            display: grid;
+            place-items: center;
+            perspective: 1100px;
+        }
+
+        .classification-deck::before {
+            content: "";
+            position: absolute;
+            z-index: 0;
+            inset: 3rem 2.2rem -0.35rem;
+            border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--panel) 78%, var(--bg));
+            transform: translateY(2rem) scale(0.9);
+            opacity: 0.55;
+        }
+
+        .classification-next-card,
+        .classification-card {
+            grid-area: 1 / 1;
+            width: min(100%, 560px);
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--panel) 97%, white);
+            box-shadow: 0 18px 48px rgba(42, 48, 59, 0.14);
+        }
+
+        .classification-next-card {
+            z-index: 1;
+            align-self: end;
+            min-height: 11rem;
+            padding: 1.2rem 1.35rem;
+            transform: translateY(2.25rem) scale(0.94);
+            opacity: 0.72;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .classification-next-card.hidden {
+            visibility: hidden;
+        }
+
+        .classification-next-label {
+            margin: 0 0 0.35rem;
+            color: var(--muted);
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .classification-next-title {
+            margin: 0;
+            font-size: 1.05rem;
+            line-height: 1.35;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            overflow: hidden;
+        }
+
+        .classification-next-meta {
+            margin: 0.45rem 0 0;
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
+        .classification-card {
+            --classification-drag-x: 0px;
+            --classification-drag-y: 0px;
+            --classification-drag-rotation: 0deg;
+            --classification-drag-progress: 0;
+            position: relative;
+            z-index: 3;
+            align-self: center;
+            max-height: min(64vh, 650px);
+            padding: clamp(1rem, 2.4vh, 1.6rem);
+            display: grid;
+            gap: clamp(0.65rem, 1.4vh, 1rem);
+            overflow: auto;
+            overscroll-behavior: contain;
+            transform: translate3d(var(--classification-drag-x), var(--classification-drag-y), 0)
+                rotate(var(--classification-drag-rotation));
+            transform-origin: 50% 90%;
+            transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 180ms ease,
+                box-shadow 180ms ease,
+                border-color 180ms ease;
+            touch-action: pan-y;
+            cursor: grab;
+            will-change: transform;
+        }
+
+        .classification-card.dragging {
+            transition: none;
+            cursor: grabbing;
+            user-select: none;
+            box-shadow: 0 28px 62px rgba(42, 48, 59, 0.22);
+        }
+
+        .classification-card.dragging-left {
+            border-color: rgba(220, 68, 61, 0.52);
+        }
+
+        .classification-card.dragging-right {
+            border-color: rgba(45, 156, 78, 0.52);
+        }
+
+        .classification-card.exiting-left {
+            transform: translate3d(-115vw, -2rem, 0) rotate(-18deg);
+            opacity: 0;
+        }
+
+        .classification-card.exiting-right {
+            transform: translate3d(115vw, -2rem, 0) rotate(18deg);
+            opacity: 0;
+        }
+
+        .classification-card.entering {
+            transition: none;
+            transform: translate3d(0, 30vh, 0) scale(0.92);
+            opacity: 0;
+        }
+
+        .classification-card.entering.entering-active {
+            transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1), opacity 240ms ease;
+            transform: translate3d(0, 0, 0) scale(1);
+            opacity: 1;
+        }
+
+        .classification-stamp {
+            position: absolute;
+            z-index: 5;
+            top: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            max-width: calc(100% - 2rem);
+            padding: 0.45rem 0.65rem;
+            border: 3px solid currentColor;
+            border-radius: 6px;
+            background: color-mix(in srgb, var(--panel) 90%, transparent);
+            font-size: 0.78rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .classification-stamp.left {
+            left: 1rem;
+            color: #dc443d;
+            transform: rotate(-9deg);
+        }
+
+        .classification-stamp.right {
+            right: 1rem;
+            color: #2d9c4e;
+            transform: rotate(9deg);
+        }
+
+        .classification-card.dragging-left .classification-stamp.left,
+        .classification-card.dragging-right .classification-stamp.right {
+            opacity: var(--classification-drag-progress);
+        }
+
+        .lucide-icon {
+            width: 1.35rem;
+            height: 1.35rem;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            pointer-events: none;
+        }
+
         .classification-kicker {
             margin: 0;
             color: var(--accent);
@@ -1208,8 +1440,8 @@
         .classification-title {
             margin: 0.25rem 0 0;
             font-family: "Fraunces", Georgia, serif;
-            font-size: var(--classification-title-size, clamp(1.55rem, 3.5vw, 2.65rem));
-            line-height: 1.12;
+            font-size: var(--classification-title-size, clamp(1.35rem, 3vw, 2rem));
+            line-height: 1.18;
             text-wrap: balance;
         }
 
@@ -1250,8 +1482,8 @@
 
         .classification-links a,
         .classification-actions button {
-            min-height: 2.35rem;
-            padding: 0.55rem 0.75rem;
+            min-height: 2.15rem;
+            padding: 0.45rem 0.7rem;
             border: 1px solid var(--line);
             border-radius: 8px;
             background: var(--panel);
@@ -1269,26 +1501,210 @@
         }
 
         .classification-footer {
+            margin: 0;
+            text-align: center;
             color: var(--muted);
-            font-size: 0.88rem;
+            font-size: 0.82rem;
             line-height: 1.45;
         }
 
         .classification-abstract {
-            min-height: 0;
-            overflow: auto;
-            overscroll-behavior: contain;
-            padding: clamp(0.85rem, 1.8vh, 1.25rem);
-            border-radius: 16px;
+            padding: clamp(0.7rem, 1.4vh, 1rem);
+            border-radius: 8px;
             background: color-mix(in srgb, var(--panel) 82%, var(--bg));
-            scrollbar-gutter: stable;
             font-family: "Source Serif 4", Georgia, serif;
-            font-size: var(--classification-abstract-size, clamp(0.98rem, 1.55vw, 1.16rem));
-            line-height: 1.68;
+            font-size: var(--classification-abstract-size, clamp(0.92rem, 1.35vw, 1.04rem));
+            line-height: 1.55;
         }
 
         .classification-abstract p {
             margin: 0;
+        }
+
+        .classification-abstract.has-summary {
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 6;
+            overflow: hidden;
+        }
+
+        .classification-notes {
+            border-top: 1px solid var(--line);
+        }
+
+        .classification-notes-toggle {
+            width: 100%;
+            min-height: 2.6rem;
+            padding: 0.55rem 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
+            border: 0;
+            background: transparent;
+            color: var(--ink);
+            font: inherit;
+            font-weight: 800;
+            cursor: pointer;
+        }
+
+        .classification-notes-toggle-copy {
+            display: flex;
+            align-items: baseline;
+            gap: 0.55rem;
+            min-width: 0;
+        }
+
+        .classification-notes-indicator {
+            color: var(--muted);
+            font-size: 0.76rem;
+            font-weight: 400;
+        }
+
+        .classification-notes-toggle .lucide-icon {
+            transition: transform 160ms ease;
+        }
+
+        .classification-notes.expanded .classification-notes-toggle .lucide-icon {
+            transform: rotate(180deg);
+        }
+
+        .classification-notes-panel {
+            display: none;
+            gap: 0.4rem;
+            padding-bottom: 0.25rem;
+        }
+
+        .classification-notes.expanded .classification-notes-panel {
+            display: grid;
+        }
+
+        .classification-notes-editor {
+            width: 100%;
+            min-height: 7rem;
+            resize: vertical;
+            padding: 0.7rem;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--panel);
+            color: var(--ink);
+            font: inherit;
+            line-height: 1.5;
+        }
+
+        .classification-notes-status {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.76rem;
+        }
+
+        .classification-action-dock {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(5.5rem, 1fr));
+            align-items: start;
+            gap: clamp(0.8rem, 3vw, 2rem);
+            width: min(100%, 430px);
+            margin: 0 auto;
+        }
+
+        .classification-action {
+            min-width: 0;
+            display: grid;
+            justify-items: center;
+            gap: 0.35rem;
+        }
+
+        .classification-action-button {
+            width: 4rem;
+            height: 4rem;
+            display: grid;
+            place-items: center;
+            border: 1px solid var(--line);
+            border-radius: 50%;
+            background: var(--panel);
+            box-shadow: 0 8px 20px rgba(42, 48, 59, 0.12);
+            cursor: pointer;
+        }
+
+        .classification-action-button .lucide-icon {
+            width: 2rem;
+            height: 2rem;
+            stroke-width: 2.35;
+        }
+
+        .classification-action-button.reject {
+            color: #dc443d;
+        }
+
+        .classification-action-button.accept {
+            color: #2d9c4e;
+        }
+
+        .classification-action-button.info {
+            width: 3.25rem;
+            height: 3.25rem;
+            margin-top: 0.375rem;
+            color: #3268b8;
+        }
+
+        .classification-action-button:disabled {
+            opacity: 0.34;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .classification-action-label {
+            max-width: 8rem;
+            color: var(--muted);
+            font-size: 0.76rem;
+            line-height: 1.25;
+            text-align: center;
+            overflow-wrap: anywhere;
+        }
+
+        .classification-actions {
+            justify-content: center;
+            width: min(100%, 720px);
+            margin: 0 auto;
+        }
+
+        .classification-actions.branching {
+            padding: 0.6rem;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--panel) 90%, var(--bg));
+        }
+
+        .classification-actions.attention {
+            animation: classification-choices-pulse 420ms ease;
+        }
+
+        @keyframes classification-choices-pulse {
+            50% { transform: scale(1.015); border-color: var(--accent); }
+        }
+
+        .classification-surface.busy .classification-action-button,
+        .classification-surface.busy .classification-actions button,
+        .classification-surface.busy .classification-notes-toggle,
+        .classification-surface.busy .classification-notes-editor {
+            pointer-events: none;
+        }
+
+        .classification-viewer-return {
+            display: none;
+            position: fixed;
+            z-index: 18;
+            left: 50%;
+            bottom: 1.25rem;
+            width: auto;
+            transform: translateX(-50%);
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: 0 12px 30px rgba(42, 48, 59, 0.22);
+        }
+
+        body.classification-viewer-open .classification-viewer-return {
+            display: inline-flex;
         }
 
         .classification-empty {
@@ -1308,21 +1724,85 @@
 
         @media (max-width: 720px) {
             .classification-view {
-                padding-inline: 1rem;
+                padding: 0.65rem;
             }
 
-            .classification-queue-header,
-            .classification-links,
-            .classification-actions {
-                align-items: stretch;
-                flex-direction: column;
+            .classification-surface {
+                gap: 0.55rem;
             }
 
-            .classification-exit,
-            .classification-links a,
-            .classification-actions button {
+            .classification-queue-header {
+                padding: 0.45rem 0.6rem;
+                align-items: flex-start;
+            }
+
+            .classification-queue-title {
+                font-size: 0.75rem;
+            }
+
+            .reader-header {
+                align-items: flex-start;
+            }
+
+            .reader-header-title-group {
                 width: 100%;
-                text-align: center;
+                justify-content: space-between;
+            }
+
+            .classification-card {
+                max-height: min(65vh, 580px);
+                padding: 0.9rem;
+            }
+
+            .classification-abstract.has-summary {
+                -webkit-line-clamp: 4;
+            }
+
+            .classification-links {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+            }
+
+            .classification-links a {
+                white-space: nowrap;
+            }
+
+            .classification-action-button {
+                width: 3.55rem;
+                height: 3.55rem;
+            }
+
+            .classification-actions {
+                flex-wrap: nowrap;
+                justify-content: start;
+                overflow-x: auto;
+                padding-bottom: 0.25rem;
+            }
+
+            .classification-actions button {
+                flex: 0 0 auto;
+                white-space: nowrap;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .classification-card,
+            .classification-card.entering.entering-active,
+            .classification-notes-toggle .lucide-icon {
+                transition-duration: 1ms;
+            }
+
+            .classification-card.exiting-left,
+            .classification-card.exiting-right {
+                transform: none;
+            }
+
+            .classification-card.entering {
+                transform: none;
+            }
+
+            .classification-actions.attention {
+                animation: none;
             }
         }
 
@@ -2142,6 +2622,8 @@
                     data-workflow-states="{logicalFeed.workflowStatesToken}"
                     data-workflow-tree='{logicalFeed.workflowTreeJson}'
                     data-workflow-config='{logicalFeed.workflowConfigJson}'
+                    data-default-miage-workflow="{#if logicalFeed.usesDefaultMiageWorkflow}true{#else}false{/if}"
+                    data-rss-intake-count="{logicalFeed.recentNewPaperCount}"
                     data-public-readable="{#if logicalFeed.publicReadable}true{#else}false{/if}"
                     data-public-url="{logicalFeed.publicUrl ?: ''}"
                     data-viewer-can-admin="{#if logicalFeed.viewerCanAdmin}true{#else}false{/if}"
@@ -2167,6 +2649,9 @@
                      data-feed-card
                      data-logical-feed-id="{logicalFeed.id}"
                      data-logical-feed-name="{logicalFeed.name}"
+                     data-default-miage-workflow="{#if logicalFeed.usesDefaultMiageWorkflow}true{#else}false{/if}"
+                     data-rss-intake-count="{logicalFeed.recentNewPaperCount}"
+                     data-viewer-can-admin="{#if logicalFeed.viewerCanAdmin}true{#else}false{/if}"
                      data-review-action-target="feed-review-action-{logicalFeed.id}">
                 <div class="feed-dashboard-card-header">
                     <h3 class="feed-dashboard-card-title"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 4h12v2H2V4Zm1 3h10v6H3V7Zm1 1v4h8V8H4Z"/></svg><span title="{logicalFeed.name}">{logicalFeed.name}</span></h3>
@@ -2383,7 +2868,19 @@
 
     <section class="panel panel-wide {#if authenticated && !shareMode && !initialLogicalFeedId}hidden{/if}" id="browser-reader-section">
         <div class="reader-header">
-            <h2 id="paper-feed-heading" class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm2 3h8v2H4V7Zm-2 3h12v2H2v-2Z"/></svg></span><span>Paper feed reader</span></h2>
+            <div class="reader-header-title-group">
+                <h2 id="paper-feed-heading" class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm2 3h8v2H4V7Zm-2 3h12v2H2v-2Z"/></svg></span><span>Paper feed reader</span></h2>
+                <div class="reader-view-switch {#if shareMode || !authenticated}hidden{/if}" id="reader-view-switch" aria-label="Paper feed view">
+                    <button class="active" id="reader-list-mode" type="button" aria-pressed="true">
+                        <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-list"></use></svg>
+                        <span>List</span>
+                    </button>
+                    <button id="reader-swipe-mode" type="button" aria-pressed="false">
+                        <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-layers"></use></svg>
+                        <span>Swipe</span>
+                    </button>
+                </div>
+            </div>
             <div class="reader-header-actions {#if shareMode && !authenticated}share-anon-hidden{/if}">
                 <details class="export-menu" id="reader-export-menu">
                     <summary class="secondary" id="reader-export-button">Tools</summary>
@@ -2604,28 +3101,121 @@
         </div>
     </section>
 </main>
+<svg width="0" height="0" class="hidden" aria-hidden="true" focusable="false">
+    <symbol id="lucide-x" viewBox="0 0 24 24">
+        <path d="M18 6 6 18"></path>
+        <path d="m6 6 12 12"></path>
+    </symbol>
+    <symbol id="lucide-heart" viewBox="0 0 24 24">
+        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78Z"></path>
+    </symbol>
+    <symbol id="lucide-info" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M12 16v-4"></path>
+        <path d="M12 8h.01"></path>
+    </symbol>
+    <symbol id="lucide-chevron-down" viewBox="0 0 24 24">
+        <path d="m6 9 6 6 6-6"></path>
+    </symbol>
+    <symbol id="lucide-arrow-left" viewBox="0 0 24 24">
+        <path d="m12 19-7-7 7-7"></path>
+        <path d="M19 12H5"></path>
+    </symbol>
+    <symbol id="lucide-list" viewBox="0 0 24 24">
+        <path d="M8 6h13"></path>
+        <path d="M8 12h13"></path>
+        <path d="M8 18h13"></path>
+        <path d="M3 6h.01"></path>
+        <path d="M3 12h.01"></path>
+        <path d="M3 18h.01"></path>
+    </symbol>
+    <symbol id="lucide-layers" viewBox="0 0 24 24">
+        <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path>
+        <path d="m22 12.5-9.17 4.17a2 2 0 0 1-1.66 0L2 12.5"></path>
+        <path d="m22 17.5-9.17 4.17a2 2 0 0 1-1.66 0L2 17.5"></path>
+    </symbol>
+</svg>
 <section class="classification-view" id="classification-view" aria-label="Paper classification" aria-hidden="true">
-    <article class="classification-surface" id="classification-surface">
+    <section class="classification-surface" id="classification-surface">
         <div class="classification-queue-header" id="classification-queue-header">
             <p class="classification-queue-title">
                 RSS classification queue
                 <span class="classification-progress" id="classification-progress"></span>
             </p>
-            <a class="secondary classification-exit" id="classification-exit" href="/">Open normal reader</a>
+            <div class="reader-view-switch" id="classification-view-switch" aria-label="Paper feed view">
+                <button id="classification-list-mode" type="button" aria-pressed="false">
+                    <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-list"></use></svg>
+                    <span>List</span>
+                </button>
+                <button class="active" id="classification-swipe-mode" type="button" aria-pressed="true">
+                    <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-layers"></use></svg>
+                    <span>Swipe</span>
+                </button>
+            </div>
         </div>
-        <div>
-            <p class="classification-kicker" id="classification-kicker">Focused classification</p>
-            <h2 class="classification-title" id="classification-title"></h2>
+        <div class="classification-deck" id="classification-deck">
+            <article class="classification-next-card hidden" id="classification-next-card" aria-hidden="true">
+                <p class="classification-next-label">Next paper</p>
+                <h3 class="classification-next-title" id="classification-next-title"></h3>
+                <p class="classification-next-meta" id="classification-next-meta"></p>
+            </article>
+            <article class="classification-card" id="classification-card">
+                <div class="classification-stamp left" id="classification-left-stamp">
+                    <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-x"></use></svg>
+                    <span id="classification-left-stamp-label"></span>
+                </div>
+                <div class="classification-stamp right" id="classification-right-stamp">
+                    <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-heart"></use></svg>
+                    <span id="classification-right-stamp-label"></span>
+                </div>
+                <div>
+                    <p class="classification-kicker" id="classification-kicker">Focused classification</p>
+                    <h2 class="classification-title" id="classification-title"></h2>
+                </div>
+                <div>
+                    <p class="classification-meta" id="classification-meta"></p>
+                    <div class="classification-tags" id="classification-tags"></div>
+                </div>
+                <div class="classification-abstract" id="classification-abstract"></div>
+                <div class="classification-links" id="classification-links"></div>
+                <div class="classification-notes" id="classification-notes">
+                    <button class="classification-notes-toggle" id="classification-notes-toggle" type="button" aria-expanded="false" aria-controls="classification-notes-panel">
+                        <span class="classification-notes-toggle-copy">
+                            <span>Notes</span>
+                            <span class="classification-notes-indicator" id="classification-notes-indicator">No notes</span>
+                        </span>
+                        <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-chevron-down"></use></svg>
+                    </button>
+                    <div class="classification-notes-panel" id="classification-notes-panel">
+                        <textarea class="classification-notes-editor" id="classification-notes-editor" placeholder="Add notes about this paper"></textarea>
+                        <p class="classification-notes-status" id="classification-notes-status" role="status">Saved</p>
+                    </div>
+                </div>
+            </article>
         </div>
-        <div>
-            <p class="classification-meta" id="classification-meta"></p>
-            <div class="classification-tags" id="classification-tags"></div>
+        <div class="classification-action-dock" id="classification-action-dock">
+            <div class="classification-action">
+                <button class="classification-action-button reject" id="classification-left-action" type="button" title="Move to an earlier state">
+                    <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-x"></use></svg>
+                </button>
+                <span class="classification-action-label" id="classification-left-label"></span>
+            </div>
+            <div class="classification-action">
+                <button class="classification-action-button info" id="classification-info-action" type="button" title="Open paper viewer">
+                    <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-info"></use></svg>
+                </button>
+                <span class="classification-action-label">Paper details</span>
+            </div>
+            <div class="classification-action">
+                <button class="classification-action-button accept" id="classification-right-action" type="button" title="Move to a later state">
+                    <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-heart"></use></svg>
+                </button>
+                <span class="classification-action-label" id="classification-right-label"></span>
+            </div>
         </div>
-        <div class="classification-links" id="classification-links"></div>
-        <div class="classification-abstract" id="classification-abstract"></div>
         <div>
             <div class="classification-actions" id="classification-actions"></div>
-            <p class="classification-footer" id="classification-footer">Choose the next state for this paper. Once classified, it leaves this queue.</p>
+            <p class="classification-footer" id="classification-footer">Drag or choose the next state for this paper.</p>
         </div>
         <div class="classification-empty">
             <div>
@@ -2633,8 +3223,12 @@
                 <p class="meta" id="classification-empty-message">Release Shift to return to the paper feed.</p>
             </div>
         </div>
-    </article>
+    </section>
 </section>
+<button class="primary classification-viewer-return" id="classification-viewer-return" type="button">
+    <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-arrow-left"></use></svg>
+    Back to classification
+</button>
 <div class="keyboard-status-toast" id="keyboard-status-toast" role="status" aria-live="polite"></div>
 <div class="state-feedback-pop" id="state-feedback-pop" aria-hidden="true">
     <img id="state-feedback-image" alt="">
@@ -2731,6 +3325,9 @@
     const feedDashboardPanel = document.getElementById("feed-dashboard-panel");
     const browserReaderSection = document.getElementById("browser-reader-section");
     const paperFeedHeading = document.getElementById("paper-feed-heading");
+    const readerViewSwitch = document.getElementById("reader-view-switch");
+    const readerListMode = document.getElementById("reader-list-mode");
+    const readerSwipeMode = document.getElementById("reader-swipe-mode");
     const tagBrowser = document.getElementById("tag-browser");
     const tagBadgeList = document.getElementById("tag-badge-list");
     const clearTagFiltersButton = document.getElementById("clear-tag-filters");
@@ -2752,8 +3349,14 @@
     const rightStateOptions = document.getElementById("right-state-options");
     const classificationView = document.getElementById("classification-view");
     const classificationSurface = document.getElementById("classification-surface");
+    const classificationDeck = document.getElementById("classification-deck");
+    const classificationCard = document.getElementById("classification-card");
+    const classificationNextCard = document.getElementById("classification-next-card");
+    const classificationNextTitle = document.getElementById("classification-next-title");
+    const classificationNextMeta = document.getElementById("classification-next-meta");
     const classificationProgress = document.getElementById("classification-progress");
-    const classificationExit = document.getElementById("classification-exit");
+    const classificationListMode = document.getElementById("classification-list-mode");
+    const classificationSwipeMode = document.getElementById("classification-swipe-mode");
     const classificationKicker = document.getElementById("classification-kicker");
     const classificationTitle = document.getElementById("classification-title");
     const classificationMeta = document.getElementById("classification-meta");
@@ -2762,6 +3365,19 @@
     const classificationAbstract = document.getElementById("classification-abstract");
     const classificationActions = document.getElementById("classification-actions");
     const classificationFooter = document.getElementById("classification-footer");
+    const classificationLeftAction = document.getElementById("classification-left-action");
+    const classificationRightAction = document.getElementById("classification-right-action");
+    const classificationInfoAction = document.getElementById("classification-info-action");
+    const classificationLeftLabel = document.getElementById("classification-left-label");
+    const classificationRightLabel = document.getElementById("classification-right-label");
+    const classificationLeftStampLabel = document.getElementById("classification-left-stamp-label");
+    const classificationRightStampLabel = document.getElementById("classification-right-stamp-label");
+    const classificationNotes = document.getElementById("classification-notes");
+    const classificationNotesToggle = document.getElementById("classification-notes-toggle");
+    const classificationNotesEditor = document.getElementById("classification-notes-editor");
+    const classificationNotesIndicator = document.getElementById("classification-notes-indicator");
+    const classificationNotesStatus = document.getElementById("classification-notes-status");
+    const classificationViewerReturn = document.getElementById("classification-viewer-return");
     const classificationEmptyTitle = document.getElementById("classification-empty-title");
     const classificationEmptyMessage = document.getElementById("classification-empty-message");
     const pdfPanel = document.getElementById("pdf-panel");
@@ -2801,6 +3417,8 @@
     const notesStatus = document.getElementById("notes-status");
     const STATE_DRAG_TRIGGER_X = 150;
     const STATE_WHEEL_ROW_HEIGHT = 56;
+    const CLASSIFICATION_DRAG_TRIGGER_X = 96;
+    const CLASSIFICATION_HANDOFF_MS = 380;
     let currentRenderToken = 0;
     let selectedPaperId = null;
     let notesSaveTimer = null;
@@ -2821,6 +3439,13 @@
     let keyboardShortcutPicker = null;
     let keyboardShortcutShiftHeld = false;
     let classificationModeActive = false;
+    let classificationModeTemporary = false;
+    let classificationBusy = false;
+    let classificationDragState = null;
+    let classificationNotesSaveTimer = null;
+    let classificationNotesSaving = null;
+    let classificationViewerReturnPaperId = null;
+    const classificationNoteDrafts = new Map();
     let activePdfCapture = null;
     let pdfCapturePollTimer = null;
     let pdfCaptureExtensionReady = false;
@@ -2835,11 +3460,12 @@
     let reviewTemplates = [];
     let reviewSummaries = [];
     const themeStorageKey = "paper-monitor.theme";
+    const readerModeStoragePrefix = "paper-monitor.reader-mode.";
     const notesCollapsedStorageKey = "paper-monitor.notes-collapsed";
     const pdfCaptureStorageKey = "paper-monitor.active-pdf-capture";
     const KEYBOARD_STATUS_TOAST_MS = 2200;
     const STATE_FEEDBACK_POP_MS = 1200;
-    const LEGACY_STATE_FEEDBACK_FRAME_COUNT = 15;
+    const MIAGE_STATE_FEEDBACK_FRAME_COUNT = 15;
     const STATE_FEEDBACK_DIRECTION_IMAGES = {
         up: [
             "up-01-elevator.png",
@@ -2856,7 +3482,7 @@
             "down-05-mine-cart.png"
         ]
     };
-    const LEGACY_STATE_FEEDBACK_FOLDERS = {
+    const MIAGE_STATE_FEEDBACK_FOLDERS = {
         DISCARDED: "discarded",
         TODO: "todo",
         DONE: "done"
@@ -3156,7 +3782,8 @@
     };
 
     const storedLogicalFeedName = window.localStorage.getItem(storageKey);
-    notesCollapsed = window.localStorage.getItem(notesCollapsedStorageKey) === "true";
+    const storedNotesCollapsed = window.localStorage.getItem(notesCollapsedStorageKey);
+    notesCollapsed = storedNotesCollapsed == null ? true : storedNotesCollapsed === "true";
     applyTheme(window.localStorage.getItem(themeStorageKey) || "light");
     renderLastSeenLogicalFeed(storedLogicalFeedName);
     applyNotesCollapsedState();
@@ -3450,6 +4077,96 @@
         return transitions
             .filter((item) => Array.isArray(item?.to) && item.to.includes(stateId))
             .map((item) => item.from);
+    };
+
+    const logicalFeedOptionById = (logicalFeedId) => {
+        return Array.from(logicalFeedFilter?.options || [])
+            .find((option) => option.value === String(logicalFeedId)) || null;
+    };
+
+    const readerModePreference = (logicalFeedId) => {
+        if (!logicalFeedId) {
+            return null;
+        }
+        const stored = window.localStorage.getItem(readerModeStoragePrefix + logicalFeedId);
+        return stored === "list" || stored === "swipe" ? stored : null;
+    };
+
+    const setReaderModePreference = (logicalFeedId, mode) => {
+        if (!logicalFeedId || (mode !== "list" && mode !== "swipe")) {
+            return;
+        }
+        window.localStorage.setItem(readerModeStoragePrefix + logicalFeedId, mode);
+    };
+
+    const feedCanUseSwipeMode = (logicalFeedId) => {
+        const option = logicalFeedOptionById(logicalFeedId);
+        return option?.dataset.viewerCanAdmin === "true"
+            && Number(option.dataset.rssIntakeCount || 0) > 0;
+    };
+
+    const usesDefaultMiageWorkflow = (logicalFeedId) => {
+        return logicalFeedOptionById(logicalFeedId)?.dataset.defaultMiageWorkflow === "true";
+    };
+
+    const resolvedReaderMode = (logicalFeedId) => {
+        const option = logicalFeedOptionById(logicalFeedId);
+        if (!option || option.dataset.viewerCanAdmin !== "true") {
+            return "list";
+        }
+        const intakeCount = Number(option.dataset.rssIntakeCount || 0);
+        if (intakeCount <= 0) {
+            return "list";
+        }
+        const preference = readerModePreference(logicalFeedId);
+        if (preference) {
+            return preference;
+        }
+        return option.dataset.defaultMiageWorkflow === "true" ? "swipe" : "list";
+    };
+
+    const updateReaderModeControls = () => {
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        const option = logicalFeedOptionById(logicalFeedId);
+        const canAdmin = option?.dataset.viewerCanAdmin === "true";
+        const intakeCount = Number(option?.dataset.rssIntakeCount || 0);
+        readerViewSwitch?.classList.toggle("hidden", !logicalFeedId || !canAdmin || shareMode);
+        readerListMode?.classList.add("active");
+        readerListMode?.setAttribute("aria-pressed", "true");
+        readerSwipeMode?.classList.remove("active");
+        readerSwipeMode?.setAttribute("aria-pressed", "false");
+        if (readerSwipeMode) {
+            readerSwipeMode.disabled = !canAdmin || intakeCount <= 0;
+            readerSwipeMode.title = intakeCount > 0
+                ? "Classify " + intakeCount + " new RSS paper" + (intakeCount === 1 ? "" : "s") + " in Swipe view"
+                : "No new RSS papers are waiting for classification";
+        }
+    };
+
+    const swipeModeUrl = (logicalFeedId) => {
+        return "/classify?logicalFeedId=" + encodeURIComponent(logicalFeedId);
+    };
+
+    const listModeUrl = (logicalFeedId) => {
+        return logicalFeedId ? "/?logicalFeedId=" + encodeURIComponent(logicalFeedId) : "/";
+    };
+
+    const navigateToSwipeMode = (logicalFeedId, remember = false) => {
+        if (!feedCanUseSwipeMode(logicalFeedId)) {
+            return false;
+        }
+        if (remember) {
+            setReaderModePreference(logicalFeedId, "swipe");
+        }
+        window.location.href = swipeModeUrl(logicalFeedId);
+        return true;
+    };
+
+    const navigateToListMode = (logicalFeedId, remember = false) => {
+        if (remember) {
+            setReaderModePreference(logicalFeedId, "list");
+        }
+        window.location.href = listModeUrl(logicalFeedId);
     };
 
     const taxonomyLeaves = (taxonomyId, logicalFeedId) => {
@@ -5045,31 +5762,157 @@
             && card.dataset.paperCanEditTags === "true";
     };
 
+    const classificationDirectionalTargets = (card) => {
+        if (!card) {
+            return { left: [], right: [], other: [] };
+        }
+        const logicalFeedId = card.dataset.logicalFeedId;
+        const currentStatus = normalizeStatus(card.dataset.paperStatus);
+        const config = workflowConfigForLogicalFeed(logicalFeedId);
+        const states = Array.isArray(config?.states) ? config.states : [];
+        const currentIndex = states.findIndex((state) => state?.id === currentStatus);
+        const uniqueTargets = Array.from(new Set(workflowTargetsFromState(logicalFeedId, currentStatus)));
+        const result = { left: [], right: [], other: [] };
+        uniqueTargets.forEach((target) => {
+            const targetIndex = states.findIndex((state) => state?.id === target);
+            if (currentIndex < 0 || targetIndex < 0 || targetIndex === currentIndex) {
+                result.other.push(target);
+            } else if (targetIndex < currentIndex) {
+                result.left.push(target);
+            } else {
+                result.right.push(target);
+            }
+        });
+        return result;
+    };
+
+    const classificationStateLabel = (card, stateId) => {
+        return workflowStateById(card.dataset.logicalFeedId, stateId)?.label || statusLabel(stateId);
+    };
+
+    const classificationQueueCards = () => visiblePaperCards().filter(canClassifyCard);
+
+    const nextClassificationCard = (card) => {
+        const cards = classificationQueueCards();
+        const currentIndex = cards.findIndex((item) => item.dataset.paperId === card?.dataset.paperId);
+        if (currentIndex < 0 || cards.length < 2) {
+            return cards.find((item) => item.dataset.paperId !== card?.dataset.paperId) || null;
+        }
+        return cards[currentIndex + 1] || cards.find((item) => item.dataset.paperId !== card.dataset.paperId) || null;
+    };
+
+    const renderClassificationNextCard = (card) => {
+        if (!classificationNextCard) {
+            return;
+        }
+        const nextCard = nextClassificationCard(card);
+        classificationNextCard.classList.toggle("hidden", !nextCard);
+        classificationNextTitle.textContent = nextCard?.dataset.paperTitle || "";
+        classificationNextMeta.textContent = nextCard
+            ? (nextCard.dataset.paperAuthors || "Unknown authors")
+            : "";
+    };
+
+    const setClassificationNotesExpanded = (expanded) => {
+        classificationNotes?.classList.toggle("expanded", expanded);
+        classificationNotesToggle?.setAttribute("aria-expanded", expanded ? "true" : "false");
+        if (expanded) {
+            window.setTimeout(() => classificationNotesEditor?.focus(), 0);
+        }
+    };
+
+    const updateClassificationNotesIndicator = () => {
+        if (!classificationNotesIndicator || !classificationNotesEditor) {
+            return;
+        }
+        classificationNotesIndicator.textContent = classificationNotesEditor.value.trim()
+            ? "Notes added"
+            : "No notes";
+    };
+
+    const renderClassificationNotes = (card) => {
+        if (!classificationNotesEditor) {
+            return;
+        }
+        const paperId = card.dataset.paperId;
+        const value = classificationNoteDrafts.has(paperId)
+            ? classificationNoteDrafts.get(paperId)
+            : (card.dataset.paperNotes || "");
+        classificationNotesEditor.value = value;
+        classificationNotesStatus.textContent = "Saved";
+        updateClassificationNotesIndicator();
+        setClassificationNotesExpanded(false);
+    };
+
+    const saveClassificationNotes = async (card = selectedPaperCard()) => {
+        if (!authenticated || !card || !classificationNotesEditor) {
+            return;
+        }
+        window.clearTimeout(classificationNotesSaveTimer);
+        classificationNotesSaveTimer = null;
+        const paperId = card.dataset.paperId;
+        const notes = classificationNoteDrafts.has(paperId)
+            ? classificationNoteDrafts.get(paperId)
+            : classificationNotesEditor.value;
+        if (notes === (card.dataset.paperNotes || "")) {
+            classificationNotesStatus.textContent = "Saved";
+            return;
+        }
+        classificationNotesStatus.textContent = "Saving...";
+        const save = fetch("/papers/" + paperId + "/notes", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+            },
+            body: new URLSearchParams({ notes })
+        }).then(async (response) => {
+            if (!response.ok) {
+                const message = await response.text();
+                throw new Error(message || "Failed to save notes");
+            }
+            card.dataset.paperNotes = notes;
+            const currentCard = findCardByPaperId(paperId);
+            if (currentCard) {
+                currentCard.dataset.paperNotes = notes;
+            }
+            const record = paperRecordById(paperId);
+            if (record) {
+                record.paperNotes = notes;
+            }
+            classificationNoteDrafts.delete(paperId);
+            classificationNotesStatus.textContent = "Saved";
+        }).catch((error) => {
+            classificationNotesStatus.textContent = error.message || "Failed to save notes";
+            throw error;
+        }).finally(() => {
+            if (classificationNotesSaving === save) {
+                classificationNotesSaving = null;
+            }
+        });
+        classificationNotesSaving = save;
+        await save;
+    };
+
     const fitClassificationTypography = () => {
         if (!classificationModeActive || classificationSurface.classList.contains("empty")) {
             return;
         }
         classificationSurface.style.setProperty("--classification-title-size", "");
         classificationSurface.style.setProperty("--classification-abstract-size", "");
-        classificationAbstract.scrollTop = 0;
-        requestAnimationFrame(() => {
-            let titleSize = 2.65;
-            let abstractSize = 1.16;
-            while (classificationSurface.scrollHeight > classificationSurface.clientHeight && titleSize > 1.55) {
-                titleSize -= 0.1;
-                classificationSurface.style.setProperty("--classification-title-size", titleSize + "rem");
-            }
-            while (classificationAbstract.scrollHeight > classificationAbstract.clientHeight && abstractSize > 0.98) {
-                abstractSize -= 0.03;
-                classificationSurface.style.setProperty("--classification-abstract-size", abstractSize + "rem");
-            }
-        });
+        classificationCard.scrollTop = 0;
     };
 
     const renderClassificationPaper = (card) => {
         if (!card) {
             return;
         }
+        classificationCard.classList.remove(
+            "dragging", "dragging-left", "dragging-right", "exiting-left", "exiting-right", "entering", "entering-active"
+        );
+        classificationCard.style.setProperty("--classification-drag-x", "0px");
+        classificationCard.style.setProperty("--classification-drag-y", "0px");
+        classificationCard.style.setProperty("--classification-drag-rotation", "0deg");
+        classificationCard.style.setProperty("--classification-drag-progress", "0");
         classificationSurface.classList.remove("empty");
         updateClassificationQueueProgress(card);
         classificationKicker.textContent = statusLabel(normalizeStatus(card.dataset.paperStatus))
@@ -5099,6 +5942,7 @@
             });
         classificationAbstract.innerHTML = "";
         const summary = (card.dataset.paperSummary || "").trim();
+        classificationAbstract.classList.toggle("has-summary", Boolean(summary));
         if (!summary) {
             const missing = document.createElement("p");
             missing.className = "meta";
@@ -5112,7 +5956,9 @@
             });
         }
         renderClassificationLinks(card);
+        renderClassificationNotes(card);
         renderClassificationActions(card);
+        renderClassificationNextCard(card);
         fitClassificationTypography();
     };
 
@@ -5127,10 +5973,6 @@
         classificationProgress.textContent = cards.length
             ? " - " + position + " of " + cards.length + " in " + feedName
             : " - none waiting in " + feedName;
-        if (classificationExit) {
-            const logicalFeedId = card?.dataset.logicalFeedId || logicalFeedFilter?.value || "";
-            classificationExit.href = logicalFeedId ? "/?logicalFeedId=" + encodeURIComponent(logicalFeedId) : "/";
-        }
     };
 
     const appendClassificationLink = (label, href) => {
@@ -5161,28 +6003,186 @@
         }
         classificationActions.innerHTML = "";
         const currentStatus = normalizeStatus(card.dataset.paperStatus);
-        const targets = workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
-        targets.forEach((target, index) => {
+        const directional = classificationDirectionalTargets(card);
+        const leftLabel = directional.left.length === 1
+            ? classificationStateLabel(card, directional.left[0])
+            : directional.left.length > 1 ? directional.left.length + " earlier states" : "No earlier state";
+        const rightLabel = directional.right.length === 1
+            ? classificationStateLabel(card, directional.right[0])
+            : directional.right.length > 1 ? directional.right.length + " later states" : "No later state";
+        classificationLeftLabel.textContent = leftLabel;
+        classificationRightLabel.textContent = rightLabel;
+        classificationLeftStampLabel.textContent = directional.left.length === 1 ? leftLabel : "Choose a state";
+        classificationRightStampLabel.textContent = directional.right.length === 1 ? rightLabel : "Choose a state";
+        classificationLeftAction.disabled = directional.left.length === 0;
+        classificationRightAction.disabled = directional.right.length === 0;
+        classificationLeftAction.setAttribute("aria-label", directional.left.length
+            ? "Move paper to " + leftLabel
+            : "No earlier state available");
+        classificationRightAction.setAttribute("aria-label", directional.right.length
+            ? "Move paper to " + rightLabel
+            : "No later state available");
+
+        const explicitTargets = [
+            ...(directional.left.length > 1 ? directional.left : []),
+            ...directional.other,
+            ...(directional.right.length > 1 ? directional.right : [])
+        ];
+        explicitTargets.forEach((target, index) => {
             const button = document.createElement("button");
             button.type = "button";
             button.className = index === 0 ? "primary" : "";
-            button.textContent = workflowStateById(card.dataset.logicalFeedId, target)?.label || statusLabel(target);
+            button.textContent = classificationStateLabel(card, target);
             button.addEventListener("click", async () => {
-                try {
-                    await applyPaperStatusTransition(card, target, currentStatus, {
-                        advanceFocus: true,
-                        backgroundPersistence: classificationModeActive
-                    });
-                    startKeyboardShortcutPicker();
-                } catch (error) {
-                    window.alert(error.message || "Failed to update paper status");
-                }
+                const targetIndex = workflowConfigForLogicalFeed(card.dataset.logicalFeedId)?.states
+                    ?.findIndex((state) => state?.id === target) ?? -1;
+                const currentIndex = workflowConfigForLogicalFeed(card.dataset.logicalFeedId)?.states
+                    ?.findIndex((state) => state?.id === currentStatus) ?? -1;
+                await performClassificationTransition(card, target, targetIndex < currentIndex ? "left" : "right");
             });
             classificationActions.appendChild(button);
         });
-        classificationFooter.textContent = targets.length
-            ? "Choose the next state for this paper. Once classified, it leaves this queue."
+        classificationActions.classList.toggle("branching", explicitTargets.length > 0);
+        const targetCount = directional.left.length + directional.right.length + directional.other.length;
+        classificationFooter.textContent = targetCount
+            ? explicitTargets.length
+                ? "Choose a labeled state, or swipe where one destination is available."
+                : "Drag the card or use the X and heart controls."
             : "This state has no configured outgoing transitions. Use the normal reader to inspect this paper.";
+    };
+
+    const waitForClassificationAnimation = (duration = CLASSIFICATION_HANDOFF_MS) => {
+        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        return new Promise((resolve) => window.setTimeout(resolve, reducedMotion ? 20 : duration));
+    };
+
+    const resetClassificationDragVisual = () => {
+        if (!classificationCard) {
+            return;
+        }
+        classificationCard.classList.remove("dragging", "dragging-left", "dragging-right");
+        classificationCard.style.setProperty("--classification-drag-x", "0px");
+        classificationCard.style.setProperty("--classification-drag-y", "0px");
+        classificationCard.style.setProperty("--classification-drag-rotation", "0deg");
+        classificationCard.style.setProperty("--classification-drag-progress", "0");
+    };
+
+    const revealClassificationChoices = () => {
+        if (!classificationActions?.classList.contains("branching")) {
+            return;
+        }
+        classificationActions.classList.remove("attention");
+        void classificationActions.offsetWidth;
+        classificationActions.classList.add("attention");
+        classificationActions.querySelector("button")?.focus({ preventScroll: true });
+    };
+
+    const performClassificationTransition = async (card, nextStatus, side, options = {}) => {
+        if (classificationBusy || !card || !nextStatus) {
+            return false;
+        }
+        classificationBusy = true;
+        classificationSurface.classList.add("busy");
+        classificationFooter.textContent = "Saving classification...";
+        if (options.preserveDragVisual === true) {
+            classificationCard.classList.remove("dragging", "dragging-left", "dragging-right");
+        } else {
+            resetClassificationDragVisual();
+        }
+        try {
+            await saveClassificationNotes(card);
+            const applied = await applyPaperStatusTransition(card, nextStatus, normalizeStatus(card.dataset.paperStatus), {
+                advanceFocus: false,
+                backgroundPersistence: false
+            });
+            if (!applied) {
+                resetClassificationDragVisual();
+                renderClassificationActions(card);
+                return false;
+            }
+
+            const nextCard = classificationQueueCards()[0] || null;
+            classificationCard.classList.add(side === "left" ? "exiting-left" : "exiting-right");
+            await waitForClassificationAnimation();
+
+            if (!nextCard || !selectPaperForClassification(nextCard)) {
+                showClassificationEmpty();
+                return true;
+            }
+
+            classificationCard.classList.add("entering");
+            void classificationCard.offsetWidth;
+            classificationCard.classList.add("entering-active");
+            await waitForClassificationAnimation();
+            classificationCard.classList.remove("entering", "entering-active");
+            if (keyboardShortcutShiftHeld) {
+                startKeyboardShortcutPicker();
+            }
+            return true;
+        } catch (error) {
+            const restoredCard = findCardByPaperId(card.dataset.paperId) || card;
+            if (classificationModeActive && canClassifyCard(restoredCard)) {
+                selectPaperForClassification(restoredCard);
+            }
+            showKeyboardStatusError(error.message || "Failed to update paper status");
+            return false;
+        } finally {
+            classificationBusy = false;
+            classificationSurface.classList.remove("busy");
+        }
+    };
+
+    const handleClassificationDirection = async (side) => {
+        if (classificationBusy) {
+            return;
+        }
+        const card = selectedPaperCard();
+        const targets = classificationDirectionalTargets(card)[side] || [];
+        if (targets.length !== 1) {
+            revealClassificationChoices();
+            return;
+        }
+        await performClassificationTransition(card, targets[0], side);
+    };
+
+    const openClassificationPaperViewer = async () => {
+        const card = selectedPaperCard();
+        if (!card || classificationBusy) {
+            return;
+        }
+        try {
+            await saveClassificationNotes(card);
+        } catch (error) {
+            showKeyboardStatusError(error.message || "Failed to save notes");
+            return;
+        }
+        classificationViewerReturnPaperId = card.dataset.paperId;
+        classificationModeActive = false;
+        classificationView.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("classification-mode");
+        document.body.classList.add("classification-viewer-open");
+        clearKeyboardStatePicker();
+        clearKeyboardShortcutPicker();
+        openPaperCard(card);
+        classificationViewerReturn?.focus({ preventScroll: true });
+    };
+
+    const returnToClassification = () => {
+        const paperId = classificationViewerReturnPaperId;
+        classificationViewerReturnPaperId = null;
+        document.body.classList.remove("classification-viewer-open");
+        const card = findCardByPaperId(paperId);
+        if (!card || !canClassifyCard(card)) {
+            if (!enterClassificationMode({ temporary: classificationModeTemporary })) {
+                showEmptyClassificationMode();
+            }
+            return;
+        }
+        classificationModeActive = true;
+        document.body.classList.add("classification-mode");
+        classificationView.setAttribute("aria-hidden", "false");
+        selectPaperForClassification(card);
+        classificationInfoAction?.focus({ preventScroll: true });
     };
 
     const selectPaperForClassification = (card) => {
@@ -5204,8 +6204,11 @@
 
     const showClassificationEmpty = () => {
         selectedPaperId = null;
+        classificationDragState = null;
+        resetClassificationDragVisual();
         allPaperCards().forEach((item) => item.classList.remove("active"));
         classificationSurface.classList.add("empty");
+        classificationNextCard?.classList.add("hidden");
         updateClassificationQueueProgress();
         if (classificationActions) {
             classificationActions.innerHTML = "";
@@ -5231,18 +6234,22 @@
 
     const showEmptyClassificationMode = () => {
         classificationModeActive = true;
+        classificationModeTemporary = false;
         document.body.classList.add("classification-mode");
         classificationView.setAttribute("aria-hidden", "false");
         showClassificationEmpty();
     };
 
-    const enterClassificationMode = () => {
+    const enterClassificationMode = (options = {}) => {
         let card = selectedPaperCard();
         if (!canClassifyCard(card)) {
             card = visiblePaperCards().find(canClassifyCard) || null;
         }
         if (!card) {
             return false;
+        }
+        if (!classificationModeActive || options.temporary !== true) {
+            classificationModeTemporary = options.temporary === true;
         }
         classificationModeActive = true;
         document.body.classList.add("classification-mode");
@@ -5251,12 +6258,17 @@
         return true;
     };
 
-    const exitClassificationMode = () => {
-        if (!classificationModeActive) {
+    const exitClassificationMode = (options = {}) => {
+        if (!classificationModeActive || (options.force !== true && !classificationModeTemporary)) {
             return;
         }
         classificationModeActive = false;
+        classificationModeTemporary = false;
+        classificationDragState = null;
+        resetClassificationDragVisual();
+        classificationViewerReturnPaperId = null;
         document.body.classList.remove("classification-mode");
+        document.body.classList.remove("classification-viewer-open");
         classificationView.setAttribute("aria-hidden", "true");
         classificationSurface.classList.remove("empty");
         const card = selectedPaperCard();
@@ -5305,8 +6317,13 @@
             return;
         }
         const currentStatus = normalizeStatus(card.dataset.paperStatus);
-        const outgoingStates = workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
-        const incomingStates = workflowSourcesToState(card.dataset.logicalFeedId, currentStatus);
+        const directional = classificationModeActive ? classificationDirectionalTargets(card) : null;
+        const outgoingStates = classificationModeActive
+            ? directional.right
+            : workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
+        const incomingStates = classificationModeActive
+            ? directional.left
+            : workflowSourcesToState(card.dataset.logicalFeedId, currentStatus);
         const outgoing = numberStateWheelOptions(
             wheelOptionsForReachableStates(card.dataset.logicalFeedId, outgoingStates),
             1
@@ -5400,28 +6417,32 @@
         if (!stateFeedbackPop || !stateFeedbackImage) {
             return;
         }
+        hideStateFeedbackPop();
+        if (usesDefaultMiageWorkflow(logicalFeedId)) {
+            const folder = MIAGE_STATE_FEEDBACK_FOLDERS[topLevelStatus(nextStatus)];
+            if (!folder) {
+                return;
+            }
+            const frameNumber = Math.floor(Math.random() * MIAGE_STATE_FEEDBACK_FRAME_COUNT) + 1;
+            const frameName = "frame_" + String(frameNumber).padStart(2, "0") + ".png";
+            stateFeedbackImage.onload = () => {
+                requestAnimationFrame(() => stateFeedbackPop.classList.add("visible"));
+            };
+            stateFeedbackImage.onerror = hideStateFeedbackPop;
+            stateFeedbackImage.src = "/assets/state-feedback/" + folder + "/" + frameName;
+            stateFeedbackTimer = window.setTimeout(hideStateFeedbackPop, STATE_FEEDBACK_POP_MS);
+            return;
+        }
         const direction = stateFeedbackDirection(logicalFeedId, previousStatus, nextStatus);
         const images = STATE_FEEDBACK_DIRECTION_IMAGES[direction] || [];
         if (!images.length) {
             return;
         }
-        hideStateFeedbackPop();
         const imageName = images[Math.floor(Math.random() * images.length)];
         stateFeedbackImage.onload = () => {
             requestAnimationFrame(() => stateFeedbackPop.classList.add("visible"));
         };
-        stateFeedbackImage.onerror = () => {
-            const legacyFolder = LEGACY_STATE_FEEDBACK_FOLDERS[topLevelStatus(nextStatus)];
-            if (!legacyFolder || stateFeedbackImage.dataset.fallback === "true") {
-                hideStateFeedbackPop();
-                return;
-            }
-            const fallbackFrameNumber = Math.floor(Math.random() * LEGACY_STATE_FEEDBACK_FRAME_COUNT) + 1;
-            const fallbackFrameName = "frame_" + String(fallbackFrameNumber).padStart(2, "0") + ".png";
-            stateFeedbackImage.dataset.fallback = "true";
-            stateFeedbackImage.src = "/assets/state-feedback/" + legacyFolder + "/" + fallbackFrameName;
-        };
-        stateFeedbackImage.dataset.fallback = "false";
+        stateFeedbackImage.onerror = hideStateFeedbackPop;
         stateFeedbackImage.src = "/assets/state-feedback/" + direction + "/" + imageName;
         stateFeedbackTimer = window.setTimeout(hideStateFeedbackPop, STATE_FEEDBACK_POP_MS);
     };
@@ -5432,9 +6453,11 @@
             return;
         }
         const currentStatus = normalizeStatus(card.dataset.paperStatus);
-        const reachableStates = side === "left"
-            ? workflowSourcesToState(card.dataset.logicalFeedId, currentStatus)
-            : workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
+        const reachableStates = classificationModeActive
+            ? classificationDirectionalTargets(card)[side]
+            : side === "left"
+                ? workflowSourcesToState(card.dataset.logicalFeedId, currentStatus)
+                : workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
         const options = wheelOptionsForReachableStates(card.dataset.logicalFeedId, reachableStates);
         const activeIndex = options.findIndex((entry) => entry.type === "state");
         if (activeIndex < 0) {
@@ -5454,6 +6477,9 @@
     };
 
     const immediateKeyboardTransition = async (side, card, nextStatus, previousStatus) => {
+        if (classificationModeActive) {
+            return performClassificationTransition(card, nextStatus, side);
+        }
         const applied = await applyPaperStatusTransition(card, nextStatus, previousStatus, {
             advanceFocus: true,
             backgroundPersistence: classificationModeActive
@@ -5481,9 +6507,11 @@
             return false;
         }
         const currentStatus = normalizeStatus(card.dataset.paperStatus);
-        const states = side === "left"
-            ? workflowSourcesToState(card.dataset.logicalFeedId, currentStatus)
-            : workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
+        const states = classificationModeActive
+            ? classificationDirectionalTargets(card)[side]
+            : side === "left"
+                ? workflowSourcesToState(card.dataset.logicalFeedId, currentStatus)
+                : workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
         if (states.length !== 1) {
             return false;
         }
@@ -7025,6 +8053,107 @@
 
     allPaperCards().forEach(bindPaperCard);
 
+    classificationLeftAction?.addEventListener("click", () => handleClassificationDirection("left"));
+    classificationRightAction?.addEventListener("click", () => handleClassificationDirection("right"));
+    classificationInfoAction?.addEventListener("click", openClassificationPaperViewer);
+    classificationViewerReturn?.addEventListener("click", returnToClassification);
+
+    classificationNotesToggle?.addEventListener("click", () => {
+        setClassificationNotesExpanded(!classificationNotes.classList.contains("expanded"));
+    });
+
+    classificationNotesEditor?.addEventListener("input", () => {
+        const card = selectedPaperCard();
+        if (!card) {
+            return;
+        }
+        classificationNoteDrafts.set(card.dataset.paperId, classificationNotesEditor.value);
+        classificationNotesStatus.textContent = "Editing...";
+        updateClassificationNotesIndicator();
+        window.clearTimeout(classificationNotesSaveTimer);
+        classificationNotesSaveTimer = window.setTimeout(() => {
+            saveClassificationNotes(card).catch(() => undefined);
+        }, 1200);
+    });
+
+    classificationCard?.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || classificationBusy || !selectedPaperId) {
+            return;
+        }
+        if (event.target.closest("a, button, textarea, input, select")) {
+            return;
+        }
+        const card = selectedPaperCard();
+        if (!card) {
+            return;
+        }
+        classificationDragState = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            lastX: event.clientX,
+            captured: false,
+            card
+        };
+    });
+
+    window.addEventListener("pointermove", (event) => {
+        if (!classificationDragState || event.pointerId !== classificationDragState.pointerId) {
+            return;
+        }
+        const deltaX = event.clientX - classificationDragState.startX;
+        const deltaY = event.clientY - classificationDragState.startY;
+        if (!classificationDragState.captured) {
+            if (Math.abs(deltaX) < 8) {
+                return;
+            }
+            if (Math.abs(deltaY) > Math.abs(deltaX)) {
+                return;
+            }
+            classificationDragState.captured = true;
+            classificationCard.setPointerCapture?.(event.pointerId);
+        }
+        event.preventDefault();
+        classificationDragState.lastX = event.clientX;
+        const progress = Math.min(1, Math.abs(deltaX) / CLASSIFICATION_DRAG_TRIGGER_X);
+        const rotation = Math.max(-9, Math.min(9, deltaX / 22));
+        const verticalOffset = Math.max(-24, Math.min(24, deltaY * 0.16));
+        classificationCard.classList.add("dragging");
+        classificationCard.classList.toggle("dragging-left", deltaX < 0);
+        classificationCard.classList.toggle("dragging-right", deltaX > 0);
+        classificationCard.style.setProperty("--classification-drag-x", deltaX + "px");
+        classificationCard.style.setProperty("--classification-drag-y", verticalOffset + "px");
+        classificationCard.style.setProperty("--classification-drag-rotation", rotation + "deg");
+        classificationCard.style.setProperty("--classification-drag-progress", String(progress));
+    }, { passive: false });
+
+    const finishClassificationPointerDrag = async (event, cancelled = false) => {
+        if (!classificationDragState || event.pointerId !== classificationDragState.pointerId) {
+            return;
+        }
+        const dragState = classificationDragState;
+        classificationDragState = null;
+        const deltaX = (event.clientX ?? dragState.lastX) - dragState.startX;
+        const side = deltaX < 0 ? "left" : "right";
+        const targets = classificationDirectionalTargets(dragState.card)[side] || [];
+        if (classificationCard.hasPointerCapture?.(event.pointerId)) {
+            classificationCard.releasePointerCapture(event.pointerId);
+        }
+        if (cancelled || !dragState.captured || Math.abs(deltaX) < CLASSIFICATION_DRAG_TRIGGER_X) {
+            resetClassificationDragVisual();
+            return;
+        }
+        if (targets.length !== 1) {
+            resetClassificationDragVisual();
+            revealClassificationChoices();
+            return;
+        }
+        await performClassificationTransition(dragState.card, targets[0], side, { preserveDragVisual: true });
+    };
+
+    window.addEventListener("pointerup", (event) => finishClassificationPointerDrag(event));
+    window.addEventListener("pointercancel", (event) => finishClassificationPointerDrag(event, true));
+
     window.addEventListener("mousemove", (event) => {
         updatePaperStatusDrag(event.clientX, event.clientY);
     });
@@ -7411,7 +8540,13 @@
         }
     });
 
-    pdfClose.addEventListener("click", closeViewer);
+    pdfClose.addEventListener("click", () => {
+        if (classificationViewerReturnPaperId) {
+            returnToClassification();
+            return;
+        }
+        closeViewer();
+    });
 
     pdfFrame.addEventListener("copy", (event) => {
         const selection = window.getSelection();
@@ -7502,18 +8637,28 @@
             }
         }
 
+        if (event.key === "Escape" && classificationViewerReturnPaperId) {
+            event.preventDefault();
+            returnToClassification();
+            return;
+        }
+
         if (event.key === "Escape" && (keyboardStatePicker || keyboardShortcutPicker || classificationModeActive)) {
             event.preventDefault();
             keyboardShortcutShiftHeld = false;
             clearKeyboardStatePicker();
             clearKeyboardShortcutPicker();
+            if (classificationModeActive && !classificationModeTemporary && classificationQueueMode) {
+                navigateToListMode(logicalFeedFilter?.value || "");
+                return;
+            }
             exitClassificationMode();
             return;
         }
 
         if (event.key === "Shift" && !event.repeat) {
             keyboardShortcutShiftHeld = true;
-            if (enterClassificationMode()) {
+            if (enterClassificationMode({ temporary: true })) {
                 startKeyboardShortcutPicker();
             } else {
                 keyboardShortcutShiftHeld = false;
@@ -7577,7 +8722,11 @@
                 const previousStatus = keyboardStatePicker.currentStatus;
                 clearKeyboardStatePicker();
                 try {
-                    await applyPaperStatusTransition(card, nextStatus, previousStatus, { advanceFocus: true });
+                    if (classificationModeActive) {
+                        await performClassificationTransition(card, nextStatus, "left");
+                    } else {
+                        await applyPaperStatusTransition(card, nextStatus, previousStatus, { advanceFocus: true });
+                    }
                 } catch (error) {
                     window.alert(error.message || "Failed to update paper status");
                 }
@@ -7605,7 +8754,11 @@
                 const previousStatus = keyboardStatePicker.currentStatus;
                 clearKeyboardStatePicker();
                 try {
-                    await applyPaperStatusTransition(card, nextStatus, previousStatus, { advanceFocus: true });
+                    if (classificationModeActive) {
+                        await performClassificationTransition(card, nextStatus, "right");
+                    } else {
+                        await applyPaperStatusTransition(card, nextStatus, previousStatus, { advanceFocus: true });
+                    }
                 } catch (error) {
                     window.alert(error.message || "Failed to update paper status");
                 }
@@ -7695,6 +8848,10 @@
         if (options.primaryTab) {
             activePrimaryTab = options.primaryTab;
         }
+        if (!classificationQueueMode && selectedFeedId && resolvedReaderMode(selectedFeedId) === "swipe") {
+            navigateToSwipeMode(selectedFeedId);
+            return;
+        }
         if (!selectedFeedId && browserReaderSection && !shareMode) {
             browserReaderSection.classList.add("hidden");
             paperRecords = [];
@@ -7740,6 +8897,7 @@
         renderExportStateOptions();
         renderFrontPagePanels();
         syncClassificationLink();
+        updateReaderModeControls();
         if (!doiImportLogicalFeed) {
             renderReviewLauncher();
             return logicalFeedFilter?.value || "";
@@ -7751,6 +8909,26 @@
     };
     syncClassificationLink();
     syncDoiImportLogicalFeed();
+    updateReaderModeControls();
+    readerListMode?.addEventListener("click", () => {
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        if (logicalFeedId) {
+            setReaderModePreference(logicalFeedId, "list");
+            updateReaderModeControls();
+        }
+    });
+    readerSwipeMode?.addEventListener("click", () => {
+        navigateToSwipeMode(logicalFeedFilter?.value || "", true);
+    });
+    classificationListMode?.addEventListener("click", () => {
+        navigateToListMode(logicalFeedFilter?.value || "", true);
+    });
+    classificationSwipeMode?.addEventListener("click", () => {
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        if (logicalFeedId) {
+            setReaderModePreference(logicalFeedId, "swipe");
+        }
+    });
     feedDashboard?.querySelectorAll("[data-open-feed]").forEach((button) => {
         button.addEventListener("click", async () => {
             const logicalFeedId = button.dataset.openFeed;
@@ -8243,15 +9421,19 @@
         if (requestedLogicalFeedId) {
             logicalFeedFilter.value = requestedLogicalFeedId;
             syncSelectedLogicalFeed();
-            try {
-                await loadBrowserPapers(requestedLogicalFeedId);
-                loadedLogicalFeedId = requestedLogicalFeedId;
-                browserPapersReady = true;
-                browserReaderSection?.classList.remove("hidden");
-            } catch (error) {
-                papersLoaded = true;
-                paperList.innerHTML = "<p class=\"meta\">" + escapeHtml(error.message || "Failed to load papers.") + "</p>";
-                paperList.appendChild(searchLoadMoreRow);
+            if (!classificationQueueMode && resolvedReaderMode(requestedLogicalFeedId) === "swipe") {
+                window.location.replace(swipeModeUrl(requestedLogicalFeedId));
+            } else {
+                try {
+                    await loadBrowserPapers(requestedLogicalFeedId);
+                    loadedLogicalFeedId = requestedLogicalFeedId;
+                    browserPapersReady = true;
+                    browserReaderSection?.classList.remove("hidden");
+                } catch (error) {
+                    papersLoaded = true;
+                    paperList.innerHTML = "<p class=\"meta\">" + escapeHtml(error.message || "Failed to load papers.") + "</p>";
+                    paperList.appendChild(searchLoadMoreRow);
+                }
             }
         } else {
             paperRecords = [];

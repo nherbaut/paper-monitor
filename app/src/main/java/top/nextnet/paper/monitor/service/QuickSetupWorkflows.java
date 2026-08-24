@@ -207,6 +207,11 @@ public final class QuickSetupWorkflows {
     private QuickSetupWorkflows() {
     }
 
+    public static boolean isDefaultMiageWorkflow(WorkflowStateConfig workflow) {
+        return workflow != null
+                && WorkflowStateConfig.parse(KANBAN).toYaml().equals(workflow.toYaml());
+    }
+
     public static String yamlFor(String workflowType) {
         return switch (normalizeType(workflowType)) {
             case "prisma" -> PRISMA;

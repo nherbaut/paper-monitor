@@ -12,6 +12,7 @@ class QuickSetupWorkflowsTest {
     void kanbanOnlyAllowsMovesBetweenAdjacentStates() {
         WorkflowStateConfig workflow = WorkflowStateConfig.parse(QuickSetupWorkflows.KANBAN);
 
+        assertTrue(QuickSetupWorkflows.isDefaultMiageWorkflow(workflow));
         assertEquals("NEW", workflow.initialPaperStatus());
         assertTrue(workflow.allowsTransition("DISCARDED", "NEW"));
         assertTrue(workflow.allowsTransition("NEW", "DISCARDED"));
@@ -22,6 +23,15 @@ class QuickSetupWorkflowsTest {
         assertFalse(workflow.allowsTransition("DISCARDED", "TODO"));
         assertFalse(workflow.allowsTransition("NEW", "DONE"));
         assertFalse(workflow.allowsTransition("DONE", "DISCARDED"));
+    }
+
+    @Test
+    void customizedKanbanIsNotTheDefaultMiageWorkflow() {
+        WorkflowStateConfig customized = WorkflowStateConfig.parse(
+                QuickSetupWorkflows.KANBAN.replace("label: Todo", "label: Review next"));
+
+        assertFalse(QuickSetupWorkflows.isDefaultMiageWorkflow(customized));
+        assertFalse(QuickSetupWorkflows.isDefaultMiageWorkflow(null));
     }
 
     @Test

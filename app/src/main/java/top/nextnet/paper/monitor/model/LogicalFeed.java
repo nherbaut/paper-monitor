@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import top.nextnet.paper.monitor.service.QuickSetupWorkflows;
 import top.nextnet.paper.monitor.service.WorkflowStateConfig;
 
 @Entity
@@ -161,6 +162,10 @@ public class LogicalFeed extends PanacheEntityBase {
             throw new IllegalStateException("Logical feed has no workflow states configured");
         }
         return workflowConfig().initialPaperStatus();
+    }
+
+    public boolean usesDefaultMiageWorkflow() {
+        return QuickSetupWorkflows.isDefaultMiageWorkflow(workflowConfig());
     }
 
     public String paperCountsToken() {
