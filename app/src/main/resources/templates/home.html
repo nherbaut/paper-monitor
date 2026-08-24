@@ -1240,6 +1240,7 @@
             display: none;
             align-items: center;
             justify-content: space-between;
+            flex-wrap: wrap;
             gap: 1rem;
             padding: 0.7rem 0.85rem;
             border: 1px solid var(--line);
@@ -1249,6 +1250,37 @@
 
         body.classification-queue-mode .classification-queue-header {
             display: flex;
+        }
+
+        .classification-temporary-notice {
+            flex: 1 0 100%;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 0.55rem 0.65rem;
+            border: 1px solid color-mix(in srgb, #b45309 52%, var(--line));
+            border-radius: 6px;
+            background: color-mix(in srgb, #fff7ed 82%, var(--panel));
+        }
+
+        .classification-temporary-notice p {
+            margin: 0;
+            color: var(--ink);
+            font-size: 0.84rem;
+            line-height: 1.35;
+        }
+
+        .classification-temporary-notice .primary {
+            width: auto;
+            flex: 0 0 auto;
+            padding: 0.5rem 0.7rem;
+            white-space: nowrap;
+            text-decoration: none;
+        }
+
+        body.dark-mode .classification-temporary-notice {
+            background: color-mix(in srgb, #4a2a12 70%, var(--panel));
         }
 
         .classification-queue-progress {
@@ -1798,6 +1830,17 @@
             .classification-queue-header {
                 padding: 0.45rem 0.6rem;
                 align-items: center;
+            }
+
+            .classification-temporary-notice {
+                align-items: stretch;
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+
+            .classification-temporary-notice .primary {
+                width: 100%;
+                text-align: center;
             }
 
             .classification-queue-title {
@@ -3245,6 +3288,12 @@
 <section class="classification-view" id="classification-view" aria-label="Paper classification" aria-hidden="true">
     <section class="classification-surface" id="classification-surface">
         <div class="classification-queue-header" id="classification-queue-header">
+            {#if anonymousSetup}
+            <div class="classification-temporary-notice" role="status">
+                <p><strong>This is a temporary paper feed.</strong> It will be deleted on {anonymousSetupExpiresAt} unless you create an account or sign in.</p>
+                <a class="primary" href="/login?returnTo=/setup?draft={anonymousSetupToken}#create-account">Create account or sign in</a>
+            </div>
+            {/if}
             <div class="classification-queue-progress">
                 <span class="classification-queue-title">RSS classification queue</span>
                 <progress class="classification-progress" id="classification-progress" max="100" value="0"

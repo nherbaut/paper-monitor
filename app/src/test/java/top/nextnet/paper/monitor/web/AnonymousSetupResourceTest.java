@@ -134,6 +134,7 @@ class AnonymousSetupResourceTest {
                 .then()
                 .statusCode(200)
                 .body(containsString("This is a temporary paper feed."))
+                .body(containsString("class=\"classification-temporary-notice\""))
                 .body(containsString("data-anonymous-setup-token=\"" + draftId + "\""))
                 .body(containsString("data-start-classification-mode=\"true\""));
 
