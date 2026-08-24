@@ -1390,6 +1390,94 @@
             visibility: hidden;
         }
 
+        .classification-drop-buckets {
+            position: fixed;
+            z-index: 2;
+            top: 50%;
+            width: clamp(7.5rem, 16vw, 11.5rem);
+            height: min(64vh, calc(2.2rem + (var(--classification-drop-bucket-count, 1) * 4rem)));
+            max-height: min(64vh, 650px);
+            display: grid;
+            grid-template-rows: auto minmax(0, 1fr);
+            gap: 0.45rem;
+            padding: 0.55rem;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--panel) 88%, transparent);
+            box-shadow: 0 14px 32px rgba(42, 48, 59, 0.12);
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            overflow: hidden;
+            transition: opacity 140ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1), visibility 140ms;
+        }
+
+        .classification-drop-buckets.left {
+            left: max(0.65rem, calc(50% - 31rem));
+            transform: translate(-0.75rem, -50%);
+        }
+
+        .classification-drop-buckets.right {
+            right: max(0.65rem, calc(50% - 31rem));
+            transform: translate(0.75rem, -50%);
+        }
+
+        .classification-drop-buckets.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .classification-drop-buckets.left.visible,
+        .classification-drop-buckets.right.visible {
+            transform: translate(0, -50%);
+        }
+
+        .classification-drop-buckets-title {
+            margin: 0;
+            color: var(--muted);
+            font-size: 0.72rem;
+            font-weight: 800;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .classification-drop-buckets-list {
+            min-height: 0;
+            display: grid;
+            grid-template-rows: repeat(var(--classification-drop-bucket-count, 1), minmax(0, 1fr));
+            gap: 0.4rem;
+            overflow: hidden;
+        }
+
+        .classification-drop-bucket {
+            min-height: 0;
+            display: grid;
+            place-items: center;
+            padding: 0.5rem;
+            border: 2px dashed color-mix(in srgb, var(--muted) 48%, var(--line));
+            border-radius: 7px;
+            background: color-mix(in srgb, var(--panel) 90%, var(--bg));
+            color: var(--ink);
+            font-size: 0.8rem;
+            font-weight: 800;
+            line-height: 1.25;
+            text-align: center;
+            overflow-wrap: anywhere;
+            transition: border-color 100ms ease, background 100ms ease, transform 100ms ease;
+        }
+
+        .classification-drop-buckets.left .classification-drop-bucket.active {
+            border-color: #dc443d;
+            background: color-mix(in srgb, #dc443d 13%, var(--panel));
+            transform: scale(1.035);
+        }
+
+        .classification-drop-buckets.right .classification-drop-bucket.active {
+            border-color: #2d9c4e;
+            background: color-mix(in srgb, #2d9c4e 13%, var(--panel));
+            transform: scale(1.035);
+        }
+
         .classification-next-label {
             margin: 0 0 0.35rem;
             color: var(--muted);
@@ -1865,6 +1953,27 @@
                 padding: 0.9rem;
             }
 
+            .classification-drop-buckets {
+                width: min(7.25rem, 30vw);
+                max-height: 58vh;
+                padding: 0.4rem;
+                background: color-mix(in srgb, var(--panel) 94%, transparent);
+            }
+
+            .classification-drop-buckets.left {
+                left: 0.35rem;
+            }
+
+            .classification-drop-buckets.right {
+                right: 0.35rem;
+            }
+
+            .classification-drop-bucket {
+                min-height: 3rem;
+                padding: 0.4rem;
+                font-size: 0.72rem;
+            }
+
             .classification-abstract.has-summary {
                 -webkit-line-clamp: 4;
             }
@@ -1899,6 +2008,8 @@
         @media (prefers-reduced-motion: reduce) {
             .classification-card,
             .classification-card.entering.entering-active,
+            .classification-drop-buckets,
+            .classification-drop-bucket,
             .classification-notes-toggle .lucide-icon {
                 transition-duration: 1ms;
             }
@@ -3312,6 +3423,14 @@
             </div>
         </div>
         <div class="classification-deck" id="classification-deck">
+            <aside class="classification-drop-buckets left" id="classification-left-drop-buckets" aria-hidden="true">
+                <p class="classification-drop-buckets-title">Earlier states</p>
+                <div class="classification-drop-buckets-list" id="classification-left-drop-buckets-list"></div>
+            </aside>
+            <aside class="classification-drop-buckets right" id="classification-right-drop-buckets" aria-hidden="true">
+                <p class="classification-drop-buckets-title">Later states</p>
+                <div class="classification-drop-buckets-list" id="classification-right-drop-buckets-list"></div>
+            </aside>
             <article class="classification-next-card hidden" id="classification-next-card" aria-hidden="true">
                 <p class="classification-next-label">Next paper</p>
                 <h3 class="classification-next-title" id="classification-next-title"></h3>
@@ -3511,6 +3630,10 @@
     const classificationSurface = document.getElementById("classification-surface");
     const classificationDeck = document.getElementById("classification-deck");
     const classificationCard = document.getElementById("classification-card");
+    const classificationLeftDropBuckets = document.getElementById("classification-left-drop-buckets");
+    const classificationRightDropBuckets = document.getElementById("classification-right-drop-buckets");
+    const classificationLeftDropBucketsList = document.getElementById("classification-left-drop-buckets-list");
+    const classificationRightDropBucketsList = document.getElementById("classification-right-drop-buckets-list");
     const classificationNextCard = document.getElementById("classification-next-card");
     const classificationNextTitle = document.getElementById("classification-next-title");
     const classificationNextMeta = document.getElementById("classification-next-meta");
@@ -5977,6 +6100,75 @@
         return workflowStateById(card.dataset.logicalFeedId, stateId)?.label || statusLabel(stateId);
     };
 
+    const classificationDropBucketRails = () => [
+        {
+            side: "left",
+            element: classificationLeftDropBuckets,
+            list: classificationLeftDropBucketsList
+        },
+        {
+            side: "right",
+            element: classificationRightDropBuckets,
+            list: classificationRightDropBucketsList
+        }
+    ];
+
+    const hideClassificationDropBuckets = () => {
+        classificationDropBucketRails().forEach(({ element, list }) => {
+            element?.classList.remove("visible");
+            element?.setAttribute("aria-hidden", "true");
+            element?.style.removeProperty("--classification-drop-bucket-count");
+            if (list) {
+                list.innerHTML = "";
+            }
+        });
+    };
+
+    const renderClassificationDropBucketRail = (card, rail, targets) => {
+        if (!rail.element || !rail.list || targets.length < 2) {
+            return;
+        }
+        rail.list.innerHTML = "";
+        targets.forEach((target) => {
+            const bucket = document.createElement("div");
+            bucket.className = "classification-drop-bucket";
+            bucket.dataset.side = rail.side;
+            bucket.dataset.targetState = target;
+            bucket.textContent = classificationStateLabel(card, target);
+            rail.list.appendChild(bucket);
+        });
+        rail.element.style.setProperty("--classification-drop-bucket-count", String(targets.length));
+        rail.element.classList.add("visible");
+        rail.element.setAttribute("aria-hidden", "false");
+    };
+
+    const showClassificationDropBuckets = (card) => {
+        hideClassificationDropBuckets();
+        const directional = classificationDirectionalTargets(card);
+        classificationDropBucketRails().forEach((rail) => {
+            renderClassificationDropBucketRail(card, rail, directional[rail.side] || []);
+        });
+    };
+
+    const classificationDropTargetAtPoint = (clientX, clientY) => {
+        let match = null;
+        document.querySelectorAll(".classification-drop-bucket").forEach((bucket) => {
+            const bounds = bucket.getBoundingClientRect();
+            const containsPoint = clientX >= bounds.left
+                && clientX <= bounds.right
+                && clientY >= bounds.top
+                && clientY <= bounds.bottom;
+            bucket.classList.toggle("active", containsPoint);
+            if (containsPoint) {
+                match = {
+                    side: bucket.dataset.side,
+                    target: bucket.dataset.targetState
+                };
+            }
+        });
+        return match;
+    };
+
     const classificationQueueCards = () => visiblePaperCards().filter(canClassifyCard);
 
     const nextClassificationCard = (card) => {
@@ -6093,6 +6285,7 @@
         if (!card) {
             return;
         }
+        hideClassificationDropBuckets();
         classificationCard.classList.remove(
             "dragging", "dragging-left", "dragging-right", "exiting-left", "exiting-right", "entering", "entering-active"
         );
@@ -6252,6 +6445,7 @@
         if (!classificationCard) {
             return;
         }
+        hideClassificationDropBuckets();
         classificationCard.classList.remove("dragging", "dragging-left", "dragging-right");
         classificationCard.style.setProperty("--classification-drag-x", "0px");
         classificationCard.style.setProperty("--classification-drag-y", "0px");
@@ -6276,6 +6470,7 @@
         classificationBusy = true;
         classificationSurface.classList.add("busy");
         classificationFooter.textContent = "Saving classification...";
+        hideClassificationDropBuckets();
         if (options.preserveDragVisual === true) {
             classificationCard.classList.remove("dragging", "dragging-left", "dragging-right");
         } else {
@@ -8289,6 +8484,7 @@
             captured: false,
             card
         };
+        showClassificationDropBuckets(card);
     });
 
     window.addEventListener("pointermove", (event) => {
@@ -8319,6 +8515,7 @@
         classificationCard.style.setProperty("--classification-drag-y", verticalOffset + "px");
         classificationCard.style.setProperty("--classification-drag-rotation", rotation + "deg");
         classificationCard.style.setProperty("--classification-drag-progress", String(progress));
+        classificationDragState.dropTarget = classificationDropTargetAtPoint(event.clientX, event.clientY);
     }, { passive: false });
 
     const finishClassificationPointerDrag = async (event, cancelled = false) => {
@@ -8330,8 +8527,21 @@
         const deltaX = (event.clientX ?? dragState.lastX) - dragState.startX;
         const side = deltaX < 0 ? "left" : "right";
         const targets = classificationDirectionalTargets(dragState.card)[side] || [];
+        const dropTarget = cancelled || !dragState.captured
+            ? null
+            : classificationDropTargetAtPoint(event.clientX ?? dragState.lastX, event.clientY ?? dragState.startY)
+                || dragState.dropTarget;
         if (classificationCard.hasPointerCapture?.(event.pointerId)) {
             classificationCard.releasePointerCapture(event.pointerId);
+        }
+        if (dropTarget?.target) {
+            await performClassificationTransition(
+                dragState.card,
+                dropTarget.target,
+                dropTarget.side,
+                { preserveDragVisual: true }
+            );
+            return;
         }
         if (cancelled || !dragState.captured || Math.abs(deltaX) < CLASSIFICATION_DRAG_TRIGGER_X) {
             resetClassificationDragVisual();
