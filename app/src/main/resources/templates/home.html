@@ -7744,14 +7744,12 @@
                 const message = await response.text();
                 throw new Error(message || "Upload failed");
             }
+            const currentCard = findCardByPaperId(paperId) || card;
+            markCapturedPdfAvailable(paperId, "/papers/" + paperId + "/pdf");
             if (shouldReturnToNoteView) {
-                const url = new URL(window.location.href);
-                url.searchParams.set("paperId", String(paperId));
-                url.searchParams.set("logicalFeedId", card.dataset.logicalFeedId || "");
-                window.location.href = url.toString();
-                return;
+                showPdfForCard(currentCard);
+                notesStatus.textContent = "PDF uploaded";
             }
-            window.location.reload();
         } catch (error) {
             window.alert(error.message || "Upload failed");
         } finally {

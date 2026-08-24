@@ -5,8 +5,10 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.Review;
 import top.nextnet.paper.monitor.model.ReviewSubmission;
@@ -88,6 +90,7 @@ public class ReviewReportService {
 
     public String renderMarkdown(Review review) {
         Map<String, Object> report = aggregate(review);
+        Map<String, Object> formSchema = reviewService.formSchema(review);
         Map<String, Object> reviewSummary = asObjectMap(report.get("review"));
         Map<String, Object> scopeStats = asObjectMap(report.get("scope_stats"));
         Map<String, Object> metadataStats = asObjectMap(report.get("paper_metadata_stats"));
@@ -148,16 +151,8 @@ public class ReviewReportService {
                 markdown.append("- PDF link: ").append(linkOrText(stringValue(item.get("pdf_link")))).append("\n");
             }
             markdown.append("\n");
-            markdown.append("| Field | Value |\n");
-            markdown.append("| --- | --- |\n");
             Map<String, Object> instance = asObjectMap(item.get("instance"));
-            for (Map.Entry<String, Object> entry : instance.entrySet()) {
-                markdown.append("| `")
-                        .append(escapeCode(entry.getKey()))
-                        .append("` | ")
-                        .append(escapeMarkdown(renderValue(entry.getValue())))
-                        .append(" |\n");
-            }
+            markdown.append(renderInstanceMarkdown(instance, formSchema));
             String notes = stringValue(item.get("notes"));
             if (notes != null && !notes.isBlank()) {
                 markdown.append("\n#### Notes\n\n");
@@ -167,6 +162,67 @@ public class ReviewReportService {
         }
 
         return markdown.toString();
+    }
+
+    String renderInstanceMarkdown(Map<String, Object> instance, Map<String, Object> formSchema) {
+        Set<String> freeTextFieldIds = freeTextFieldIds(formSchema);
+        StringBuilder markdown = new StringBuilder();
+        markdown.append("| Field | Value |\n");
+        markdown.append("| --- | --- |\n");
+        for (Map.Entry<String, Object> entry : instance.entrySet()) {
+            if (freeTextFieldIds.contains(entry.getKey())) {
+                continue;
+            }
+            markdown.append("| `")
+                    .append(escapeCode(entry.getKey()))
+                    .append("` | ")
+                    .append(escapeMarkdown(renderValue(entry.getValue())))
+                    .append(" |\n");
+        }
+        for (Map.Entry<String, Object> entry : instance.entrySet()) {
+            if (!freeTextFieldIds.contains(entry.getKey())) {
+                continue;
+            }
+            markdown.append("\n#### `")
+                    .append(escapeCode(entry.getKey()))
+                    .append("`\n\n")
+                    .append(escapeMarkdown(renderValue(entry.getValue())))
+                    .append("\n");
+        }
+        return markdown.toString();
+    }
+
+    private Set<String> freeTextFieldIds(Map<String, Object> formSchema) {
+        Set<String> fieldIds = new LinkedHashSet<>();
+        Map<String, Object> scales = asObjectMap(formSchema.get("scales"));
+        for (Map<String, Object> field : objectMapList(formSchema.get("fields"))) {
+            collectFreeTextFieldIds(field, scales, fieldIds);
+        }
+        return fieldIds;
+    }
+
+    private void collectFreeTextFieldIds(
+            Map<String, Object> field,
+            Map<String, Object> scales,
+            Set<String> fieldIds
+    ) {
+        String fieldId = stringValue(field.get("id"));
+        if (fieldId != null && "free_text".equals(stringValue(field.get("value_type")))) {
+            fieldIds.add(fieldId);
+        }
+        for (Map<String, Object> option : allOptions(objectMapList(field.get("values")))) {
+            for (Map<String, Object> criterion : objectMapList(option.get("criteria"))) {
+                String criterionId = stringValue(criterion.get("id"));
+                String scaleId = stringValue(criterion.get("scale"));
+                Map<String, Object> scale = asObjectMap(scales.get(scaleId));
+                if (criterionId != null && "free_text".equals(stringValue(scale.get("scale_type")))) {
+                    fieldIds.add(criterionId);
+                }
+            }
+        }
+        for (Map<String, Object> subfield : objectMapList(field.get("subdimensions"))) {
+            collectFreeTextFieldIds(subfield, scales, fieldIds);
+        }
     }
 
     private Map<String, Object> reviewSummary(Review review, Map<String, Object> formSchema) {
