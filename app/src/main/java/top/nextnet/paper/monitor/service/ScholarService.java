@@ -47,11 +47,11 @@ public class ScholarService {
     }
 
     public List<Map<String, Object>> feeds() {
-        return parseFeeds(fetchJson(feedsUrl));
+        return normalizeRssUrls(parseFeeds(fetchJson(feedsUrl)));
     }
 
     public List<Map<String, Object>> history() {
-        return parseHistory(fetchJson(historyUrl));
+        return normalizeRssUrls(parseHistory(fetchJson(historyUrl)));
     }
 
     public Map<String, Object> createFeedFromHistory(long queryId) {
@@ -99,6 +99,8 @@ public class ScholarService {
                 row.put("timestamp", stringValue(map.get("timestamp")));
                 row.put("fetched", booleanValue(map.get("fetched")));
                 row.put("permalinkUrl", firstString(map, "permalink_url", "permalinkUrl"));
+                row.put("rssUrl", firstString(map, "rss_url", "rssUrl"));
+                row.put("feedCreateUrl", firstString(map, "feed_create_url", "feedCreateUrl"));
                 rows.add(row);
             }
         }
@@ -118,6 +120,7 @@ public class ScholarService {
         if (rssUrl == null) {
             rssUrl = trimTrailingSlash(baseUrl) + "/feed/" + queryId + ".rss";
         }
+        rssUrl = normalizeScholarUrl(rssUrl, baseUrl);
         Map<String, Object> row = new LinkedHashMap<>();
         row.put("id", numberValue(id));
         row.put("queryId", queryId);
@@ -127,6 +130,39 @@ public class ScholarService {
         row.put("lastBuildDate", stringValue(map.get("lastBuildDate")));
         row.put("rssUrl", rssUrl);
         return row;
+    }
+
+    private List<Map<String, Object>> normalizeRssUrls(List<Map<String, Object>> rows) {
+        for (Map<String, Object> row : rows) {
+            String rssUrl = stringValue(row.get("rssUrl"));
+            if (rssUrl != null) {
+                row.put("rssUrl", normalizeScholarUrl(rssUrl, baseUrl));
+            }
+        }
+        return rows;
+    }
+
+    static String normalizeScholarUrl(String url, String baseUrl) {
+        try {
+            URI candidate = URI.create(url);
+            URI base = URI.create(baseUrl);
+            if ("https".equalsIgnoreCase(base.getScheme())
+                    && "http".equalsIgnoreCase(candidate.getScheme())
+                    && base.getHost() != null
+                    && base.getHost().equalsIgnoreCase(candidate.getHost())) {
+                StringBuilder relative = new StringBuilder(candidate.getRawPath());
+                if (candidate.getRawQuery() != null) {
+                    relative.append('?').append(candidate.getRawQuery());
+                }
+                if (candidate.getRawFragment() != null) {
+                    relative.append('#').append(candidate.getRawFragment());
+                }
+                return base.resolve(relative.toString()).toString();
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Preserve the original value so the caller reports the malformed URL.
+        }
+        return url;
     }
 
     private String fetchJson(String url) {

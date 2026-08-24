@@ -84,6 +84,7 @@ import top.nextnet.paper.monitor.service.PaperStorageService;
 import top.nextnet.paper.monitor.service.QuickSetupWorkflows;
 import top.nextnet.paper.monitor.service.ReviewService;
 import top.nextnet.paper.monitor.service.ScholarService;
+import top.nextnet.paper.monitor.service.SetupWizardService;
 import top.nextnet.paper.monitor.service.TtsService;
 import top.nextnet.paper.monitor.service.WorkflowStateConfig;
 
@@ -96,6 +97,7 @@ public class HomeResource {
     private final Template logs;
     private final Template login;
     private final Template quickSetup;
+    private final Template setupWizard;
     private final Template feedDiagram;
     private final LogicalFeedRepository logicalFeedRepository;
     private final FeedRepository feedRepository;
@@ -124,6 +126,7 @@ public class HomeResource {
     private final NotificationService notificationService;
     private final ReviewService reviewService;
     private final ScholarService scholarService;
+    private final SetupWizardService setupWizardService;
     private final Instance<CurrentUserContext> currentUserContext;
     private final String baseUrl;
     private final String paperDataExtractorBaseUrl;
@@ -136,6 +139,7 @@ public class HomeResource {
             @Location("logs") Template logs,
             @Location("login") Template login,
             @Location("quick-setup") Template quickSetup,
+            @Location("setup-wizard") Template setupWizard,
             @Location("feed-diagram") Template feedDiagram,
             LogicalFeedRepository logicalFeedRepository,
             FeedRepository feedRepository,
@@ -163,6 +167,7 @@ public class HomeResource {
             MarkdownConversionService markdownConversionService,
             ReviewService reviewService,
             ScholarService scholarService,
+            SetupWizardService setupWizardService,
             NotificationService notificationService,
             Instance<CurrentUserContext> currentUserContext,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl,
@@ -175,6 +180,7 @@ public class HomeResource {
         this.logs = logs;
         this.login = login;
         this.quickSetup = quickSetup;
+        this.setupWizard = setupWizard;
         this.feedDiagram = feedDiagram;
         this.logicalFeedRepository = logicalFeedRepository;
         this.feedRepository = feedRepository;
@@ -202,6 +208,7 @@ public class HomeResource {
         this.markdownConversionService = markdownConversionService;
         this.reviewService = reviewService;
         this.scholarService = scholarService;
+        this.setupWizardService = setupWizardService;
         this.notificationService = notificationService;
         this.currentUserContext = currentUserContext;
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.trim();
@@ -445,12 +452,12 @@ public class HomeResource {
     ) {
         AppUser currentUser = requireCurrentUser();
         if (error != null && !error.isBlank()) {
-            return seeOther("/admin?error=" + urlEncode("Google Drive connection failed: " + error) + "#google-drive");
+            return seeOther(googleDriveAuthService.cancelConnection(state));
         }
         try {
             GoogleDriveAuthService.GoogleDriveConnectionResult result =
                     googleDriveAuthService.finishConnection(currentUser, state, code);
-            return seeOther("/admin?info=" + urlEncode("Google Drive connected") + "#google-drive");
+            return seeOther(result.returnTo());
         } catch (IOException | IllegalArgumentException e) {
             return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#google-drive");
         }
@@ -1058,6 +1065,170 @@ public class HomeResource {
             throw new WebApplicationException("queryId is required", Response.Status.BAD_REQUEST);
         }
         return Response.ok(JsonCodec.stringify(scholarService.createFeedFromHistory(queryId)), MediaType.APPLICATION_JSON).build();
+    }
+
+    @GET
+    @Path("/setup")
+    @Transactional
+    public TemplateInstance setupWizard(@QueryParam("draft") String draftId) {
+        AppUser currentUser = requireCurrentUser();
+        UserSettings settings = authService.ensureSettings(currentUser);
+        return setupWizard
+                .data("draftId", normalize(draftId))
+                .data("googleDriveEnabled", googleDriveAuthService.isEnabled())
+                .data("googleDriveConnected", settings.hasGoogleDriveConnection())
+                .data("googleDriveEmail", settings.googleDriveEmail)
+                .data("customWorkflowYaml", QuickSetupWorkflows.KANBAN);
+    }
+
+    @GET
+    @Path("/api/setup/history")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setupHistory() {
+        requireCurrentUser();
+        return jsonResponse(setupWizardService.recentQueries());
+    }
+
+    @GET
+    @Path("/api/setup/drafts/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setupDraft(@jakarta.ws.rs.PathParam("id") String id) {
+        try {
+            return jsonResponse(setupWizardService.draft(requireCurrentUser(), id));
+        } catch (WebApplicationException e) {
+            return apiError(e);
+        }
+    }
+
+    @POST
+    @Path("/api/setup/preview")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setupPreview(
+            @RestForm("draftId") String draftId,
+            @RestForm("queryId") Long queryId
+    ) {
+        if (queryId == null) {
+            return apiError(new WebApplicationException("Choose a Scholar query", Response.Status.BAD_REQUEST));
+        }
+        try {
+            return jsonResponse(setupWizardService.preview(requireCurrentUser(), normalize(draftId), queryId).toMap());
+        } catch (WebApplicationException e) {
+            return apiError(e);
+        }
+    }
+
+    @POST
+    @Path("/api/setup/drafts/{id}/title")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setupTitle(
+            @jakarta.ws.rs.PathParam("id") String id,
+            @RestForm("title") String title
+    ) {
+        try {
+            return jsonResponse(setupWizardService.saveTitle(requireCurrentUser(), id, title));
+        } catch (WebApplicationException e) {
+            return apiError(e);
+        }
+    }
+
+    @POST
+    @Path("/api/setup/drafts/{id}/preview-decision")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setupPreviewDecision(
+            @jakarta.ws.rs.PathParam("id") String id,
+            @RestForm("confirmed") String confirmed
+    ) {
+        try {
+            return jsonResponse(setupWizardService.confirmPreview(
+                    requireCurrentUser(), id, "true".equalsIgnoreCase(confirmed)));
+        } catch (WebApplicationException e) {
+            return apiError(e);
+        }
+    }
+
+    @GET
+    @Path("/api/google-drive/folders")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response googleDriveFolders(
+            @QueryParam("parentId") @DefaultValue("root") String parentId,
+            @QueryParam("search") String search
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        try {
+            return jsonResponse(googleDriveSyncService.listFolders(authService.ensureSettings(currentUser), parentId, search));
+        } catch (IOException | IllegalArgumentException e) {
+            return apiError(new WebApplicationException(e.getMessage(), Response.Status.BAD_GATEWAY));
+        }
+    }
+
+    @POST
+    @Path("/api/setup/drafts/{id}/drive")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setupDrive(
+            @jakarta.ws.rs.PathParam("id") String id,
+            @RestForm("enabled") String enabled,
+            @RestForm("folderId") String folderId
+    ) {
+        AppUser currentUser = requireCurrentUser();
+        boolean syncEnabled = isChecked(enabled) || "true".equalsIgnoreCase(enabled);
+        try {
+            if (!syncEnabled) {
+                return jsonResponse(setupWizardService.saveDrive(currentUser, id, false, null, null));
+            }
+            Map<String, Object> folder = googleDriveSyncService.folder(authService.ensureSettings(currentUser), folderId);
+            return jsonResponse(setupWizardService.saveDrive(currentUser, id, true,
+                    String.valueOf(folder.get("id")), String.valueOf(folder.get("name"))));
+        } catch (IOException | IllegalArgumentException e) {
+            return apiError(new WebApplicationException(e.getMessage(), Response.Status.BAD_GATEWAY));
+        } catch (WebApplicationException e) {
+            return apiError(e);
+        }
+    }
+
+    @POST
+    @Path("/api/setup/drafts/{id}/workflow")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setupWorkflow(
+            @jakarta.ws.rs.PathParam("id") String id,
+            @RestForm("workflowType") String workflowType,
+            @RestForm("customWorkflow") String customWorkflow
+    ) {
+        try {
+            return jsonResponse(setupWizardService.saveWorkflow(requireCurrentUser(), id, workflowType, customWorkflow));
+        } catch (WebApplicationException e) {
+            return apiError(e);
+        }
+    }
+
+    @POST
+    @Path("/api/setup/drafts/{id}/complete")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setupComplete(
+            @jakarta.ws.rs.PathParam("id") String id,
+            @RestForm("customWorkflow") String customWorkflow
+    ) {
+        try {
+            SetupWizardService.CompletionResult result = setupWizardService.complete(requireCurrentUser(), id, customWorkflow);
+            feedPollingService.pollFeedById(result.feedId());
+            Feed feed = feedRepository.findById(result.feedId());
+            Map<String, Object> payload = new LinkedHashMap<>();
+            String warning = feed == null ? null : normalize(feed.lastError);
+            String destination = "/?logicalFeedId=" + result.logicalFeedId();
+            if (warning != null) {
+                destination += "&error=" + urlEncode("Paper feed created, but the first RSS poll failed: " + warning);
+            }
+            payload.put("url", destination);
+            payload.put("warning", warning);
+            return jsonResponse(payload);
+        } catch (WebApplicationException e) {
+            return apiError(e);
+        }
     }
 
     @POST
@@ -2289,6 +2460,21 @@ public class HomeResource {
     private Response seeOther(String location) {
         return Response.status(Response.Status.SEE_OTHER)
                 .header(HttpHeaders.LOCATION, location)
+                .build();
+    }
+
+    private Response jsonResponse(Object value) {
+        return Response.ok(JsonCodec.stringify(value), MediaType.APPLICATION_JSON).build();
+    }
+
+    private Response apiError(WebApplicationException exception) {
+        Response source = exception.getResponse();
+        int status = source == null ? Response.Status.INTERNAL_SERVER_ERROR.getStatusCode() : source.getStatus();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("error", exception.getMessage() == null ? "Request failed" : exception.getMessage());
+        return Response.status(status)
+                .type(MediaType.APPLICATION_JSON)
+                .entity(JsonCodec.stringify(payload))
                 .build();
     }
 

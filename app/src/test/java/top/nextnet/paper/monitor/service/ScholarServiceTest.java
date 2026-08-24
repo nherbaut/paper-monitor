@@ -45,7 +45,9 @@ class ScholarServiceTest {
                     "count": 104,
                     "timestamp": "2026-08-23T01:19:29.393747",
                     "fetched": false,
-                    "permalink_url": "http://scholar.miage.dev/permalink/6991"
+                    "permalink_url": "http://scholar.miage.dev/permalink/6991",
+                    "rss_url": "http://scholar.miage.dev/history/6991.rss",
+                    "feed_create_url": "http://scholar.miage.dev/history/6991/feed"
                   }
                 ]
                 """;
@@ -58,6 +60,8 @@ class ScholarServiceTest {
         assertEquals(104L, history.getFirst().get("count"));
         assertEquals(Boolean.FALSE, history.getFirst().get("fetched"));
         assertEquals("http://scholar.miage.dev/permalink/6991", history.getFirst().get("permalinkUrl"));
+        assertEquals("http://scholar.miage.dev/history/6991.rss", history.getFirst().get("rssUrl"));
+        assertEquals("http://scholar.miage.dev/history/6991/feed", history.getFirst().get("feedCreateUrl"));
     }
 
     @Test
@@ -76,6 +80,20 @@ class ScholarServiceTest {
         assertEquals(7001L, created.get("id"));
         assertEquals(6991L, created.get("queryId"));
         assertEquals(12L, created.get("count"));
-        assertEquals("http://scholar.miage.dev/feed/7001.rss", created.get("rssUrl"));
+        assertEquals("https://scholar.miage.dev/feed/7001.rss", created.get("rssUrl"));
+    }
+
+    @Test
+    void onlyUpgradesUrlsOwnedByTheConfiguredScholarHost() {
+        assertEquals(
+                "https://scholar.miage.dev/feed/30.rss?format=atom",
+                ScholarService.normalizeScholarUrl(
+                        "http://scholar.miage.dev/feed/30.rss?format=atom",
+                        "https://scholar.miage.dev"));
+        assertEquals(
+                "http://feeds.example.org/feed/30.rss",
+                ScholarService.normalizeScholarUrl(
+                        "http://feeds.example.org/feed/30.rss",
+                        "https://scholar.miage.dev"));
     }
 }

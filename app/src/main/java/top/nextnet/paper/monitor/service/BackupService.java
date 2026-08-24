@@ -18,6 +18,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 import top.nextnet.paper.monitor.model.AppUser;
+import top.nextnet.paper.monitor.model.AppUserEmail;
 import top.nextnet.paper.monitor.model.Feed;
 import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.model.LogicalFeedAccessGrant;
@@ -25,6 +26,7 @@ import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.PaperEvent;
 import top.nextnet.paper.monitor.model.UserSettings;
 import top.nextnet.paper.monitor.repo.AppUserRepository;
+import top.nextnet.paper.monitor.repo.AppUserEmailRepository;
 import top.nextnet.paper.monitor.repo.FeedRepository;
 import top.nextnet.paper.monitor.repo.LogicalFeedAccessGrantRepository;
 import top.nextnet.paper.monitor.repo.LogicalFeedRepository;
@@ -44,6 +46,7 @@ public class BackupService {
     private final PaperEventRepository paperEventRepository;
     private final PaperStorageService paperStorageService;
     private final AppUserRepository appUserRepository;
+    private final AppUserEmailRepository appUserEmailRepository;
     private final UserSettingsRepository userSettingsRepository;
     private final UserSessionRepository userSessionRepository;
     private final LogicalFeedAccessGrantRepository logicalFeedAccessGrantRepository;
@@ -55,6 +58,7 @@ public class BackupService {
             PaperEventRepository paperEventRepository,
             PaperStorageService paperStorageService,
             AppUserRepository appUserRepository,
+            AppUserEmailRepository appUserEmailRepository,
             UserSettingsRepository userSettingsRepository,
             UserSessionRepository userSessionRepository,
             LogicalFeedAccessGrantRepository logicalFeedAccessGrantRepository
@@ -65,6 +69,7 @@ public class BackupService {
         this.paperEventRepository = paperEventRepository;
         this.paperStorageService = paperStorageService;
         this.appUserRepository = appUserRepository;
+        this.appUserEmailRepository = appUserEmailRepository;
         this.userSettingsRepository = userSettingsRepository;
         this.userSessionRepository = userSessionRepository;
         this.logicalFeedAccessGrantRepository = logicalFeedAccessGrantRepository;
@@ -144,10 +149,32 @@ public class BackupService {
         data.put("feeds", exportFeeds(feeds));
         data.put("papers", exportPapers(papers));
         data.put("paperEvents", exportPaperEvents(paperEvents));
-        data.put("users", exportUsers(logicalFeeds, grants, currentUser));
+        List<Map<String, Object>> users = exportUsers(logicalFeeds, grants, currentUser);
+        data.put("users", users);
+        data.put("secondaryEmails", exportSecondaryEmails(users));
         data.put("userSettings", exportUserSettings(currentUser));
         data.put("logicalFeedAccessGrants", exportLogicalFeedAccessGrants(grants));
         return data;
+    }
+
+    private List<Map<String, Object>> exportSecondaryEmails(List<Map<String, Object>> users) {
+        List<Long> userIds = users.stream()
+                .map(item -> longValue(item.get("id")))
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        if (userIds.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (AppUserEmail email : appUserEmailRepository.find("user.id in ?1 order by email", userIds).list()) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("userId", email.user.id);
+            item.put("email", email.email);
+            item.put("source", email.source);
+            item.put("verifiedAt", email.verifiedAt == null ? null : email.verifiedAt.toString());
+            result.add(item);
+        }
+        return result;
     }
 
     private List<Map<String, Object>> exportLogicalFeedAccessGrants(List<LogicalFeedAccessGrant> source) {
@@ -348,6 +375,7 @@ public class BackupService {
         userSessionRepository.deleteAll();
         userSettingsRepository.deleteAll();
         logicalFeedAccessGrantRepository.deleteAll();
+        appUserEmailRepository.deleteAll();
         appUserRepository.deleteAll();
         paperStorageService.clearAll();
 
@@ -375,6 +403,24 @@ public class BackupService {
             user.lastLoginAt = instantValue(item.get("lastLoginAt"));
             appUserRepository.persist(user);
             usersByOldId.put(longValue(item.get("id")), user);
+        }
+
+        for (Object value : asList(root.get("secondaryEmails"))) {
+            Map<?, ?> item = asMap(value);
+            AppUserEmail email = new AppUserEmail();
+            email.user = usersByOldId.get(longValue(item.get("userId")));
+            email.email = stringValue(item.get("email"));
+            email.source = stringValue(item.get("source"));
+            email.verifiedAt = instantValue(item.get("verifiedAt"));
+            if (email.user != null && email.email != null) {
+                if (email.source == null) {
+                    email.source = "RESTORED";
+                }
+                if (email.verifiedAt == null) {
+                    email.verifiedAt = Instant.now();
+                }
+                appUserEmailRepository.persist(email);
+            }
         }
 
         for (Object value : asList(root.get("userSettings"))) {

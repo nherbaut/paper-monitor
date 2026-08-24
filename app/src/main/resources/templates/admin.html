@@ -549,56 +549,10 @@
     </div>
     {/if}
     <section class="settings-panel" data-settings-panel="setup">
-        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Wizard</span></h2>
-        <p class="meta">A paper feed is your survey workspace. It groups papers, notes, workflow states, and one or more RSS feeds.</p>
-        <p class="meta">Workflow states describe where a paper is in your survey process. Recommended defaults:</p>
-        <pre>- Discarded
-- New
-- Todo
-- Done</pre>
-        <p class="meta">Papers are ingested from RSS feeds. The setup below creates both the paper feed and its first RSS source.</p>
-        <form action="/admin/setup" method="post">
-            <div class="two-columns">
-                <input type="text" name="logicalFeedName" placeholder="Paper feed name" required>
-                <input type="text" name="rssFeedName" placeholder="RSS feed name" value="Default paper feed" data-scholar-name-field>
-            </div>
-            <textarea name="logicalFeedDescription" placeholder="Optional paper feed description"></textarea>
-            <textarea name="workflowStates" required>- Discarded
-- New
-- Todo
-- Done</textarea>
-            <textarea name="eligibilityExclusionTaxonomy" placeholder="Optional eligibility exclusion taxonomy YAML"></textarea>
-            <textarea name="eligibilityInclusionTaxonomy" placeholder="Optional eligibility inclusion taxonomy YAML"></textarea>
-            <div class="two-columns">
-                <div class="rss-source-help">
-                    <input type="url" name="rssFeedUrl" value="https://scholar.miage.dev/feed/4.rss" required data-scholar-url-field>
-                    <span class="meta">Choose from MIAGE Scholar below, or paste any RSS URL manually.</span>
-                </div>
-                <div class="poll-slider">
-                    <input type="range" min="0" max="2" step="1" value="0" data-poll-slider>
-                    <input type="hidden" name="pollIntervalMinutes" value="1440" data-poll-minutes>
-                    <div class="poll-slider-output">
-                        <span>Daily</span>
-                        <strong data-poll-label>Daily</strong>
-                    </div>
-                </div>
-            </div>
-            <div class="scholar-picker" data-scholar-picker>
-                <div class="scholar-picker-header">
-                    <p class="meta"><strong>Choose from MIAGE Scholar</strong><br>Pick an existing RSS feed or create one from a recent Scholar query.</p>
-                    <div class="scholar-tabs">
-                        <button class="secondary scholar-tab active" type="button" data-scholar-tab="feeds">Existing feeds</button>
-                        <button class="secondary scholar-tab" type="button" data-scholar-tab="history">Recent queries</button>
-                    </div>
-                </div>
-                <input type="search" data-scholar-search placeholder="Search query, id, URL, or permalink">
-                <p class="meta" data-scholar-status>Loading Scholar feeds...</p>
-                <div class="scholar-results" data-scholar-results></div>
-            </div>
-            <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
-            <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Send owner and feed admins a daily RSS paper digest</label>
-            <button type="submit">Create paper feed and RSS feed</button>
-        </form>
+        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Create a paper feed</span></h2>
+        <p class="meta">The guided setup starts from a recent MIAGE Scholar query, previews its papers, and configures Google Drive and classification before creating anything locally.</p>
+        <a class="open-link" href="/setup">Start guided setup</a>
+        <p class="meta">Use Paper Feed Management and RSS Feed Management for advanced or manual setup.</p>
     </section>
 
     <section class="settings-panel hidden" data-settings-panel="feeds">

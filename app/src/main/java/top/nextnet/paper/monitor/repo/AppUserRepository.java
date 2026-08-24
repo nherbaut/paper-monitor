@@ -22,7 +22,8 @@ public class AppUserRepository implements PanacheRepository<AppUser> {
     }
 
     public Optional<AppUser> findByEmail(String email) {
-        return find("lower(email) = ?1", email.toLowerCase()).firstResultOptional();
+        return find("select distinct user from AppUser user left join user.secondaryEmails secondary "
+                + "where lower(user.email) = ?1 or lower(secondary.email) = ?1", email.toLowerCase()).firstResultOptional();
     }
 
     public Optional<AppUser> findByUsername(String username) {

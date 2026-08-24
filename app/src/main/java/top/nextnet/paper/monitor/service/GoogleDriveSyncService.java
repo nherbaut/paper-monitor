@@ -13,6 +13,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -207,6 +208,58 @@ public class GoogleDriveSyncService {
             throw new IOException("The selected Google Drive target is not an available folder");
         }
         return new DriveFolder(stringValue(payload.get("id")), stringValue(payload.get("name")));
+    }
+
+    public Map<String, Object> listFolders(UserSettings settings, String parentId, String search) throws IOException {
+        if (settings == null || !settings.hasGoogleDriveConnection()) {
+            throw new IllegalArgumentException("Connect Google Drive before choosing a folder");
+        }
+        String normalizedParent = parentId == null || parentId.isBlank() ? "root" : parentId.trim();
+        String normalizedSearch = search == null ? null : search.trim();
+        String accessToken = googleDriveAuthService.accessToken(settings);
+        String query = "mimeType = '" + FOLDER_MIME_TYPE + "' and trashed = false";
+        if (normalizedSearch == null || normalizedSearch.isBlank()) {
+            query += " and '" + driveQueryEscape(normalizedParent) + "' in parents";
+        } else {
+            query += " and name contains '" + driveQueryEscape(normalizedSearch) + "'";
+        }
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(DRIVE_API_BASE_URL + "/files?q=" + encodeQueryParam(query)
+                        + "&pageSize=100&orderBy=name&fields=files(id,name,parents)"
+                        + "&supportsAllDrives=true&includeItemsFromAllDrives=true"))
+                .header("Authorization", "Bearer " + accessToken)
+                .GET()
+                .build();
+        Map<String, Object> payload = sendObject(request, "Failed to list Google Drive folders");
+        List<Map<String, Object>> folders = new ArrayList<>();
+        if (payload.get("files") instanceof Iterable<?> iterable) {
+            for (Object item : iterable) {
+                if (item instanceof Map<?, ?> map) {
+                    Map<String, Object> folder = new LinkedHashMap<>();
+                    folder.put("id", stringValue(map.get("id")));
+                    folder.put("name", stringValue(map.get("name")));
+                    folder.put("parents", map.get("parents"));
+                    folders.add(folder);
+                }
+            }
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("currentId", normalizedParent);
+        result.put("currentName", "root".equals(normalizedParent) ? "My Drive" : folderName(settings, normalizedParent));
+        result.put("folders", folders);
+        return result;
+    }
+
+    public Map<String, Object> folder(UserSettings settings, String folderId) throws IOException {
+        DriveFolder folder = validateFolder(settings, folderId == null || folderId.isBlank() ? "root" : folderId.trim());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("id", folder.id());
+        result.put("name", folder.name());
+        return result;
+    }
+
+    private String folderName(UserSettings settings, String folderId) throws IOException {
+        return validateFolder(settings, folderId).name();
     }
 
     private DriveFile uploadOrUpdate(UserSettings settings, GoogleDrivePdfSync sync, Paper paper) throws IOException {

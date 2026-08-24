@@ -3,6 +3,8 @@ SHELL := /bin/bash
 DOCKER ?= docker
 DOCKERHUB_NAMESPACE ?= nherbaut
 IMAGE_TAG ?= latest
+LOCAL_JAVA_HOME ?= /usr/lib/jvm/java-25-openjdk-amd64
+LOCAL_PORT ?= 8080
 
 DOCKERFILE_IMAGE_DIRS := $(sort $(dir $(wildcard */Dockerfile) $(wildcard */Containerfile)))
 DOCKERFILE_IMAGES := $(patsubst %/,%,$(DOCKERFILE_IMAGE_DIRS))
@@ -10,11 +12,12 @@ EXPLICIT_DOCKERFILE_IMAGES := $(if $(wildcard paper-data-extractor/Dockerfile),p
 QUARKUS_IMAGES := $(if $(wildcard app/pom.xml),app,)
 IMAGES := $(sort $(DOCKERFILE_IMAGES) $(EXPLICIT_DOCKERFILE_IMAGES) $(QUARKUS_IMAGES))
 
-.PHONY: help list build push build-java push-java build-app push-app build-extractor push-extractor build-% push-%
+.PHONY: help list local-server build push build-java push-java build-app push-app build-extractor push-extractor build-% push-%
 
 help:
 	@echo "Targets:"
 	@echo "  make list                      List image-producing subfolders"
+	@echo "  make local-server              Run the Quarkus app with local Dev Services"
 	@echo "  make build                     Build every image found in subfolders"
 	@echo "  make push                      Push every image found in subfolders to Docker Hub"
 	@echo "  make build-java                Build only the Quarkus app image"
@@ -28,8 +31,12 @@ help:
 	@echo "Variables:"
 	@echo "  DOCKERHUB_NAMESPACE=<user>     Required for build/push image naming"
 	@echo "  IMAGE_TAG=<tag>                Defaults to latest"
+	@echo "  LOCAL_PORT=<port>              Local server port; defaults to 8080"
+	@echo "  LOCAL_JAVA_HOME=<path>         JDK used by the local server"
 	@echo "Examples:"
 	@echo "  make list"
+	@echo "  make local-server"
+	@echo "  make local-server LOCAL_PORT=8081"
 	@echo "  make build-java DOCKERHUB_NAMESPACE=mydockerhubuser IMAGE_TAG=dev"
 	@echo "  make build DOCKERHUB_NAMESPACE=mydockerhubuser IMAGE_TAG=dev"
 	@echo "  make push-java DOCKERHUB_NAMESPACE=mydockerhubuser IMAGE_TAG=latest"
@@ -37,6 +44,22 @@ help:
 
 list:
 	@printf '%s\n' $(IMAGES)
+
+local-server:
+	cd app && \
+		PAPER_MONITOR_OIDC_CLIENT_ID="$${PAPER_MONITOR_OIDC_CLIENT_ID:-local-dev}" \
+		PAPER_MONITOR_OIDC_CLIENT_SECRET="$${PAPER_MONITOR_OIDC_CLIENT_SECRET:-local-dev}" \
+		PAPER_MONITOR_GITHUB_CLIENT_ID="$${PAPER_MONITOR_GITHUB_CLIENT_ID:-local-dev}" \
+		PAPER_MONITOR_GITHUB_CLIENT_SECRET="$${PAPER_MONITOR_GITHUB_CLIENT_SECRET:-local-dev}" \
+		PAPER_MONITOR_GITHUB_APP_ID="$${PAPER_MONITOR_GITHUB_APP_ID:-1}" \
+		PAPER_MONITOR_GITHUB_PRIVATE_KEY="$${PAPER_MONITOR_GITHUB_PRIVATE_KEY:-local-dev}" \
+		PAPER_MONITOR_GOOGLE_CLIENT_ID="$${PAPER_MONITOR_GOOGLE_CLIENT_ID:-local-dev}" \
+		PAPER_MONITOR_GOOGLE_CLIENT_SECRET="$${PAPER_MONITOR_GOOGLE_CLIENT_SECRET:-local-dev}" \
+		PAPER_MONITOR_PDE_INTERNAL_API_TOKEN="$${PAPER_MONITOR_PDE_INTERNAL_API_TOKEN:-local-dev}" \
+		JAVA_HOME="$(LOCAL_JAVA_HOME)" \
+		./mvnw quarkus:dev -Ddebug=false \
+			-Dquarkus.http.port=$(LOCAL_PORT) \
+			-Dquarkus.container-image.build=false
 
 build: $(addprefix build-,$(IMAGES))
 

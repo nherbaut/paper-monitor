@@ -34,6 +34,7 @@ public class GoogleDriveAuthService {
     private final HttpClient httpClient;
     private final GoogleDriveLoginRequestRepository loginRequestRepository;
     private final AuthService authService;
+    private final SecondaryEmailService secondaryEmailService;
     private final String clientId;
     private final String clientSecret;
     private final String scopes;
@@ -45,19 +46,22 @@ public class GoogleDriveAuthService {
     public GoogleDriveAuthService(
             GoogleDriveLoginRequestRepository loginRequestRepository,
             AuthService authService,
+            SecondaryEmailService secondaryEmailService,
             @ConfigProperty(name = "paper-monitor.auth.google.client-id", defaultValue = "") String clientId,
             @ConfigProperty(name = "paper-monitor.auth.google.client-secret", defaultValue = "") String clientSecret,
             @ConfigProperty(name = "paper-monitor.auth.google.scopes", defaultValue = "openid email profile https://www.googleapis.com/auth/drive") String scopes,
             @ConfigProperty(name = "paper-monitor.auth.google.enabled", defaultValue = "false") boolean enabled,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl
     ) {
-        this(HttpClient.newHttpClient(), loginRequestRepository, authService, clientId, clientSecret, scopes, enabled, baseUrl);
+        this(HttpClient.newHttpClient(), loginRequestRepository, authService, secondaryEmailService,
+                clientId, clientSecret, scopes, enabled, baseUrl);
     }
 
     GoogleDriveAuthService(
             HttpClient httpClient,
             GoogleDriveLoginRequestRepository loginRequestRepository,
             AuthService authService,
+            SecondaryEmailService secondaryEmailService,
             String clientId,
             String clientSecret,
             String scopes,
@@ -67,6 +71,7 @@ public class GoogleDriveAuthService {
         this.httpClient = httpClient;
         this.loginRequestRepository = loginRequestRepository;
         this.authService = authService;
+        this.secondaryEmailService = secondaryEmailService;
         this.clientId = clientId == null ? "" : clientId.trim();
         this.clientSecret = clientSecret == null ? "" : clientSecret.trim();
         this.scopes = normalizeScopes(scopes);
@@ -126,11 +131,19 @@ public class GoogleDriveAuthService {
         }
 
         Map<String, Object> profile = userInfo(accessToken);
+        Object verifiedEmail = profile.containsKey("verified_email")
+                ? profile.get("verified_email")
+                : profile.get("email_verified");
+        if (!Boolean.TRUE.equals(verifiedEmail)) {
+            throw new IOException("Google did not return a verified email address");
+        }
+        String googleEmail = stringValue(profile.get("email"));
+        secondaryEmailService.addVerifiedGoogleEmail(user, googleEmail);
         UserSettings settings = authService.ensureSettings(user);
         settings.googleDriveRefreshToken = refreshToken;
         settings.googleDriveGrantedScopes = stringValue(tokenResponse.get("scope"));
         settings.googleDriveConnectedAt = Instant.now();
-        settings.googleDriveEmail = stringValue(profile.get("email"));
+        settings.googleDriveEmail = googleEmail;
         settings.googleDriveDisplayName = firstNonBlank(stringValue(profile.get("name")), settings.googleDriveEmail);
         settings.googleDriveLastSyncError = null;
         return new GoogleDriveConnectionResult(user, sanitizeReturnTo(loginRequest.returnTo));
@@ -149,6 +162,20 @@ public class GoogleDriveAuthService {
         settings.googleDriveDisplayName = null;
         settings.googleDriveSyncEnabled = false;
         settings.googleDriveLastSyncError = null;
+    }
+
+    @Transactional
+    public String cancelConnection(String state) {
+        if (state == null || state.isBlank()) {
+            return "/admin#google-drive";
+        }
+        GoogleDriveLoginRequest request = loginRequestRepository.findByState(state).orElse(null);
+        if (request == null) {
+            return "/admin#google-drive";
+        }
+        String returnTo = sanitizeReturnTo(request.returnTo);
+        loginRequestRepository.delete(request);
+        return returnTo;
     }
 
     public String accessToken(UserSettings settings) throws IOException {

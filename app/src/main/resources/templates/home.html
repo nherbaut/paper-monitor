@@ -2153,7 +2153,7 @@
     {#if authenticated && logicalFeeds.isEmpty}
     <section class="panel panel-wide getting-started-callout">
         <p class="meta">You do not have any paper feed yet. A paper feed is your workspace for RSS papers, notes, PDFs, and classification states.</p>
-        <a class="secondary" href="/admin#setup">Create your first paper feed</a>
+        <a class="secondary" href="/setup">Create your first paper feed</a>
     </section>
     {/if}
 
@@ -2839,8 +2839,24 @@
     const pdfCaptureStorageKey = "paper-monitor.active-pdf-capture";
     const KEYBOARD_STATUS_TOAST_MS = 2200;
     const STATE_FEEDBACK_POP_MS = 1200;
-    const STATE_FEEDBACK_FRAME_COUNT = 15;
-    const STATE_FEEDBACK_FOLDERS = {
+    const LEGACY_STATE_FEEDBACK_FRAME_COUNT = 15;
+    const STATE_FEEDBACK_DIRECTION_IMAGES = {
+        up: [
+            "up-01-elevator.png",
+            "up-02-escalator.png",
+            "up-03-balloon.png",
+            "up-04-rocket.png",
+            "up-05-helicopter.png"
+        ],
+        down: [
+            "down-01-elevator.png",
+            "down-02-escalator.png",
+            "down-03-parachute.png",
+            "down-04-sled.png",
+            "down-05-mine-cart.png"
+        ]
+    };
+    const LEGACY_STATE_FEEDBACK_FOLDERS = {
         DISCARDED: "discarded",
         TODO: "todo",
         DONE: "done"
@@ -5369,22 +5385,44 @@
         stateFeedbackPop?.classList.remove("visible");
     };
 
-    const showStateFeedbackPop = (status) => {
+    const stateFeedbackDirection = (logicalFeedId, previousStatus, nextStatus) => {
+        const config = workflowConfigForLogicalFeed(logicalFeedId);
+        const states = Array.isArray(config?.states) ? config.states : [];
+        const previousIndex = states.findIndex((state) => state?.id === previousStatus);
+        const nextIndex = states.findIndex((state) => state?.id === nextStatus);
+        if (previousIndex < 0 || nextIndex < 0 || previousIndex === nextIndex) {
+            return null;
+        }
+        return nextIndex > previousIndex ? "up" : "down";
+    };
+
+    const showStateFeedbackPop = (logicalFeedId, previousStatus, nextStatus) => {
         if (!stateFeedbackPop || !stateFeedbackImage) {
             return;
         }
-        const folder = STATE_FEEDBACK_FOLDERS[topLevelStatus(status)];
-        if (!folder) {
+        const direction = stateFeedbackDirection(logicalFeedId, previousStatus, nextStatus);
+        const images = STATE_FEEDBACK_DIRECTION_IMAGES[direction] || [];
+        if (!images.length) {
             return;
         }
         hideStateFeedbackPop();
-        const frameNumber = Math.floor(Math.random() * STATE_FEEDBACK_FRAME_COUNT) + 1;
-        const frameName = "frame_" + String(frameNumber).padStart(2, "0") + ".png";
+        const imageName = images[Math.floor(Math.random() * images.length)];
         stateFeedbackImage.onload = () => {
             requestAnimationFrame(() => stateFeedbackPop.classList.add("visible"));
         };
-        stateFeedbackImage.onerror = hideStateFeedbackPop;
-        stateFeedbackImage.src = "/assets/state-feedback/" + folder + "/" + frameName;
+        stateFeedbackImage.onerror = () => {
+            const legacyFolder = LEGACY_STATE_FEEDBACK_FOLDERS[topLevelStatus(nextStatus)];
+            if (!legacyFolder || stateFeedbackImage.dataset.fallback === "true") {
+                hideStateFeedbackPop();
+                return;
+            }
+            const fallbackFrameNumber = Math.floor(Math.random() * LEGACY_STATE_FEEDBACK_FRAME_COUNT) + 1;
+            const fallbackFrameName = "frame_" + String(fallbackFrameNumber).padStart(2, "0") + ".png";
+            stateFeedbackImage.dataset.fallback = "true";
+            stateFeedbackImage.src = "/assets/state-feedback/" + legacyFolder + "/" + fallbackFrameName;
+        };
+        stateFeedbackImage.dataset.fallback = "false";
+        stateFeedbackImage.src = "/assets/state-feedback/" + direction + "/" + imageName;
         stateFeedbackTimer = window.setTimeout(hideStateFeedbackPop, STATE_FEEDBACK_POP_MS);
     };
 
@@ -6230,7 +6268,7 @@
             closeViewer();
         }
         applyLogicalFeedFilter();
-        showStateFeedbackPop(nextStatus);
+        showStateFeedbackPop(card.dataset.logicalFeedId, normalizeStatus(previousStatus), nextStatus);
 
         if (advanceFocus) {
             let nextCard = nextPaperId ? findCardByPaperId(nextPaperId) : null;

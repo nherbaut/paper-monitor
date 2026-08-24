@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create a paper feed</title>
+    <style>
+        :root {
+            --bg: #f4f6f4;
+            --surface: #ffffff;
+            --ink: #202421;
+            --muted: #66706a;
+            --line: #d8ded9;
+            --accent: #176b55;
+            --accent-dark: #10503f;
+            --warm: #b85c35;
+            --soft: #edf5f1;
+            --danger: #a33b35;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: var(--bg);
+            color: var(--ink);
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        button, input, textarea { font: inherit; }
+        button, .button {
+            min-height: 42px;
+            border: 1px solid var(--accent);
+            border-radius: 6px;
+            padding: 0.65rem 1rem;
+            background: var(--accent);
+            color: white;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.45rem;
+        }
+        button:hover, .button:hover { background: var(--accent-dark); }
+        button.secondary, .button.secondary { background: white; color: var(--ink); border-color: var(--line); }
+        button.secondary:hover, .button.secondary:hover { background: #f6f8f6; }
+        button:disabled { opacity: 0.55; cursor: wait; }
+        input, textarea {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: white;
+            color: var(--ink);
+            padding: 0.75rem;
+        }
+        textarea { min-height: 210px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+        a { color: var(--accent-dark); }
+        header {
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1.25rem;
+            border-bottom: 1px solid var(--line);
+            background: var(--surface);
+        }
+        header strong { font-size: 1.05rem; }
+        main { width: min(1120px, calc(100% - 2rem)); margin: 1.5rem auto 3rem; }
+        .progress {
+            display: grid;
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 0.4rem;
+            margin-bottom: 1rem;
+        }
+        .progress-step { height: 5px; background: #dce1dd; border-radius: 3px; }
+        .progress-step.active { background: var(--accent); }
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.75fr);
+            min-height: 650px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: var(--surface);
+            overflow: hidden;
+        }
+        .workspace:has(.illustration[hidden]) { grid-template-columns: 1fr; }
+        .content { min-width: 0; padding: clamp(1.25rem, 3vw, 2.5rem); }
+        .illustration {
+            border-left: 1px solid var(--line);
+            background: #eef1ee;
+            display: grid;
+            place-items: center;
+            min-width: 0;
+        }
+        .illustration[hidden] { display: none; }
+        .illustration img {
+            width: min(256px, calc(100% - 2rem));
+            height: auto;
+            aspect-ratio: 1;
+            object-fit: contain;
+            image-rendering: auto;
+        }
+        .step[hidden], .hidden { display: none !important; }
+        h1 { margin: 0 0 0.6rem; font-size: clamp(1.55rem, 3vw, 2.2rem); letter-spacing: 0; }
+        h2 { margin: 1.5rem 0 0.65rem; font-size: 1.05rem; letter-spacing: 0; }
+        p { line-height: 1.55; }
+        .meta { color: var(--muted); }
+        .actions { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 1.25rem; }
+        .status {
+            min-height: 44px;
+            padding: 0.7rem 0.8rem;
+            margin: 0.8rem 0;
+            border-left: 3px solid var(--accent);
+            background: var(--soft);
+            color: var(--accent-dark);
+        }
+        .status.error { border-color: var(--danger); background: #fbefee; color: var(--danger); }
+        .query-list, .paper-list, .folder-list { display: grid; gap: 0.55rem; margin-top: 0.8rem; max-height: 430px; overflow: auto; }
+        .query, .paper, .folder {
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: white;
+            padding: 0.8rem;
+        }
+        .query { width: 100%; min-width: 0; cursor: pointer; text-align: left; color: var(--ink); display: block; min-height: 0; overflow: hidden; }
+        .query[hidden] { display: none; }
+        .query:hover { border-color: var(--accent); background: var(--soft); }
+        .query strong, .paper strong { display: block; margin-bottom: 0.35rem; }
+        .query-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+        .facts { display: flex; gap: 0.75rem; flex-wrap: wrap; color: var(--muted); font-size: 0.88rem; margin-top: 0.5rem; }
+        .paper p { margin: 0.4rem 0 0; }
+        .paper-summary { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+        .choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-top: 1rem; }
+        .choice {
+            display: block;
+            min-height: 125px;
+            padding: 1rem;
+            border: 1px solid var(--line);
+            border-radius: 6px;
+            background: white;
+            color: var(--ink);
+            text-align: left;
+        }
+        .choice:hover { border-color: var(--accent); background: var(--soft); }
+        .choice strong { display: block; margin-bottom: 0.5rem; }
+        .folder-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.5rem; }
+        .folder { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+        .folder button { min-height: 34px; padding: 0.4rem 0.65rem; }
+        .selected-folder { padding: 0.7rem; background: var(--soft); margin-top: 0.8rem; }
+        .summary { display: grid; gap: 0; border-top: 1px solid var(--line); margin-top: 1rem; }
+        .summary-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--line); }
+        .summary-row span:first-child { color: var(--muted); }
+        .spinner { width: 18px; height: 18px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @media (max-width: 760px) {
+            main { width: min(100% - 1rem, 680px); margin-top: 0.5rem; }
+            .workspace { grid-template-columns: 1fr; }
+            .illustration { border-left: 0; border-top: 1px solid var(--line); min-height: 180px; max-height: 240px; order: -1; }
+            .illustration img { width: min(220px, calc(100% - 1.5rem)); }
+            .choice-grid { grid-template-columns: 1fr; }
+            .progress { gap: 0.2rem; }
+            .summary-row { grid-template-columns: 1fr; gap: 0.2rem; }
+            header { padding: 0 0.75rem; }
+        }
+    </style>
+</head>
+<body data-draft-id="{draftId ?: ''}" data-google-enabled="{googleDriveEnabled}" data-google-connected="{googleDriveConnected}" data-google-email="{googleDriveEmail ?: ''}">
+<header>
+    <strong>Paper Monitor</strong>
+    <a class="button secondary" href="/">Exit setup</a>
+</header>
+<main>
+    <div class="progress" aria-label="Setup progress">
+        <span class="progress-step active"></span><span class="progress-step"></span><span class="progress-step"></span>
+        <span class="progress-step"></span><span class="progress-step"></span><span class="progress-step"></span>
+    </div>
+    <div class="workspace">
+        <div class="content">
+            <section class="step" data-step="1">
+                <h1>Choose a recent Scholar query</h1>
+                <p class="meta">Select the research query that should supply this paper feed. The result count comes from MIAGE Scholar.</p>
+                <input id="query-search" type="search" placeholder="Search recent queries">
+                <div class="status" id="history-status">Loading recent queries...</div>
+                <div class="query-list" id="query-list"></div>
+                <div class="actions hidden" id="query-selection-actions">
+                    <button class="secondary" id="change-query" type="button">Choose another query</button>
+                </div>
+            </section>
+
+            <section class="step" data-step="2" hidden>
+                <h1>Check the papers</h1>
+                <p class="meta" id="preview-count"></p>
+                <div class="status hidden" id="preview-status"></div>
+                <div class="paper-list" id="paper-list"></div>
+                <div class="actions">
+                    <button id="preview-confirm" type="button">Yes, these are the right papers</button>
+                    <button class="secondary" id="preview-reject" type="button">Choose another query</button>
+                </div>
+            </section>
+
+            <section class="step" data-step="3" hidden>
+                <h1>Name this paper feed</h1>
+                <p class="meta">Use a short title that will still make sense when you have several research projects.</p>
+                <label for="feed-title"><strong>Paper feed title</strong></label>
+                <input id="feed-title" type="text" maxlength="120" autocomplete="off" placeholder="For example: Algorithmic hiring review">
+                <div class="status hidden" id="title-status"></div>
+                <div class="actions">
+                    <button id="title-continue" type="button">Continue</button>
+                    <button class="secondary" data-back="2" type="button">Back</button>
+                </div>
+            </section>
+
+            <section class="step" data-step="4" hidden>
+                <h1>Sync hosted PDFs to Google Drive?</h1>
+                <p class="meta">This uses one personal root folder. Paper Monitor creates a subfolder named after each paper feed.</p>
+                <div class="choice-grid" id="drive-choice">
+                    <button class="choice" id="drive-yes" type="button"><strong>Yes, connect Drive</strong>Choose where hosted PDFs should be copied.</button>
+                    <button class="choice" id="drive-no" type="button"><strong>Not now</strong>You can enable Drive sync later from settings.</button>
+                </div>
+                <div id="drive-panel" class="hidden">
+                    <div class="status" id="drive-connection-status"></div>
+                    <a class="button" id="drive-connect" href="#">Connect Google Drive</a>
+                    <div id="folder-browser" class="hidden">
+                        <h2>Choose the root folder</h2>
+                        <div class="folder-toolbar">
+                            <input id="folder-search" type="search" placeholder="Search Drive folders">
+                            <button class="secondary" id="folder-up" type="button">Up</button>
+                        </div>
+                        <div class="facts" id="folder-breadcrumb">My Drive</div>
+                        <div class="folder-list" id="folder-list"></div>
+                        <button class="secondary" id="choose-current-folder" type="button">Use this folder</button>
+                        <div class="selected-folder hidden" id="selected-folder"></div>
+                    </div>
+                    <div class="status hidden" id="drive-status"></div>
+                    <div class="actions">
+                        <button id="drive-continue" type="button">Continue</button>
+                        <button class="secondary" data-back="3" type="button">Back</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="step" data-step="5" hidden>
+                <h1>Choose a classification scheme</h1>
+                <p class="meta">New papers begin in the initial state and can then move through this workflow.</p>
+                <div id="workflow-primary" class="choice-grid">
+                    <button class="choice" data-workflow="MIAGE" type="button"><strong>Use the MIAGE scheme</strong>DISCARDED, NEW, TODO, DONE. New papers start in NEW.</button>
+                    <button class="choice" id="workflow-other" type="button"><strong>Use another scheme</strong>Choose PRISMA or configure workflow YAML.</button>
+                </div>
+                <div id="workflow-alternatives" class="choice-grid hidden">
+                    <button class="choice" data-workflow="PRISMA" type="button"><strong>Use PRISMA</strong>A systematic-review workflow with screening and eligibility stages.</button>
+                    <button class="choice" id="workflow-custom" type="button"><strong>Custom setup</strong>Configure your own states and transitions.</button>
+                </div>
+                <div id="custom-workflow-panel" class="hidden">
+                    <h2>Custom workflow YAML</h2>
+                    <textarea id="custom-workflow">{customWorkflowYaml}</textarea>
+                    <div class="actions"><button data-workflow="CUSTOM" type="button">Validate and continue</button></div>
+                </div>
+                <div class="status hidden" id="workflow-status"></div>
+                <div class="actions"><button class="secondary" data-back="4" type="button">Back</button></div>
+            </section>
+
+            <section class="step" data-step="6" hidden>
+                <h1>Ready to create your paper feed</h1>
+                <p class="meta">Paper Monitor will create the feed, poll the RSS source, and then open your papers.</p>
+                <div class="summary" id="setup-summary"></div>
+                <div class="status hidden" id="complete-status"></div>
+                <div class="actions">
+                    <button id="complete-setup" type="button">Create and open paper feed</button>
+                    <button class="secondary" data-back="5" type="button">Back</button>
+                </div>
+            </section>
+        </div>
+        <aside class="illustration" aria-hidden="true">
+            <img id="step-image" src="/assets/setup-wizard/01-query.png" alt="" onerror="this.parentElement.hidden=true">
+        </aside>
+    </div>
+</main>
+<script>
+(() => {
+    const body = document.body;
+    const googleEnabled = body.dataset.googleEnabled === "true";
+    const googleConnected = body.dataset.googleConnected === "true";
+    const googleEmail = body.dataset.googleEmail || "";
+    let draftId = body.dataset.draftId || "";
+    let draft = null;
+    let queryHistory = [];
+    let currentStep = 1;
+    let currentFolder = { id: "root", name: "My Drive" };
+    let selectedFolder = null;
+    const folderStack = [{ id: "root", name: "My Drive" }];
+
+    const byId = (id) => document.getElementById(id);
+    const setStatus = (id, message, error) => {
+        const element = byId(id);
+        element.textContent = message || "";
+        element.classList.toggle("hidden", !message);
+        element.classList.toggle("error", Boolean(error));
+    };
+    const busy = (button, value, label) => {
+        button.disabled = value;
+        if (!button.dataset.label) button.dataset.label = button.textContent;
+        button.innerHTML = value ? '<span class="spinner"></span>' + label : button.dataset.label;
+    };
+    const request = async (url, options) => {
+        const response = await fetch(url, options || {});
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error || "Request failed");
+        return payload;
+    };
+    const form = (values) => new URLSearchParams(Object.entries(values).filter((entry) => entry[1] !== null && entry[1] !== undefined));
+
+    function showStep(step) {
+        currentStep = step;
+        document.querySelectorAll(".step").forEach((element) => { element.hidden = Number(element.dataset.step) !== step; });
+        document.querySelectorAll(".progress-step").forEach((element, index) => element.classList.toggle("active", index < step));
+        const image = byId("step-image");
+        image.parentElement.hidden = false;
+        image.hidden = false;
+        image.src = "/assets/setup-wizard/0" + step + "-" + ["query", "preview", "title", "drive", "workflow", "ready"][step - 1] + ".png";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function renderHistory() {
+        const needle = byId("query-search").value.trim().toLowerCase();
+        const rows = queryHistory.filter((item) => !needle || String(item.query || "").toLowerCase().includes(needle) || String(item.queryId).includes(needle));
+        byId("query-list").innerHTML = "";
+        rows.slice(0, 50).forEach((item) => {
+            const button = document.createElement("button");
+            button.className = "query";
+            button.type = "button";
+            const query = document.createElement("strong");
+            query.className = "query-text";
+            query.textContent = item.query || "Untitled Scholar query";
+            const facts = document.createElement("div");
+            facts.className = "facts";
+            facts.textContent = String(item.count == null ? "Unknown" : item.count) + " papers · " + (item.timestamp ? new Date(item.timestamp).toLocaleString() : "Unknown date");
+            button.append(query, facts);
+            button.addEventListener("click", () => createPreview(item, button));
+            byId("query-list").append(button);
+        });
+        setStatus("history-status", rows.length ? rows.length + " recent unique queries" : "No matching queries", !rows.length);
+    }
+
+    function focusSelectedQuery(button) {
+        byId("query-search").classList.add("hidden");
+        byId("query-list").querySelectorAll(".query").forEach((queryButton) => {
+            queryButton.hidden = queryButton !== button;
+        });
+        byId("query-selection-actions").classList.remove("hidden");
+        byId("change-query").disabled = true;
+    }
+
+    function resetQuerySelection() {
+        byId("query-search").classList.remove("hidden");
+        byId("query-selection-actions").classList.add("hidden");
+        byId("change-query").disabled = false;
+        renderHistory();
+    }
+
+    async function loadHistory() {
+        try {
+            queryHistory = await request("/api/setup/history");
+            renderHistory();
+        } catch (error) {
+            setStatus("history-status", error.message, true);
+        }
+    }
+
+    async function createPreview(item, button) {
+        focusSelectedQuery(button);
+        busy(button, true, " Creating RSS and polling...");
+        setStatus("history-status", "Working: creating the Scholar RSS and waiting for its papers. This can take up to three minutes...", false);
+        try {
+            const payload = await request("/api/setup/preview", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ draftId, queryId: item.queryId }) });
+            draftId = payload.draftId;
+            window.history.replaceState(null, "", "/setup?draft=" + encodeURIComponent(draftId));
+            draft = Object.assign({}, item, payload, { queryId: item.queryId, query: item.query, reportedCount: item.count, previewConfirmed: false });
+            renderPreview(draft);
+            showStep(2);
+        } catch (error) {
+            setStatus("history-status", error.message + ". You can retry or choose another query.", true);
+            byId("change-query").disabled = false;
+        } finally {
+            busy(button, false, "");
+        }
+    }
+
+    function renderPreview(value) {
+        const reported = value.reportedCount == null ? "an unknown number of" : value.reportedCount;
+        byId("preview-count").textContent = "Scholar reports " + reported + " papers; " + (value.availableCount || 0) + " are currently available in the RSS. Here are the first 10.";
+        byId("paper-list").innerHTML = "";
+        (value.papers || []).forEach((paper) => {
+            const article = document.createElement("article");
+            article.className = "paper";
+            const title = document.createElement("strong");
+            title.textContent = paper.title || "Untitled paper";
+            const facts = document.createElement("div");
+            facts.className = "facts";
+            facts.textContent = [paper.authors, paper.publisher, paper.publishedOn].filter(Boolean).join(" · ");
+            article.append(title, facts);
+            if (paper.summary) {
+                const summary = document.createElement("p");
+                summary.className = "paper-summary meta";
+                summary.textContent = paper.summary;
+                article.append(summary);
+            }
+            byId("paper-list").append(article);
+        });
+        if (!(value.papers || []).length) setStatus("preview-status", "The RSS is valid but currently contains no papers. Confirm only if this is expected.", false);
+    }
+
+    async function previewDecision(confirmed) {
+        try {
+            draft = await request("/api/setup/drafts/" + encodeURIComponent(draftId) + "/preview-decision", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ confirmed: String(confirmed) }) });
+            if (confirmed) {
+                byId("feed-title").value = draft.title || "";
+                showStep(3);
+            } else {
+                resetQuerySelection();
+                showStep(1);
+            }
+        } catch (error) {
+            setStatus("preview-status", error.message, true);
+        }
+    }
+
+    async function saveTitle() {
+        const button = byId("title-continue");
+        busy(button, true, " Saving...");
+        try {
+            draft = await request("/api/setup/drafts/" + encodeURIComponent(draftId) + "/title", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ title: byId("feed-title").value }) });
+            prepareDrive();
+            showStep(4);
+        } catch (error) {
+            setStatus("title-status", error.message, true);
+        } finally {
+            busy(button, false, "");
+        }
+    }
+
+    function prepareDrive() {
+        byId("drive-panel").classList.add("hidden");
+        byId("drive-choice").classList.remove("hidden");
+        byId("drive-connect").classList.toggle("hidden", googleConnected || !googleEnabled);
+        byId("folder-browser").classList.toggle("hidden", !googleConnected);
+        setStatus("drive-connection-status", googleConnected ? "Connected as " + (googleEmail || "your Google account") : googleEnabled ? "Connect Google Drive to browse folders." : "Google Drive is not configured on this server.", !googleEnabled);
+    }
+
+    async function chooseNoDrive() {
+        try {
+            draft = await request("/api/setup/drafts/" + encodeURIComponent(draftId) + "/drive", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ enabled: "false" }) });
+            showStep(5);
+        } catch (error) { setStatus("drive-status", error.message, true); }
+    }
+
+    function enableDrivePanel() {
+        byId("drive-choice").classList.add("hidden");
+        byId("drive-panel").classList.remove("hidden");
+        byId("drive-connect").href = "/auth/google-drive/start?returnTo=" + encodeURIComponent("/setup?draft=" + draftId);
+        if (googleConnected) loadFolders("root", "My Drive", false);
+    }
+
+    async function loadFolders(id, name, push) {
+        currentFolder = { id, name };
+        if (push && folderStack[folderStack.length - 1].id !== id) folderStack.push(currentFolder);
+        byId("folder-breadcrumb").textContent = folderStack.map((folder) => folder.name).join(" / ");
+        byId("folder-list").innerHTML = "";
+        setStatus("drive-status", "Loading Drive folders...", false);
+        try {
+            const search = byId("folder-search").value.trim();
+            const payload = await request("/api/google-drive/folders?parentId=" + encodeURIComponent(id) + (search ? "&search=" + encodeURIComponent(search) : ""));
+            byId("folder-list").innerHTML = "";
+            (payload.folders || []).forEach((folder) => {
+                const row = document.createElement("div");
+                row.className = "folder";
+                const label = document.createElement("span");
+                label.textContent = folder.name;
+                const open = document.createElement("button");
+                open.className = "secondary";
+                open.type = "button";
+                open.textContent = "Open";
+                open.addEventListener("click", () => loadFolders(folder.id, folder.name, true));
+                row.append(label, open);
+                byId("folder-list").append(row);
+            });
+            setStatus("drive-status", (payload.folders || []).length ? "" : "No folders here. You can use the current folder.", false);
+        } catch (error) { setStatus("drive-status", error.message, true); }
+    }
+
+    async function saveDrive() {
+        if (!selectedFolder) {
+            setStatus("drive-status", "Choose a root folder before continuing.", true);
+            return;
+        }
+        const button = byId("drive-continue");
+        busy(button, true, " Saving...");
+        try {
+            draft = await request("/api/setup/drafts/" + encodeURIComponent(draftId) + "/drive", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ enabled: "true", folderId: selectedFolder.id }) });
+            showStep(5);
+        } catch (error) { setStatus("drive-status", error.message, true); }
+        finally { busy(button, false, ""); }
+    }
+
+    async function selectWorkflow(type) {
+        try {
+            draft = await request("/api/setup/drafts/" + encodeURIComponent(draftId) + "/workflow", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ workflowType: type, customWorkflow: type === "CUSTOM" ? byId("custom-workflow").value : "" }) });
+            renderSummary();
+            showStep(6);
+        } catch (error) { setStatus("workflow-status", error.message, true); }
+    }
+
+    function renderSummary() {
+        const values = [
+            ["Paper feed", draft.title],
+            ["Scholar results", String(draft.reportedCount == null ? "Unknown" : draft.reportedCount)],
+            ["Google Drive", draft.driveEnabled ? draft.driveFolderName : "Not enabled"],
+            ["Classification", draft.workflowType === "MIAGE" ? "MIAGE default" : draft.workflowType]
+        ];
+        byId("setup-summary").innerHTML = "";
+        values.forEach((value) => {
+            const row = document.createElement("div");
+            row.className = "summary-row";
+            const label = document.createElement("span");
+            label.textContent = value[0];
+            const content = document.createElement("strong");
+            content.textContent = value[1] || "";
+            row.append(label, content);
+            byId("setup-summary").append(row);
+        });
+    }
+
+    async function completeSetup() {
+        const button = byId("complete-setup");
+        busy(button, true, " Creating and polling...");
+        setStatus("complete-status", "Working: creating your paper feed and polling its RSS source...", false);
+        try {
+            const payload = await request("/api/setup/drafts/" + encodeURIComponent(draftId) + "/complete", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ customWorkflow: byId("custom-workflow").value }) });
+            window.location.href = payload.url;
+        } catch (error) {
+            setStatus("complete-status", error.message, true);
+            busy(button, false, "");
+        }
+    }
+
+    async function restoreDraft() {
+        if (!draftId) return;
+        try {
+            draft = await request("/api/setup/drafts/" + encodeURIComponent(draftId));
+            if (draft.papers && draft.papers.length) renderPreview(draft);
+            byId("feed-title").value = draft.title || "";
+            if (draft.workflowType) {
+                renderSummary();
+                showStep(6);
+            } else if (draft.title) {
+                prepareDrive();
+                showStep(4);
+                if (googleConnected) enableDrivePanel();
+            } else if (draft.previewConfirmed) {
+                showStep(3);
+            } else if (draft.rssUrl) {
+                showStep(2);
+            }
+        } catch (error) {
+            draftId = "";
+            window.history.replaceState(null, "", "/setup");
+            setStatus("history-status", error.message + ". Start again by choosing a query.", true);
+        }
+    }
+
+    byId("query-search").addEventListener("input", renderHistory);
+    byId("change-query").addEventListener("click", resetQuerySelection);
+    byId("preview-confirm").addEventListener("click", () => previewDecision(true));
+    byId("preview-reject").addEventListener("click", () => previewDecision(false));
+    byId("title-continue").addEventListener("click", saveTitle);
+    byId("drive-yes").addEventListener("click", enableDrivePanel);
+    byId("drive-no").addEventListener("click", chooseNoDrive);
+    byId("drive-continue").addEventListener("click", saveDrive);
+    byId("folder-search").addEventListener("input", () => loadFolders(currentFolder.id, currentFolder.name, false));
+    byId("folder-up").addEventListener("click", () => {
+        if (folderStack.length > 1) folderStack.pop();
+        const parent = folderStack[folderStack.length - 1];
+        byId("folder-search").value = "";
+        loadFolders(parent.id, parent.name, false);
+    });
+    byId("choose-current-folder").addEventListener("click", () => {
+        selectedFolder = currentFolder;
+        byId("selected-folder").textContent = "Selected: " + currentFolder.name;
+        byId("selected-folder").classList.remove("hidden");
+    });
+    byId("workflow-other").addEventListener("click", () => {
+        byId("workflow-primary").classList.add("hidden");
+        byId("workflow-alternatives").classList.remove("hidden");
+    });
+    byId("workflow-custom").addEventListener("click", () => {
+        byId("workflow-alternatives").classList.add("hidden");
+        byId("custom-workflow-panel").classList.remove("hidden");
+    });
+    document.querySelectorAll("[data-workflow]").forEach((button) => button.addEventListener("click", () => selectWorkflow(button.dataset.workflow)));
+    document.querySelectorAll("[data-back]").forEach((button) => button.addEventListener("click", () => showStep(Number(button.dataset.back))));
+    byId("complete-setup").addEventListener("click", completeSetup);
+
+    loadHistory();
+    restoreDraft();
+})();
+</script>
+</body>
+</html>

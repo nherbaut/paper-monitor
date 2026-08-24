@@ -11,21 +11,27 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@Table(uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"logicalFeed_id", "name"}),
+        @UniqueConstraint(columnNames = {"logicalFeed_id", "url"})
+})
 public class Feed extends PanacheEntityBase {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     public Long id;
 
-    @Column(nullable = false, unique = true, length = 120)
+    @Column(nullable = false, length = 120)
     public String name;
 
-    @Column(nullable = false, unique = true, length = 1000)
+    @Column(nullable = false, length = 1000)
     public String url;
 
     @Column(nullable = false)

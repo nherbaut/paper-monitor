@@ -111,6 +111,7 @@ public class AuthService {
         user.username = normalizedUsername;
         user.displayName = normalize(displayName);
         user.email = normalize(email);
+        ensureEmailAvailable(user.email, null);
         user.authProvider = "LOCAL";
         user.admin = admin;
         user.emailVerified = true;
@@ -208,7 +209,9 @@ public class AuthService {
         AppUser user = appUserRepository.findByIdOptional(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown user"));
         user.displayName = normalize(displayName);
-        user.email = normalize(email);
+        String normalizedEmail = normalize(email);
+        ensureEmailAvailable(normalizedEmail, user);
+        user.email = normalizedEmail;
         user.admin = admin;
         if (password != null && !password.isBlank()) {
             if (!user.isLocalAccount()) {
@@ -295,12 +298,14 @@ public class AuthService {
     @Transactional
     public AppUser upsertOidcUser(String issuer, String subject, String username, String displayName, String email, boolean admin) {
         AppUser user = appUserRepository.findByOidcIdentity(issuer, subject).orElseGet(AppUser::new);
+        String normalizedEmail = normalize(email);
+        ensureEmailAvailable(normalizedEmail, user.id == null ? null : user);
         user.authProvider = "OIDC";
         user.oidcIssuer = issuer;
         user.oidcSubject = subject;
         user.username = fallback(normalize(username), fallback(normalize(email), subject));
         user.displayName = fallback(normalize(displayName), user.username);
-        user.email = normalize(email);
+        user.email = normalizedEmail;
         user.admin = admin;
         user.emailVerified = true;
         if (user.emailVerifiedAt == null) {
@@ -567,6 +572,16 @@ public class AuthService {
             throw new IllegalArgumentException(message);
         }
         return normalized;
+    }
+
+    private void ensureEmailAvailable(String email, AppUser currentUser) {
+        if (email == null) {
+            return;
+        }
+        AppUser owner = appUserRepository.findByEmail(email).orElse(null);
+        if (owner != null && (currentUser == null || currentUser.id == null || !owner.id.equals(currentUser.id))) {
+            throw new IllegalArgumentException("An account with this email already exists");
+        }
     }
 
     private String fallback(String first, String second) {
