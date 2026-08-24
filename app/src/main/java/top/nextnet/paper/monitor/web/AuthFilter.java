@@ -21,6 +21,8 @@ import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.UserSession;
 import top.nextnet.paper.monitor.repo.LogicalFeedRepository;
 import top.nextnet.paper.monitor.repo.PaperRepository;
+import top.nextnet.paper.monitor.repo.PaperFeedSetupDraftRepository;
+import top.nextnet.paper.monitor.service.AnonymousSetupContext;
 import top.nextnet.paper.monitor.service.AuthService;
 import top.nextnet.paper.monitor.service.CurrentUserContext;
 
@@ -32,6 +34,9 @@ public class AuthFilter implements ContainerRequestFilter {
     private static final List<String> PUBLIC_PATH_PREFIXES = List.of(
             "login",
             "signup",
+            "setup",
+            "api/setup",
+            "anonymous/feed",
             "auth/forward",
             "api/pde/openai-extractions/consume",
             "api/pdf-captures/upload",
@@ -54,17 +59,34 @@ public class AuthFilter implements ContainerRequestFilter {
     @Inject
     PaperRepository paperRepository;
 
+    @Inject
+    PaperFeedSetupDraftRepository paperFeedSetupDraftRepository;
+
+    @Inject
+    AnonymousSetupContext anonymousSetupContext;
+
     @Override
     @Transactional
     public void filter(ContainerRequestContext requestContext) {
         String path = normalizePath(requestContext.getUriInfo().getPath());
-        if (isPublic(path)) {
+        boolean publicPath = isPublic(path);
+        boolean optionalAuthentication = allowsOptionalAuthentication(path);
+        if (publicPath && !optionalAuthentication) {
             return;
         }
 
         Cookie cookie = requestContext.getCookies().get(authService.sessionCookieName());
         Optional<UserSession> session = authService.findActiveSession(cookie == null ? null : cookie.getValue());
         if (session.isEmpty()) {
+            String setupToken = requestContext.getHeaderString("X-Paper-Monitor-Setup-Token");
+            var anonymousDraft = paperFeedSetupDraftRepository.findPendingAnonymous(setupToken);
+            if (anonymousDraft.isPresent()) {
+                anonymousSetupContext.set(anonymousDraft.get());
+                return;
+            }
+            if (optionalAuthentication) {
+                return;
+            }
             if (allowsAnonymousRead(path, requestContext.getMethod())) {
                 return;
             }
@@ -109,6 +131,13 @@ public class AuthFilter implements ContainerRequestFilter {
             }
         }
         return false;
+    }
+
+    private boolean allowsOptionalAuthentication(String path) {
+        return path.equals("setup")
+                || path.startsWith("setup/")
+                || path.equals("api/setup")
+                || path.startsWith("api/setup/");
     }
 
     private boolean requiresAdmin(String path, String method) {

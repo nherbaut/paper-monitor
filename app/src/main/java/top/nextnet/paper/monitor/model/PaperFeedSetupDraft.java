@@ -16,9 +16,13 @@ public class PaperFeedSetupDraft extends PanacheEntityBase {
     @Column(length = 36)
     public String id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn
     public AppUser user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn
+    public LogicalFeed logicalFeed;
 
     public Long scholarQueryId;
 

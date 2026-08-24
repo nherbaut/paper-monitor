@@ -1,5 +1,6 @@
 package top.nextnet.paper.monitor.service;
 
+import io.quarkus.scheduler.Scheduled;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -150,8 +151,8 @@ public class SetupWizardService {
             int availableCount,
             List<Map<String, Object>> previewPapers
     ) {
-        draftRepository.deleteExpired();
-        PaperFeedSetupDraft draft = draftRepository.findOwned(draftId, user).orElseGet(() -> {
+        deleteExpiredDrafts();
+        PaperFeedSetupDraft draft = draftRepository.findAccessible(draftId, user).orElseGet(() -> {
             PaperFeedSetupDraft created = new PaperFeedSetupDraft();
             created.id = UUID.randomUUID().toString();
             created.user = user;
@@ -159,6 +160,9 @@ public class SetupWizardService {
             draftRepository.persist(created);
             return created;
         });
+        if (user != null && draft.user == null) {
+            draft.user = user;
+        }
         draft.scholarQueryId = queryId;
         draft.scholarQuery = query;
         draft.scholarReportedCount = count;
@@ -252,6 +256,13 @@ public class SetupWizardService {
     @Transactional
     public CompletionResult complete(AppUser user, String draftId, String customWorkflow) {
         PaperFeedSetupDraft draft = requireDraft(user, draftId);
+        if (draft.logicalFeed != null) {
+            Feed existingFeed = feedRepository.find("logicalFeed", draft.logicalFeed).firstResult();
+            if (existingFeed == null) {
+                throw new WebApplicationException("The temporary paper feed is incomplete", Response.Status.CONFLICT);
+            }
+            return new CompletionResult(draft.logicalFeed.id, existingFeed.id);
+        }
         required(draft.rssUrl, "Choose and confirm a Scholar query first");
         if (!draft.previewConfirmed) {
             throw new WebApplicationException("Confirm the paper preview before completing setup", Response.Status.BAD_REQUEST);
@@ -276,7 +287,7 @@ public class SetupWizardService {
         logicalFeed.workflowStates = workflowYaml;
         logicalFeed.owner = user;
         logicalFeed.publicReadable = false;
-        logicalFeed.notifyOnNewRssPapers = true;
+        logicalFeed.notifyOnNewRssPapers = user != null;
         logicalFeed.publicShareToken = UUID.randomUUID().toString();
         logicalFeedRepository.persist(logicalFeed);
 
@@ -287,7 +298,14 @@ public class SetupWizardService {
         feed.logicalFeed = logicalFeed;
         feedRepository.persist(feed);
 
+        draft.logicalFeed = logicalFeed;
+        touch(draft);
+
         if (draft.driveEnabled) {
+            if (user == null) {
+                throw new WebApplicationException("Sign in before enabling Google Drive",
+                        Response.Status.UNAUTHORIZED);
+            }
             UserSettings settings = authService.ensureSettings(user);
             if (!settings.hasGoogleDriveConnection()) {
                 throw new WebApplicationException("Connect Google Drive before completing setup", Response.Status.BAD_REQUEST);
@@ -297,9 +315,19 @@ public class SetupWizardService {
             settings.googleDriveSyncEnabled = true;
             settings.googleDriveLastSyncError = null;
         }
-        draftRepository.delete(draft);
+        if (user != null) {
+            draftRepository.delete(draft);
+        }
         feedRepository.flush();
         return new CompletionResult(logicalFeed.id, feed.id);
+    }
+
+    @Transactional
+    public TemporaryFeed temporaryFeed(String draftId) {
+        PaperFeedSetupDraft draft = draftRepository.findPendingAnonymous(draftId)
+                .orElseThrow(() -> new WebApplicationException(
+                        "Temporary paper feed was not found or has expired", Response.Status.NOT_FOUND));
+        return new TemporaryFeed(draft.logicalFeed, draft.expiresAt);
     }
 
     public static List<Map<String, Object>> collapseDuplicateQueries(List<Map<String, Object>> history) {
@@ -319,8 +347,33 @@ public class SetupWizardService {
     }
 
     private PaperFeedSetupDraft requireDraft(AppUser user, String draftId) {
-        return draftRepository.findOwned(draftId, user)
+        PaperFeedSetupDraft draft = draftRepository.findAccessible(draftId, user)
                 .orElseThrow(() -> new WebApplicationException("Setup draft was not found or has expired", Response.Status.NOT_FOUND));
+        if (user != null && draft.user == null) {
+            draft.user = user;
+            if (draft.logicalFeed != null && draft.logicalFeed.owner == null) {
+                draft.logicalFeed.owner = user;
+                draft.logicalFeed.notifyOnNewRssPapers = true;
+            }
+        }
+        return draft;
+    }
+
+    @Scheduled(every = "{paper-monitor.setup-drafts.cleanup-every:1h}")
+    @Transactional
+    public void deleteExpiredDrafts() {
+        for (PaperFeedSetupDraft draft : draftRepository.findExpired()) {
+            LogicalFeed temporaryFeed = draft.user == null
+                    && draft.logicalFeed != null
+                    && draft.logicalFeed.owner == null
+                    ? draft.logicalFeed
+                    : null;
+            draftRepository.delete(draft);
+            draftRepository.flush();
+            if (temporaryFeed != null) {
+                temporaryFeed.delete();
+            }
+        }
     }
 
     private void touch(PaperFeedSetupDraft draft) {
@@ -357,6 +410,12 @@ public class SetupWizardService {
         result.put("workflowType", draft.workflowType);
         result.put("customWorkflow", draft.customWorkflow);
         result.put("expiresAt", draft.expiresAt.toString());
+        result.put("logicalFeedId", draft.logicalFeed == null ? null : draft.logicalFeed.id);
+        result.put("url", draft.logicalFeed == null
+                ? null
+                : draft.user == null
+                        ? "/anonymous/feed/" + draft.id
+                        : "/?logicalFeedId=" + draft.logicalFeed.id);
         return result;
     }
 
@@ -416,6 +475,9 @@ public class SetupWizardService {
             result.put("papers", papers);
             return result;
         }
+    }
+
+    public record TemporaryFeed(LogicalFeed logicalFeed, Instant expiresAt) {
     }
 
     public record CompletionResult(Long logicalFeedId, Long feedId) {

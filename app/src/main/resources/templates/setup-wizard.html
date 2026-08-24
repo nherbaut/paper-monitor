@@ -163,7 +163,7 @@
         }
     </style>
 </head>
-<body data-draft-id="{draftId ?: ''}" data-google-enabled="{googleDriveEnabled}" data-google-connected="{googleDriveConnected}" data-google-email="{googleDriveEmail ?: ''}">
+<body data-draft-id="{draftId ?: ''}" data-authenticated="{authenticated}" data-google-enabled="{googleDriveEnabled}" data-google-connected="{googleDriveConnected}" data-google-email="{googleDriveEmail ?: ''}">
 <header>
     <strong>Paper Monitor</strong>
     <a class="button secondary" href="/">Exit setup</a>
@@ -260,11 +260,11 @@
 
             <section class="step" data-step="6" hidden>
                 <h1>Ready to create your paper feed</h1>
-                <p class="meta">Paper Monitor will create the feed, poll the RSS source, and then open your papers.</p>
+                <p class="meta" id="complete-description">Paper Monitor will create the feed, poll the RSS source, and then open your papers.</p>
                 <div class="summary" id="setup-summary"></div>
                 <div class="status hidden" id="complete-status"></div>
                 <div class="actions">
-                    <button id="complete-setup" type="button">Create and open paper feed</button>
+                    <button id="complete-setup" type="button">{#if authenticated}Create and open paper feed{#else}Create and open temporary paper feed{/if}</button>
                     <button class="secondary" data-back="5" type="button">Back</button>
                 </div>
             </section>
@@ -277,10 +277,11 @@
 <script>
 (() => {
     const body = document.body;
+    const authenticated = body.dataset.authenticated === "true";
     const googleEnabled = body.dataset.googleEnabled === "true";
     const googleConnected = body.dataset.googleConnected === "true";
     const googleEmail = body.dataset.googleEmail || "";
-    let draftId = body.dataset.draftId || "";
+    let draftId = body.dataset.draftId || window.localStorage.getItem("paperMonitorSetupDraftId") || "";
     let draft = null;
     let queryHistory = [];
     let currentStep = 1;
@@ -372,6 +373,7 @@
         try {
             const payload = await request("/api/setup/preview", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ draftId, queryId: item.queryId }) });
             draftId = payload.draftId;
+            window.localStorage.setItem("paperMonitorSetupDraftId", draftId);
             window.history.replaceState(null, "", "/setup?draft=" + encodeURIComponent(draftId));
             draft = Object.assign({}, item, payload, { queryId: item.queryId, query: item.query, reportedCount: item.count, previewConfirmed: false });
             renderPreview(draft);
@@ -442,7 +444,14 @@
         byId("drive-choice").classList.remove("hidden");
         byId("drive-connect").classList.toggle("hidden", googleConnected || !googleEnabled);
         byId("folder-browser").classList.toggle("hidden", !googleConnected);
-        setStatus("drive-connection-status", googleConnected ? "Connected as " + (googleEmail || "your Google account") : googleEnabled ? "Connect Google Drive to browse folders." : "Google Drive is not configured on this server.", !googleEnabled);
+        const connectionMessage = googleConnected
+            ? "Connected as " + (googleEmail || "your Google account")
+            : !googleEnabled
+                ? "Google Drive is not configured on this server."
+                : authenticated
+                    ? "Connect Google Drive to browse folders."
+                    : "Create an account or sign in to connect Google Drive. Your setup progress will be kept.";
+        setStatus("drive-connection-status", connectionMessage, !googleEnabled);
     }
 
     async function chooseNoDrive() {
@@ -455,7 +464,11 @@
     function enableDrivePanel() {
         byId("drive-choice").classList.add("hidden");
         byId("drive-panel").classList.remove("hidden");
-        byId("drive-connect").href = "/auth/google-drive/start?returnTo=" + encodeURIComponent("/setup?draft=" + draftId);
+        const setupReturnTo = "/setup?draft=" + draftId;
+        byId("drive-connect").href = authenticated
+            ? "/auth/google-drive/start?returnTo=" + encodeURIComponent(setupReturnTo)
+            : "/login?returnTo=" + encodeURIComponent(setupReturnTo);
+        byId("drive-connect").textContent = authenticated ? "Connect Google Drive" : "Create account or sign in";
         if (googleConnected) loadFolders("root", "My Drive", false);
     }
 
@@ -534,6 +547,11 @@
         setStatus("complete-status", "Working: creating your paper feed and polling its RSS source...", false);
         try {
             const payload = await request("/api/setup/drafts/" + encodeURIComponent(draftId) + "/complete", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ customWorkflow: byId("custom-workflow").value }) });
+            if (authenticated) {
+                window.localStorage.removeItem("paperMonitorSetupDraftId");
+            } else {
+                window.localStorage.setItem("paperMonitorSetupDraftId", draftId);
+            }
             window.location.href = payload.url;
         } catch (error) {
             setStatus("complete-status", error.message, true);
@@ -543,8 +561,19 @@
 
     async function restoreDraft() {
         if (!draftId) return;
+        window.localStorage.setItem("paperMonitorSetupDraftId", draftId);
+        if (!body.dataset.draftId) {
+            window.history.replaceState(null, "", "/setup?draft=" + encodeURIComponent(draftId));
+        }
         try {
             draft = await request("/api/setup/drafts/" + encodeURIComponent(draftId));
+            if (draft.url) {
+                if (authenticated) {
+                    window.localStorage.removeItem("paperMonitorSetupDraftId");
+                }
+                window.location.replace(draft.url);
+                return;
+            }
             if (draft.papers && draft.papers.length) renderPreview(draft);
             byId("feed-title").value = draft.title || "";
             if (draft.workflowType) {
@@ -561,6 +590,7 @@
             }
         } catch (error) {
             draftId = "";
+            window.localStorage.removeItem("paperMonitorSetupDraftId");
             window.history.replaceState(null, "", "/setup");
             setStatus("history-status", error.message + ". Start again by choosing a query.", true);
         }
@@ -598,6 +628,9 @@
     document.querySelectorAll("[data-back]").forEach((button) => button.addEventListener("click", () => showStep(Number(button.dataset.back))));
     byId("complete-setup").addEventListener("click", completeSetup);
 
+    if (!authenticated) {
+        byId("complete-description").textContent = "Paper Monitor will create a temporary feed that you can use immediately. Create an account later to keep it.";
+    }
     loadHistory();
     restoreDraft();
 })();

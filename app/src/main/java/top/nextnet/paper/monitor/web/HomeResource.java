@@ -31,7 +31,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -61,6 +63,7 @@ import top.nextnet.paper.monitor.repo.FeedRepository;
 import top.nextnet.paper.monitor.repo.LogicalFeedRepository;
 import top.nextnet.paper.monitor.repo.PaperRepository;
 import top.nextnet.paper.monitor.service.AuthService;
+import top.nextnet.paper.monitor.service.AnonymousSetupContext;
 import top.nextnet.paper.monitor.service.BackupService;
 import top.nextnet.paper.monitor.service.CurrentUserContext;
 import top.nextnet.paper.monitor.service.DefaultSignupPolicyService;
@@ -128,10 +131,14 @@ public class HomeResource {
     private final ScholarService scholarService;
     private final SetupWizardService setupWizardService;
     private final Instance<CurrentUserContext> currentUserContext;
+    private final Instance<AnonymousSetupContext> anonymousSetupContext;
     private final String baseUrl;
     private final String paperDataExtractorBaseUrl;
     private final String paperDataExtractorInternalApiToken;
     private static final String DEFAULT_PDE_BASE_URL = "http://localhost:8091";
+    private static final DateTimeFormatter TEMPORARY_FEED_EXPIRY_FORMAT = DateTimeFormatter
+            .ofPattern("d MMMM uuuu 'at' HH:mm z", Locale.ENGLISH)
+            .withZone(ZoneId.systemDefault());
 
     public HomeResource(
             @Location("home") Template home,
@@ -170,6 +177,7 @@ public class HomeResource {
             SetupWizardService setupWizardService,
             NotificationService notificationService,
             Instance<CurrentUserContext> currentUserContext,
+            Instance<AnonymousSetupContext> anonymousSetupContext,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl,
             @ConfigProperty(name = "paper-monitor.pde.public-base-url", defaultValue = "") String paperDataExtractorPublicBaseUrl,
             @ConfigProperty(name = "paper-monitor.pde.base-url", defaultValue = "") String legacyPaperDataExtractorBaseUrl,
@@ -211,6 +219,7 @@ public class HomeResource {
         this.setupWizardService = setupWizardService;
         this.notificationService = notificationService;
         this.currentUserContext = currentUserContext;
+        this.anonymousSetupContext = anonymousSetupContext;
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.trim();
         this.paperDataExtractorBaseUrl = normalizeUrl(
                 firstNonBlank(paperDataExtractorPublicBaseUrl, legacyPaperDataExtractorBaseUrl, DEFAULT_PDE_BASE_URL),
@@ -229,6 +238,7 @@ public class HomeResource {
         return login.data("returnTo", safeReturnTo(returnTo))
                 .data("oidcEnabled", oidcService.isEnabled())
                 .data("githubEnabled", githubAuthService.isEnabled())
+                .data("studentAvatars", AppUser.avatarOptions())
                 .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0)
                 .data("infoMessage", normalize(info))
                 .data("errorMessage", normalize(error));
@@ -279,16 +289,18 @@ public class HomeResource {
             @RestForm("username") String username,
             @RestForm("displayName") String displayName,
             @RestForm("email") String email,
-            @RestForm("password") String password
+            @RestForm("password") String password,
+            @RestForm("avatarFileName") String avatarFileName,
+            @RestForm("returnTo") String returnTo
     ) {
         try {
-            AppUser user = authService.signUpLocal(username, displayName, email, password);
+            AppUser user = authService.signUpLocal(username, displayName, email, password, avatarFileName);
             String info = user.approved
                     ? "Check your email to verify your account. Once verified, you can sign in."
                     : "Check your email to verify your account, then wait for admin approval.";
-            return seeOther("/login?info=" + urlEncode(info));
+            return seeOther("/login?info=" + urlEncode(info) + "&returnTo=" + urlEncode(safeReturnTo(returnTo)));
         } catch (IllegalArgumentException e) {
-            return seeOther("/login?error=" + urlEncode(e.getMessage()));
+            return seeOther("/login?error=" + urlEncode(e.getMessage()) + "&returnTo=" + urlEncode(safeReturnTo(returnTo)));
         }
     }
 
@@ -503,6 +515,7 @@ public class HomeResource {
             return login.data("returnTo", "/")
                     .data("oidcEnabled", oidcService.isEnabled())
                     .data("githubEnabled", githubAuthService.isEnabled())
+                    .data("studentAvatars", AppUser.avatarOptions())
                     .data("bootstrapLocalAdmin", appUserRepository.countLocalAccounts() == 0)
                     .data("infoMessage", normalize(info))
                     .data("errorMessage", normalize(error));
@@ -524,6 +537,10 @@ public class HomeResource {
                 .data("currentUser", currentUser)
                 .data("canAdmin", currentUserContext.get().isAdmin())
                 .data("authenticated", currentUser != null)
+                .data("canEdit", true)
+                .data("anonymousSetup", false)
+                .data("anonymousSetupToken", null)
+                .data("anonymousSetupExpiresAt", null)
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
@@ -571,6 +588,10 @@ public class HomeResource {
                 .data("currentUser", currentUser)
                 .data("canAdmin", currentUserContext.get().isAdmin())
                 .data("authenticated", true)
+                .data("canEdit", true)
+                .data("anonymousSetup", false)
+                .data("anonymousSetupToken", null)
+                .data("anonymousSetupExpiresAt", null)
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
@@ -650,14 +671,14 @@ public class HomeResource {
             @QueryParam("classificationQueue") @DefaultValue("false") boolean classificationQueue
     ) {
         AppUser currentUser = currentUserContext.get().user();
-        if (currentUser == null) {
-            throw new NotFoundException();
-        }
         if (logicalFeedId == null) {
             return List.of();
         }
-        LogicalFeed logicalFeed = logicalFeedAccessService.requireReadableLogicalFeed(logicalFeedId, currentUser);
-        boolean canAdmin = logicalFeedAccessService.canAdmin(logicalFeed, currentUser);
+        LogicalFeed logicalFeed = logicalFeedRepository.findById(logicalFeedId);
+        if (logicalFeed == null || !canReadLogicalFeed(logicalFeed, currentUser)) {
+            throw new NotFoundException();
+        }
+        boolean canAdmin = canAdminLogicalFeed(logicalFeed, currentUser);
         if (classificationQueue && !canAdmin) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
@@ -704,6 +725,10 @@ public class HomeResource {
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("authenticated", currentUser != null)
+                .data("canEdit", paper.viewerCanEdit)
+                .data("anonymousSetup", false)
+                .data("anonymousSetupToken", null)
+                .data("anonymousSetupExpiresAt", null)
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
                 .data("infoMessage", null)
                 .data("errorMessage", null)
@@ -748,6 +773,10 @@ public class HomeResource {
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("authenticated", currentUser != null)
+                .data("canEdit", false)
+                .data("anonymousSetup", false)
+                .data("anonymousSetupToken", null)
+                .data("anonymousSetupExpiresAt", null)
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
                 .data("infoMessage", null)
                 .data("errorMessage", null)
@@ -757,6 +786,48 @@ public class HomeResource {
                 .data("sharedFeedDiagramUrl", normalizeBaseUrl() + "/share/feed/" + token + "/diagram")
                 .data("classificationQueueMode", false)
                 .data("startClassificationMode", false);
+        return Response.ok(page.render(), MediaType.TEXT_HTML).build();
+    }
+
+    @GET
+    @Path("/anonymous/feed/{token}")
+    @Transactional
+    public Response anonymousSetupFeed(
+            @jakarta.ws.rs.PathParam("token") String token,
+            @QueryParam("mode") @DefaultValue("auto") String mode,
+            @QueryParam("error") String error
+    ) {
+        SetupWizardService.TemporaryFeed temporary = setupWizardService.temporaryFeed(token);
+        LogicalFeed logicalFeed = temporary.logicalFeed();
+        populatePaperCounts(List.of(logicalFeed));
+        populateLogicalFeedDashboardStats(List.of(logicalFeed));
+        logicalFeed.viewerCanAdmin = true;
+        boolean hasNewPapers = logicalFeed.recentNewPaperCount > 0;
+        boolean swipeMode = !"list".equalsIgnoreCase(mode)
+                && ("swipe".equalsIgnoreCase(mode) || logicalFeed.usesDefaultMiageWorkflow() && hasNewPapers);
+        TemplateInstance page = home.data("recentPapers", List.of())
+                .data("initialPaperId", null)
+                .data("initialLogicalFeedId", logicalFeed.id)
+                .data("logicalFeeds", List.of(logicalFeed))
+                .data("adminLogicalFeeds", List.of(logicalFeed))
+                .data("currentUser", null)
+                .data("canAdmin", false)
+                .data("masquerading", false)
+                .data("masqueradeAdminDisplay", null)
+                .data("authenticated", false)
+                .data("canEdit", true)
+                .data("anonymousSetup", true)
+                .data("anonymousSetupToken", token)
+                .data("anonymousSetupExpiresAt", TEMPORARY_FEED_EXPIRY_FORMAT.format(temporary.expiresAt()))
+                .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
+                .data("infoMessage", null)
+                .data("errorMessage", normalize(error))
+                .data("shareMode", false)
+                .data("sharedPaper", null)
+                .data("sharedPaperUrl", null)
+                .data("sharedFeedDiagramUrl", null)
+                .data("classificationQueueMode", swipeMode)
+                .data("startClassificationMode", swipeMode);
         return Response.ok(page.render(), MediaType.TEXT_HTML).build();
     }
 
@@ -1071,13 +1142,14 @@ public class HomeResource {
     @Path("/setup")
     @Transactional
     public TemplateInstance setupWizard(@QueryParam("draft") String draftId) {
-        AppUser currentUser = requireCurrentUser();
-        UserSettings settings = authService.ensureSettings(currentUser);
+        AppUser currentUser = currentUserContext.get().user();
+        UserSettings settings = currentUser == null ? null : authService.ensureSettings(currentUser);
         return setupWizard
                 .data("draftId", normalize(draftId))
+                .data("authenticated", currentUser != null)
                 .data("googleDriveEnabled", googleDriveAuthService.isEnabled())
-                .data("googleDriveConnected", settings.hasGoogleDriveConnection())
-                .data("googleDriveEmail", settings.googleDriveEmail)
+                .data("googleDriveConnected", settings != null && settings.hasGoogleDriveConnection())
+                .data("googleDriveEmail", settings == null ? null : settings.googleDriveEmail)
                 .data("customWorkflowYaml", QuickSetupWorkflows.KANBAN);
     }
 
@@ -1085,7 +1157,6 @@ public class HomeResource {
     @Path("/api/setup/history")
     @Produces(MediaType.APPLICATION_JSON)
     public Response setupHistory() {
-        requireCurrentUser();
         return jsonResponse(setupWizardService.recentQueries());
     }
 
@@ -1094,7 +1165,7 @@ public class HomeResource {
     @Produces(MediaType.APPLICATION_JSON)
     public Response setupDraft(@jakarta.ws.rs.PathParam("id") String id) {
         try {
-            return jsonResponse(setupWizardService.draft(requireCurrentUser(), id));
+            return jsonResponse(setupWizardService.draft(currentUserContext.get().user(), id));
         } catch (WebApplicationException e) {
             return apiError(e);
         }
@@ -1112,7 +1183,7 @@ public class HomeResource {
             return apiError(new WebApplicationException("Choose a Scholar query", Response.Status.BAD_REQUEST));
         }
         try {
-            return jsonResponse(setupWizardService.preview(requireCurrentUser(), normalize(draftId), queryId).toMap());
+            return jsonResponse(setupWizardService.preview(currentUserContext.get().user(), normalize(draftId), queryId).toMap());
         } catch (WebApplicationException e) {
             return apiError(e);
         }
@@ -1127,7 +1198,7 @@ public class HomeResource {
             @RestForm("title") String title
     ) {
         try {
-            return jsonResponse(setupWizardService.saveTitle(requireCurrentUser(), id, title));
+            return jsonResponse(setupWizardService.saveTitle(currentUserContext.get().user(), id, title));
         } catch (WebApplicationException e) {
             return apiError(e);
         }
@@ -1143,7 +1214,7 @@ public class HomeResource {
     ) {
         try {
             return jsonResponse(setupWizardService.confirmPreview(
-                    requireCurrentUser(), id, "true".equalsIgnoreCase(confirmed)));
+                    currentUserContext.get().user(), id, "true".equalsIgnoreCase(confirmed)));
         } catch (WebApplicationException e) {
             return apiError(e);
         }
@@ -1173,11 +1244,15 @@ public class HomeResource {
             @RestForm("enabled") String enabled,
             @RestForm("folderId") String folderId
     ) {
-        AppUser currentUser = requireCurrentUser();
+        AppUser currentUser = currentUserContext.get().user();
         boolean syncEnabled = isChecked(enabled) || "true".equalsIgnoreCase(enabled);
         try {
             if (!syncEnabled) {
                 return jsonResponse(setupWizardService.saveDrive(currentUser, id, false, null, null));
+            }
+            if (currentUser == null) {
+                throw new WebApplicationException("Create an account or sign in before connecting Google Drive",
+                        Response.Status.UNAUTHORIZED);
             }
             Map<String, Object> folder = googleDriveSyncService.folder(authService.ensureSettings(currentUser), folderId);
             return jsonResponse(setupWizardService.saveDrive(currentUser, id, true,
@@ -1199,7 +1274,7 @@ public class HomeResource {
             @RestForm("customWorkflow") String customWorkflow
     ) {
         try {
-            return jsonResponse(setupWizardService.saveWorkflow(requireCurrentUser(), id, workflowType, customWorkflow));
+            return jsonResponse(setupWizardService.saveWorkflow(currentUserContext.get().user(), id, workflowType, customWorkflow));
         } catch (WebApplicationException e) {
             return apiError(e);
         }
@@ -1214,14 +1289,19 @@ public class HomeResource {
             @RestForm("customWorkflow") String customWorkflow
     ) {
         try {
-            SetupWizardService.CompletionResult result = setupWizardService.complete(requireCurrentUser(), id, customWorkflow);
+            AppUser currentUser = currentUserContext.get().user();
+            SetupWizardService.CompletionResult result = setupWizardService.complete(
+                    currentUser, id, customWorkflow);
             feedPollingService.pollFeedById(result.feedId());
             Feed feed = feedRepository.findById(result.feedId());
             Map<String, Object> payload = new LinkedHashMap<>();
             String warning = feed == null ? null : normalize(feed.lastError);
-            String destination = "/?logicalFeedId=" + result.logicalFeedId();
+            String destination = currentUser == null
+                    ? "/anonymous/feed/" + urlEncode(id)
+                    : "/?logicalFeedId=" + result.logicalFeedId();
             if (warning != null) {
-                destination += "&error=" + urlEncode("Paper feed created, but the first RSS poll failed: " + warning);
+                destination += (destination.contains("?") ? "&" : "?")
+                        + "error=" + urlEncode("Paper feed created, but the first RSS poll failed: " + warning);
             }
             payload.put("url", destination);
             payload.put("warning", warning);
@@ -2017,7 +2097,7 @@ public class HomeResource {
             throw new NotFoundException();
         }
         AppUser currentUser = currentUserContext.get().user();
-        if (!logicalFeedAccessService.canRead(paper.logicalFeed, currentUser)) {
+        if (!canReadLogicalFeed(paper.logicalFeed, currentUser)) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
 
@@ -2137,7 +2217,7 @@ public class HomeResource {
             throw new NotFoundException();
         }
         AppUser currentUser = currentUserContext.get().user();
-        if (!logicalFeedAccessService.canRead(paper.logicalFeed, currentUser)) {
+        if (!canReadLogicalFeed(paper.logicalFeed, currentUser)) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
         if (!paperEventRepository.existsByPaperIdAndType(id, "NOTE_VIEWED")) {
@@ -2178,7 +2258,7 @@ public class HomeResource {
         if (paper == null) {
             throw new NotFoundException();
         }
-        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+        if (!canAdminLogicalFeed(paper.logicalFeed, currentUserContext.get().user())) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
         paper.notes = notes;
@@ -2197,7 +2277,7 @@ public class HomeResource {
         if (paper == null) {
             throw new NotFoundException();
         }
-        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+        if (!canAdminLogicalFeed(paper.logicalFeed, currentUserContext.get().user())) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
         paper.tags = Paper.normalizeTags(tags);
@@ -2219,7 +2299,7 @@ public class HomeResource {
         if (paper == null) {
             throw new NotFoundException();
         }
-        if (!logicalFeedAccessService.canAdmin(paper.logicalFeed, requireCurrentUser())) {
+        if (!canAdminLogicalFeed(paper.logicalFeed, currentUserContext.get().user())) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
         try {
@@ -3238,6 +3318,16 @@ public class HomeResource {
             throw new WebApplicationException(Response.Status.UNAUTHORIZED);
         }
         return user;
+    }
+
+    private boolean canReadLogicalFeed(LogicalFeed logicalFeed, AppUser user) {
+        return anonymousSetupContext.get().canAccess(logicalFeed)
+                || logicalFeedAccessService.canRead(logicalFeed, user);
+    }
+
+    private boolean canAdminLogicalFeed(LogicalFeed logicalFeed, AppUser user) {
+        return anonymousSetupContext.get().canAccess(logicalFeed)
+                || logicalFeedAccessService.canAdmin(logicalFeed, user);
     }
 
     private Response loginResponse(AppUser user, String returnTo) {

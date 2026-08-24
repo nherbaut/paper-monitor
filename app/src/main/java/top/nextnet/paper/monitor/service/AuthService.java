@@ -128,10 +128,14 @@ public class AuthService {
     }
 
     @Transactional
-    public AppUser signUpLocal(String username, String displayName, String email, String password) {
-        if (appUserRepository.countLocalAccounts() == 0) {
-            throw new IllegalArgumentException("Create the initial admin account from the sign-in form first");
-        }
+    public AppUser signUpLocal(
+            String username,
+            String displayName,
+            String email,
+            String password,
+            String avatarFileName
+    ) {
+        boolean initialLocalAdmin = appUserRepository.countLocalAccounts() == 0;
         String normalizedUsername = normalizeRequired(username, "Username is required").toLowerCase();
         String normalizedEmail = normalizeRequired(email, "Email is required").toLowerCase();
         if (appUserRepository.findLocalByUsername(normalizedUsername).isPresent()) {
@@ -141,17 +145,18 @@ public class AuthService {
             throw new IllegalArgumentException("An account with this email already exists");
         }
         EmailDomainPolicyService.DomainSignupPolicy domainPolicy = emailDomainPolicyService.resolveForEmail(normalizedEmail);
-        if (!domainPolicy.canCreateAccounts()) {
+        if (!initialLocalAdmin && !domainPolicy.canCreateAccounts()) {
             throw new IllegalArgumentException("Self-registration is disabled for email addresses from " + domainPolicy.domain());
         }
         AppUser user = new AppUser();
         user.username = normalizedUsername;
         user.displayName = normalize(displayName);
         user.email = normalizedEmail;
+        user.avatarFileName = AppUser.normalizeAvatarFileName(avatarFileName);
         user.authProvider = "LOCAL";
-        user.admin = false;
+        user.admin = initialLocalAdmin;
         user.emailVerified = false;
-        user.approved = domainPolicy.autoApprove();
+        user.approved = initialLocalAdmin || domainPolicy.autoApprove();
         user.approvedAt = user.approved ? Instant.now() : null;
         user.emailVerificationToken = randomToken(32);
         setPassword(user, normalizeRequired(password, "Password is required"));

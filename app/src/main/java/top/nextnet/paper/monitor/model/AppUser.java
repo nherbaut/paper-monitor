@@ -15,6 +15,7 @@ import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Entity
 @Table(uniqueConstraints = {
@@ -22,6 +23,10 @@ import java.util.List;
         @UniqueConstraint(columnNames = {"githubUserId"})
 })
 public class AppUser extends PanacheEntityBase {
+
+    private static final int STUDENT_AVATAR_COUNT = 24;
+    private static final String STUDENT_AVATAR_PREFIX = "miage-student-";
+    private static final String STUDENT_AVATAR_SUFFIX = ".png";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,6 +40,9 @@ public class AppUser extends PanacheEntityBase {
 
     @Column(length = 255)
     public String email;
+
+    @Column(length = 64)
+    public String avatarFileName;
 
     @Column(nullable = false, length = 16)
     public String authProvider;
@@ -133,5 +141,61 @@ public class AppUser extends PanacheEntityBase {
             return email;
         }
         return "User";
+    }
+
+    public String avatarUrl() {
+        String selected = validAvatarFileName(avatarFileName);
+        if (selected == null) {
+            String identity = id != null
+                    ? Long.toString(id)
+                    : String.join("|", valueOrEmpty(username), valueOrEmpty(email), valueOrEmpty(displayName));
+            int avatarNumber = Math.floorMod(identity.hashCode(), STUDENT_AVATAR_COUNT) + 1;
+            selected = avatarFileName(avatarNumber);
+        }
+        return "/assets/student-avatar/" + selected;
+    }
+
+    public static String normalizeAvatarFileName(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if (validAvatarFileName(normalized) == null) {
+            throw new IllegalArgumentException("Choose one of the available student avatars");
+        }
+        return normalized;
+    }
+
+    public static List<AvatarOption> avatarOptions() {
+        return java.util.stream.IntStream.rangeClosed(1, STUDENT_AVATAR_COUNT)
+                .mapToObj(number -> {
+                    String fileName = avatarFileName(number);
+                    return new AvatarOption(fileName, "/assets/student-avatar/" + fileName, "Avatar " + number);
+                })
+                .toList();
+    }
+
+    private static String validAvatarFileName(String value) {
+        if (value == null) {
+            return null;
+        }
+        for (int number = 1; number <= STUDENT_AVATAR_COUNT; number++) {
+            String candidate = avatarFileName(number);
+            if (candidate.equals(value)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static String avatarFileName(int number) {
+        return STUDENT_AVATAR_PREFIX + String.format(Locale.ROOT, "%02d", number) + STUDENT_AVATAR_SUFFIX;
+    }
+
+    private static String valueOrEmpty(String value) {
+        return value == null ? "" : value;
+    }
+
+    public record AvatarOption(String fileName, String url, String label) {
     }
 }

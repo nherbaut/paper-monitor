@@ -26,7 +26,7 @@
             color: var(--ink);
         }
         main {
-            width: min(460px, calc(100% - 2rem));
+            width: min(560px, calc(100% - 2rem));
         }
         .panel {
             background: color-mix(in srgb, var(--panel) 90%, white);
@@ -80,6 +80,91 @@
             text-transform: uppercase;
             letter-spacing: 0.08em;
         }
+        .setup-entry {
+            margin: 1rem 0 1.25rem;
+            padding: 1rem 0;
+            border-top: 1px solid var(--line);
+            border-bottom: 1px solid var(--line);
+        }
+        .setup-entry h2 {
+            margin: 0 0 0.35rem;
+            font-size: 1.15rem;
+        }
+        .setup-entry .meta {
+            margin: 0 0 0.8rem;
+        }
+        .setup-link {
+            width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            border: 1px solid var(--accent);
+            border-radius: 12px;
+            padding: 0.75rem 0.85rem;
+            background: var(--accent);
+            color: white;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .setup-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.65rem;
+        }
+        .setup-link.secondary-link {
+            background: white;
+            color: var(--accent);
+        }
+        .avatar-fieldset {
+            min-width: 0;
+            margin: 0.2rem 0;
+            padding: 0;
+            border: 0;
+        }
+        .avatar-fieldset legend {
+            margin-bottom: 0.6rem;
+            color: var(--muted);
+        }
+        .avatar-grid {
+            display: grid;
+            grid-template-columns: repeat(8, minmax(0, 1fr));
+            gap: 0.45rem;
+        }
+        .avatar-option {
+            position: relative;
+            aspect-ratio: 1;
+            min-width: 0;
+            cursor: pointer;
+        }
+        .avatar-option input {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .avatar-option img {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border: 2px solid transparent;
+            border-radius: 50%;
+            object-fit: cover;
+            background: white;
+            transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
+        }
+        .avatar-option:hover img {
+            transform: translateY(-1px);
+        }
+        .avatar-option input:checked + img {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(179, 79, 46, 0.2);
+        }
+        .avatar-option input:focus-visible + img {
+            outline: 3px solid #2457a6;
+            outline-offset: 2px;
+        }
         .privacy-policy {
             margin-top: 1rem;
             font-size: 0.95rem;
@@ -91,6 +176,14 @@
         .privacy-policy p {
             margin: 0.55rem 0;
         }
+        @media (max-width: 520px) {
+            .setup-actions {
+                grid-template-columns: 1fr;
+            }
+            .avatar-grid {
+                grid-template-columns: repeat(6, minmax(0, 1fr));
+            }
+        }
     </style>
 </head>
 <body>
@@ -101,6 +194,14 @@
         {#if githubEnabled}
         <p class="meta">GitHub sign-in grants Paper Monitor access to create and push to repositories you approve for export.</p>
         {/if}
+        <div class="setup-entry">
+            <h2>New paper feed</h2>
+            <p class="meta">Choose a recent MIAGE Scholar query and preview its papers before creating an account.</p>
+            <div class="setup-actions">
+                <a class="setup-link" href="/setup">Set up a paper feed</a>
+                <a class="setup-link secondary-link" href="#create-account">Create an account</a>
+            </div>
+        </div>
         {#if infoMessage}
         <p class="message">{infoMessage}</p>
         {/if}
@@ -108,7 +209,7 @@
         <p class="message error">{errorMessage}</p>
         {/if}
         {#if bootstrapLocalAdmin}
-        <p class="meta">No local user exists yet. The first successful local login will create the initial admin account.</p>
+        <p class="meta">No local user exists yet. The first local login or signup will create the initial admin account.</p>
         {/if}
         <form action="/login/local" method="post">
             <input type="hidden" name="returnTo" value="{returnTo}">
@@ -128,17 +229,27 @@
             <button class="secondary" type="submit">Sign in with OIDC</button>
         </form>
         {/if}
-        {#if !bootstrapLocalAdmin}
-        <p class="divider">New account</p>
-        <p class="meta">Local signup always requires email verification. Admin approval for new local or GitHub users depends on the email-domain rules configured by your paper admins.</p>
+        <p class="divider" id="create-account">New account</p>
+        <p class="meta">Local signup requires email verification. Admin approval for subsequent local or GitHub users depends on the email-domain rules configured by your paper admins.</p>
         <form action="/signup/local" method="post">
+            <input type="hidden" name="returnTo" value="{returnTo}">
             <input type="text" name="username" placeholder="Username" required>
             <input type="text" name="displayName" placeholder="Display name">
             <input type="email" name="email" placeholder="Email" required>
             <input type="password" name="password" placeholder="Password" required>
+            <fieldset class="avatar-fieldset">
+                <legend>Avatar</legend>
+                <div class="avatar-grid">
+                    {#for avatar in studentAvatars}
+                    <label class="avatar-option" title="{avatar.label}">
+                        <input type="radio" name="avatarFileName" value="{avatar.fileName}" aria-label="{avatar.label}">
+                        <img src="{avatar.url}" alt="">
+                    </label>
+                    {/for}
+                </div>
+            </fieldset>
             <button class="secondary" type="submit">Create account</button>
         </form>
-        {/if}
     </section>
     <section class="panel privacy-policy" aria-labelledby="privacy-title">
         <h2 id="privacy-title">Privacy Policy</h2>
@@ -148,5 +259,23 @@
         <p class="meta">You can contact the service administrator to request access to, correction of, or deletion of your account data.</p>
     </section>
 </main>
+<script>
+(() => {
+    const avatarChoices = Array.from(document.querySelectorAll('input[name="avatarFileName"]'));
+    if (avatarChoices.length && !avatarChoices.some((choice) => choice.checked)) {
+        avatarChoices[Math.floor(Math.random() * avatarChoices.length)].checked = true;
+    }
+    const draftId = window.localStorage.getItem("paperMonitorSetupDraftId");
+    if (!draftId) return;
+    if (window.location.pathname === "/") {
+        window.location.replace("/setup?draft=" + encodeURIComponent(draftId));
+        return;
+    }
+    const setupReturnTo = "/setup?draft=" + encodeURIComponent(draftId);
+    document.querySelectorAll('input[name="returnTo"]').forEach((input) => {
+        if (!input.value || input.value === "/") input.value = setupReturnTo;
+    });
+})();
+</script>
 </body>
 </html>

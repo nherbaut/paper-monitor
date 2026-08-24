@@ -166,6 +166,30 @@
             background: rgba(104, 45, 30, 0.44);
         }
 
+        .temporary-feed-notice {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            border-left: 4px solid #b85c35;
+            background: #fff7ed;
+        }
+
+        .temporary-feed-notice p {
+            margin: 0;
+        }
+
+        body.dark-mode .temporary-feed-notice {
+            background: #30241f;
+        }
+
+        @media (max-width: 720px) {
+            .temporary-feed-notice {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+        }
+
         .status-controls {
             display: flex;
             align-items: end;
@@ -1227,16 +1251,56 @@
             display: flex;
         }
 
+        .classification-queue-progress {
+            flex: 1 1 24rem;
+            min-width: 0;
+            display: grid;
+            grid-template-columns: minmax(8rem, 1fr) auto;
+            align-items: center;
+            gap: 0.35rem 0.65rem;
+        }
+
         .classification-queue-title {
-            margin: 0;
+            grid-column: 1 / -1;
             color: var(--muted);
             font-size: 0.85rem;
             font-weight: 700;
         }
 
         .classification-progress {
+            width: 100%;
+            height: 0.55rem;
+            border: 0;
+            border-radius: 999px;
+            overflow: hidden;
+            appearance: none;
+            background: color-mix(in srgb, var(--line) 72%, var(--panel));
+        }
+
+        .classification-progress::-webkit-progress-bar {
+            border-radius: inherit;
+            background: color-mix(in srgb, var(--line) 72%, var(--panel));
+        }
+
+        .classification-progress::-webkit-progress-value {
+            border-radius: inherit;
+            background: var(--accent);
+            transition: width 260ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .classification-progress::-moz-progress-bar {
+            border-radius: inherit;
+            background: var(--accent);
+            transition: width 260ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .classification-progress-label {
+            min-width: 2.7rem;
             color: var(--ink);
+            font-size: 0.8rem;
             font-weight: 800;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
         }
 
         .classification-exit {
@@ -1733,11 +1797,15 @@
 
             .classification-queue-header {
                 padding: 0.45rem 0.6rem;
-                align-items: flex-start;
+                align-items: center;
             }
 
             .classification-queue-title {
                 font-size: 0.75rem;
+            }
+
+            .classification-queue-progress {
+                flex-basis: 8rem;
             }
 
             .reader-header {
@@ -2406,9 +2474,34 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 0;
-            padding: 0.7rem;
+            gap: 0.55rem;
+            max-width: min(18rem, 45vw);
+            padding: 0.35rem 0.7rem 0.35rem 0.35rem;
             border-radius: 999px;
+        }
+
+        .topbar-user-avatar {
+            width: 2rem;
+            height: 2rem;
+            flex: 0 0 2rem;
+            border-radius: 50%;
+            object-fit: cover;
+            background: var(--panel);
+            border: 1px solid var(--line);
+        }
+
+        .topbar-user-name {
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--ink);
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .topbar-menu summary > svg {
+            width: 1rem;
+            height: 1rem;
         }
 
         .topbar-menu-panel {
@@ -2538,13 +2631,20 @@
     </div>
     <nav class="topbar-actions" aria-label="Primary">
         <details class="inline-menu topbar-menu">
-            <summary class="secondary nav-action" title="Actions">
+            <summary class="secondary nav-action" title="{#if authenticated}Account and actions{#else}Actions{/if}">
+                {#if authenticated}
+                <img class="topbar-user-avatar" src="{currentUser.avatarUrl}" alt="">
+                <span class="topbar-user-name">{currentUser.displayLabel}</span>
+                {#else}
                 <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 8a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 3 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 8 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 13 8Z"/></svg>
+                {/if}
             </summary>
             <div class="inline-menu-panel topbar-menu-panel">
                 <div class="topbar-menu-meta">
                     {#if authenticated}
                     Signed in as <strong>{currentUser.displayLabel}</strong>{#if currentUser.admin} · admin{/if}
+                    {#else if anonymousSetup}
+                    Temporary private feed
                     {#else}
                     Public read-only view
                     {/if}
@@ -2587,7 +2687,7 @@
                     <span class="nav-action-label">Logout</span>
                 </a>
                 {#else}
-                <a class="secondary nav-action" href="/login">
+                <a class="secondary nav-action" href="{#if anonymousSetup}/login?returnTo=/setup?draft={anonymousSetupToken}{#else}/login{/if}">
                     <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9 2.5h-5v11h5v-1H5v-9h4v-1Zm1.85 2.15-.7.7L12.29 7.5H7v1h5.29l-2.14 2.15.7.7L14.21 8l-3.36-3.35Z"/></svg>
                     <span class="nav-action-label">Login</span>
                 </a>
@@ -2611,6 +2711,13 @@
     {/if}
     {#if errorMessage}
     <p class="message error">{errorMessage}</p>
+    {/if}
+
+    {#if anonymousSetup}
+    <section class="panel panel-wide temporary-feed-notice" role="status">
+        <p><strong>This is a temporary paper feed.</strong> It will be deleted on {anonymousSetupExpiresAt} unless you create an account or sign in.</p>
+        <a class="primary" href="/login?returnTo=/setup?draft={anonymousSetupToken}#create-account">Create account or sign in</a>
+    </section>
     {/if}
 
     <div class="hidden" aria-hidden="true">
@@ -2870,7 +2977,7 @@
         <div class="reader-header">
             <div class="reader-header-title-group">
                 <h2 id="paper-feed-heading" class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm2 3h8v2H4V7Zm-2 3h12v2H2v-2Z"/></svg></span><span>Paper feed reader</span></h2>
-                <div class="reader-view-switch {#if shareMode || !authenticated}hidden{/if}" id="reader-view-switch" aria-label="Paper feed view">
+                <div class="reader-view-switch {#if shareMode || !canEdit}hidden{/if}" id="reader-view-switch" aria-label="Paper feed view">
                     <button class="active" id="reader-list-mode" type="button" aria-pressed="true">
                         <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-list"></use></svg>
                         <span>List</span>
@@ -2881,7 +2988,7 @@
                     </button>
                 </div>
             </div>
-            <div class="reader-header-actions {#if shareMode && !authenticated}share-anon-hidden{/if}">
+            <div class="reader-header-actions {#if !authenticated}share-anon-hidden{/if}">
                 <details class="export-menu" id="reader-export-menu">
                     <summary class="secondary" id="reader-export-button">Tools</summary>
                     <div class="export-menu-panel">
@@ -3138,10 +3245,12 @@
 <section class="classification-view" id="classification-view" aria-label="Paper classification" aria-hidden="true">
     <section class="classification-surface" id="classification-surface">
         <div class="classification-queue-header" id="classification-queue-header">
-            <p class="classification-queue-title">
-                RSS classification queue
-                <span class="classification-progress" id="classification-progress"></span>
-            </p>
+            <div class="classification-queue-progress">
+                <span class="classification-queue-title">RSS classification queue</span>
+                <progress class="classification-progress" id="classification-progress" max="100" value="0"
+                          aria-label="RSS classification progress">0%</progress>
+                <span class="classification-progress-label" id="classification-progress-label">0%</span>
+            </div>
             <div class="reader-view-switch" id="classification-view-switch" aria-label="Paper feed view">
                 <button id="classification-list-mode" type="button" aria-pressed="false">
                     <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-list"></use></svg>
@@ -3237,6 +3346,8 @@
      data-initial-paper-id="{initialPaperId ?: ''}"
      data-initial-logical-feed-id="{initialLogicalFeedId ?: ''}"
      data-authenticated="{#if authenticated}true{#else}false{/if}"
+     data-can-edit="{#if canEdit}true{#else}false{/if}"
+     data-anonymous-setup-token="{anonymousSetupToken ?: ''}"
      data-share-mode="{#if shareMode}true{#else}false{/if}"
      data-classification-queue-mode="{#if classificationQueueMode}true{#else}false{/if}"
      data-start-classification-mode="{#if startClassificationMode}true{#else}false{/if}"></div>
@@ -3355,6 +3466,7 @@
     const classificationNextTitle = document.getElementById("classification-next-title");
     const classificationNextMeta = document.getElementById("classification-next-meta");
     const classificationProgress = document.getElementById("classification-progress");
+    const classificationProgressLabel = document.getElementById("classification-progress-label");
     const classificationListMode = document.getElementById("classification-list-mode");
     const classificationSwipeMode = document.getElementById("classification-swipe-mode");
     const classificationKicker = document.getElementById("classification-kicker");
@@ -3442,6 +3554,8 @@
     let classificationModeTemporary = false;
     let classificationBusy = false;
     let classificationDragState = null;
+    let classificationQueueInitialTotal = null;
+    const classificationQueueCompletedPaperIds = new Set();
     let classificationNotesSaveTimer = null;
     let classificationNotesSaving = null;
     let classificationViewerReturnPaperId = null;
@@ -3491,9 +3605,27 @@
     const initialPaperId = readerBootstrap?.dataset.initialPaperId || "";
     const initialLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || "";
     const authenticated = readerBootstrap?.dataset.authenticated === "true";
+    const canEdit = readerBootstrap?.dataset.canEdit === "true";
+    const anonymousSetupToken = readerBootstrap?.dataset.anonymousSetupToken || "";
     const shareMode = readerBootstrap?.dataset.shareMode === "true";
     const classificationQueueMode = readerBootstrap?.dataset.classificationQueueMode === "true";
     const startClassificationMode = readerBootstrap?.dataset.startClassificationMode === "true";
+    if (anonymousSetupToken) {
+        const nativeFetch = window.fetch.bind(window);
+        window.fetch = (resource, options = {}) => {
+            const resourceUrl = resource instanceof Request ? resource.url : String(resource);
+            const url = new URL(resourceUrl, window.location.href);
+            if (url.origin !== window.location.origin) {
+                return nativeFetch(resource, options);
+            }
+            const headers = new Headers(resource instanceof Request ? resource.headers : options.headers);
+            headers.set("X-Paper-Monitor-Setup-Token", anonymousSetupToken);
+            if (resource instanceof Request) {
+                return nativeFetch(new Request(resource, { ...options, headers }));
+            }
+            return nativeFetch(resource, { ...options, headers });
+        };
+    }
     document.body.classList.toggle("classification-queue-mode", classificationQueueMode);
     let loadedLogicalFeedId = shareMode ? String(readerBootstrap?.dataset.initialLogicalFeedId || "") : "";
     let notesCollapsed = false;
@@ -4144,10 +4276,16 @@
     };
 
     const swipeModeUrl = (logicalFeedId) => {
+        if (anonymousSetupToken) {
+            return "/anonymous/feed/" + encodeURIComponent(anonymousSetupToken) + "?mode=swipe";
+        }
         return "/classify?logicalFeedId=" + encodeURIComponent(logicalFeedId);
     };
 
     const listModeUrl = (logicalFeedId) => {
+        if (anonymousSetupToken) {
+            return "/anonymous/feed/" + encodeURIComponent(anonymousSetupToken) + "?mode=list";
+        }
         return logicalFeedId ? "/?logicalFeedId=" + encodeURIComponent(logicalFeedId) : "/";
     };
 
@@ -5546,13 +5684,13 @@
         }
         paperTagEditor.style.display = "grid";
         const tags = parsePaperTags(card);
-        const canEdit = authenticated && card.dataset.paperCanEditTags === "true";
+        const canEditTags = canEdit && card.dataset.paperCanEditTags === "true";
         paperTagList.innerHTML = "";
         tags.forEach((tag) => {
             const badge = document.createElement("span");
             badge.className = "paper-tag";
             badge.textContent = tag;
-            if (canEdit) {
+            if (canEditTags) {
                 const removeButton = document.createElement("button");
                 removeButton.type = "button";
                 removeButton.textContent = "×";
@@ -5564,7 +5702,7 @@
             }
             paperTagList.appendChild(badge);
         });
-        paperTagAdd.style.display = canEdit ? "flex" : "none";
+        paperTagAdd.style.display = canEditTags ? "flex" : "none";
         paperTagInput.value = "";
         paperTagSuggestions.innerHTML = "";
         feedTagSuggestions(card.dataset.logicalFeedId, card.dataset.paperId).forEach((tag) => {
@@ -5758,7 +5896,7 @@
 
     const canClassifyCard = (card) => {
         return Boolean(card)
-            && authenticated
+            && canEdit
             && card.dataset.paperCanEditTags === "true";
     };
 
@@ -5845,7 +5983,7 @@
     };
 
     const saveClassificationNotes = async (card = selectedPaperCard()) => {
-        if (!authenticated || !card || !classificationNotesEditor) {
+        if (!canEdit || !card || !classificationNotesEditor) {
             return;
         }
         window.clearTimeout(classificationNotesSaveTimer);
@@ -5962,17 +6100,22 @@
         fitClassificationTypography();
     };
 
-    const updateClassificationQueueProgress = (card = selectedPaperCard()) => {
-        if (!classificationQueueMode || !classificationProgress) {
+    const updateClassificationQueueProgress = () => {
+        if (!classificationQueueMode || !classificationProgress || !classificationProgressLabel) {
             return;
         }
-        const cards = visiblePaperCards().filter(canClassifyCard);
-        const index = cards.findIndex((item) => item.dataset.paperId === card?.dataset.paperId);
-        const position = index >= 0 ? index + 1 : Math.min(cards.length, 1);
-        const feedName = card?.dataset.logicalFeedName || logicalFeedFilter?.selectedOptions?.[0]?.dataset?.feedName || "paper feed";
-        classificationProgress.textContent = cards.length
-            ? " - " + position + " of " + cards.length + " in " + feedName
-            : " - none waiting in " + feedName;
+        if (classificationQueueInitialTotal == null) {
+            classificationQueueInitialTotal = paperRecords.length || classificationQueueCards().length;
+        }
+        const completed = Math.min(classificationQueueInitialTotal, classificationQueueCompletedPaperIds.size);
+        const percentage = classificationQueueInitialTotal === 0
+            ? 100
+            : Math.min(100, Math.round((completed / classificationQueueInitialTotal) * 100));
+        const percentageLabel = percentage + "%";
+        classificationProgress.value = percentage;
+        classificationProgress.textContent = percentageLabel;
+        classificationProgress.setAttribute("aria-valuetext", percentageLabel + " complete");
+        classificationProgressLabel.textContent = percentageLabel;
     };
 
     const appendClassificationLink = (label, href) => {
@@ -6099,6 +6242,10 @@
                 resetClassificationDragVisual();
                 renderClassificationActions(card);
                 return false;
+            }
+            if (classificationQueueMode) {
+                classificationQueueCompletedPaperIds.add(String(card.dataset.paperId));
+                updateClassificationQueueProgress();
             }
 
             const nextCard = classificationQueueCards()[0] || null;
@@ -9347,7 +9494,7 @@
     };
 
     const loadBrowserPapers = async (logicalFeedId) => {
-        if (shareMode || !authenticated) {
+        if (shareMode || !canEdit) {
             return;
         }
         if (!logicalFeedId) {
@@ -9368,6 +9515,11 @@
         }
         paperRecords = JSON.parse(body);
         papersLoaded = true;
+        if (classificationQueueMode) {
+            classificationQueueInitialTotal = paperRecords.length;
+            classificationQueueCompletedPaperIds.clear();
+            updateClassificationQueueProgress();
+        }
         syncClassificationQueueState();
         const firstRecord = paperRecords[0];
         const feedName = firstRecord?.logicalFeedName || logicalFeedFilter?.selectedOptions?.[0]?.dataset?.feedName;
