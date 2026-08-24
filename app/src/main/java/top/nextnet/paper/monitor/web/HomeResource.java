@@ -65,6 +65,7 @@ import top.nextnet.paper.monitor.repo.PaperRepository;
 import top.nextnet.paper.monitor.service.AuthService;
 import top.nextnet.paper.monitor.service.AnonymousSetupContext;
 import top.nextnet.paper.monitor.service.BackupService;
+import top.nextnet.paper.monitor.service.BuildInfo;
 import top.nextnet.paper.monitor.service.CurrentUserContext;
 import top.nextnet.paper.monitor.service.DefaultSignupPolicyService;
 import top.nextnet.paper.monitor.service.DoiMetadataService;
@@ -544,6 +545,8 @@ public class HomeResource {
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
+                .data("buildCommit", BuildInfo.commit())
+                .data("buildCommitShort", BuildInfo.shortCommit())
                 .data("infoMessage", normalize(info))
                 .data("errorMessage", normalize(error))
                 .data("shareMode", false)
@@ -595,6 +598,8 @@ public class HomeResource {
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
+                .data("buildCommit", BuildInfo.commit())
+                .data("buildCommitShort", BuildInfo.shortCommit())
                 .data("infoMessage", normalize(info))
                 .data("errorMessage", normalize(error))
                 .data("shareMode", false)
@@ -730,6 +735,8 @@ public class HomeResource {
                 .data("anonymousSetupToken", null)
                 .data("anonymousSetupExpiresAt", null)
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
+                .data("buildCommit", BuildInfo.commit())
+                .data("buildCommitShort", BuildInfo.shortCommit())
                 .data("infoMessage", null)
                 .data("errorMessage", null)
                 .data("shareMode", true)
@@ -778,6 +785,8 @@ public class HomeResource {
                 .data("anonymousSetupToken", null)
                 .data("anonymousSetupExpiresAt", null)
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
+                .data("buildCommit", BuildInfo.commit())
+                .data("buildCommitShort", BuildInfo.shortCommit())
                 .data("infoMessage", null)
                 .data("errorMessage", null)
                 .data("shareMode", true)
@@ -820,6 +829,8 @@ public class HomeResource {
                 .data("anonymousSetupToken", token)
                 .data("anonymousSetupExpiresAt", TEMPORARY_FEED_EXPIRY_FORMAT.format(temporary.expiresAt()))
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
+                .data("buildCommit", BuildInfo.commit())
+                .data("buildCommitShort", BuildInfo.shortCommit())
                 .data("infoMessage", null)
                 .data("errorMessage", normalize(error))
                 .data("shareMode", false)
@@ -870,6 +881,8 @@ public class HomeResource {
                 .data("adminLogicalFeeds", adminLogicalFeeds)
                 .data("feeds", feeds)
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
+                .data("buildCommit", BuildInfo.commit())
+                .data("buildCommitShort", BuildInfo.shortCommit())
                 .data("defaultSignupPolicy", defaultSignupPolicyService.get())
                 .data("emailDomainPolicies", emailDomainPolicyService.all())
                 .data("ttsSettings", getOrCreateUserSettings())

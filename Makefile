@@ -3,6 +3,7 @@ SHELL := /bin/bash
 DOCKER ?= docker
 DOCKERHUB_NAMESPACE ?= nherbaut
 IMAGE_TAG ?= latest
+GIT_COMMIT ?= $(shell git rev-parse --verify HEAD 2>/dev/null || printf 'unknown')
 LOCAL_JAVA_HOME ?= /usr/lib/jvm/java-25-openjdk-amd64
 LOCAL_PORT ?= 8080
 
@@ -58,6 +59,7 @@ local-server:
 		PAPER_MONITOR_PDE_INTERNAL_API_TOKEN="$${PAPER_MONITOR_PDE_INTERNAL_API_TOKEN:-local-dev}" \
 		JAVA_HOME="$(LOCAL_JAVA_HOME)" \
 		./mvnw quarkus:dev -Ddebug=false \
+			-Dpaper-monitor.build.commit=$(GIT_COMMIT) \
 			-Dquarkus.http.port=$(LOCAL_PORT) \
 			-Dquarkus.container-image.build=false
 
@@ -79,6 +81,7 @@ build-app:
 		exit 1; \
 	fi
 	cd app && ./mvnw package \
+		-Dpaper-monitor.build.commit=$(GIT_COMMIT) \
 		-Dquarkus.container-image.group=$(DOCKERHUB_NAMESPACE) \
 		-Dquarkus.container-image.name=paper-monitor-app \
 		-Dquarkus.container-image.tag=$(IMAGE_TAG) \
@@ -91,6 +94,7 @@ push-app:
 		exit 1; \
 	fi
 	cd app && ./mvnw package \
+		-Dpaper-monitor.build.commit=$(GIT_COMMIT) \
 		-Dquarkus.container-image.group=$(DOCKERHUB_NAMESPACE) \
 		-Dquarkus.container-image.name=paper-monitor-app \
 		-Dquarkus.container-image.tag=$(IMAGE_TAG) \
