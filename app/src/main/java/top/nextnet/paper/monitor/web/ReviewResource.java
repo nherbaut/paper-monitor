@@ -129,11 +129,12 @@ public class ReviewResource {
         AppUser currentUser = requireCurrentUser();
         Review reviewEntity = reviewService.requireReview(id, currentUser);
         logicalFeedAccessService.requireAdminLogicalFeed(reviewEntity.logicalFeed.id, currentUser);
-        Map<String, Object> currentDesign = objectMap(JsonCodec.parse(reviewEntity.reviewDesignJson));
+        PaperDataExtractorService.ReviewTemplateDetail currentTemplate =
+                paperDataExtractorService.loadReviewTemplate(reviewEntity.templateId, currentUser);
         String title = requiredPayloadString(payload, "title", "A review design title is required");
         List<Map<String, Object>> researchQuestions = objectMapList(
                 payload == null ? null : payload.get("research_questions"));
-        boolean derivedDesign = currentDesign.get("derivation_id") != null;
+        boolean derivedDesign = hasDerivationId(currentTemplate.reviewDesign());
         PaperDataExtractorService.ReviewTemplateDetail created = derivedDesign
                 ? paperDataExtractorService.reviseReviewTemplate(
                         reviewEntity.templateId, title, researchQuestions, currentUser)
@@ -208,7 +209,7 @@ public class ReviewResource {
         int remainingCount = Math.max(0, totalCount - analyzedCount);
         double analyzedRatio = totalCount == 0 ? 0D : (double) analyzedCount / (double) totalCount;
         Map<String, Object> design = objectMap(JsonCodec.parse(reviewEntity.reviewDesignJson));
-        boolean derivedDesign = design.get("derivation_id") != null;
+        boolean derivedDesign = hasDerivationId(design);
         return review.data("review", reviewEntity)
                 .data("logicalFeed", reviewEntity.logicalFeed)
                 .data("selectedStates", reviewService.selectedStates(reviewEntity))
@@ -419,6 +420,13 @@ public class ReviewResource {
             throw new WebApplicationException(message, Status.BAD_REQUEST);
         }
         return value;
+    }
+
+    static boolean hasDerivationId(Map<String, Object> design) {
+        if (design == null || design.get("derivation_id") == null) {
+            return false;
+        }
+        return !String.valueOf(design.get("derivation_id")).isBlank();
     }
 
     private Map<String, Object> reviewTemplatePayload(PaperDataExtractorService.ReviewTemplateDetail detail) {

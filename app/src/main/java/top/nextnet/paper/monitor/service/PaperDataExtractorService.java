@@ -1,6 +1,7 @@
 package top.nextnet.paper.monitor.service;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import io.quarkus.logging.Log;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
@@ -141,9 +142,13 @@ public class PaperDataExtractorService {
                     case 404 -> Response.Status.NOT_FOUND;
                     default -> Response.Status.BAD_GATEWAY;
                 };
-                throw new WebApplicationException(response.body().isBlank()
-                        ? "Paper Data Extractor returned " + response.statusCode()
-                        : response.body(), status);
+                String message = upstreamErrorMessage(response.statusCode(), response.body());
+                Log.warnf("Paper Data Extractor request %s returned %d: %s",
+                        request.uri().getPath(), response.statusCode(), message);
+                throw new WebApplicationException(Response.status(status)
+                        .type("text/plain; charset=UTF-8")
+                        .entity(message)
+                        .build());
             }
             return JsonCodec.parse(response.body());
         } catch (IOException | InterruptedException e) {
@@ -153,6 +158,25 @@ public class PaperDataExtractorService {
             throw new WebApplicationException("Paper Data Extractor is unavailable: " + e.getMessage(),
                     Response.Status.BAD_GATEWAY);
         }
+    }
+
+    static String upstreamErrorMessage(int statusCode, String body) {
+        if (body == null || body.isBlank()) {
+            return "Paper Data Extractor returned " + statusCode;
+        }
+        String message = body.trim();
+        try {
+            Object payload = JsonCodec.parse(message);
+            if (payload instanceof Map<?, ?> map && map.get("detail") != null) {
+                message = String.valueOf(map.get("detail")).trim();
+            }
+        } catch (RuntimeException ignored) {
+            // Preserve a non-JSON upstream error as plain text.
+        }
+        if (message.isBlank()) {
+            return "Paper Data Extractor returned " + statusCode;
+        }
+        return message.length() > 2000 ? message.substring(0, 2000) : message;
     }
 
     @SuppressWarnings("unchecked")
