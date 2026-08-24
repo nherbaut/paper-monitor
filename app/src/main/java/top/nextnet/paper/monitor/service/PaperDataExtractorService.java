@@ -24,6 +24,7 @@ public class PaperDataExtractorService {
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(5))
+            .version(HttpClient.Version.HTTP_1_1)
             .build();
 
     private final String baseUrl;
@@ -110,10 +111,12 @@ public class PaperDataExtractorService {
     }
 
     private Object postJson(String path, Map<String, Object> payload, AppUser user) {
+        byte[] requestBody = JsonCodec.stringify(payload).getBytes(StandardCharsets.UTF_8);
         HttpRequest request = requestBuilder(path, user)
                 .timeout(Duration.ofSeconds(30))
+                .version(HttpClient.Version.HTTP_1_1)
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(JsonCodec.stringify(payload), StandardCharsets.UTF_8))
+                .POST(HttpRequest.BodyPublishers.ofByteArray(requestBody))
                 .build();
         return sendJson(request);
     }
