@@ -1,8 +1,12 @@
 package top.nextnet.paper.monitor.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -67,6 +71,63 @@ class PaperDataExtractorServiceTest {
                             "required", false))), JsonCodec.parse(requestBody.get()));
         } finally {
             server.stop(0);
+        }
+    }
+
+    @Test
+    void matchesRecoveredResearchQuestionsByTextAndRequiredFlag() {
+        List<Map<String, Object>> requested = List.of(
+                Map.of("question", " First question ", "required", true),
+                Map.of("question", "Second question", "required", false));
+        List<Map<String, Object>> matching = List.of(
+                Map.of("key", "generated-1", "question", "First question", "required", true),
+                Map.of("key", "generated-2", "question", "Second question", "required", false));
+
+        assertTrue(PaperDataExtractorService.matchingResearchQuestions(requested, matching));
+        assertFalse(PaperDataExtractorService.matchingResearchQuestions(
+                requested,
+                List.of(
+                        matching.get(0),
+                        Map.of("question", "Different question", "required", false))));
+    }
+
+    @Test
+    void recoversMatchingOwnedDerivation() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/review-designs", exchange -> respondJson(exchange, """
+                [{"id":"derived-r1","title":"My questions","derivation_id":"derivation-1",
+                  "revision":1,"is_latest_revision":true,"owned_by_current_user":true,"can_write":true}]
+                """));
+        server.createContext("/api/review-designs/derived-r1", exchange -> respondJson(exchange, """
+                {"id":"derived-r1","review_design":{"title":"My questions",
+                  "derived_from_review_design_id":"base",
+                  "research_questions":[{"key":"generated","question":"What changed?","required":false}]},
+                  "form_schema":{},"review_json_schema":{},"review_linkml_schema":{}}
+                """));
+        server.start();
+
+        try {
+            PaperDataExtractorService service = new PaperDataExtractorService(
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "", "test-token");
+            var recovered = service.findMatchingDerivation(
+                    "base",
+                    "My questions",
+                    List.of(Map.of("question", "What changed?", "required", false)),
+                    null);
+
+            assertTrue(recovered.isPresent());
+            assertEquals("derived-r1", recovered.orElseThrow().id());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    private static void respondJson(HttpExchange exchange, String body) throws IOException {
+        byte[] response = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().set("Content-Type", "application/json");
+        exchange.sendResponseHeaders(200, response.length);
+        try (var output = exchange.getResponseBody()) {
+            output.write(response);
         }
     }
 }

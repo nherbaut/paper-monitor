@@ -17,6 +17,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import top.nextnet.paper.monitor.model.AppUser;
 
 @ApplicationScoped
@@ -90,6 +92,36 @@ public class PaperDataExtractorService {
                 user));
     }
 
+    public Optional<ReviewTemplateDetail> findMatchingDerivation(
+            String baseTemplateId,
+            String title,
+            List<Map<String, Object>> researchQuestions,
+            AppUser user
+    ) {
+        for (ReviewTemplateSummary summary : listReviewTemplates(user)) {
+            if (!summary.ownedByCurrentUser()
+                    || summary.derivationId() == null
+                    || !Objects.equals(normalizeText(title), normalizeText(summary.title()))) {
+                continue;
+            }
+            ReviewTemplateDetail candidate;
+            try {
+                candidate = loadReviewTemplate(summary.id(), user);
+            } catch (WebApplicationException exception) {
+                if (exception.getResponse().getStatus() == Response.Status.NOT_FOUND.getStatusCode()) {
+                    continue;
+                }
+                throw exception;
+            }
+            Map<String, Object> design = candidate.reviewDesign();
+            if (Objects.equals(baseTemplateId, stringValue(design.get("derived_from_review_design_id")))
+                    && matchingResearchQuestions(researchQuestions, design.get("research_questions"))) {
+                return Optional.of(candidate);
+            }
+        }
+        return Optional.empty();
+    }
+
     private ReviewTemplateDetail detail(Object payload) {
         if (!(payload instanceof Map<?, ?> map)) {
             throw new IllegalStateException("Unexpected review template payload");
@@ -113,12 +145,30 @@ public class PaperDataExtractorService {
     private Object postJson(String path, Map<String, Object> payload, AppUser user) {
         byte[] requestBody = JsonCodec.stringify(payload).getBytes(StandardCharsets.UTF_8);
         HttpRequest request = requestBuilder(path, user)
-                .timeout(Duration.ofSeconds(30))
+                .timeout(Duration.ofSeconds(120))
                 .version(HttpClient.Version.HTTP_1_1)
                 .header("Content-Type", "application/json")
                 .POST(HttpRequest.BodyPublishers.ofByteArray(requestBody))
                 .build();
         return sendJson(request);
+    }
+
+    static boolean matchingResearchQuestions(List<Map<String, Object>> requested, Object candidateValue) {
+        if (!(candidateValue instanceof List<?> candidates) || requested.size() != candidates.size()) {
+            return false;
+        }
+        for (int index = 0; index < requested.size(); index++) {
+            if (!(candidates.get(index) instanceof Map<?, ?> candidate)) {
+                return false;
+            }
+            Map<String, Object> expected = requested.get(index);
+            if (!Objects.equals(normalizeText(expected.get("question")), normalizeText(candidate.get("question")))
+                    || booleanValue(expected.get("required"), false)
+                    != booleanValue(candidate.get("required"), false)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private HttpRequest.Builder requestBuilder(String path, AppUser user) {
@@ -213,7 +263,7 @@ public class PaperDataExtractorService {
         return value;
     }
 
-    private String stringValue(Object value) {
+    private static String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
     }
 
@@ -228,8 +278,12 @@ public class PaperDataExtractorService {
         }
     }
 
-    private boolean booleanValue(Object value, boolean fallback) {
+    private static boolean booleanValue(Object value, boolean fallback) {
         return value == null ? fallback : Boolean.parseBoolean(String.valueOf(value));
+    }
+
+    private static String normalizeText(Object value) {
+        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private String safeHeader(String value) {

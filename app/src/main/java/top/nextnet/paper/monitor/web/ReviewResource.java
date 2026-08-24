@@ -3,6 +3,7 @@ package top.nextnet.paper.monitor.web;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
@@ -135,14 +136,24 @@ public class ReviewResource {
         List<Map<String, Object>> researchQuestions = objectMapList(
                 payload == null ? null : payload.get("research_questions"));
         boolean derivedDesign = hasDerivationId(currentTemplate.reviewDesign());
-        PaperDataExtractorService.ReviewTemplateDetail created = derivedDesign
-                ? paperDataExtractorService.reviseReviewTemplate(
-                        reviewEntity.templateId, title, researchQuestions, currentUser)
-                : paperDataExtractorService.deriveReviewTemplate(
-                        reviewEntity.templateId, title, researchQuestions, currentUser);
+        PaperDataExtractorService.ReviewTemplateDetail created;
+        boolean recoveredDerivation = false;
+        if (derivedDesign) {
+            created = paperDataExtractorService.reviseReviewTemplate(
+                    reviewEntity.templateId, title, researchQuestions, currentUser);
+        } else {
+            var existing = paperDataExtractorService.findMatchingDerivation(
+                    reviewEntity.templateId, title, researchQuestions, currentUser);
+            recoveredDerivation = existing.isPresent();
+            created = existing.orElseGet(() -> paperDataExtractorService.deriveReviewTemplate(
+                    reviewEntity.templateId, title, researchQuestions, currentUser));
+        }
+        Log.infof("Activating review design %s for review %d%s",
+                created.id(), id, recoveredDerivation ? " after recovering an interrupted derivation" : "");
         ReviewService.MigrationResult migration = reviewService.activateRevision(reviewEntity, created);
         Map<String, Object> response = new LinkedHashMap<>(reviewTemplatePayload(created));
         response.put("createdDerivation", !derivedDesign);
+        response.put("recoveredDerivation", recoveredDerivation);
         response.put("completedSubmissions", migration.completedSubmissions());
         response.put("draftSubmissions", migration.draftSubmissions());
         return response;
