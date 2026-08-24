@@ -46,11 +46,10 @@ Add Java tests beside related code under `app/src/test/java`, using JUnit 5 and 
 
 Recent history uses short informal messages such as `fix` and `fix build`; improve on that with concise imperative subjects, for example `fix rss digest filtering`. PRs should describe the change, include test commands run, link related issues, and add screenshots for UI/template changes.
 - Default branch is `master`; default remote is `origin`.
-- Prefer a Gitflow-style feature branch for agent work, such as `feature/<short-topic>` or `fix/<short-topic>`, created from current `master`.
+- Codex agent work should be committed directly to `master` and pushed to `origin/master`, unless the user explicitly requests a separate branch.
 - Stage only files relevant to the requested change. Do not use `git add .` in this workspace because unrelated untracked files and local data may be present.
 - Commit with a concise imperative message, for example `add rss default state dropdown`.
-- Push feature branches to `origin` and mention the pushed branch. Open or request a PR when collaboration/review is expected.
-- Push directly to `master` only when the user explicitly asks for a direct master push.
+- When the user explicitly requests a feature branch or PR workflow, push that branch to `origin` and mention the pushed branch.
 - Git network operations may require user approval and working local SSH/GitHub credentials.
 
 ## Security & Configuration Tips
