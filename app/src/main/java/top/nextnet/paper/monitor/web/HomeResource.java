@@ -59,6 +59,7 @@ import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.UserSettings;
 import top.nextnet.paper.monitor.repo.AppUserRepository;
 import top.nextnet.paper.monitor.repo.PaperEventRepository;
+import top.nextnet.paper.monitor.repo.PaperFeedSetupDraftRepository;
 import top.nextnet.paper.monitor.repo.FeedRepository;
 import top.nextnet.paper.monitor.repo.LogicalFeedRepository;
 import top.nextnet.paper.monitor.repo.PaperRepository;
@@ -107,6 +108,7 @@ public class HomeResource {
     private final FeedRepository feedRepository;
     private final PaperRepository paperRepository;
     private final PaperEventRepository paperEventRepository;
+    private final PaperFeedSetupDraftRepository paperFeedSetupDraftRepository;
     private final AppUserRepository appUserRepository;
     private final FeedPollingService feedPollingService;
     private final DoiMetadataService doiMetadataService;
@@ -153,6 +155,7 @@ public class HomeResource {
             FeedRepository feedRepository,
             PaperRepository paperRepository,
             PaperEventRepository paperEventRepository,
+            PaperFeedSetupDraftRepository paperFeedSetupDraftRepository,
             AppUserRepository appUserRepository,
             FeedPollingService feedPollingService,
             DoiMetadataService doiMetadataService,
@@ -195,6 +198,7 @@ public class HomeResource {
         this.feedRepository = feedRepository;
         this.paperRepository = paperRepository;
         this.paperEventRepository = paperEventRepository;
+        this.paperFeedSetupDraftRepository = paperFeedSetupDraftRepository;
         this.appUserRepository = appUserRepository;
         this.feedPollingService = feedPollingService;
         this.doiMetadataService = doiMetadataService;
@@ -1971,6 +1975,8 @@ public class HomeResource {
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
         if (logicalFeed != null) {
             reviewService.deleteReviewsForLogicalFeed(logicalFeed);
+            paperFeedSetupDraftRepository.deleteForLogicalFeed(logicalFeed);
+            paperFeedSetupDraftRepository.flush();
             logicalFeed.delete();
         }
         return seeOther("/admin");

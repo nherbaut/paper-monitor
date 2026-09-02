@@ -5,6 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Instant;
 import java.util.Optional;
 import top.nextnet.paper.monitor.model.AppUser;
+import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.model.PaperFeedSetupDraft;
 
 @ApplicationScoped
@@ -41,5 +42,12 @@ public class PaperFeedSetupDraftRepository implements PanacheRepositoryBase<Pape
 
     public long deleteExpired() {
         return delete("expiresAt <= ?1", Instant.now());
+    }
+
+    public long deleteForLogicalFeed(LogicalFeed logicalFeed) {
+        if (logicalFeed == null) {
+            return 0;
+        }
+        return delete("logicalFeed", logicalFeed);
     }
 }
