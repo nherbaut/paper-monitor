@@ -58,11 +58,14 @@ import top.nextnet.paper.monitor.model.LogicalFeedAccessGrant;
 import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.UserSettings;
 import top.nextnet.paper.monitor.repo.AppUserRepository;
+import top.nextnet.paper.monitor.repo.GoogleDrivePdfSyncRepository;
 import top.nextnet.paper.monitor.repo.PaperEventRepository;
 import top.nextnet.paper.monitor.repo.PaperFeedSetupDraftRepository;
+import top.nextnet.paper.monitor.repo.PdfCaptureRepository;
 import top.nextnet.paper.monitor.repo.FeedRepository;
 import top.nextnet.paper.monitor.repo.LogicalFeedRepository;
 import top.nextnet.paper.monitor.repo.PaperRepository;
+import top.nextnet.paper.monitor.repo.ReviewSubmissionRepository;
 import top.nextnet.paper.monitor.service.AuthService;
 import top.nextnet.paper.monitor.service.AnonymousSetupContext;
 import top.nextnet.paper.monitor.service.BackupService;
@@ -109,6 +112,9 @@ public class HomeResource {
     private final PaperRepository paperRepository;
     private final PaperEventRepository paperEventRepository;
     private final PaperFeedSetupDraftRepository paperFeedSetupDraftRepository;
+    private final GoogleDrivePdfSyncRepository googleDrivePdfSyncRepository;
+    private final PdfCaptureRepository pdfCaptureRepository;
+    private final ReviewSubmissionRepository reviewSubmissionRepository;
     private final AppUserRepository appUserRepository;
     private final FeedPollingService feedPollingService;
     private final DoiMetadataService doiMetadataService;
@@ -156,6 +162,9 @@ public class HomeResource {
             PaperRepository paperRepository,
             PaperEventRepository paperEventRepository,
             PaperFeedSetupDraftRepository paperFeedSetupDraftRepository,
+            GoogleDrivePdfSyncRepository googleDrivePdfSyncRepository,
+            PdfCaptureRepository pdfCaptureRepository,
+            ReviewSubmissionRepository reviewSubmissionRepository,
             AppUserRepository appUserRepository,
             FeedPollingService feedPollingService,
             DoiMetadataService doiMetadataService,
@@ -199,6 +208,9 @@ public class HomeResource {
         this.paperRepository = paperRepository;
         this.paperEventRepository = paperEventRepository;
         this.paperFeedSetupDraftRepository = paperFeedSetupDraftRepository;
+        this.googleDrivePdfSyncRepository = googleDrivePdfSyncRepository;
+        this.pdfCaptureRepository = pdfCaptureRepository;
+        this.reviewSubmissionRepository = reviewSubmissionRepository;
         this.appUserRepository = appUserRepository;
         this.feedPollingService = feedPollingService;
         this.doiMetadataService = doiMetadataService;
@@ -1975,7 +1987,13 @@ public class HomeResource {
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
         if (logicalFeed != null) {
             reviewService.deleteReviewsForLogicalFeed(logicalFeed);
+            reviewSubmissionRepository.deleteForLogicalFeed(logicalFeed);
+            googleDrivePdfSyncRepository.deleteForLogicalFeed(logicalFeed);
+            pdfCaptureRepository.deleteForLogicalFeed(logicalFeed);
             paperFeedSetupDraftRepository.deleteForLogicalFeed(logicalFeed);
+            reviewSubmissionRepository.flush();
+            googleDrivePdfSyncRepository.flush();
+            pdfCaptureRepository.flush();
             paperFeedSetupDraftRepository.flush();
             logicalFeed.delete();
         }

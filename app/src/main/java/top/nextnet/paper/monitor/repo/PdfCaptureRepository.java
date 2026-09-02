@@ -4,6 +4,7 @@ import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.LockModeType;
 import java.util.Optional;
+import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.model.PdfCapture;
 
 @ApplicationScoped
@@ -13,5 +14,9 @@ public class PdfCaptureRepository implements PanacheRepository<PdfCapture> {
         return find("tokenHash", tokenHash)
                 .withLock(LockModeType.PESSIMISTIC_WRITE)
                 .firstResultOptional();
+    }
+
+    public long deleteForLogicalFeed(LogicalFeed logicalFeed) {
+        return logicalFeed == null ? 0 : delete("paper.logicalFeed", logicalFeed);
     }
 }

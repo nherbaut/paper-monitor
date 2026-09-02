@@ -15,10 +15,14 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.Feed;
+import top.nextnet.paper.monitor.model.GoogleDrivePdfSync;
 import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.PaperFeedSetupDraft;
+import top.nextnet.paper.monitor.model.PdfCapture;
+import top.nextnet.paper.monitor.repo.GoogleDrivePdfSyncRepository;
 import top.nextnet.paper.monitor.repo.PaperFeedSetupDraftRepository;
+import top.nextnet.paper.monitor.repo.PdfCaptureRepository;
 import top.nextnet.paper.monitor.service.QuickSetupWorkflows;
 import top.nextnet.paper.monitor.service.SetupWizardService;
 
@@ -30,6 +34,12 @@ class AnonymousSetupResourceTest {
 
     @Inject
     SetupWizardService setupWizardService;
+
+    @Inject
+    GoogleDrivePdfSyncRepository googleDrivePdfSyncRepository;
+
+    @Inject
+    PdfCaptureRepository pdfCaptureRepository;
 
     @Test
     void anonymousHomeLinksToPublicSetupWizard() {
@@ -246,6 +256,67 @@ class AnonymousSetupResourceTest {
             Assertions.assertNull(LogicalFeed.findById(ids[0]));
             Assertions.assertNull(Feed.findById(ids[1]));
             Assertions.assertNull(Paper.findById(ids[2]));
+        });
+    }
+
+    @Test
+    void deletingFeedDependenciesAllowsItsPapersToBeRemoved() {
+        String suffix = UUID.randomUUID().toString();
+        Long[] ids = new Long[3];
+        QuarkusTransaction.requiringNew().run(() -> {
+            AppUser user = new AppUser();
+            user.username = "delete-dependencies-" + suffix;
+            user.authProvider = "LOCAL";
+            user.persist();
+
+            LogicalFeed logicalFeed = temporaryLogicalFeed(suffix);
+            Feed feed = new Feed();
+            feed.name = "Dependency RSS " + suffix;
+            feed.url = "https://example.invalid/dependencies-" + suffix + ".rss";
+            feed.logicalFeed = logicalFeed;
+            feed.persist();
+
+            Paper paper = new Paper();
+            paper.title = "Dependency paper " + suffix;
+            paper.sourceLink = "https://example.invalid/dependency-paper/" + suffix;
+            paper.status = "NEW";
+            paper.discoveredAt = Instant.now();
+            paper.feed = feed;
+            paper.logicalFeed = logicalFeed;
+            paper.persist();
+
+            GoogleDrivePdfSync sync = new GoogleDrivePdfSync();
+            sync.user = user;
+            sync.paper = paper;
+            googleDrivePdfSyncRepository.persist(sync);
+
+            PdfCapture capture = new PdfCapture();
+            capture.tokenHash = UUID.randomUUID().toString().replace("-", "");
+            capture.paper = paper;
+            capture.createdBy = user;
+            capture.createdAt = Instant.now();
+            capture.expiresAt = Instant.now().plus(1, ChronoUnit.HOURS);
+            capture.status = "PENDING";
+            pdfCaptureRepository.persist(capture);
+
+            ids[0] = logicalFeed.id;
+            ids[1] = paper.id;
+            ids[2] = sync.id;
+        });
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            LogicalFeed logicalFeed = LogicalFeed.findById(ids[0]);
+            googleDrivePdfSyncRepository.deleteForLogicalFeed(logicalFeed);
+            pdfCaptureRepository.deleteForLogicalFeed(logicalFeed);
+            googleDrivePdfSyncRepository.flush();
+            pdfCaptureRepository.flush();
+            logicalFeed.delete();
+        });
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            Assertions.assertNull(LogicalFeed.findById(ids[0]));
+            Assertions.assertNull(Paper.findById(ids[1]));
+            Assertions.assertNull(GoogleDrivePdfSync.findById(ids[2]));
         });
     }
 

@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import top.nextnet.paper.monitor.model.Paper;
+import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.model.Review;
 import top.nextnet.paper.monitor.model.ReviewSubmission;
 
@@ -41,5 +42,9 @@ public class ReviewSubmissionRepository implements PanacheRepository<ReviewSubmi
 
     public long deleteByReview(Review review) {
         return delete("review", review);
+    }
+
+    public long deleteForLogicalFeed(LogicalFeed logicalFeed) {
+        return logicalFeed == null ? 0 : delete("paper.logicalFeed", logicalFeed);
     }
 }
