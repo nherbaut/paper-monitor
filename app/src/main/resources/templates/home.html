@@ -6674,7 +6674,7 @@
             await saveClassificationNotes(card);
             const applied = await applyPaperStatusTransition(card, nextStatus, normalizeStatus(card.dataset.paperStatus), {
                 advanceFocus: false,
-                backgroundPersistence: false
+                backgroundPersistence: true
             });
             if (!applied) {
                 resetClassificationDragVisual();
@@ -7913,6 +7913,14 @@
                     record.paperTopStatus = previousStatus.includes("/") ? previousStatus.split("/")[0] : previousStatus;
                 }
                 syncPaperStatusCounts(card, normalizeStatus(nextStatus), previousStatus);
+                if (classificationQueueMode) {
+                    const recordIndex = paperRecords.findIndex((item) => String(item.id) === String(paperId));
+                    if (recordIndex > 0) {
+                        paperRecords.unshift(paperRecords.splice(recordIndex, 1)[0]);
+                    }
+                    classificationQueueCompletedPaperIds.delete(String(paperId));
+                    updateClassificationQueueProgress();
+                }
                 applyLogicalFeedFilter();
                 if (!backgroundPersistence && selectedPaperIdBeforeChange === paperId) {
                     openPaperCard(findCardByPaperId(paperId) || card);
