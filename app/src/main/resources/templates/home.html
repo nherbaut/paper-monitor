@@ -1925,6 +1925,109 @@
             text-align: center;
         }
 
+        .classification-empty-content {
+            max-width: 32rem;
+        }
+
+        .classification-celebration-paper {
+            display: none;
+            position: relative;
+            width: 9.5rem;
+            height: 11.5rem;
+            margin: 0 auto 1.25rem;
+            border: 3px solid color-mix(in srgb, var(--ink) 78%, var(--accent));
+            border-radius: 0.8rem 1.5rem 1.1rem 0.9rem;
+            background: linear-gradient(145deg, #fffef4 0 72%, #f7df8b 72% 100%);
+            box-shadow: 0 0.7rem 0 color-mix(in srgb, var(--accent) 28%, transparent), 0 1.1rem 1.8rem rgba(42, 48, 59, 0.16);
+            transform-origin: 50% 100%;
+        }
+
+        .classification-celebration-paper::before {
+            content: "";
+            position: absolute;
+            top: -0.2rem;
+            right: -0.2rem;
+            width: 2.2rem;
+            height: 2.2rem;
+            border-left: 3px solid color-mix(in srgb, var(--ink) 78%, var(--accent));
+            border-bottom: 3px solid color-mix(in srgb, var(--ink) 78%, var(--accent));
+            border-radius: 0 0.35rem 0 0;
+            background: #f7df8b;
+            transform: skewY(45deg);
+            transform-origin: top right;
+        }
+
+        .classification-celebration-paper::after {
+            content: "✦   ✦";
+            position: absolute;
+            z-index: -1;
+            top: -1rem;
+            left: -2.3rem;
+            width: 13rem;
+            color: var(--accent);
+            font-size: 1.55rem;
+            letter-spacing: 4.5rem;
+            opacity: 0;
+        }
+
+        .classification-paper-eyes {
+            display: flex;
+            justify-content: center;
+            gap: 1.55rem;
+            padding-top: 3.6rem;
+        }
+
+        .classification-paper-eyes span {
+            width: 0.72rem;
+            height: 1rem;
+            border-radius: 50%;
+            background: var(--ink);
+        }
+
+        .classification-paper-smile {
+            width: 2.5rem;
+            height: 1.1rem;
+            margin: 1rem auto 0;
+            border: 3px solid var(--ink);
+            border-top: 0;
+            border-radius: 0 0 2rem 2rem;
+        }
+
+        .classification-empty.celebrating .classification-celebration-paper {
+            display: block;
+            animation: classification-paper-pop 640ms cubic-bezier(.2, 1.45, .45, 1) both,
+                classification-paper-wiggle 1.45s 660ms ease-in-out infinite;
+        }
+
+        .classification-empty.celebrating .classification-celebration-paper::after {
+            animation: classification-confetti-pop 650ms 240ms ease-out both;
+        }
+
+        @keyframes classification-paper-pop {
+            0% { opacity: 0; transform: translateY(3rem) scale(0.28) rotate(-16deg); }
+            70% { opacity: 1; transform: translateY(-0.45rem) scale(1.12) rotate(7deg); }
+            100% { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+        }
+
+        @keyframes classification-paper-wiggle {
+            0%, 100% { transform: rotate(0); }
+            25% { transform: rotate(-4deg) translateY(-0.25rem); }
+            70% { transform: rotate(4deg); }
+        }
+
+        @keyframes classification-confetti-pop {
+            0% { opacity: 0; transform: translateY(1.2rem) scale(0.4); }
+            55% { opacity: 1; }
+            100% { opacity: 0; transform: translateY(-1.4rem) scale(1.2) rotate(25deg); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .classification-empty.celebrating .classification-celebration-paper,
+            .classification-empty.celebrating .classification-celebration-paper::after {
+                animation: none;
+            }
+        }
+
         .classification-surface.empty > :not(.classification-empty):not(.classification-queue-header) {
             display: none;
         }
@@ -3569,7 +3672,11 @@
             <p class="classification-footer" id="classification-footer">Drag or choose the next state for this paper.</p>
         </div>
         <div class="classification-empty">
-            <div>
+            <div class="classification-empty-content">
+                <div class="classification-celebration-paper" role="img" aria-label="A happy paper celebrating">
+                    <div class="classification-paper-eyes"><span></span><span></span></div>
+                    <div class="classification-paper-smile"></div>
+                </div>
                 <h2 id="classification-empty-title">No papers remaining</h2>
                 <p class="meta" id="classification-empty-message">Release Shift to return to the paper feed.</p>
             </div>
@@ -3746,6 +3853,7 @@
     const classificationNotesIndicator = document.getElementById("classification-notes-indicator");
     const classificationNotesStatus = document.getElementById("classification-notes-status");
     const classificationViewerReturn = document.getElementById("classification-viewer-return");
+    const classificationEmpty = document.querySelector(".classification-empty");
     const classificationEmptyTitle = document.getElementById("classification-empty-title");
     const classificationEmptyMessage = document.getElementById("classification-empty-message");
     const pdfPanel = document.getElementById("pdf-panel");
@@ -6479,6 +6587,7 @@
         if (!card) {
             return;
         }
+        classificationEmpty?.classList.remove("celebrating");
         hideClassificationDropBuckets();
         classificationCard.classList.remove(
             "dragging", "dragging-left", "dragging-right", "exiting-left", "exiting-right", "entering", "entering-active"
@@ -6691,7 +6800,10 @@
             await waitForClassificationAnimation();
 
             if (!nextCard || !selectPaperForClassification(nextCard)) {
-                showClassificationEmpty();
+                showClassificationEmpty({
+                    celebrate: classificationQueueMode,
+                    feedName: card.dataset.logicalFeedName
+                });
                 return true;
             }
 
@@ -6787,12 +6899,15 @@
         return true;
     };
 
-    const showClassificationEmpty = () => {
+    const showClassificationEmpty = (options = {}) => {
+        const celebrate = options.celebrate === true && classificationQueueMode;
+        const feedName = options.feedName || logicalFeedFilter?.selectedOptions?.[0]?.dataset?.feedName || "This paper feed";
         selectedPaperId = null;
         classificationDragState = null;
         resetClassificationDragVisual();
         allPaperCards().forEach((item) => item.classList.remove("active"));
         classificationSurface.classList.add("empty");
+        classificationEmpty?.classList.toggle("celebrating", celebrate);
         classificationNextCard?.classList.add("hidden");
         updateClassificationQueueProgress();
         if (classificationActions) {
@@ -6805,12 +6920,16 @@
             classificationFooter.textContent = "";
         }
         if (classificationEmptyTitle) {
-            classificationEmptyTitle.textContent = classificationQueueMode
+            classificationEmptyTitle.textContent = celebrate
+                ? "You did it!"
+                : classificationQueueMode
                 ? "No papers waiting for classification"
                 : "No papers remaining";
         }
         if (classificationEmptyMessage) {
-            classificationEmptyMessage.textContent = classificationQueueMode
+            classificationEmptyMessage.textContent = celebrate
+                ? feedName + " is now empty!"
+                : classificationQueueMode
                 ? "All RSS papers in this paper feed have been classified."
                 : "Release Shift to return to the paper feed.";
         }
