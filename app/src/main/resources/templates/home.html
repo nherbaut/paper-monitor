@@ -4013,6 +4013,15 @@
         TODO: "todo",
         DONE: "done"
     };
+    const MAD_PROFESSOR_QUESTION_IMAGES = [
+        "01-kept-paper-question.png", "02-kept-classification-question.png", "03-magnifier-question.png",
+        "04-thinking-question.png", "05-shrug-question.png", "06-glasses-question.png",
+        "07-reading-question.png", "08-scratching-head-question.png"
+    ];
+    const MAD_PROFESSOR_CONGRATULATION_IMAGES = [
+        "01-thumbs-up.png", "02-cheering.png", "03-trophy.png", "04-double-thumbs-up.png",
+        "05-great-job.png", "06-high-five.png", "07-heart.png", "08-idea-thumbs-up.png"
+    ];
     let stateFeedbackTimer = null;
     const initialPaperId = readerBootstrap?.dataset.initialPaperId || "";
     const initialLogicalFeedId = readerBootstrap?.dataset.initialLogicalFeedId || "";
@@ -6896,6 +6905,7 @@
         if (classificationBusy || !card || !nextStatus) {
             return false;
         }
+        const radialClassification = classificationTargetCount(classificationDirectionalTargets(card)) > 2;
         classificationBusy = true;
         classificationSurface.classList.add("busy");
         classificationFooter.textContent = "Saving classification...";
@@ -6909,7 +6919,8 @@
             await saveClassificationNotes(card);
             const applied = await applyPaperStatusTransition(card, nextStatus, normalizeStatus(card.dataset.paperStatus), {
                 advanceFocus: false,
-                backgroundPersistence: true
+                backgroundPersistence: true,
+                skipStateFeedback: radialClassification
             });
             if (!applied) {
                 resetClassificationDragVisual();
@@ -6919,6 +6930,9 @@
             if (classificationQueueMode) {
                 classificationQueueCompletedPaperIds.add(String(card.dataset.paperId));
                 updateClassificationQueueProgress();
+            }
+            if (radialClassification) {
+                showMadProfessorFeedback("congratulations");
             }
 
             const nextCard = classificationQueueCards()[0] || null;
@@ -7263,6 +7277,26 @@
             stateFeedbackTimer = null;
         }
         stateFeedbackPop?.classList.remove("visible");
+    };
+
+    const showMadProfessorFeedback = (kind) => {
+        if (!stateFeedbackPop || !stateFeedbackImage) {
+            return;
+        }
+        const images = kind === "congratulations"
+            ? MAD_PROFESSOR_CONGRATULATION_IMAGES
+            : MAD_PROFESSOR_QUESTION_IMAGES;
+        const imageName = images[Math.floor(Math.random() * images.length)];
+        hideStateFeedbackPop();
+        stateFeedbackImage.alt = kind === "congratulations"
+            ? "The mad professor celebrates your classification"
+            : "The mad professor considers the possible classifications";
+        stateFeedbackImage.onload = () => {
+            requestAnimationFrame(() => stateFeedbackPop.classList.add("visible"));
+        };
+        stateFeedbackImage.onerror = hideStateFeedbackPop;
+        stateFeedbackImage.src = "/assets/mad-professor/" + kind + "/" + imageName;
+        stateFeedbackTimer = window.setTimeout(hideStateFeedbackPop, kind === "congratulations" ? 1800 : 1300);
     };
 
     const stateFeedbackDirection = (logicalFeedId, previousStatus, nextStatus) => {
@@ -8179,7 +8213,9 @@
             closeViewer();
         }
         applyLogicalFeedFilter();
-        showStateFeedbackPop(card.dataset.logicalFeedId, normalizeStatus(previousStatus), nextStatus);
+        if (!options.skipStateFeedback) {
+            showStateFeedbackPop(card.dataset.logicalFeedId, normalizeStatus(previousStatus), nextStatus);
+        }
 
         if (advanceFocus) {
             let nextCard = nextPaperId ? findCardByPaperId(nextPaperId) : null;
@@ -9005,6 +9041,7 @@
             classificationCard.setPointerCapture?.(event.pointerId);
             if (classificationDragState.multiTarget) {
                 classificationDragState.radialTargets = showClassificationDropZones(classificationDragState.card);
+                showMadProfessorFeedback("questions");
             }
         }
         event.preventDefault();
