@@ -3941,6 +3941,7 @@
     const STATE_DRAG_TRIGGER_X = 150;
     const STATE_WHEEL_ROW_HEIGHT = 56;
     const CLASSIFICATION_DRAG_TRIGGER_X = 96;
+    const CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS = 170;
     const CLASSIFICATION_HANDOFF_MS = 380;
     let currentRenderToken = 0;
     let selectedPaperId = null;
@@ -6506,7 +6507,8 @@
             Math.hypot(centerX, viewportHeight - centerY),
             Math.hypot(viewportWidth - centerX, viewportHeight - centerY)
         ) + 2;
-        const labelRadius = Math.max(125, Math.min(Math.min(viewportWidth, viewportHeight) * 0.36, 330));
+        const deadZoneRadius = CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS;
+        const labelRadius = Math.max(deadZoneRadius + 70, Math.min(Math.min(viewportWidth, viewportHeight) * 0.36, 330));
         const sectorAngle = FULL_TURN / targets.length;
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.classList.add("classification-drop-zone-map");
@@ -6515,15 +6517,19 @@
 
         const radialTargets = targets.map(({ target, side }, index) => {
             const angle = RADIAL_DROP_START_ANGLE + index * sectorAngle;
+            const innerStart = polarPoint(centerX, centerY, deadZoneRadius, angle - sectorAngle / 2);
+            const innerEnd = polarPoint(centerX, centerY, deadZoneRadius, angle + sectorAngle / 2);
             const start = polarPoint(centerX, centerY, mapRadius, angle - sectorAngle / 2);
             const end = polarPoint(centerX, centerY, mapRadius, angle + sectorAngle / 2);
             const color = DROP_ZONE_COLORS[index % DROP_ZONE_COLORS.length];
             const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
             path.classList.add("classification-drop-zone-sector");
             path.dataset.targetState = target;
-            path.setAttribute("d", "M " + centerX + " " + centerY
+            path.setAttribute("d", "M " + innerStart.x + " " + innerStart.y
                 + " L " + start.x + " " + start.y
-                + " A " + mapRadius + " " + mapRadius + " 0 0 1 " + end.x + " " + end.y + " Z");
+                + " A " + mapRadius + " " + mapRadius + " 0 0 1 " + end.x + " " + end.y
+                + " L " + innerEnd.x + " " + innerEnd.y
+                + " A " + deadZoneRadius + " " + deadZoneRadius + " 0 0 0 " + innerStart.x + " " + innerStart.y + " Z");
             path.style.setProperty("--classification-drop-zone-color", color);
             svg.appendChild(path);
             return { target, side, angle, color };
@@ -6555,7 +6561,7 @@
 
     const classificationDropTargetForDrag = (dragState, deltaX, deltaY) => {
         const radius = Math.hypot(deltaX, deltaY);
-        if (!dragState.radialTargets?.length || radius < CLASSIFICATION_DRAG_TRIGGER_X) {
+        if (!dragState.radialTargets?.length || radius < CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS) {
             classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
                 .forEach((element) => element.classList.remove("active"));
             classificationDragTarget?.classList.remove("visible");
@@ -9028,7 +9034,7 @@
             return;
         }
         if (cancelled || !dragState.captured
-                || (dragState.multiTarget ? dragDistance : Math.abs(deltaX)) < CLASSIFICATION_DRAG_TRIGGER_X) {
+                || (dragState.multiTarget ? dragDistance < CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS : Math.abs(deltaX) < CLASSIFICATION_DRAG_TRIGGER_X)) {
             resetClassificationDragVisual();
             return;
         }
