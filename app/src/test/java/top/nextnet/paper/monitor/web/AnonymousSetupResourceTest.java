@@ -11,12 +11,14 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
 import java.util.UUID;
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.Feed;
 import top.nextnet.paper.monitor.model.GoogleDrivePdfSync;
 import top.nextnet.paper.monitor.model.LogicalFeed;
+import top.nextnet.paper.monitor.model.LogicalFeedAccessGrant;
 import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.PaperFeedSetupDraft;
 import top.nextnet.paper.monitor.model.PdfCapture;
@@ -24,6 +26,7 @@ import top.nextnet.paper.monitor.repo.GoogleDrivePdfSyncRepository;
 import top.nextnet.paper.monitor.repo.PaperFeedSetupDraftRepository;
 import top.nextnet.paper.monitor.repo.PdfCaptureRepository;
 import top.nextnet.paper.monitor.service.QuickSetupWorkflows;
+import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
 import top.nextnet.paper.monitor.service.SetupWizardService;
 
 @QuarkusTest
@@ -40,6 +43,9 @@ class AnonymousSetupResourceTest {
 
     @Inject
     PdfCaptureRepository pdfCaptureRepository;
+
+    @Inject
+    LogicalFeedAccessService logicalFeedAccessService;
 
     @Test
     void anonymousHomeLinksToPublicSetupWizard() {
@@ -317,6 +323,47 @@ class AnonymousSetupResourceTest {
             Assertions.assertNull(LogicalFeed.findById(ids[0]));
             Assertions.assertNull(Paper.findById(ids[1]));
             Assertions.assertNull(GoogleDrivePdfSync.findById(ids[2]));
+        });
+    }
+
+    @Test
+    void readableFeedsForDelegatedUserIncludeInitializedAccessGrants() {
+        String suffix = UUID.randomUUID().toString();
+        Long[] ids = new Long[2];
+        QuarkusTransaction.requiringNew().run(() -> {
+            AppUser owner = new AppUser();
+            owner.username = "feed-owner-" + suffix;
+            owner.authProvider = "LOCAL";
+            owner.persist();
+
+            AppUser reader = new AppUser();
+            reader.username = "feed-reader-" + suffix;
+            reader.authProvider = "LOCAL";
+            reader.persist();
+
+            LogicalFeed logicalFeed = temporaryLogicalFeed(suffix);
+            logicalFeed.owner = owner;
+
+            LogicalFeedAccessGrant grant = new LogicalFeedAccessGrant();
+            grant.logicalFeed = logicalFeed;
+            grant.user = reader;
+            grant.role = "READ";
+            grant.persist();
+
+            ids[0] = reader.id;
+            ids[1] = logicalFeed.id;
+        });
+
+        QuarkusTransaction.requiringNew().run(() -> {
+            AppUser reader = AppUser.findById(ids[0]);
+            var feeds = logicalFeedAccessService.readableLogicalFeeds(reader);
+            LogicalFeed logicalFeed = feeds.stream()
+                    .filter(feed -> feed.id.equals(ids[1]))
+                    .findFirst()
+                    .orElseThrow();
+            Assertions.assertTrue(Hibernate.isInitialized(logicalFeed.accessGrants));
+            Assertions.assertEquals(1, logicalFeed.accessGrants.size());
+            Assertions.assertTrue(Hibernate.isInitialized(logicalFeed.accessGrants.get(0).user));
         });
     }
 

@@ -37,7 +37,7 @@ public class LogicalFeedAccessService {
             return List.of();
         }
         if (user.admin) {
-            return logicalFeedRepository.findAll().list();
+            return logicalFeedRepository.findAllForAdminView();
         }
         Set<Long> ids = new LinkedHashSet<>();
         for (LogicalFeed feed : logicalFeedRepository.find("owner", user).list()) {
@@ -50,7 +50,7 @@ public class LogicalFeedAccessService {
         }
         return ids.isEmpty()
                 ? List.of()
-                : logicalFeedRepository.find("id in ?1 order by name", ids).list();
+                : logicalFeedRepository.findByIdsForAdminView(ids);
     }
 
     public List<Feed> readableFeeds(AppUser user) {

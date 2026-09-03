@@ -21,6 +21,24 @@ public class LogicalFeedRepository implements PanacheRepository<LogicalFeed> {
                 .getResultList();
     }
 
+    public List<LogicalFeed> findByIdsForAdminView(java.util.Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return getEntityManager()
+                .createQuery("""
+                        select distinct logicalFeed
+                        from LogicalFeed logicalFeed
+                        left join fetch logicalFeed.owner
+                        left join fetch logicalFeed.accessGrants grant
+                        left join fetch grant.user
+                        where logicalFeed.id in :ids
+                        order by logicalFeed.name
+                        """, LogicalFeed.class)
+                .setParameter("ids", ids)
+                .getResultList();
+    }
+
     public boolean existsPublicReadable() {
         return count("publicReadable", true) > 0;
     }
