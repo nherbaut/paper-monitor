@@ -1421,16 +1421,12 @@
             position: fixed;
             z-index: 2;
             inset: 0;
-            display: grid;
-            grid-template-columns: repeat(var(--classification-drop-zone-columns, 2), minmax(0, 1fr));
-            grid-template-rows: repeat(var(--classification-drop-zone-rows, 2), minmax(0, 1fr));
-            gap: 0.45rem;
-            padding: 0.45rem;
-            background: color-mix(in srgb, var(--bg) 56%, transparent);
+            background: color-mix(in srgb, var(--bg) 26%, transparent);
             opacity: 0;
             visibility: hidden;
             pointer-events: none;
             transition: opacity 140ms ease, visibility 140ms;
+            overflow: hidden;
         }
 
         .classification-drop-zones.visible {
@@ -1438,24 +1434,57 @@
             visibility: visible;
         }
 
+        .classification-drop-zone-map {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .classification-drop-zone-sector {
+            fill: color-mix(in srgb, var(--classification-drop-zone-color) 28%, transparent);
+            stroke: color-mix(in srgb, var(--classification-drop-zone-color) 72%, var(--line));
+            stroke-width: 2;
+            transition: fill 100ms ease;
+        }
+
+        .classification-drop-zone-sector.active {
+            fill: color-mix(in srgb, var(--classification-drop-zone-color) 58%, transparent);
+        }
+
+        .classification-drop-zone-center {
+            position: absolute;
+            width: 1rem;
+            height: 1rem;
+            border: 3px solid var(--panel);
+            border-radius: 50%;
+            background: var(--accent);
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 38%, transparent);
+            transform: translate(-50%, -50%);
+        }
+
         .classification-drop-zone {
-            display: grid;
-            place-items: center;
-            padding: 1rem;
-            border: 2px dashed color-mix(in srgb, var(--classification-drop-zone-color) 72%, white);
-            background: color-mix(in srgb, var(--classification-drop-zone-color) 56%, var(--panel));
+            position: absolute;
+            z-index: 1;
+            width: min(11rem, 28vw);
+            padding: 0.55rem 0.75rem;
+            border: 1px solid color-mix(in srgb, var(--classification-drop-zone-color) 72%, white);
+            border-radius: 999px;
+            background: color-mix(in srgb, var(--panel) 86%, var(--classification-drop-zone-color));
             color: var(--ink);
-            font-size: clamp(0.9rem, 2.2vw, 1.25rem);
+            font-size: clamp(0.82rem, 1.7vw, 1rem);
             font-weight: 900;
             line-height: 1.25;
             text-align: center;
             overflow-wrap: anywhere;
-            transition: background 100ms ease, box-shadow 100ms ease;
+            transform: translate(-50%, -50%);
+            transition: background 100ms ease, box-shadow 100ms ease, transform 100ms ease;
         }
 
         .classification-drop-zone.active {
-            background: color-mix(in srgb, var(--classification-drop-zone-color) 82%, white);
-            box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--classification-drop-zone-color) 88%, var(--ink));
+            background: color-mix(in srgb, var(--classification-drop-zone-color) 72%, white);
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--classification-drop-zone-color) 62%, transparent);
+            transform: translate(-50%, -50%) scale(1.06);
         }
 
         .classification-next-label {
@@ -1845,6 +1874,60 @@
 
         .classification-actions.attention {
             animation: classification-choices-pulse 420ms ease;
+        }
+
+        .classification-view .classification-actions,
+        .classification-view .classification-footer,
+        .classification-view .classification-action-label {
+            display: none;
+        }
+
+        .classification-keyboard-bar {
+            display: none;
+            position: fixed;
+            z-index: 12;
+            right: 50%;
+            bottom: max(1rem, env(safe-area-inset-bottom));
+            left: auto;
+            width: min(44rem, calc(100vw - 2rem));
+            padding: 0.55rem;
+            gap: 0.45rem;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: color-mix(in srgb, var(--panel) 94%, var(--bg));
+            box-shadow: 0 16px 34px rgba(42, 48, 59, 0.18);
+            transform: translateX(50%);
+        }
+
+        .classification-keyboard-bar.visible {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .classification-keyboard-choice {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.4rem 0.55rem;
+            border-radius: 7px;
+            background: color-mix(in srgb, var(--panel) 86%, var(--bg));
+            font-size: 0.8rem;
+            font-weight: 800;
+        }
+
+        .classification-keyboard-choice kbd {
+            display: inline-grid;
+            place-items: center;
+            min-width: 1.45rem;
+            height: 1.45rem;
+            padding: 0 0.25rem;
+            border: 1px solid var(--line);
+            border-radius: 4px;
+            background: var(--panel);
+            color: var(--accent);
+            font: inherit;
+            font-weight: 900;
         }
 
         @keyframes classification-choices-pulse {
@@ -3606,6 +3689,7 @@
                 <span class="classification-action-label" id="classification-right-label"></span>
             </div>
         </div>
+        <div class="classification-keyboard-bar" id="classification-keyboard-bar" aria-hidden="true"></div>
         <div>
             <div class="classification-actions" id="classification-actions"></div>
             <p class="classification-footer" id="classification-footer">Drag or choose the next state for this paper.</p>
@@ -3761,6 +3845,7 @@
     const classificationDeck = document.getElementById("classification-deck");
     const classificationCard = document.getElementById("classification-card");
     const classificationDropZones = document.getElementById("classification-drop-zones");
+    const classificationKeyboardBar = document.getElementById("classification-keyboard-bar");
     const classificationNextCard = document.getElementById("classification-next-card");
     const classificationNextTitle = document.getElementById("classification-next-title");
     const classificationNextMeta = document.getElementById("classification-next-meta");
@@ -6343,62 +6428,115 @@
     };
 
     const DROP_ZONE_COLORS = ["#f08b7a", "#78b8dc", "#f0c86c", "#8dca93", "#b49ad7", "#e993bf"];
+    const FULL_TURN = Math.PI * 2;
+    const RADIAL_DROP_START_ANGLE = -3 * Math.PI / 4;
 
     const hideClassificationDropZones = () => {
         classificationDropZones?.classList.remove("visible");
         classificationDropZones?.setAttribute("aria-hidden", "true");
         if (classificationDropZones) {
             classificationDropZones.innerHTML = "";
-            classificationDropZones.style.removeProperty("--classification-drop-zone-columns");
-            classificationDropZones.style.removeProperty("--classification-drop-zone-rows");
         }
+    };
+
+    const polarPoint = (centerX, centerY, radius, angle) => ({
+        x: centerX + Math.cos(angle) * radius,
+        y: centerY + Math.sin(angle) * radius
+    });
+
+    const normalizedAngleDistance = (left, right) => {
+        const difference = (left - right + Math.PI) % FULL_TURN;
+        return Math.abs(difference < 0 ? difference + Math.PI : difference - Math.PI);
+    };
+
+    const classificationRadialTargets = (card) => {
+        const directional = classificationDirectionalTargets(card);
+        const sidesByTarget = new Map([
+            ...directional.left.map((target) => [target, "left"]),
+            ...directional.right.map((target) => [target, "right"]),
+            ...directional.other.map((target) => [target, "bottom"])
+        ]);
+        const logicalFeedId = card?.dataset.logicalFeedId;
+        const currentStatus = normalizeStatus(card?.dataset.paperStatus);
+        return workflowTargetsFromState(logicalFeedId, currentStatus)
+            .filter((target, index, targets) => targets.indexOf(target) === index)
+            .map((target) => ({ target, side: sidesByTarget.get(target) || "bottom" }));
     };
 
     const showClassificationDropZones = (card) => {
         hideClassificationDropZones();
-        const directional = classificationDirectionalTargets(card);
-        if (classificationTargetCount(directional) <= 2) {
-            return false;
+        const targets = classificationRadialTargets(card);
+        if (targets.length <= 2 || !classificationDropZones) {
+            return [];
         }
-        const targets = [
-            ...directional.left.map((target) => ({ target, side: "left" })),
-            ...directional.right.map((target) => ({ target, side: "right" })),
-            ...directional.other.map((target) => ({ target, side: "bottom" }))
-        ];
-        const columns = Math.ceil(Math.sqrt(targets.length));
-        const rows = Math.ceil(targets.length / columns);
-        classificationDropZones.style.setProperty("--classification-drop-zone-columns", String(columns));
-        classificationDropZones.style.setProperty("--classification-drop-zone-rows", String(rows));
-        targets.forEach(({ target, side }, index) => {
+        const cardBounds = classificationCard.getBoundingClientRect();
+        const centerX = cardBounds.left + cardBounds.width / 2;
+        const centerY = cardBounds.top + cardBounds.height / 2;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+        const mapRadius = Math.hypot(viewportWidth, viewportHeight) * 1.15;
+        const labelRadius = Math.max(125, Math.min(Math.min(viewportWidth, viewportHeight) * 0.36, 330));
+        const sectorAngle = FULL_TURN / targets.length;
+        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.classList.add("classification-drop-zone-map");
+        svg.setAttribute("viewBox", "0 0 " + viewportWidth + " " + viewportHeight);
+        svg.setAttribute("aria-hidden", "true");
+
+        const radialTargets = targets.map(({ target, side }, index) => {
+            const angle = RADIAL_DROP_START_ANGLE + index * sectorAngle;
+            const start = polarPoint(centerX, centerY, mapRadius, angle - sectorAngle / 2);
+            const end = polarPoint(centerX, centerY, mapRadius, angle + sectorAngle / 2);
+            const color = DROP_ZONE_COLORS[index % DROP_ZONE_COLORS.length];
+            const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+            path.classList.add("classification-drop-zone-sector");
+            path.dataset.targetState = target;
+            path.setAttribute("d", "M " + centerX + " " + centerY
+                + " L " + start.x + " " + start.y
+                + " A " + mapRadius + " " + mapRadius + " 0 0 1 " + end.x + " " + end.y + " Z");
+            path.style.setProperty("--classification-drop-zone-color", color);
+            svg.appendChild(path);
+            return { target, side, angle, color };
+        });
+        classificationDropZones.appendChild(svg);
+
+        const center = document.createElement("div");
+        center.className = "classification-drop-zone-center";
+        center.style.left = centerX + "px";
+        center.style.top = centerY + "px";
+        classificationDropZones.appendChild(center);
+
+        radialTargets.forEach(({ target, side, angle, color }) => {
+            const point = polarPoint(centerX, centerY, labelRadius, angle);
             const zone = document.createElement("div");
             zone.className = "classification-drop-zone";
             zone.dataset.side = side;
             zone.dataset.targetState = target;
-            zone.style.setProperty("--classification-drop-zone-color", DROP_ZONE_COLORS[index % DROP_ZONE_COLORS.length]);
+            zone.style.left = point.x + "px";
+            zone.style.top = point.y + "px";
+            zone.style.setProperty("--classification-drop-zone-color", color);
             zone.textContent = classificationStateLabel(card, target);
             classificationDropZones.appendChild(zone);
         });
         classificationDropZones.classList.add("visible");
         classificationDropZones.setAttribute("aria-hidden", "false");
-        return true;
+        return radialTargets;
     };
 
-    const classificationDropTargetAtPoint = (clientX, clientY) => {
-        let match = null;
-        document.querySelectorAll(".classification-drop-zone").forEach((zone) => {
-            const bounds = zone.getBoundingClientRect();
-            const containsPoint = clientX >= bounds.left
-                && clientX <= bounds.right
-                && clientY >= bounds.top
-                && clientY <= bounds.bottom;
-            zone.classList.toggle("active", containsPoint);
-            if (containsPoint) {
-                match = {
-                    side: zone.dataset.side,
-                    target: zone.dataset.targetState
-                };
-            }
-        });
+    const classificationDropTargetForDrag = (dragState, deltaX, deltaY) => {
+        const radius = Math.hypot(deltaX, deltaY);
+        if (!dragState.radialTargets?.length || radius < CLASSIFICATION_DRAG_TRIGGER_X) {
+            classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
+                .forEach((element) => element.classList.remove("active"));
+            return null;
+        }
+        const angle = Math.atan2(deltaY, deltaX);
+        const match = dragState.radialTargets.reduce((closest, candidate) => {
+            return !closest || normalizedAngleDistance(angle, candidate.angle) < normalizedAngleDistance(angle, closest.angle)
+                ? candidate
+                : closest;
+        }, null);
+        classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
+            .forEach((element) => element.classList.toggle("active", element.dataset.targetState === match?.target));
         return match;
     };
 
@@ -6520,6 +6658,7 @@
         }
         classificationEmpty?.classList.remove("celebrating");
         hideClassificationDropZones();
+        hideStateWheels();
         classificationCard.classList.remove(
             "dragging", "dragging-left", "dragging-right", "exiting-left", "exiting-right", "entering", "entering-active"
         );
@@ -6935,6 +7074,24 @@
         if (!keyboardShortcutPicker) {
             return;
         }
+        if (classificationModeActive) {
+            if (!classificationKeyboardBar) {
+                return;
+            }
+            classificationKeyboardBar.innerHTML = "";
+            keyboardShortcutPicker.transitions.forEach((transition) => {
+                const choice = document.createElement("span");
+                choice.className = "classification-keyboard-choice";
+                const shortcut = document.createElement("kbd");
+                shortcut.textContent = transition.shortcut;
+                choice.appendChild(shortcut);
+                choice.appendChild(document.createTextNode(classificationStateLabel(keyboardShortcutPicker.card, transition.value)));
+                classificationKeyboardBar.appendChild(choice);
+            });
+            classificationKeyboardBar.classList.add("visible");
+            classificationKeyboardBar.setAttribute("aria-hidden", "false");
+            return;
+        }
         if (keyboardShortcutPicker.leftOptions.length) {
             leftStateWheel.classList.add("visible");
             renderStateWheel(leftStateOptions, keyboardShortcutPicker.leftOptions, -1);
@@ -6948,6 +7105,11 @@
     const clearKeyboardShortcutPicker = () => {
         keyboardShortcutPicker = null;
         hideStateWheels();
+        classificationKeyboardBar?.classList.remove("visible");
+        classificationKeyboardBar?.setAttribute("aria-hidden", "true");
+        if (classificationKeyboardBar) {
+            classificationKeyboardBar.innerHTML = "";
+        }
     };
 
     const startKeyboardShortcutPicker = () => {
@@ -6955,14 +7117,24 @@
         if (!card || (classificationModeActive && !canClassifyCard(card))) {
             return;
         }
+        if (classificationModeActive && !keyboardShortcutShiftHeld) {
+            return;
+        }
         const currentStatus = normalizeStatus(card.dataset.paperStatus);
-        const directional = classificationModeActive ? classificationDirectionalTargets(card) : null;
-        const outgoingStates = classificationModeActive
-            ? directional.right
-            : workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
-        const incomingStates = classificationModeActive
-            ? directional.left
-            : workflowSourcesToState(card.dataset.logicalFeedId, currentStatus);
+        if (classificationModeActive) {
+            const transitions = classificationRadialTargets(card)
+                .slice(0, 9)
+                .map((entry, index) => ({ ...entry, shortcut: String(index + 1), value: entry.target }));
+            if (!transitions.length) {
+                return;
+            }
+            clearKeyboardStatePicker();
+            keyboardShortcutPicker = { card, currentStatus, transitions, leftOptions: [], rightOptions: [] };
+            renderKeyboardShortcutPicker();
+            return;
+        }
+        const outgoingStates = workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
+        const incomingStates = workflowSourcesToState(card.dataset.logicalFeedId, currentStatus);
         const outgoing = numberStateWheelOptions(
             wheelOptionsForReachableStates(card.dataset.logicalFeedId, outgoingStates),
             1
@@ -7087,6 +7259,9 @@
     };
 
     const startKeyboardStatePicker = (side) => {
+        if (classificationModeActive) {
+            return;
+        }
         const card = selectedPaperCard();
         if (!card) {
             return;
@@ -8739,7 +8914,8 @@
             lastX: event.clientX,
             captured: false,
             card,
-            multiTarget: classificationTargetCount(classificationDirectionalTargets(card)) > 2
+            multiTarget: classificationTargetCount(classificationDirectionalTargets(card)) > 2,
+            radialTargets: []
         };
     });
 
@@ -8759,14 +8935,16 @@
             classificationDragState.captured = true;
             classificationCard.setPointerCapture?.(event.pointerId);
             if (classificationDragState.multiTarget) {
-                showClassificationDropZones(classificationDragState.card);
+                classificationDragState.radialTargets = showClassificationDropZones(classificationDragState.card);
             }
         }
         event.preventDefault();
         classificationDragState.lastX = event.clientX;
         const progress = Math.min(1, Math.abs(deltaX) / CLASSIFICATION_DRAG_TRIGGER_X);
         const rotation = Math.max(-9, Math.min(9, deltaX / 22));
-        const verticalOffset = Math.max(-24, Math.min(24, deltaY * 0.16));
+        const verticalOffset = classificationDragState.multiTarget
+            ? deltaY
+            : Math.max(-24, Math.min(24, deltaY * 0.16));
         classificationCard.classList.add("dragging");
         classificationCard.classList.toggle("dragging-left", deltaX < 0);
         classificationCard.classList.toggle("dragging-right", deltaX > 0);
@@ -8774,7 +8952,9 @@
         classificationCard.style.setProperty("--classification-drag-y", verticalOffset + "px");
         classificationCard.style.setProperty("--classification-drag-rotation", rotation + "deg");
         classificationCard.style.setProperty("--classification-drag-progress", String(progress));
-        classificationDragState.dropTarget = classificationDropTargetAtPoint(event.clientX, event.clientY);
+        classificationDragState.dropTarget = classificationDragState.multiTarget
+            ? classificationDropTargetForDrag(classificationDragState, deltaX, deltaY)
+            : null;
     }, { passive: false });
 
     const finishClassificationPointerDrag = async (event, cancelled = false) => {
@@ -8785,12 +8965,14 @@
         classificationDragState = null;
         const deltaX = (event.clientX ?? dragState.lastX) - dragState.startX;
         const deltaY = (event.clientY ?? dragState.startY) - dragState.startY;
+        const dragDistance = Math.hypot(deltaX, deltaY);
         const side = deltaX < 0 ? "left" : "right";
         const targets = classificationDirectionalTargets(dragState.card)[side] || [];
         const dropTarget = cancelled || !dragState.captured
             ? null
-            : classificationDropTargetAtPoint(event.clientX ?? dragState.lastX, event.clientY ?? dragState.startY)
-                || dragState.dropTarget;
+            : dragState.multiTarget
+                ? classificationDropTargetForDrag(dragState, deltaX, deltaY) || dragState.dropTarget
+                : null;
         if (classificationCard.hasPointerCapture?.(event.pointerId)) {
             classificationCard.releasePointerCapture(event.pointerId);
         }
@@ -8803,11 +8985,8 @@
             );
             return;
         }
-        if (cancelled || !dragState.captured || Math.abs(deltaX) < CLASSIFICATION_DRAG_TRIGGER_X) {
-            resetClassificationDragVisual();
-            return;
-        }
-        if (dragState.multiTarget && Math.abs(deltaY) > Math.abs(deltaX)) {
+        if (cancelled || !dragState.captured
+                || (dragState.multiTarget ? dragDistance : Math.abs(deltaX)) < CLASSIFICATION_DRAG_TRIGGER_X) {
             resetClassificationDragVisual();
             return;
         }
@@ -9344,7 +9523,7 @@
                     return;
                 }
                 const { card, currentStatus } = keyboardShortcutPicker;
-                const side = keyboardShortcutPicker.rightOptions.includes(transition) ? "right" : "left";
+                const side = transition.side || (keyboardShortcutPicker.rightOptions.includes(transition) ? "right" : "left");
                 clearKeyboardShortcutPicker();
                 try {
                     await immediateKeyboardTransition(side, card, transition.value, currentStatus);
