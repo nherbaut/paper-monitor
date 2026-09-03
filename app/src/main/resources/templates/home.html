@@ -4021,6 +4021,7 @@
     const anonymousSetupToken = readerBootstrap?.dataset.anonymousSetupToken || "";
     const shareMode = readerBootstrap?.dataset.shareMode === "true";
     const classificationQueueMode = readerBootstrap?.dataset.classificationQueueMode === "true";
+    const classificationQueueStates = new URLSearchParams(window.location.search).getAll("state").filter(Boolean);
     const startClassificationMode = readerBootstrap?.dataset.startClassificationMode === "true";
     if (anonymousSetupToken) {
         const nativeFetch = window.fetch.bind(window);
@@ -6300,6 +6301,7 @@
                 activeChildStatus = null;
                 stateSearchVisibleLimit = 10;
                 applyLogicalFeedFilter();
+                openCurrentStateClassificationPile();
             };
             const tab = document.createElement("button");
             tab.type = "button";
@@ -6340,6 +6342,7 @@
                     activeChildStatus = activeChildStatus === choice.value ? null : choice.value;
                     stateSearchVisibleLimit = 10;
                     applyLogicalFeedFilter();
+                    openCurrentStateClassificationPile();
                 });
                 statusSubtabsContainer.appendChild(childTab);
 
@@ -6354,6 +6357,7 @@
                         activeChildStatus = choice.value;
                         stateSearchVisibleLimit = 10;
                         applyLogicalFeedFilter();
+                        openCurrentStateClassificationPile();
                         if (mobileStateMenu) {
                             mobileStateMenu.open = false;
                         }
@@ -7686,6 +7690,23 @@
             });
         }
         return filtered;
+    };
+
+    const openCurrentStateClassificationPile = () => {
+        if (shareMode || !canEdit || !selectedLogicalFeedCanAdmin() || activePrimaryTab !== "state") {
+            return;
+        }
+        const logicalFeedId = logicalFeedFilter?.value;
+        const group = workflowGroupByName(logicalFeedId, activeStatusTab);
+        const states = activeChildStatus
+            ? [activeChildStatus]
+            : stateLeafChoices(group).map((choice) => choice.value);
+        if (!logicalFeedId || !states.length || !filteredPaperRecords().length) {
+            return;
+        }
+        const params = new URLSearchParams({ logicalFeedId });
+        states.forEach((state) => params.append("state", state));
+        window.location.href = "/classify?" + params.toString();
     };
 
     const renderPaginatedPaperList = () => {
@@ -10328,7 +10349,9 @@
         const firstRecord = paperRecords[0];
         const firstStatus = normalizeStatus(firstRecord.paperStatus);
         activeStatusTab = firstRecord.paperTopStatus || (firstStatus.includes("/") ? firstStatus.split("/")[0] : firstStatus);
-        activeChildStatus = firstStatus.includes("/") ? firstStatus : null;
+        activeChildStatus = classificationQueueStates.length === 1 && firstStatus !== activeStatusTab
+            ? firstStatus
+            : null;
         activePrimaryTab = "state";
         stateSearchQuery = "";
         selectedTagFilters = [];
@@ -10346,6 +10369,7 @@
         const params = new URLSearchParams({ logicalFeedId });
         if (classificationQueueMode) {
             params.set("classificationQueue", "true");
+            classificationQueueStates.forEach((state) => params.append("state", state));
         }
         const response = await fetch("/api/papers/browser?" + params.toString(), {
             headers: { Accept: "application/json" }

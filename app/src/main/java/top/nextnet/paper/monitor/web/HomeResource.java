@@ -578,6 +578,7 @@ public class HomeResource {
     @Transactional
     public TemplateInstance classifyRssPapers(
             @QueryParam("logicalFeedId") Long logicalFeedId,
+            @QueryParam("state") List<String> states,
             @QueryParam("info") String info,
             @QueryParam("error") String error
     ) {
@@ -596,7 +597,8 @@ public class HomeResource {
                 return index(null, null, info, firstNonBlank(error, "Select a paper feed before opening RSS classification."));
             }
         }
-        logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, currentUser);
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, currentUser);
+        List<String> classificationStates = normalizedClassificationStates(logicalFeed, states);
         populatePaperCounts(logicalFeeds);
         populateLogicalFeedDashboardStats(logicalFeeds);
         return home.data("recentPapers", List.of())
@@ -623,6 +625,7 @@ public class HomeResource {
                 .data("sharedPaperUrl", null)
                 .data("sharedFeedDiagramUrl", null)
                 .data("classificationQueueMode", true)
+                .data("classificationQueueStates", classificationStates)
                 .data("startClassificationMode", true);
     }
 
@@ -689,7 +692,8 @@ public class HomeResource {
     @Produces(MediaType.APPLICATION_JSON)
     public List<Map<String, Object>> browserPapers(
             @QueryParam("logicalFeedId") Long logicalFeedId,
-            @QueryParam("classificationQueue") @DefaultValue("false") boolean classificationQueue
+            @QueryParam("classificationQueue") @DefaultValue("false") boolean classificationQueue,
+            @QueryParam("state") List<String> states
     ) {
         AppUser currentUser = currentUserContext.get().user();
         if (logicalFeedId == null) {
@@ -704,7 +708,7 @@ public class HomeResource {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
         List<Paper> papers = classificationQueue
-                ? new ArrayList<>(classificationQueuePapers(List.of(logicalFeed.id)))
+                ? new ArrayList<>(classificationQueuePapers(List.of(logicalFeed.id), normalizedClassificationStates(logicalFeed, states)))
                 : new ArrayList<>(paperRepository.findAllForReader(logicalFeed));
         populatePaperBadges(papers);
         for (Paper paper : papers) {
@@ -3639,10 +3643,37 @@ public class HomeResource {
         return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
     }
 
-    private List<Paper> classificationQueuePapers(List<Long> logicalFeedIds) {
+    private List<Paper> classificationQueuePapers(List<Long> logicalFeedIds, List<String> states) {
+        if (states != null && !states.isEmpty()) {
+            Set<String> selectedStates = new HashSet<>(states);
+            return logicalFeedIds.stream()
+                    .flatMap(logicalFeedId -> {
+                        LogicalFeed logicalFeed = logicalFeedRepository.findById(logicalFeedId);
+                        return logicalFeed == null ? java.util.stream.Stream.<Paper>empty()
+                                : paperRepository.findAllForReader(logicalFeed).stream();
+                    })
+                    .filter((paper) -> selectedStates.contains(WorkflowStateConfig.normalizeStateId(paper.status)))
+                    .toList();
+        }
         return paperRepository.findRssImportsForClassification(logicalFeedIds).stream()
                 .filter(HomeResource::isPaperInRssIntakeState)
                 .toList();
+    }
+
+    private static List<String> normalizedClassificationStates(LogicalFeed logicalFeed, List<String> requestedStates) {
+        if (requestedStates == null || requestedStates.isEmpty()) {
+            return List.of();
+        }
+        WorkflowStateConfig workflow = logicalFeed.workflowConfig();
+        List<String> states = requestedStates.stream()
+                .filter(Objects::nonNull)
+                .map(WorkflowStateConfig::normalizeStateId)
+                .distinct()
+                .toList();
+        if (states.isEmpty() || states.stream().anyMatch((state) -> !workflow.containsLeafState(state))) {
+            throw new WebApplicationException("Select a valid paper-feed state for classification.", Response.Status.BAD_REQUEST);
+        }
+        return states;
     }
 
     static boolean isPaperInRssIntakeState(Paper paper) {
