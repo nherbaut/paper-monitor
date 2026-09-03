@@ -1876,10 +1876,34 @@
             animation: classification-choices-pulse 420ms ease;
         }
 
-        .classification-view .classification-actions,
-        .classification-view .classification-footer,
-        .classification-view .classification-action-label {
+        .classification-surface.multi-target-classification .classification-actions,
+        .classification-surface.multi-target-classification .classification-footer,
+        .classification-surface.multi-target-classification .classification-action-label {
             display: none;
+        }
+
+        .classification-drag-target {
+            position: absolute;
+            z-index: 6;
+            top: 50%;
+            left: 50%;
+            display: none;
+            max-width: min(82%, 24rem);
+            padding: 0.7rem 0.9rem;
+            border: 2px solid currentColor;
+            border-radius: 8px;
+            background: color-mix(in srgb, var(--panel) 92%, transparent);
+            color: var(--accent);
+            font-size: clamp(0.9rem, 2.2vw, 1.2rem);
+            font-weight: 900;
+            line-height: 1.25;
+            text-align: center;
+            transform: translate(-50%, -50%) rotate(-2deg);
+            pointer-events: none;
+        }
+
+        .classification-drag-target.visible {
+            display: block;
         }
 
         .classification-keyboard-bar {
@@ -3603,6 +3627,7 @@
     </symbol>
 </svg>
 <section class="classification-view" id="classification-view" aria-label="Paper classification" aria-hidden="true">
+    <div class="classification-drop-zones" id="classification-drop-zones" aria-hidden="true"></div>
     <section class="classification-surface" id="classification-surface">
         <div class="classification-queue-header" id="classification-queue-header">
             {#if anonymousSetup}
@@ -3629,7 +3654,6 @@
             </div>
         </div>
         <div class="classification-deck" id="classification-deck">
-            <div class="classification-drop-zones" id="classification-drop-zones" aria-hidden="true"></div>
             <article class="classification-next-card hidden" id="classification-next-card" aria-hidden="true">
                 <p class="classification-next-label">Next paper</p>
                 <h3 class="classification-next-title" id="classification-next-title"></h3>
@@ -3644,6 +3668,7 @@
                     <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-heart"></use></svg>
                     <span id="classification-right-stamp-label"></span>
                 </div>
+                <div class="classification-drag-target" id="classification-drag-target"></div>
                 <div>
                     <p class="classification-kicker" id="classification-kicker">Focused classification</p>
                     <h2 class="classification-title" id="classification-title"></h2>
@@ -3868,6 +3893,7 @@
     const classificationRightLabel = document.getElementById("classification-right-label");
     const classificationLeftStampLabel = document.getElementById("classification-left-stamp-label");
     const classificationRightStampLabel = document.getElementById("classification-right-stamp-label");
+    const classificationDragTarget = document.getElementById("classification-drag-target");
     const classificationNotes = document.getElementById("classification-notes");
     const classificationNotesToggle = document.getElementById("classification-notes-toggle");
     const classificationNotesEditor = document.getElementById("classification-notes-editor");
@@ -6469,12 +6495,17 @@
         if (targets.length <= 2 || !classificationDropZones) {
             return [];
         }
-        const cardBounds = classificationCard.getBoundingClientRect();
+        const cardBounds = card.getBoundingClientRect();
         const centerX = cardBounds.left + cardBounds.width / 2;
         const centerY = cardBounds.top + cardBounds.height / 2;
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
-        const mapRadius = Math.hypot(viewportWidth, viewportHeight) * 1.15;
+        const mapRadius = Math.max(
+            Math.hypot(centerX, centerY),
+            Math.hypot(viewportWidth - centerX, centerY),
+            Math.hypot(centerX, viewportHeight - centerY),
+            Math.hypot(viewportWidth - centerX, viewportHeight - centerY)
+        ) + 2;
         const labelRadius = Math.max(125, Math.min(Math.min(viewportWidth, viewportHeight) * 0.36, 330));
         const sectorAngle = FULL_TURN / targets.length;
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -6527,6 +6558,7 @@
         if (!dragState.radialTargets?.length || radius < CLASSIFICATION_DRAG_TRIGGER_X) {
             classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
                 .forEach((element) => element.classList.remove("active"));
+            classificationDragTarget?.classList.remove("visible");
             return null;
         }
         const angle = Math.atan2(deltaY, deltaX);
@@ -6537,6 +6569,11 @@
         }, null);
         classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
             .forEach((element) => element.classList.toggle("active", element.dataset.targetState === match?.target));
+        if (classificationDragTarget) {
+            classificationDragTarget.textContent = classificationStateLabel(dragState.card, match.target);
+            classificationDragTarget.style.color = match.color;
+            classificationDragTarget.classList.add("visible");
+        }
         return match;
     };
 
@@ -6667,10 +6704,14 @@
         classificationCard.style.setProperty("--classification-drag-rotation", "0deg");
         classificationCard.style.setProperty("--classification-drag-progress", "0");
         classificationSurface.classList.remove("empty");
-        classificationCard.classList.toggle(
-            "multi-target-drag",
-            classificationTargetCount(classificationDirectionalTargets(card)) > 2
-        );
+        const multiTarget = classificationTargetCount(classificationDirectionalTargets(card)) > 2;
+        classificationCard.classList.toggle("multi-target-drag", multiTarget);
+        classificationSurface.classList.toggle("multi-target-classification", multiTarget);
+        classificationDragTarget?.classList.remove("visible");
+        if (classificationDragTarget) {
+            classificationDragTarget.textContent = "";
+            classificationDragTarget.style.removeProperty("color");
+        }
         updateClassificationQueueProgress(card);
         classificationKicker.textContent = statusLabel(normalizeStatus(card.dataset.paperStatus))
             + (card.dataset.paperRecordType === "GRAY_LITERATURE" ? " · Gray literature" : "");
@@ -6823,6 +6864,7 @@
             return;
         }
         hideClassificationDropZones();
+        classificationDragTarget?.classList.remove("visible");
         classificationCard.classList.remove("dragging", "dragging-left", "dragging-right");
         classificationCard.style.setProperty("--classification-drag-x", "0px");
         classificationCard.style.setProperty("--classification-drag-y", "0px");
