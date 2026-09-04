@@ -1610,6 +1610,10 @@
             opacity: var(--classification-drag-progress);
         }
 
+        .classification-card.multi-target-drag .classification-stamp {
+            display: none;
+        }
+
         .classification-card.multi-target-drag {
             touch-action: none;
         }
@@ -1837,6 +1841,14 @@
             color: #2d9c4e;
         }
 
+        .classification-action-button.neutral {
+            color: var(--accent);
+        }
+
+        .classification-stamp.neutral {
+            color: var(--accent);
+        }
+
         .classification-action-button.info {
             width: 3.25rem;
             height: 3.25rem;
@@ -1900,6 +1912,13 @@
             text-align: center;
             transform: translate(-50%, -50%) rotate(-2deg);
             pointer-events: none;
+        }
+
+        .classification-drag-target .lucide-icon {
+            width: 1.45rem;
+            height: 1.45rem;
+            margin-right: 0.35rem;
+            vertical-align: -0.3rem;
         }
 
         .classification-drag-target.visible {
@@ -3612,6 +3631,18 @@
         <path d="m12 19-7-7 7-7"></path>
         <path d="M19 12H5"></path>
     </symbol>
+    <symbol id="lucide-arrow-right" viewBox="0 0 24 24">
+        <path d="m12 5 7 7-7 7"></path>
+        <path d="M5 12h14"></path>
+    </symbol>
+    <symbol id="lucide-move" viewBox="0 0 24 24">
+        <path d="M12 2v20"></path>
+        <path d="m15 5-3-3-3 3"></path>
+        <path d="m15 19-3 3-3-3"></path>
+        <path d="M2 12h20"></path>
+        <path d="m5 9-3 3 3 3"></path>
+        <path d="m19 9 3 3-3 3"></path>
+    </symbol>
     <symbol id="lucide-list" viewBox="0 0 24 24">
         <path d="M8 6h13"></path>
         <path d="M8 12h13"></path>
@@ -3668,7 +3699,10 @@
                     <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-heart"></use></svg>
                     <span id="classification-right-stamp-label"></span>
                 </div>
-                <div class="classification-drag-target" id="classification-drag-target"></div>
+                <div class="classification-drag-target" id="classification-drag-target">
+                    <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-move"></use></svg>
+                    <span id="classification-drag-target-label"></span>
+                </div>
                 <div>
                     <p class="classification-kicker" id="classification-kicker">Focused classification</p>
                     <h2 class="classification-title" id="classification-title"></h2>
@@ -3891,9 +3925,12 @@
     const classificationInfoAction = document.getElementById("classification-info-action");
     const classificationLeftLabel = document.getElementById("classification-left-label");
     const classificationRightLabel = document.getElementById("classification-right-label");
+    const classificationLeftStamp = document.getElementById("classification-left-stamp");
+    const classificationRightStamp = document.getElementById("classification-right-stamp");
     const classificationLeftStampLabel = document.getElementById("classification-left-stamp-label");
     const classificationRightStampLabel = document.getElementById("classification-right-stamp-label");
     const classificationDragTarget = document.getElementById("classification-drag-target");
+    const classificationDragTargetLabel = document.getElementById("classification-drag-target-label");
     const classificationNotes = document.getElementById("classification-notes");
     const classificationNotesToggle = document.getElementById("classification-notes-toggle");
     const classificationNotesEditor = document.getElementById("classification-notes-editor");
@@ -6467,6 +6504,32 @@
         return directional.left.length + directional.right.length + directional.other.length;
     };
 
+    const classificationSwipeChoices = (card, directional = classificationDirectionalTargets(card)) => {
+        const twoEarlier = directional.left.length === 2
+            && directional.right.length === 0
+            && directional.other.length === 0;
+        const twoLater = directional.right.length === 2
+            && directional.left.length === 0
+            && directional.other.length === 0;
+        if (twoEarlier || twoLater) {
+            const targets = twoEarlier ? directional.left : directional.right;
+            return {
+                neutral: true,
+                left: targets[0],
+                right: targets[1]
+            };
+        }
+        return {
+            neutral: false,
+            left: directional.left.length === 1 ? directional.left[0] : null,
+            right: directional.right.length === 1 ? directional.right[0] : null
+        };
+    };
+
+    const setClassificationIcon = (container, iconId) => {
+        container?.querySelector("use")?.setAttribute("href", "#" + iconId);
+    };
+
     const DROP_ZONE_COLORS = ["#f08b7a", "#78b8dc", "#f0c86c", "#8dca93", "#b49ad7", "#e993bf"];
     const FULL_TURN = Math.PI * 2;
     const RADIAL_DROP_START_ANGLE = -3 * Math.PI / 4;
@@ -6574,9 +6637,7 @@
 
     const classificationDropTargetForDrag = (dragState, deltaX, deltaY) => {
         const radius = Math.hypot(deltaX, deltaY);
-        if (!dragState.radialTargets?.length || radius < CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS) {
-            classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
-                .forEach((element) => element.classList.remove("active"));
+        if (!dragState.radialTargets?.length) {
             classificationDragTarget?.classList.remove("visible");
             return null;
         }
@@ -6586,13 +6647,18 @@
                 ? candidate
                 : closest;
         }, null);
-        classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
-            .forEach((element) => element.classList.toggle("active", element.dataset.targetState === match?.target));
-        if (classificationDragTarget) {
-            classificationDragTarget.textContent = classificationStateLabel(dragState.card, match.target);
+        if (classificationDragTarget && classificationDragTargetLabel && match) {
+            classificationDragTargetLabel.textContent = classificationStateLabel(dragState.card, match.target);
             classificationDragTarget.style.color = match.color;
             classificationDragTarget.classList.add("visible");
         }
+        if (radius < CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS) {
+            classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
+                .forEach((element) => element.classList.remove("active"));
+            return null;
+        }
+        classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
+            .forEach((element) => element.classList.toggle("active", element.dataset.targetState === match?.target));
         return match;
     };
 
@@ -6727,8 +6793,8 @@
         classificationCard.classList.toggle("multi-target-drag", multiTarget);
         classificationSurface.classList.toggle("multi-target-classification", multiTarget);
         classificationDragTarget?.classList.remove("visible");
-        if (classificationDragTarget) {
-            classificationDragTarget.textContent = "";
+        if (classificationDragTarget && classificationDragTargetLabel) {
+            classificationDragTargetLabel.textContent = "";
             classificationDragTarget.style.removeProperty("color");
         }
         updateClassificationQueueProgress(card);
@@ -6826,26 +6892,41 @@
         classificationActions.innerHTML = "";
         const currentStatus = normalizeStatus(card.dataset.paperStatus);
         const directional = classificationDirectionalTargets(card);
-        const leftLabel = directional.left.length === 1
-            ? classificationStateLabel(card, directional.left[0])
+        const swipeChoices = classificationSwipeChoices(card, directional);
+        const leftLabel = swipeChoices.left
+            ? classificationStateLabel(card, swipeChoices.left)
             : directional.left.length > 1 ? directional.left.length + " earlier states" : "No earlier state";
-        const rightLabel = directional.right.length === 1
-            ? classificationStateLabel(card, directional.right[0])
+        const rightLabel = swipeChoices.right
+            ? classificationStateLabel(card, swipeChoices.right)
             : directional.right.length > 1 ? directional.right.length + " later states" : "No later state";
         classificationLeftLabel.textContent = leftLabel;
         classificationRightLabel.textContent = rightLabel;
-        classificationLeftStampLabel.textContent = directional.left.length === 1 ? leftLabel : "Choose a state";
-        classificationRightStampLabel.textContent = directional.right.length === 1 ? rightLabel : "Choose a state";
-        classificationLeftAction.disabled = directional.left.length === 0;
-        classificationRightAction.disabled = directional.right.length === 0;
-        classificationLeftAction.setAttribute("aria-label", directional.left.length
+        classificationLeftStampLabel.textContent = swipeChoices.left ? leftLabel : "Choose a state";
+        classificationRightStampLabel.textContent = swipeChoices.right ? rightLabel : "Choose a state";
+        classificationLeftAction.disabled = !swipeChoices.left;
+        classificationRightAction.disabled = !swipeChoices.right;
+        classificationLeftAction.classList.toggle("neutral", swipeChoices.neutral);
+        classificationRightAction.classList.toggle("neutral", swipeChoices.neutral);
+        classificationLeftStamp?.classList.toggle("neutral", swipeChoices.neutral);
+        classificationRightStamp?.classList.toggle("neutral", swipeChoices.neutral);
+        setClassificationIcon(classificationLeftAction, swipeChoices.neutral ? "lucide-arrow-left" : "lucide-x");
+        setClassificationIcon(classificationRightAction, swipeChoices.neutral ? "lucide-arrow-right" : "lucide-heart");
+        setClassificationIcon(classificationLeftStamp, swipeChoices.neutral ? "lucide-arrow-left" : "lucide-x");
+        setClassificationIcon(classificationRightStamp, swipeChoices.neutral ? "lucide-arrow-right" : "lucide-heart");
+        classificationLeftAction.setAttribute("aria-label", swipeChoices.left
             ? "Move paper to " + leftLabel
-            : "No earlier state available");
-        classificationRightAction.setAttribute("aria-label", directional.right.length
+            : "No left swipe destination available");
+        classificationRightAction.setAttribute("aria-label", swipeChoices.right
             ? "Move paper to " + rightLabel
-            : "No later state available");
+            : "No right swipe destination available");
+        classificationLeftAction.title = swipeChoices.left
+            ? "Move paper to " + leftLabel
+            : "No left swipe destination available";
+        classificationRightAction.title = swipeChoices.right
+            ? "Move paper to " + rightLabel
+            : "No right swipe destination available";
 
-        const explicitTargets = [
+        const explicitTargets = swipeChoices.neutral ? [] : [
             ...(directional.left.length > 1 ? directional.left : []),
             ...directional.other,
             ...(directional.right.length > 1 ? directional.right : [])
@@ -6869,7 +6950,9 @@
         classificationFooter.textContent = targetCount
             ? explicitTargets.length
                 ? "Choose a labeled state, or swipe where one destination is available."
-                : "Drag the card or use the X and heart controls."
+                : swipeChoices.neutral
+                    ? "Drag the card or use either labeled arrow."
+                    : "Drag the card or use the X and heart controls."
             : "This state has no configured outgoing transitions. Use the normal reader to inspect this paper.";
     };
 
@@ -6974,12 +7057,12 @@
             return;
         }
         const card = selectedPaperCard();
-        const targets = classificationDirectionalTargets(card)[side] || [];
-        if (targets.length !== 1) {
+        const target = classificationSwipeChoices(card)[side];
+        if (!target) {
             revealClassificationChoices();
             return;
         }
-        await performClassificationTransition(card, targets[0], side);
+        await performClassificationTransition(card, target, side);
     };
 
     const openClassificationPaperViewer = async () => {
@@ -9073,7 +9156,7 @@
         const deltaY = (event.clientY ?? dragState.startY) - dragState.startY;
         const dragDistance = Math.hypot(deltaX, deltaY);
         const side = deltaX < 0 ? "left" : "right";
-        const targets = classificationDirectionalTargets(dragState.card)[side] || [];
+        const swipeTarget = classificationSwipeChoices(dragState.card)[side];
         const dropTarget = cancelled || !dragState.captured
             ? null
             : dragState.multiTarget
@@ -9096,12 +9179,12 @@
             resetClassificationDragVisual();
             return;
         }
-        if (targets.length !== 1) {
+        if (!swipeTarget) {
             resetClassificationDragVisual();
             revealClassificationChoices();
             return;
         }
-        await performClassificationTransition(dragState.card, targets[0], side, { preserveDragVisual: true });
+        await performClassificationTransition(dragState.card, swipeTarget, side, { preserveDragVisual: true });
     };
 
     window.addEventListener("pointerup", (event) => finishClassificationPointerDrag(event));
