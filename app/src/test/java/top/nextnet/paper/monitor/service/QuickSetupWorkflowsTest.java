@@ -1,6 +1,7 @@
 package top.nextnet.paper.monitor.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -48,7 +49,7 @@ class QuickSetupWorkflowsTest {
     }
 
     @Test
-    void graphWorkflowsRequireConnectedStatesAndAtMostTwoEdgesPerDirection() {
+    void graphWorkflowsRequireConnectedStatesButAllowBranching() {
         assertThrows(IllegalArgumentException.class, () -> WorkflowStateConfig.parse("""
                 version: 2
                 initial_state: A
@@ -60,7 +61,7 @@ class QuickSetupWorkflowsTest {
                     to: [B, A]
                 """).validateGraphRules());
 
-        assertThrows(IllegalArgumentException.class, () -> WorkflowStateConfig.parse("""
+        assertDoesNotThrow(() -> WorkflowStateConfig.parse("""
                 version: 2
                 initial_state: A
                 states:

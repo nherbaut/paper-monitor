@@ -479,11 +479,7 @@ public final class WorkflowStateConfig {
             if (!sources.add(transition.from())) {
                 throw new IllegalArgumentException("A transition source may only be declared once: " + transition.from());
             }
-            int outgoingCount = transition.to().size();
-            if (outgoingCount > 2) {
-                throw new IllegalArgumentException("A state can have at most two outgoing transitions: " + transition.from());
-            }
-            outgoing.put(transition.from(), outgoingCount);
+            outgoing.put(transition.from(), transition.to().size());
             for (String target : transition.to()) {
                 if (transition.from().equals(target)) {
                     throw new IllegalArgumentException("A state cannot transition to itself: " + transition.from());
@@ -491,10 +487,7 @@ public final class WorkflowStateConfig {
                 if (!edges.add(transition.from() + " -> " + target)) {
                     throw new IllegalArgumentException("Duplicate transition: " + transition.from() + " -> " + target);
                 }
-                int incomingCount = incoming.merge(target, 1, Integer::sum);
-                if (incomingCount > 2) {
-                    throw new IllegalArgumentException("A state can have at most two incoming transitions: " + target);
-                }
+                incoming.merge(target, 1, Integer::sum);
             }
         }
         for (State state : states) {

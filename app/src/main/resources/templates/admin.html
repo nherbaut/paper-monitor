@@ -1735,8 +1735,6 @@
         });
         ids.forEach((id) => {
             if (!incoming[id] && !outgoing[id]) errors.push("State " + id + " needs at least one transition.");
-            if (incoming[id] > 2) errors.push("State " + id + " has more than two incoming transitions.");
-            if (outgoing[id] > 2) errors.push("State " + id + " has more than two outgoing transitions.");
         });
         return [...new Set(errors)];
     };
@@ -2006,8 +2004,6 @@
             if (from === to) return "A state cannot transition to itself.";
             const current = edges();
             if (current.some((edge) => edge.from === from && edge.to === to)) return "That transition already exists.";
-            if (current.filter((edge) => edge.from === from).length >= 2) return from + " already has two outgoing transitions.";
-            if (current.filter((edge) => edge.to === to).length >= 2) return to + " already has two incoming transitions.";
             let transition = workflow.transitions.find((item) => item.from === from);
             if (!transition) {
                 transition = { from, to: [] };
