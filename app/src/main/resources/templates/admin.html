@@ -568,11 +568,6 @@
             pointer-events: none;
         }
 
-        .workflow-node .workflow-node-id {
-            fill: var(--muted);
-            font-size: 11px;
-        }
-
         .workflow-inspector {
             display: grid;
             align-content: start;
@@ -927,7 +922,6 @@
                     </div>
                     <div class="workflow-inspector" data-workflow-inspector hidden>
                         <strong data-workflow-inspector-title>State</strong>
-                        <label>State ID <input data-workflow-state-id type="text" autocomplete="off"></label>
                         <label>Label <input data-workflow-state-label type="text"></label>
                         <label>Group <input data-workflow-state-group type="text" placeholder="Optional group"></label>
                         <label class="checkbox-label"><input data-workflow-state-terminal type="checkbox"> Terminal state</label>
@@ -1596,9 +1590,13 @@
     let pendingWorkflowSave = null;
 
     const workflowClone = (value) => JSON.parse(JSON.stringify(value));
-    const workflowNodeId = (value) => String(value || "").trim().toUpperCase().split("/")
-        .map((part) => part.trim().replace(/\s+/g, "_"))
-        .filter(Boolean).join("/");
+    const workflowNodeId = (value) => String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+        .trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const workflowStateId = (label, group) => {
+        const state = workflowNodeId(label) || "STATE";
+        const normalizedGroup = workflowNodeId(group);
+        return normalizedGroup ? normalizedGroup + "/" + state : state;
+    };
     const workflowYamlValue = (value) => {
         const text = String(value ?? "");
         return /^[A-Za-z0-9_./-]+$/.test(text) ? text : JSON.stringify(text);
@@ -1738,7 +1736,6 @@
             copyYaml: designer.querySelector("[data-workflow-copy-yaml]")
         };
         const fields = {
-            id: designer.querySelector("[data-workflow-state-id]"),
             label: designer.querySelector("[data-workflow-state-label]"),
             group: designer.querySelector("[data-workflow-state-group]"),
             terminal: designer.querySelector("[data-workflow-state-terminal]"),
@@ -1814,7 +1811,6 @@
             const criterion = requires.exclusionCriterion || requires.inclusionCriteria || null;
             const kind = requires.exclusionCriterion ? "exclusion" : requires.inclusionCriteria ? "inclusion" : "";
             designer.querySelector("[data-workflow-inspector-title]").textContent = state.label || state.id;
-            fields.id.value = state.id;
             fields.label.value = state.label || "";
             fields.group.value = state.group || "";
             fields.terminal.checked = Boolean(state.terminal);
@@ -1862,12 +1858,9 @@
                 if (selectedStateId === state.id) node.classList.add("selected");
                 if (workflow.initialState === state.id) node.classList.add("initial");
                 node.appendChild(workflowSvg("rect", { x: 0, y: 0, width: 150, height: 60, rx: 10 }));
-                const label = workflowSvg("text", { x: 75, y: 25, "text-anchor": "middle" });
+                const label = workflowSvg("text", { x: 75, y: 35, "text-anchor": "middle" });
                 label.textContent = (state.label || state.id).slice(0, 24);
-                const id = workflowSvg("text", { x: 75, y: 44, "text-anchor": "middle" });
-                id.classList.add("workflow-node-id");
-                id.textContent = state.id;
-                node.append(label, id);
+                node.append(label);
                 node.addEventListener("pointerdown", (event) => {
                     if (event.shiftKey) {
                         dragState = { id: state.id, pointerId: event.pointerId };
@@ -1939,10 +1932,12 @@
             workflow.transitions = workflow.transitions.filter((item) => item.to.length);
         };
         const addState = (position) => {
-            let suffix = workflow.states.length + 1;
-            let id = "STATE_" + suffix;
-            while (stateById(id)) id = "STATE_" + (++suffix);
-            workflow.states.push({ id, label: "New state", group: null, terminal: false, requires: {}, report: {} });
+            const label = "New state";
+            const baseId = workflowStateId(label, null);
+            let id = baseId;
+            let suffix = 2;
+            while (stateById(id)) id = baseId + "_" + suffix++;
+            workflow.states.push({ id, label, group: null, terminal: false, requires: {}, report: {} });
             if (position) positions.set(id, position);
             selectedStateId = id;
             selectedEdgeKey = null;
@@ -1977,7 +1972,14 @@
             const state = stateById(selectedStateId);
             if (!state) return;
             const previousId = state.id;
-            const nextId = workflowNodeId(fields.id.value);
+            const nextLabel = fields.label.value.trim() || "Untitled state";
+            const nextGroup = workflowNodeId(fields.group.value) || null;
+            const baseId = workflowStateId(nextLabel, nextGroup);
+            let nextId = baseId;
+            let suffix = 2;
+            while (nextId !== previousId && stateById(nextId)) {
+                nextId = baseId + "_" + suffix++;
+            }
             if (nextId && nextId !== previousId) {
                 state.id = nextId;
                 workflow.transitions.forEach((transition) => {
@@ -1990,8 +1992,8 @@
                 if (position) positions.set(nextId, position);
                 selectedStateId = nextId;
             }
-            state.label = fields.label.value.trim() || state.id;
-            state.group = workflowNodeId(fields.group.value) || null;
+            state.label = nextLabel;
+            state.group = nextGroup;
             state.terminal = fields.terminal.checked;
             const kind = fields.requirementKind.value;
             const taxonomy = workflowNodeId(fields.requirementTaxonomy.value);
