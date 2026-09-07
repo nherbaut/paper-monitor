@@ -4683,14 +4683,6 @@
         return transitions.find((item) => item?.from === stateId)?.to || [];
     };
 
-    const workflowSourcesToState = (logicalFeedId, stateId) => {
-        const config = workflowConfigForLogicalFeed(logicalFeedId);
-        const transitions = Array.isArray(config?.transitions) ? config.transitions : [];
-        return transitions
-            .filter((item) => Array.isArray(item?.to) && item.to.includes(stateId))
-            .map((item) => item.from);
-    };
-
     const logicalFeedOptionById = (logicalFeedId) => {
         return Array.from(logicalFeedFilter?.options || [])
             .find((option) => option.value === String(logicalFeedId)) || null;
@@ -7314,16 +7306,11 @@
             return;
         }
         const outgoingStates = workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
-        const incomingStates = workflowSourcesToState(card.dataset.logicalFeedId, currentStatus);
         const outgoing = numberStateWheelOptions(
             wheelOptionsForReachableStates(card.dataset.logicalFeedId, outgoingStates),
             1
         );
-        const incoming = numberStateWheelOptions(
-            wheelOptionsForReachableStates(card.dataset.logicalFeedId, incomingStates),
-            outgoing.nextShortcut
-        );
-        const transitions = [...outgoing.options, ...incoming.options]
+        const transitions = outgoing.options
             .filter((entry) => entry.type === "state" && entry.shortcut);
         if (!transitions.length) {
             return;
@@ -7333,7 +7320,7 @@
             card,
             currentStatus,
             rightOptions: outgoing.options,
-            leftOptions: incoming.options,
+            leftOptions: [],
             transitions
         };
         renderKeyboardShortcutPicker();
@@ -7469,9 +7456,9 @@
         const currentStatus = normalizeStatus(card.dataset.paperStatus);
         const reachableStates = classificationModeActive
             ? classificationDirectionalTargets(card)[side]
-            : side === "left"
-                ? workflowSourcesToState(card.dataset.logicalFeedId, currentStatus)
-                : workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
+            : side === "right"
+                ? workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus)
+                : [];
         const options = wheelOptionsForReachableStates(card.dataset.logicalFeedId, reachableStates);
         const activeIndex = options.findIndex((entry) => entry.type === "state");
         if (activeIndex < 0) {
@@ -7502,16 +7489,18 @@
             return false;
         }
         const nextCard = selectedPaperCard();
-        showKeyboardStatusToast(
-            "Moved to " + statusLabel(nextStatus) + ". Press " + (side === "left" ? "→" : "←") + " to undo.",
-            {
-                side,
-                card,
-                previousStatus,
-                nextStatus,
-                nextCardId: nextCard?.dataset.paperId || null
-            }
-        );
+        if (workflowTargetsFromState(card.dataset.logicalFeedId, nextStatus).includes(previousStatus)) {
+            showKeyboardStatusToast(
+                "Moved to " + statusLabel(nextStatus) + ". Press " + (side === "left" ? "→" : "←") + " to undo.",
+                {
+                    side,
+                    card,
+                    previousStatus,
+                    nextStatus,
+                    nextCardId: nextCard?.dataset.paperId || null
+                }
+            );
+        }
         return true;
     };
 
@@ -7523,9 +7512,9 @@
         const currentStatus = normalizeStatus(card.dataset.paperStatus);
         const states = classificationModeActive
             ? classificationDirectionalTargets(card)[side]
-            : side === "left"
-                ? workflowSourcesToState(card.dataset.logicalFeedId, currentStatus)
-                : workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus);
+            : side === "right"
+                ? workflowTargetsFromState(card.dataset.logicalFeedId, currentStatus)
+                : [];
         if (states.length !== 1) {
             return false;
         }
@@ -7542,6 +7531,10 @@
             return false;
         }
         const { card, previousStatus, nextStatus } = keyboardStatusUndo;
+        if (!workflowTargetsFromState(card.dataset.logicalFeedId, nextStatus).includes(previousStatus)) {
+            clearKeyboardStatusToast();
+            return false;
+        }
         clearKeyboardStatusToast();
         await applyPaperStatusTransition(card, previousStatus, nextStatus, { advanceFocus: false });
         openPaperCard(findCardByPaperId(card.dataset.paperId) || card);
@@ -7608,24 +7601,11 @@
             rightStateWheel.classList.add("visible");
             renderStateWheel(rightStateOptions, options, activeIndex);
         } else if (deltaX < -STATE_DRAG_TRIGGER_X) {
-            const reachableStates = workflowSourcesToState(card.dataset.logicalFeedId, cardDragState.currentStatus);
-            const options = wheelOptionsForReachableStates(card.dataset.logicalFeedId, reachableStates);
-            const selectableIndexes = options.map((entry, index) => entry.type === "state" ? index : -1).filter((index) => index >= 0);
-            if (!selectableIndexes.length) {
-                cardDragState.side = null;
-                cardDragState.options = [];
-                cardDragState.activeIndex = 0;
-                hideStateWheels();
-                return;
-            }
-            const activeIndex = selectableIndexes[Math.max(0, Math.min(selectableIndexes.length - 1, Math.round(-deltaY / STATE_WHEEL_ROW_HEIGHT)))] ?? 0;
-            cardDragState.side = "left";
-            cardDragState.options = options;
-            cardDragState.activeIndex = activeIndex;
-            visualTarget.classList.add("drag-left");
-            rightStateWheel.classList.remove("visible");
-            leftStateWheel.classList.add("visible");
-            renderStateWheel(leftStateOptions, options, activeIndex);
+            // Incoming graph edges are historical paths, not valid reverse transitions.
+            cardDragState.side = null;
+            cardDragState.options = [];
+            cardDragState.activeIndex = 0;
+            hideStateWheels();
         } else {
             cardDragState.side = null;
             cardDragState.options = [];
