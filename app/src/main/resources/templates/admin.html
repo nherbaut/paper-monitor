@@ -570,6 +570,7 @@
         .workflow-node text {
             fill: var(--ink);
             font-family: Georgia, "Times New Roman", serif;
+            font-size: 12px;
             pointer-events: none;
         }
 
@@ -1613,6 +1614,37 @@
         Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
         return element;
     };
+    const workflowLabelLines = (value, maxCharacters = 19, maxLines = 3) => {
+        const words = String(value || "").trim().split(/\s+/).filter(Boolean);
+        const lines = [];
+        let line = "";
+        const addLine = (nextLine) => {
+            if (lines.length < maxLines) lines.push(nextLine);
+        };
+        words.forEach((word) => {
+            while (word.length > maxCharacters) {
+                if (line) {
+                    addLine(line);
+                    line = "";
+                }
+                addLine(word.slice(0, maxCharacters));
+                word = word.slice(maxCharacters);
+            }
+            const candidate = line ? line + " " + word : word;
+            if (candidate.length <= maxCharacters) {
+                line = candidate;
+            } else {
+                addLine(line);
+                line = word;
+            }
+        });
+        if (line) addLine(line);
+        if (!lines.length) return ["Untitled state"];
+        if (lines.length === maxLines && (words.join(" ").length > lines.join(" ").length)) {
+            lines[maxLines - 1] = lines[maxLines - 1].slice(0, maxCharacters - 1).trimEnd() + "…";
+        }
+        return lines;
+    };
 
     const workflowYamlFromGraph = (workflow) => {
         const lines = ["version: 2", "", "initial_state: " + workflow.initialState, "", "states:"];
@@ -1906,9 +1938,25 @@
                 if (selectedStateId === state.id) node.classList.add("selected");
                 if (workflow.initialState === state.id) node.classList.add("initial");
                 node.appendChild(workflowSvg("rect", { x: 0, y: 0, width: 150, height: 60, rx: 10 }));
-                const label = workflowSvg("text", { x: 75, y: 35, "text-anchor": "middle" });
-                label.textContent = (state.label || state.id).slice(0, 24);
-                node.append(label);
+                const fullLabel = state.label || state.id || "Untitled state";
+                const labelLines = workflowLabelLines(fullLabel);
+                const label = workflowSvg("text", {
+                    x: 75,
+                    y: 34 - (labelLines.length - 1) * 7,
+                    "text-anchor": "middle"
+                });
+                labelLines.forEach((line, lineIndex) => {
+                    const tspan = workflowSvg("tspan", { x: 75, dy: lineIndex ? 14 : 0 });
+                    if (line.split(/\s+/).some((word) => word.length > 11)) {
+                        tspan.setAttribute("textLength", "130");
+                        tspan.setAttribute("lengthAdjust", "spacingAndGlyphs");
+                    }
+                    tspan.textContent = line;
+                    label.appendChild(tspan);
+                });
+                const title = workflowSvg("title");
+                title.textContent = fullLabel;
+                node.append(title, label);
                 node.addEventListener("pointerdown", (event) => {
                     event.stopPropagation();
                     if (edgeStartId && edgeStartId !== state.id) {
