@@ -2401,8 +2401,16 @@ public class HomeResource {
             paper.status = normalizedStatus;
             paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
             paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
+        } catch (WebApplicationException e) {
+            String message = safeMessage(e);
+            Log.warnf("Paper status change rejected for paperId=%d logicalFeedId=%d from=%s to=%s: %s",
+                    paper.id, paper.logicalFeed.id, paper.status, status, message);
+            throw plainTextWebApplicationException(e.getResponse(), message);
         } catch (Exception e) {
-            throw new WebApplicationException("Invalid paper status", Response.Status.BAD_REQUEST);
+            Log.errorf(e, "Paper status change failed for paperId=%d logicalFeedId=%d from=%s to=%s",
+                    paper.id, paper.logicalFeed.id, paper.status, status);
+            throw plainTextWebApplicationException(Response.status(Response.Status.INTERNAL_SERVER_ERROR).build(),
+                    "Failed to update paper status");
         }
         return Response.noContent().build();
     }
@@ -2647,6 +2655,14 @@ public class HomeResource {
                 .type(MediaType.TEXT_PLAIN)
                 .entity(message == null ? "" : message)
                 .build();
+    }
+
+    private WebApplicationException plainTextWebApplicationException(Response source, String message) {
+        int status = source == null ? Response.Status.INTERNAL_SERVER_ERROR.getStatusCode() : source.getStatus();
+        return new WebApplicationException(Response.status(status)
+                .type(MediaType.TEXT_PLAIN)
+                .entity(message == null ? "" : message)
+                .build());
     }
 
     private String normalize(String value) {
