@@ -6381,7 +6381,6 @@
                 activeChildStatus = null;
                 stateSearchVisibleLimit = 10;
                 applyLogicalFeedFilter();
-                openCurrentStateClassificationPile();
             };
             const tab = document.createElement("button");
             tab.type = "button";
@@ -6422,7 +6421,6 @@
                     activeChildStatus = activeChildStatus === choice.value ? null : choice.value;
                     stateSearchVisibleLimit = 10;
                     applyLogicalFeedFilter();
-                    openCurrentStateClassificationPile();
                 });
                 statusSubtabsContainer.appendChild(childTab);
 
@@ -6437,7 +6435,6 @@
                         activeChildStatus = choice.value;
                         stateSearchVisibleLimit = 10;
                         applyLogicalFeedFilter();
-                        openCurrentStateClassificationPile();
                         if (mobileStateMenu) {
                             mobileStateMenu.open = false;
                         }
@@ -7841,23 +7838,6 @@
             });
         }
         return filtered;
-    };
-
-    const openCurrentStateClassificationPile = () => {
-        if (shareMode || !canEdit || !selectedLogicalFeedCanAdmin() || activePrimaryTab !== "state") {
-            return;
-        }
-        const logicalFeedId = logicalFeedFilter?.value;
-        const group = workflowGroupByName(logicalFeedId, activeStatusTab);
-        const states = activeChildStatus
-            ? [activeChildStatus]
-            : stateLeafChoices(group).map((choice) => choice.value);
-        if (!logicalFeedId || !states.length || !filteredPaperRecords().length) {
-            return;
-        }
-        const params = new URLSearchParams({ logicalFeedId });
-        states.forEach((state) => params.append("state", state));
-        window.location.href = "/classify?" + params.toString();
     };
 
     const renderPaginatedPaperList = () => {
