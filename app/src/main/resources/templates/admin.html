@@ -526,52 +526,12 @@
         .workflow-canvas {
             display: block;
             width: 100%;
-            min-width: 40rem;
+            min-width: 0;
             height: 34rem;
         }
 
-        .workflow-edge {
-            fill: none;
-            stroke: #8b7564;
-            stroke-width: 2.4;
-            cursor: pointer;
-        }
-
-        .workflow-edge.selected {
-            stroke: var(--accent);
-            stroke-width: 4;
-        }
-
-        .workflow-node {
-            cursor: grab;
-            touch-action: none;
-        }
-
-        .workflow-node.dragging {
-            cursor: grabbing;
-        }
-
-        .workflow-node rect {
-            fill: #fff;
-            stroke: #a39182;
-            stroke-width: 1.5;
-        }
-
-        .workflow-node.selected rect {
-            fill: #fff0e9;
-            stroke: var(--accent);
-            stroke-width: 3;
-        }
-
-        .workflow-node.initial rect {
-            stroke-dasharray: 5 3;
-        }
-
-        .workflow-node text {
-            fill: var(--ink);
-            font-family: Georgia, "Times New Roman", serif;
-            font-size: 12px;
-            pointer-events: none;
+        .workflow-canvas canvas {
+            outline: none;
         }
 
         .workflow-inspector {
@@ -905,7 +865,7 @@
 
     <section class="settings-panel hidden" data-settings-panel="workflow">
         <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v12H2V2Zm1 1v10h10V3H3Zm2 2h6v1H5V5Zm0 3h6v1H5V8Zm0 3h4v1H5v-1Z"/></svg></span><span>Workflow Designer</span></h2>
-        <p class="meta">Right-click the canvas to add a state, a state to add a transition or delete it, and a transition to reverse or delete it. Shift-drag states to arrange the diagram.</p>
+        <p class="meta">Right-click the canvas to add a state, a state to add a transition or delete it, and a transition to reverse or delete it. Drag nodes to arrange the diagram; use Automatic layout to reset it.</p>
         <label>Paper feed <select data-workflow-feed-picker>
             {#for logicalFeed in logicalFeeds}
             {#if logicalFeed.viewerCanAdmin}
@@ -925,7 +885,7 @@
                 <div class="workflow-designer-status" data-workflow-status></div>
                 <div class="workflow-designer-grid">
                     <div class="workflow-canvas-wrap">
-                        <svg class="workflow-canvas" data-workflow-canvas viewBox="0 0 920 416" role="img" aria-label="Workflow state transition designer"></svg>
+                        <div class="workflow-canvas" data-workflow-canvas role="img" aria-label="Workflow state transition designer"></div>
                     </div>
                     <div class="workflow-inspector" data-workflow-inspector hidden>
                         <strong data-workflow-inspector-title>State</strong>
@@ -1411,6 +1371,8 @@
         </div>
     </form>
 </dialog>
+<script src="/assets/vendor/cytoscape-3.34.2.min.js"></script>
+<script src="/assets/vendor/cytoscape-dagre-4.0.1.min.js"></script>
 <script>
     const availableSettingsPanels = Array.from(document.querySelectorAll("[data-settings-panel]"))
         .map((panel) => panel.dataset.settingsPanel);
@@ -1588,6 +1550,8 @@
         renderScholarPicker(picker);
     });
 
+    // Kept temporarily as an inert reference while the Cytoscape editor is served below.
+    if (false) {
     const SVG_NS = "http://www.w3.org/2000/svg";
     const migrationDialog = document.getElementById("workflow-migration-dialog");
     const migrationList = document.getElementById("workflow-migration-list");
@@ -2261,6 +2225,14 @@
         render();
     });
 
+    }
+    const migrationDialog = document.getElementById("workflow-migration-dialog");
+    const migrationList = document.getElementById("workflow-migration-list");
+    const migrationError = document.getElementById("workflow-migration-error");
+    const migrationConfirm = document.getElementById("workflow-migration-confirm");
+    const migrationCancel = document.getElementById("workflow-migration-cancel");
+    let pendingWorkflowSave = null;
+
     migrationCancel?.addEventListener("click", () => {
         pendingWorkflowSave = null;
         migrationDialog.close();
@@ -2322,5 +2294,6 @@
 
     showSettingsPanel(initialSettingsPanel);
 </script>
+<script src="/assets/workflow-designer.js"></script>
 </body>
 </html>

@@ -20,6 +20,7 @@ public final class WorkflowStateConfig {
     private final List<State> states;
     private final List<Transition> transitions;
     private final Map<String, Taxonomy> taxonomies;
+    private final Map<String, NodePosition> layoutNodes;
     private final Map<String, State> statesById;
     private final Map<String, List<String>> transitionTargetsBySource;
     private final List<Group> groups;
@@ -28,12 +29,14 @@ public final class WorkflowStateConfig {
             String initialState,
             List<State> states,
             List<Transition> transitions,
-            Map<String, Taxonomy> taxonomies
+            Map<String, Taxonomy> taxonomies,
+            Map<String, NodePosition> layoutNodes
     ) {
         this.initialState = initialState;
         this.states = List.copyOf(states);
         this.transitions = List.copyOf(transitions);
         this.taxonomies = Map.copyOf(taxonomies);
+        this.layoutNodes = Map.copyOf(layoutNodes);
         this.statesById = states.stream().collect(Collectors.toMap(State::id, (state) -> state, (left, right) -> left, LinkedHashMap::new));
         this.transitionTargetsBySource = buildTransitionTargets(this.transitions);
         this.groups = buildGroups(this.states);
@@ -103,7 +106,7 @@ public final class WorkflowStateConfig {
             List<String> to = ids.stream().filter((candidate) -> !candidate.equals(from)).toList();
             transitions.add(new Transition(from, to));
         }
-        return new WorkflowStateConfig(initialState, states, transitions, Map.of());
+        return new WorkflowStateConfig(initialState, states, transitions, Map.of(), Map.of());
     }
 
     private static WorkflowStateConfig v2(Map<?, ?> rawMap) {
@@ -123,8 +126,9 @@ public final class WorkflowStateConfig {
         }
         List<Transition> transitions = parseTransitions(rawMap.get("transitions"), states);
         Map<String, Taxonomy> taxonomies = parseTaxonomies(rawMap.get("taxonomies"));
+        Map<String, NodePosition> layoutNodes = parseLayout(rawMap.get("layout"), states);
         validateRequirements(states, taxonomies);
-        return new WorkflowStateConfig(initialState, states, transitions, taxonomies);
+        return new WorkflowStateConfig(initialState, states, transitions, taxonomies, layoutNodes);
     }
 
     public List<Group> groups() {
@@ -137,6 +141,10 @@ public final class WorkflowStateConfig {
 
     public List<Transition> transitions() {
         return transitions;
+    }
+
+    public Map<String, NodePosition> layoutNodes() {
+        return layoutNodes;
     }
 
     public void validateGraphRules() {
@@ -247,6 +255,16 @@ public final class WorkflowStateConfig {
         appendLine(builder, 0, "version: " + VERSION);
         appendLine(builder, 0, "");
         appendLine(builder, 0, "initial_state: " + initialState);
+        if (!layoutNodes.isEmpty()) {
+            appendLine(builder, 0, "");
+            appendLine(builder, 0, "layout:");
+            appendLine(builder, 1, "nodes:");
+            for (Map.Entry<String, NodePosition> entry : layoutNodes.entrySet()) {
+                appendLine(builder, 2, entry.getKey() + ":");
+                appendLine(builder, 3, "x: " + entry.getValue().x());
+                appendLine(builder, 3, "y: " + entry.getValue().y());
+            }
+        }
         appendLine(builder, 0, "");
         appendLine(builder, 0, "states:");
         for (State state : states) {
@@ -360,6 +378,13 @@ public final class WorkflowStateConfig {
             transitionItems.add(Map.of("from", transition.from(), "to", transition.to()));
         }
         payload.put("transitions", transitionItems);
+        Map<String, Object> layout = new LinkedHashMap<>();
+        Map<String, Object> layoutNodeItems = new LinkedHashMap<>();
+        for (Map.Entry<String, NodePosition> entry : layoutNodes.entrySet()) {
+            layoutNodeItems.put(entry.getKey(), Map.of("x", entry.getValue().x(), "y", entry.getValue().y()));
+        }
+        layout.put("nodes", layoutNodeItems);
+        payload.put("layout", layout);
         Map<String, Object> taxonomyItems = new LinkedHashMap<>();
         for (Taxonomy taxonomy : taxonomies.values()) {
             Map<String, Object> taxonomyItem = new LinkedHashMap<>();
@@ -464,6 +489,31 @@ public final class WorkflowStateConfig {
             transitions.add(new Transition(from, to));
         }
         return transitions;
+    }
+
+    private static Map<String, NodePosition> parseLayout(Object rawLayout, List<State> states) {
+        if (rawLayout == null) {
+            return Map.of();
+        }
+        Map<?, ?> layout = asMap(rawLayout, "Workflow layout must be an object");
+        Object rawNodes = layout.get("nodes");
+        if (rawNodes == null) {
+            return Map.of();
+        }
+        Map<?, ?> nodes = asMap(rawNodes, "Workflow layout nodes must be an object");
+        Set<String> stateIds = states.stream().map(State::id).collect(Collectors.toSet());
+        Map<String, NodePosition> positions = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : nodes.entrySet()) {
+            String stateId = normalizeStateId(stringValue(entry.getKey()));
+            if (stateId == null || !stateIds.contains(stateId)) {
+                throw new IllegalArgumentException("Workflow layout references an unknown state: " + entry.getKey());
+            }
+            Map<?, ?> position = asMap(entry.getValue(), "Workflow layout position must be an object");
+            positions.put(stateId, new NodePosition(
+                    coordinateValue(position.get("x")),
+                    coordinateValue(position.get("y"))));
+        }
+        return positions;
     }
 
     private static void validateGraph(List<Transition> transitions, List<State> states) {
@@ -726,6 +776,26 @@ public final class WorkflowStateConfig {
         }
     }
 
+    private static double coordinateValue(Object rawValue) {
+        if (rawValue == null) {
+            throw new IllegalArgumentException("Workflow layout coordinates require x and y values");
+        }
+        double value;
+        if (rawValue instanceof Number number) {
+            value = number.doubleValue();
+        } else {
+            try {
+                value = Double.parseDouble(String.valueOf(rawValue).trim());
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Workflow layout coordinates must be numbers");
+            }
+        }
+        if (!Double.isFinite(value)) {
+            throw new IllegalArgumentException("Workflow layout coordinates must be finite numbers");
+        }
+        return value;
+    }
+
     private static boolean boolValue(Object rawValue) {
         if (rawValue instanceof Boolean value) {
             return value;
@@ -856,6 +926,9 @@ public final class WorkflowStateConfig {
     }
 
     public record Transition(String from, List<String> to) {
+    }
+
+    public record NodePosition(double x, double y) {
     }
 
     public record Requirements(

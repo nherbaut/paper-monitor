@@ -92,4 +92,42 @@ class QuickSetupWorkflowsTest {
                     to: [B]
                 """).validateGraphRules());
     }
+
+    @Test
+    void workflowLayoutIsCanonicalizedAndValidated() {
+        WorkflowStateConfig workflow = WorkflowStateConfig.parse("""
+                version: 2
+                initial_state: A
+                layout:
+                  nodes:
+                    A:
+                      x: 120
+                      y: 75.5
+                states:
+                  - id: A
+                  - id: B
+                transitions:
+                  - from: A
+                    to: [B]
+                """);
+
+        assertEquals(120.0, workflow.layoutNodes().get("A").x());
+        assertEquals(75.5, workflow.layoutNodes().get("A").y());
+        assertTrue(workflow.toYaml().contains("layout:\n  nodes:\n    A:"));
+        assertTrue(workflow.configJson().contains("\"layout\""));
+
+        assertThrows(IllegalArgumentException.class, () -> WorkflowStateConfig.parse("""
+                version: 2
+                initial_state: A
+                layout:
+                  nodes:
+                    MISSING: { x: 1, y: 2 }
+                states:
+                  - id: A
+                  - id: B
+                transitions:
+                  - from: A
+                    to: [B]
+                """));
+    }
 }
