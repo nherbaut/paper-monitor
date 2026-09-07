@@ -4688,10 +4688,24 @@
             .find((option) => option.value === String(logicalFeedId)) || null;
     };
 
+    const selectedLeafStateForSwipeMode = (logicalFeedId) => {
+        if (activePrimaryTab !== "state" || !logicalFeedId) {
+            return null;
+        }
+        if (activeChildStatus) {
+            return activeChildStatus;
+        }
+        const activeGroup = selectedWorkflowGroups()
+            .find((group) => group.name === activeStatusTab);
+        const leaves = stateLeafChoices(activeGroup);
+        return leaves.length === 1 ? leaves[0].value : null;
+    };
+
     const feedCanUseSwipeMode = (logicalFeedId) => {
         const option = logicalFeedOptionById(logicalFeedId);
         return option?.dataset.viewerCanAdmin === "true"
-            && Number(option.dataset.rssIntakeCount || 0) > 0;
+            && (Boolean(selectedLeafStateForSwipeMode(logicalFeedId))
+                || Number(option.dataset.rssIntakeCount || 0) > 0);
     };
 
     const usesDefaultMiageWorkflow = (logicalFeedId) => {
@@ -4703,16 +4717,22 @@
         const option = logicalFeedOptionById(logicalFeedId);
         const canAdmin = option?.dataset.viewerCanAdmin === "true";
         const intakeCount = Number(option?.dataset.rssIntakeCount || 0);
+        const selectedState = selectedLeafStateForSwipeMode(logicalFeedId);
+        const selectedStateLabel = selectedState
+            ? statusLabel(selectedState)
+            : null;
         readerViewSwitch?.classList.toggle("hidden", !logicalFeedId || !canAdmin || shareMode);
         readerListMode?.classList.add("active");
         readerListMode?.setAttribute("aria-pressed", "true");
         readerSwipeMode?.classList.remove("active");
         readerSwipeMode?.setAttribute("aria-pressed", "false");
         if (readerSwipeMode) {
-            readerSwipeMode.disabled = !canAdmin || intakeCount <= 0;
-            readerSwipeMode.title = intakeCount > 0
-                ? "Classify " + intakeCount + " new RSS paper" + (intakeCount === 1 ? "" : "s") + " in Swipe view"
-                : "No new RSS papers are waiting for classification";
+            readerSwipeMode.disabled = !canAdmin || (!selectedState && intakeCount <= 0);
+            readerSwipeMode.title = selectedState
+                ? "Classify papers in " + selectedStateLabel + " in Swipe view"
+                : intakeCount > 0
+                    ? "Classify " + intakeCount + " new RSS paper" + (intakeCount === 1 ? "" : "s") + " in Swipe view"
+                    : "Select a state or wait for new RSS papers to classify";
         }
     };
 
@@ -4720,7 +4740,12 @@
         if (anonymousSetupToken) {
             return "/anonymous/feed/" + encodeURIComponent(anonymousSetupToken) + "?mode=swipe";
         }
-        return "/classify?logicalFeedId=" + encodeURIComponent(logicalFeedId);
+        const params = new URLSearchParams({ logicalFeedId });
+        const selectedState = selectedLeafStateForSwipeMode(logicalFeedId);
+        if (selectedState) {
+            params.append("state", selectedState);
+        }
+        return "/classify?" + params.toString();
     };
 
     const listModeUrl = (logicalFeedId) => {
@@ -7873,6 +7898,7 @@
             const selectedLogicalFeedId = logicalFeedFilter.value;
             const availableCounts = selectedWorkflowCounts();
             syncActiveStateSelection();
+            updateReaderModeControls();
 
             const filtered = filteredPaperRecords();
             const selectedStillVisible = filtered.some((record) => String(record.id) === String(selectedPaperId));
