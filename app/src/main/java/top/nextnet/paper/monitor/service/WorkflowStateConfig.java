@@ -139,6 +139,10 @@ public final class WorkflowStateConfig {
         return transitions;
     }
 
+    public void validateGraphRules() {
+        validateGraph(transitions, states);
+    }
+
     public List<String> topLevelStates() {
         return groups.stream().map(Group::name).toList();
     }
@@ -460,6 +464,44 @@ public final class WorkflowStateConfig {
             transitions.add(new Transition(from, to));
         }
         return transitions;
+    }
+
+    private static void validateGraph(List<Transition> transitions, List<State> states) {
+        Map<String, Integer> incoming = new LinkedHashMap<>();
+        Map<String, Integer> outgoing = new LinkedHashMap<>();
+        Set<String> sources = new LinkedHashSet<>();
+        Set<String> edges = new LinkedHashSet<>();
+        for (State state : states) {
+            incoming.put(state.id(), 0);
+            outgoing.put(state.id(), 0);
+        }
+        for (Transition transition : transitions) {
+            if (!sources.add(transition.from())) {
+                throw new IllegalArgumentException("A transition source may only be declared once: " + transition.from());
+            }
+            int outgoingCount = transition.to().size();
+            if (outgoingCount > 2) {
+                throw new IllegalArgumentException("A state can have at most two outgoing transitions: " + transition.from());
+            }
+            outgoing.put(transition.from(), outgoingCount);
+            for (String target : transition.to()) {
+                if (transition.from().equals(target)) {
+                    throw new IllegalArgumentException("A state cannot transition to itself: " + transition.from());
+                }
+                if (!edges.add(transition.from() + " -> " + target)) {
+                    throw new IllegalArgumentException("Duplicate transition: " + transition.from() + " -> " + target);
+                }
+                int incomingCount = incoming.merge(target, 1, Integer::sum);
+                if (incomingCount > 2) {
+                    throw new IllegalArgumentException("A state can have at most two incoming transitions: " + target);
+                }
+            }
+        }
+        for (State state : states) {
+            if (incoming.get(state.id()) == 0 && outgoing.get(state.id()) == 0) {
+                throw new IllegalArgumentException("Every workflow state must have at least one transition: " + state.id());
+            }
+        }
     }
 
     private static Map<String, Taxonomy> parseTaxonomies(Object rawTaxonomies) {

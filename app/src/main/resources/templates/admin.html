@@ -471,6 +471,185 @@
 
         a { color: var(--accent); }
 
+        .workflow-designer {
+            display: grid;
+            gap: 0.85rem;
+            padding: 0.95rem;
+            border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.58);
+        }
+
+        .workflow-designer-header,
+        .workflow-designer-toolbar,
+        .workflow-designer-status {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            flex-wrap: wrap;
+        }
+
+        .workflow-designer-header p {
+            margin: 0;
+        }
+
+        .workflow-designer-toolbar button,
+        .workflow-designer-toolbar select {
+            width: auto;
+        }
+
+        .workflow-designer-status {
+            min-height: 1.5rem;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+
+        .workflow-designer-status.error {
+            color: #8b3219;
+        }
+
+        .workflow-designer-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.7fr) minmax(17rem, 0.8fr);
+            gap: 0.85rem;
+        }
+
+        .workflow-canvas-wrap {
+            min-height: 26rem;
+            overflow: auto;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: linear-gradient(90deg, rgba(179, 79, 46, 0.04) 1px, transparent 1px), linear-gradient(rgba(179, 79, 46, 0.04) 1px, transparent 1px), #fffdf9;
+            background-size: 24px 24px;
+        }
+
+        .workflow-canvas {
+            display: block;
+            width: 100%;
+            min-width: 40rem;
+            height: 26rem;
+        }
+
+        .workflow-edge {
+            fill: none;
+            stroke: #8b7564;
+            stroke-width: 2.4;
+            cursor: pointer;
+        }
+
+        .workflow-edge.selected {
+            stroke: var(--accent);
+            stroke-width: 4;
+        }
+
+        .workflow-node {
+            cursor: pointer;
+        }
+
+        .workflow-node rect {
+            fill: #fff;
+            stroke: #a39182;
+            stroke-width: 1.5;
+        }
+
+        .workflow-node.selected rect {
+            fill: #fff0e9;
+            stroke: var(--accent);
+            stroke-width: 3;
+        }
+
+        .workflow-node.initial rect {
+            stroke-dasharray: 5 3;
+        }
+
+        .workflow-node text {
+            fill: var(--ink);
+            font-family: Georgia, "Times New Roman", serif;
+            pointer-events: none;
+        }
+
+        .workflow-node .workflow-node-id {
+            fill: var(--muted);
+            font-size: 11px;
+        }
+
+        .workflow-inspector {
+            display: grid;
+            align-content: start;
+            gap: 0.6rem;
+            padding: 0.75rem;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.75);
+        }
+
+        .workflow-inspector label {
+            display: grid;
+            gap: 0.25rem;
+            color: var(--muted);
+            font-size: 0.87rem;
+        }
+
+        .workflow-inspector input[type="checkbox"] {
+            width: 1rem;
+            height: 1rem;
+        }
+
+        .workflow-inspector .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+
+        .workflow-yaml-actions {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+        }
+
+        .workflow-yaml-actions button {
+            width: auto;
+        }
+
+        .workflow-pointer-message {
+            position: fixed;
+            z-index: 100;
+            max-width: 19rem;
+            padding: 0.45rem 0.6rem;
+            border-radius: 8px;
+            color: white;
+            background: #7b2f18;
+            box-shadow: 0 8px 20px rgba(77, 56, 38, 0.2);
+            font-size: 0.82rem;
+            pointer-events: none;
+        }
+
+        dialog.workflow-migration-dialog {
+            width: min(34rem, calc(100% - 2rem));
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            color: var(--ink);
+            background: var(--panel);
+            box-shadow: 0 20px 60px rgba(30, 20, 12, 0.25);
+        }
+
+        dialog.workflow-migration-dialog::backdrop {
+            background: rgba(31, 29, 26, 0.38);
+        }
+
+        .workflow-migration-list {
+            display: grid;
+            gap: 0.65rem;
+            margin: 1rem 0;
+        }
+
+        .workflow-migration-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 0.65rem;
+            align-items: center;
+        }
+
         @media (max-width: 900px) {
             .settings-layout {
                 grid-template-columns: 1fr;
@@ -484,6 +663,11 @@
             }
 
             .two-columns {
+                grid-template-columns: 1fr;
+            }
+
+            .workflow-designer-grid,
+            .workflow-migration-row {
                 grid-template-columns: 1fr;
             }
 
@@ -558,7 +742,7 @@
     <section class="settings-panel hidden" data-settings-panel="feeds">
         <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm2 3h8v2H4V7Zm-2 3h12v2H2v-2Z"/></svg></span><span>Paper Feed Management</span></h2>
         <div class="management-intro">
-            <p class="meta">You can rename paper feeds, update their YAML workflow, connect a GitHub repository, and delegate read or admin access to other users.</p>
+            <p class="meta">You can rename paper feeds, design their workflow graph or edit its YAML, connect a GitHub repository, and delegate read or admin access to other users.</p>
             <p class="meta">Backups exported from this page are scoped to the paper feeds you can read or administer.</p>
             {#if canAdmin}
             <p class="meta">As a paper admin, you can see every paper feed in the system here.</p>
@@ -614,9 +798,53 @@
                     </div>
                     {#if logicalFeed.viewerCanAdmin}
                     <div class="management-actions">
-                        <form action="/logical-feeds/{logicalFeed.id}/update" method="post">
+                        <form class="workflow-feed-form" action="/logical-feeds/{logicalFeed.id}/update" method="post"
+                              data-logical-feed-id="{logicalFeed.id}"
+                              data-workflow-config='{logicalFeed.workflowConfigJson}'>
                             <input type="text" name="name" value="{logicalFeed.name}" required>
                             <textarea name="description">{logicalFeed.description}</textarea>
+                            <div class="workflow-designer" data-workflow-designer>
+                                <div class="workflow-designer-header">
+                                    <strong>Workflow designer</strong>
+                                    <p class="meta">Select a state to edit it. Use “Add transition”, then select its destination. Shift-click and drag states to rearrange the diagram.</p>
+                                </div>
+                                <div class="workflow-designer-toolbar">
+                                    <button class="secondary" type="button" data-workflow-add-state>Add state</button>
+                                    <button class="secondary" type="button" data-workflow-start-edge disabled>Add transition</button>
+                                    <button class="secondary" type="button" data-workflow-reverse-edge disabled>Reverse transition</button>
+                                    <button class="secondary" type="button" data-workflow-delete-edge disabled>Delete transition</button>
+                                    <button class="secondary" type="button" data-workflow-delete-state disabled>Delete state</button>
+                                    <label>Initial state <select data-workflow-initial-state></select></label>
+                                </div>
+                                <div class="workflow-designer-status" data-workflow-status></div>
+                                <div class="workflow-designer-grid">
+                                    <div class="workflow-canvas-wrap">
+                                        <svg class="workflow-canvas" data-workflow-canvas viewBox="0 0 920 416" role="img" aria-label="Workflow state transition designer"></svg>
+                                    </div>
+                                    <div class="workflow-inspector" data-workflow-inspector hidden>
+                                        <strong data-workflow-inspector-title>State</strong>
+                                        <label>State ID <input data-workflow-state-id type="text" autocomplete="off"></label>
+                                        <label>Label <input data-workflow-state-label type="text"></label>
+                                        <label>Group <input data-workflow-state-group type="text" placeholder="Optional group"></label>
+                                        <label class="checkbox-label"><input data-workflow-state-terminal type="checkbox"> Terminal state</label>
+                                        <label>Required criteria
+                                            <select data-workflow-requirement-kind>
+                                                <option value="">None</option>
+                                                <option value="exclusion">One exclusion criterion</option>
+                                                <option value="inclusion">Inclusion criteria</option>
+                                            </select>
+                                        </label>
+                                        <label data-workflow-requirement-taxonomy-wrap>Taxonomy <input data-workflow-requirement-taxonomy type="text" placeholder="EXCLUSION or INCLUSION"></label>
+                                        <label data-workflow-requirement-count-wrap>Minimum / exact count <input data-workflow-requirement-count type="number" min="1" value="1"></label>
+                                        <label class="checkbox-label"><input data-workflow-requirement-notes type="checkbox"> Notes optional</label>
+                                        <label>PRISMA report bucket <input data-workflow-report-bucket type="text" placeholder="Optional"></label>
+                                    </div>
+                                </div>
+                                <div class="workflow-yaml-actions">
+                                    <button class="secondary" type="button" data-workflow-load-yaml>Load YAML into designer</button>
+                                    <button class="secondary" type="button" data-workflow-copy-yaml>Copy YAML</button>
+                                </div>
+                            </div>
                             <textarea name="workflowStates" required>{logicalFeed.workflowStatesText}</textarea>
                             <textarea name="eligibilityExclusionTaxonomy" placeholder="Optional eligibility exclusion taxonomy YAML">{logicalFeed.eligibilityExclusionTaxonomy}</textarea>
                             <textarea name="eligibilityInclusionTaxonomy" placeholder="Optional eligibility inclusion taxonomy YAML">{logicalFeed.eligibilityInclusionTaxonomy}</textarea>
@@ -1132,6 +1360,18 @@
         </div>
     </div>
 </main>
+<dialog class="workflow-migration-dialog" id="workflow-migration-dialog">
+    <form>
+        <h2>Move papers before deleting states</h2>
+        <p class="meta">Choose a remaining state for each removed state that still contains papers. Only states without required criteria can receive migrated papers.</p>
+        <div class="workflow-migration-list" id="workflow-migration-list"></div>
+        <p class="message error" id="workflow-migration-error" hidden></p>
+        <div class="toolbar">
+            <button class="secondary" id="workflow-migration-cancel" type="button">Cancel</button>
+            <button id="workflow-migration-confirm" type="button">Save workflow and migrate papers</button>
+        </div>
+    </form>
+</dialog>
 <script>
     const availableSettingsPanels = Array.from(document.querySelectorAll("[data-settings-panel]"))
         .map((panel) => panel.dataset.settingsPanel);
@@ -1307,6 +1547,525 @@
         });
         picker.querySelector("[data-scholar-search]")?.addEventListener("input", () => renderScholarPicker(picker));
         renderScholarPicker(picker);
+    });
+
+    const SVG_NS = "http://www.w3.org/2000/svg";
+    const migrationDialog = document.getElementById("workflow-migration-dialog");
+    const migrationList = document.getElementById("workflow-migration-list");
+    const migrationError = document.getElementById("workflow-migration-error");
+    const migrationConfirm = document.getElementById("workflow-migration-confirm");
+    const migrationCancel = document.getElementById("workflow-migration-cancel");
+    let pendingWorkflowSave = null;
+
+    const workflowClone = (value) => JSON.parse(JSON.stringify(value));
+    const workflowNodeId = (value) => String(value || "").trim().toUpperCase().split("/")
+        .map((part) => part.trim().replace(/\s+/g, "_"))
+        .filter(Boolean).join("/");
+    const workflowYamlValue = (value) => {
+        const text = String(value ?? "");
+        return /^[A-Za-z0-9_./-]+$/.test(text) ? text : JSON.stringify(text);
+    };
+    const workflowLine = (lines, depth, value) => lines.push("  ".repeat(depth) + value);
+    const workflowSvg = (name, attributes = {}) => {
+        const element = document.createElementNS(SVG_NS, name);
+        Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)));
+        return element;
+    };
+
+    const workflowYamlFromGraph = (workflow) => {
+        const lines = ["version: 2", "", "initial_state: " + workflow.initialState, "", "states:"];
+        workflow.states.forEach((state) => {
+            workflowLine(lines, 1, "- id: " + state.id);
+            workflowLine(lines, 2, "label: " + workflowYamlValue(state.label || state.id));
+            if (state.group) workflowLine(lines, 2, "group: " + state.group);
+            if (state.terminal) workflowLine(lines, 2, "terminal: true");
+            const requires = state.requires || {};
+            if (requires.exclusionCriterion || requires.inclusionCriteria || requires.exclusionNotes || requires.inclusionNotes) {
+                workflowLine(lines, 2, "requires:");
+                if (requires.exclusionCriterion) {
+                    workflowLine(lines, 3, "exclusion_criterion:");
+                    workflowLine(lines, 4, "taxonomy: " + requires.exclusionCriterion.taxonomy);
+                    workflowLine(lines, 4, "exactly: " + (requires.exclusionCriterion.exactly || 1));
+                }
+                if (requires.inclusionCriteria) {
+                    workflowLine(lines, 3, "inclusion_criteria:");
+                    workflowLine(lines, 4, "taxonomy: " + requires.inclusionCriteria.taxonomy);
+                    workflowLine(lines, 4, "min: " + (requires.inclusionCriteria.min || 1));
+                }
+                if (requires.exclusionNotes) workflowLine(lines, 3, "exclusion_notes: optional");
+                if (requires.inclusionNotes) workflowLine(lines, 3, "inclusion_notes: optional");
+            }
+            if (state.report?.prismaBucket) {
+                workflowLine(lines, 2, "report:");
+                workflowLine(lines, 3, "prisma_bucket: " + state.report.prismaBucket);
+            }
+        });
+        lines.push("", "transitions:");
+        workflow.transitions.forEach((transition) => {
+            workflowLine(lines, 1, "- from: " + transition.from);
+            workflowLine(lines, 2, "to:");
+            transition.to.forEach((target) => workflowLine(lines, 3, "- " + target));
+        });
+        const taxonomies = workflow.taxonomies || {};
+        const appendCriteria = (criteria, depth) => (criteria || []).forEach((criterion) => {
+            workflowLine(lines, depth, "- id: " + criterion.id);
+            workflowLine(lines, depth + 1, "label: " + workflowYamlValue(criterion.label || criterion.id));
+            if (criterion.description) workflowLine(lines, depth + 1, "description: " + workflowYamlValue(criterion.description));
+            if (criterion.children?.length) {
+                workflowLine(lines, depth + 1, "children:");
+                appendCriteria(criterion.children, depth + 2);
+            }
+        });
+        if (Object.keys(taxonomies).length) {
+            lines.push("", "taxonomies:");
+            Object.entries(taxonomies).forEach(([id, taxonomy]) => {
+                workflowLine(lines, 1, id + ":");
+                if (taxonomy.label) workflowLine(lines, 2, "label: " + workflowYamlValue(taxonomy.label));
+                workflowLine(lines, 2, "values:");
+                appendCriteria(taxonomy.values, 3);
+            });
+        }
+        return lines.join("\n");
+    };
+
+    const showWorkflowPointerMessage = (event, message) => {
+        const notice = document.createElement("div");
+        notice.className = "workflow-pointer-message";
+        notice.textContent = message;
+        notice.style.left = Math.min(window.innerWidth - 300, (event?.clientX || 24) + 12) + "px";
+        notice.style.top = Math.min(window.innerHeight - 80, (event?.clientY || 24) + 12) + "px";
+        document.body.appendChild(notice);
+        window.setTimeout(() => notice.remove(), 2600);
+    };
+
+    const workflowGraphErrors = (workflow) => {
+        const ids = workflow.states.map((state) => state.id);
+        const incoming = Object.fromEntries(ids.map((id) => [id, 0]));
+        const outgoing = Object.fromEntries(ids.map((id) => [id, 0]));
+        const seen = new Set();
+        const errors = [];
+        if (!ids.length) errors.push("Add at least one state.");
+        if (new Set(ids).size !== ids.length || ids.some((id) => !id)) errors.push("Every state needs a unique ID.");
+        if (!ids.includes(workflow.initialState)) errors.push("Choose an initial state that remains in the workflow.");
+        workflow.transitions.forEach((transition) => {
+            if (!ids.includes(transition.from)) errors.push("A transition has an unknown source.");
+            (transition.to || []).forEach((target) => {
+                const key = transition.from + "→" + target;
+                if (!ids.includes(target)) errors.push("A transition has an unknown destination.");
+                if (transition.from === target) errors.push("A state cannot transition to itself.");
+                if (seen.has(key)) errors.push("Duplicate transition " + transition.from + " → " + target + ".");
+                seen.add(key);
+                outgoing[transition.from] = (outgoing[transition.from] || 0) + 1;
+                incoming[target] = (incoming[target] || 0) + 1;
+            });
+        });
+        ids.forEach((id) => {
+            if (!incoming[id] && !outgoing[id]) errors.push("State " + id + " needs at least one transition.");
+            if (incoming[id] > 2) errors.push("State " + id + " has more than two incoming transitions.");
+            if (outgoing[id] > 2) errors.push("State " + id + " has more than two outgoing transitions.");
+        });
+        return [...new Set(errors)];
+    };
+
+    document.querySelectorAll("[data-workflow-designer]").forEach((designer) => {
+        const form = designer.closest("form");
+        const yamlField = form?.querySelector("textarea[name='workflowStates']");
+        const canvas = designer.querySelector("[data-workflow-canvas]");
+        const status = designer.querySelector("[data-workflow-status]");
+        const inspector = designer.querySelector("[data-workflow-inspector]");
+        const initialSelect = designer.querySelector("[data-workflow-initial-state]");
+        if (!form || !yamlField || !canvas || !status || !inspector || !initialSelect) return;
+
+        let workflow;
+        try {
+            workflow = workflowClone(JSON.parse(form.dataset.workflowConfig || "{}"));
+        } catch {
+            return;
+        }
+        workflow.states = Array.isArray(workflow.states) ? workflow.states : [];
+        workflow.transitions = Array.isArray(workflow.transitions) ? workflow.transitions : [];
+        workflow.taxonomies = workflow.taxonomies || {};
+        workflow.states.forEach((state) => {
+            state.requires = state.requires || {};
+            state.report = state.report || {};
+        });
+        const positions = new Map();
+        let selectedStateId = null;
+        let selectedEdgeKey = null;
+        let edgeStartId = null;
+        let dragState = null;
+        let bypassSaveValidation = false;
+        const buttons = {
+            addState: designer.querySelector("[data-workflow-add-state]"),
+            startEdge: designer.querySelector("[data-workflow-start-edge]"),
+            reverseEdge: designer.querySelector("[data-workflow-reverse-edge]"),
+            deleteEdge: designer.querySelector("[data-workflow-delete-edge]"),
+            deleteState: designer.querySelector("[data-workflow-delete-state]"),
+            loadYaml: designer.querySelector("[data-workflow-load-yaml]"),
+            copyYaml: designer.querySelector("[data-workflow-copy-yaml]")
+        };
+        const fields = {
+            id: designer.querySelector("[data-workflow-state-id]"),
+            label: designer.querySelector("[data-workflow-state-label]"),
+            group: designer.querySelector("[data-workflow-state-group]"),
+            terminal: designer.querySelector("[data-workflow-state-terminal]"),
+            requirementKind: designer.querySelector("[data-workflow-requirement-kind]"),
+            requirementTaxonomy: designer.querySelector("[data-workflow-requirement-taxonomy]"),
+            requirementCount: designer.querySelector("[data-workflow-requirement-count]"),
+            requirementNotes: designer.querySelector("[data-workflow-requirement-notes]"),
+            reportBucket: designer.querySelector("[data-workflow-report-bucket]")
+        };
+
+        const stateById = (id) => workflow.states.find((state) => state.id === id) || null;
+        const edgeKey = (from, to) => from + "→" + to;
+        const edges = () => workflow.transitions.flatMap((transition) => transition.to.map((target) => ({ from: transition.from, to: target })));
+        const positionFor = (state, index) => {
+            if (!positions.has(state.id)) {
+                positions.set(state.id, { x: 110 + (index % 4) * 210, y: 80 + Math.floor(index / 4) * 125 });
+            }
+            return positions.get(state.id);
+        };
+        const graphStatus = () => {
+            const errors = workflowGraphErrors(workflow);
+            status.textContent = edgeStartId
+                ? "Select a destination state for " + edgeStartId + "."
+                : errors[0] || "Workflow is valid. Save to apply it.";
+            status.classList.toggle("error", Boolean(errors.length));
+            return errors;
+        };
+        const syncYaml = () => {
+            yamlField.value = workflowYamlFromGraph(workflow);
+            graphStatus();
+        };
+        const renderInspector = () => {
+            const state = stateById(selectedStateId);
+            inspector.hidden = !state;
+            if (!state) return;
+            const requires = state.requires || {};
+            const criterion = requires.exclusionCriterion || requires.inclusionCriteria || null;
+            const kind = requires.exclusionCriterion ? "exclusion" : requires.inclusionCriteria ? "inclusion" : "";
+            designer.querySelector("[data-workflow-inspector-title]").textContent = state.label || state.id;
+            fields.id.value = state.id;
+            fields.label.value = state.label || "";
+            fields.group.value = state.group || "";
+            fields.terminal.checked = Boolean(state.terminal);
+            fields.requirementKind.value = kind;
+            fields.requirementTaxonomy.value = criterion?.taxonomy || "";
+            fields.requirementCount.value = criterion?.exactly || criterion?.min || 1;
+            fields.requirementNotes.checked = Boolean(requires.exclusionNotes || requires.inclusionNotes);
+            fields.reportBucket.value = state.report?.prismaBucket || "";
+        };
+        const updateButtons = () => {
+            const outgoingCount = edges().filter((edge) => edge.from === selectedStateId).length;
+            buttons.startEdge.disabled = !selectedStateId || outgoingCount >= 2;
+            buttons.startEdge.title = !selectedStateId
+                ? "Select a state first."
+                : outgoingCount >= 2
+                    ? "A state can have at most two outgoing transitions."
+                    : "Create a transition from the selected state.";
+            buttons.deleteState.disabled = !selectedStateId;
+            buttons.reverseEdge.disabled = !selectedEdgeKey;
+            buttons.deleteEdge.disabled = !selectedEdgeKey;
+        };
+        const render = () => {
+            canvas.replaceChildren();
+            const defs = workflowSvg("defs");
+            const marker = workflowSvg("marker", { id: "workflow-arrow", markerWidth: 10, markerHeight: 7, refX: 9, refY: 3.5, orient: "auto" });
+            marker.appendChild(workflowSvg("path", { d: "M0,0 L10,3.5 L0,7 z", fill: "#8b7564" }));
+            defs.appendChild(marker);
+            canvas.appendChild(defs);
+            edges().forEach((edge) => {
+                const from = positionFor(stateById(edge.from), workflow.states.findIndex((state) => state.id === edge.from));
+                const to = positionFor(stateById(edge.to), workflow.states.findIndex((state) => state.id === edge.to));
+                const line = workflowSvg("line", { x1: from.x + 75, y1: from.y + 30, x2: to.x - 75, y2: to.y + 30, "marker-end": "url(#workflow-arrow)" });
+                line.classList.add("workflow-edge");
+                if (selectedEdgeKey === edgeKey(edge.from, edge.to)) line.classList.add("selected");
+                line.addEventListener("click", (event) => {
+                    event.stopPropagation();
+                    selectedEdgeKey = edgeKey(edge.from, edge.to);
+                    edgeStartId = null;
+                    render();
+                });
+                canvas.appendChild(line);
+            });
+            workflow.states.forEach((state, index) => {
+                const position = positionFor(state, index);
+                const node = workflowSvg("g", { transform: "translate(" + (position.x - 75) + " " + position.y + ")" });
+                node.classList.add("workflow-node");
+                if (selectedStateId === state.id) node.classList.add("selected");
+                if (workflow.initialState === state.id) node.classList.add("initial");
+                node.appendChild(workflowSvg("rect", { x: 0, y: 0, width: 150, height: 60, rx: 10 }));
+                const label = workflowSvg("text", { x: 75, y: 25, "text-anchor": "middle" });
+                label.textContent = (state.label || state.id).slice(0, 24);
+                const id = workflowSvg("text", { x: 75, y: 44, "text-anchor": "middle" });
+                id.classList.add("workflow-node-id");
+                id.textContent = state.id;
+                node.append(label, id);
+                node.addEventListener("pointerdown", (event) => {
+                    if (event.shiftKey) {
+                        dragState = { id: state.id, pointerId: event.pointerId };
+                        node.setPointerCapture(event.pointerId);
+                        return;
+                    }
+                    event.stopPropagation();
+                    if (edgeStartId && edgeStartId !== state.id) {
+                        const reason = addEdge(edgeStartId, state.id);
+                        if (reason) showWorkflowPointerMessage(event, reason);
+                        edgeStartId = null;
+                    } else {
+                        selectedStateId = state.id;
+                        selectedEdgeKey = null;
+                    }
+                    render();
+                });
+                node.addEventListener("pointermove", (event) => {
+                    if (!dragState || dragState.id !== state.id) return;
+                    const rect = canvas.getBoundingClientRect();
+                    positions.set(state.id, {
+                        x: Math.max(85, Math.min(835, (event.clientX - rect.left) * 920 / rect.width)),
+                        y: Math.max(15, Math.min(340, (event.clientY - rect.top) * 416 / rect.height))
+                    });
+                    render();
+                });
+                node.addEventListener("pointerup", () => { dragState = null; });
+                canvas.appendChild(node);
+            });
+            canvas.addEventListener("click", () => {
+                selectedEdgeKey = null;
+                edgeStartId = null;
+                render();
+            }, { once: true });
+            initialSelect.replaceChildren();
+            workflow.states.forEach((state) => {
+                const option = document.createElement("option");
+                option.value = state.id;
+                option.textContent = state.label + " (" + state.id + ")";
+                option.selected = workflow.initialState === state.id;
+                initialSelect.appendChild(option);
+            });
+            renderInspector();
+            updateButtons();
+            syncYaml();
+        };
+        const addEdge = (from, to) => {
+            if (from === to) return "A state cannot transition to itself.";
+            const current = edges();
+            if (current.some((edge) => edge.from === from && edge.to === to)) return "That transition already exists.";
+            if (current.filter((edge) => edge.from === from).length >= 2) return from + " already has two outgoing transitions.";
+            if (current.filter((edge) => edge.to === to).length >= 2) return to + " already has two incoming transitions.";
+            let transition = workflow.transitions.find((item) => item.from === from);
+            if (!transition) {
+                transition = { from, to: [] };
+                workflow.transitions.push(transition);
+            }
+            transition.to.push(to);
+            return "";
+        };
+        const removeEdge = (from, to) => {
+            const transition = workflow.transitions.find((item) => item.from === from);
+            if (!transition) return;
+            transition.to = transition.to.filter((target) => target !== to);
+            workflow.transitions = workflow.transitions.filter((item) => item.to.length);
+        };
+        const updateSelectedState = () => {
+            const state = stateById(selectedStateId);
+            if (!state) return;
+            const previousId = state.id;
+            const nextId = workflowNodeId(fields.id.value);
+            if (nextId && nextId !== previousId) {
+                state.id = nextId;
+                workflow.transitions.forEach((transition) => {
+                    if (transition.from === previousId) transition.from = nextId;
+                    transition.to = transition.to.map((target) => target === previousId ? nextId : target);
+                });
+                if (workflow.initialState === previousId) workflow.initialState = nextId;
+                const position = positions.get(previousId);
+                positions.delete(previousId);
+                if (position) positions.set(nextId, position);
+                selectedStateId = nextId;
+            }
+            state.label = fields.label.value.trim() || state.id;
+            state.group = workflowNodeId(fields.group.value) || null;
+            state.terminal = fields.terminal.checked;
+            const kind = fields.requirementKind.value;
+            const taxonomy = workflowNodeId(fields.requirementTaxonomy.value);
+            const count = Math.max(1, Number.parseInt(fields.requirementCount.value || "1", 10) || 1);
+            state.requires = {};
+            if (kind === "exclusion") state.requires.exclusionCriterion = { taxonomy: taxonomy || "EXCLUSION", exactly: count };
+            if (kind === "inclusion") state.requires.inclusionCriteria = { taxonomy: taxonomy || "INCLUSION", min: count };
+            if (fields.requirementNotes.checked) {
+                if (kind === "exclusion") state.requires.exclusionNotes = "optional";
+                if (kind === "inclusion") state.requires.inclusionNotes = "optional";
+            }
+            state.report = fields.reportBucket.value.trim() ? { prismaBucket: workflowNodeId(fields.reportBucket.value) } : {};
+            render();
+        };
+        Object.values(fields).forEach((field) => field?.addEventListener(field.type === "checkbox" || field.tagName === "SELECT" ? "change" : "input", updateSelectedState));
+        initialSelect.addEventListener("change", () => {
+            workflow.initialState = initialSelect.value;
+            render();
+        });
+        buttons.addState.addEventListener("click", () => {
+            let suffix = workflow.states.length + 1;
+            let id = "STATE_" + suffix;
+            while (stateById(id)) id = "STATE_" + (++suffix);
+            workflow.states.push({ id, label: "New state", group: null, terminal: false, requires: {}, report: {} });
+            selectedStateId = id;
+            render();
+        });
+        buttons.startEdge.addEventListener("click", () => {
+            edgeStartId = selectedStateId;
+            selectedEdgeKey = null;
+            render();
+        });
+        buttons.deleteState.addEventListener("click", (event) => {
+            if (!selectedStateId) return;
+            if (workflow.initialState === selectedStateId && workflow.states.length > 1) {
+                showWorkflowPointerMessage(event, "Choose a replacement initial state before deleting this state.");
+                return;
+            }
+            workflow.states = workflow.states.filter((state) => state.id !== selectedStateId);
+            workflow.transitions = workflow.transitions
+                .filter((transition) => transition.from !== selectedStateId)
+                .map((transition) => ({ ...transition, to: transition.to.filter((target) => target !== selectedStateId) }))
+                .filter((transition) => transition.to.length);
+            positions.delete(selectedStateId);
+            selectedStateId = null;
+            selectedEdgeKey = null;
+            render();
+        });
+        buttons.deleteEdge.addEventListener("click", () => {
+            if (!selectedEdgeKey) return;
+            const [from, to] = selectedEdgeKey.split("→");
+            removeEdge(from, to);
+            selectedEdgeKey = null;
+            render();
+        });
+        buttons.reverseEdge.addEventListener("click", (event) => {
+            if (!selectedEdgeKey) return;
+            const [from, to] = selectedEdgeKey.split("→");
+            removeEdge(from, to);
+            const reason = addEdge(to, from);
+            if (reason) {
+                addEdge(from, to);
+                showWorkflowPointerMessage(event, "Cannot reverse transition: " + reason);
+            }
+            selectedEdgeKey = null;
+            render();
+        });
+        buttons.loadYaml.addEventListener("click", async () => {
+            status.textContent = "Validating YAML...";
+            try {
+                const response = await fetch("/logical-feeds/" + encodeURIComponent(form.dataset.logicalFeedId) + "/workflow/validate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", Accept: "application/json" },
+                    body: new URLSearchParams({ workflowStates: yamlField.value })
+                });
+                const body = await response.text();
+                const payload = body ? JSON.parse(body) : {};
+                if (!response.ok) throw new Error(payload.error || body || "Invalid workflow YAML.");
+                workflow = workflowClone(payload.workflow);
+                workflow.states.forEach((state) => { state.requires = state.requires || {}; state.report = state.report || {}; });
+                yamlField.value = payload.yaml;
+                positions.clear();
+                selectedStateId = null;
+                selectedEdgeKey = null;
+                render();
+            } catch (error) {
+                status.textContent = error.message || "Could not load workflow YAML.";
+                status.classList.add("error");
+            }
+        });
+        buttons.copyYaml.addEventListener("click", async () => {
+            try {
+                await navigator.clipboard.writeText(yamlField.value);
+                status.textContent = "YAML copied.";
+                status.classList.remove("error");
+            } catch {
+                yamlField.select();
+                document.execCommand("copy");
+                status.textContent = "YAML copied.";
+            }
+        });
+        form.addEventListener("submit", async (event) => {
+            if (bypassSaveValidation) return;
+            event.preventDefault();
+            status.textContent = "Validating workflow and migrations...";
+            try {
+                const response = await fetch("/logical-feeds/" + encodeURIComponent(form.dataset.logicalFeedId) + "/workflow/validate", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8", Accept: "application/json" },
+                    body: new URLSearchParams({ workflowStates: yamlField.value })
+                });
+                const body = await response.text();
+                const payload = body ? JSON.parse(body) : {};
+                if (!response.ok) throw new Error(payload.error || body || "Workflow validation failed.");
+                yamlField.value = payload.yaml;
+                if (!payload.removedStates?.length) {
+                    bypassSaveValidation = true;
+                    form.submit();
+                    return;
+                }
+                if (!payload.migrationTargets?.length) throw new Error("Add a remaining state without required criteria before deleting states with papers.");
+                pendingWorkflowSave = { form, payload };
+                migrationList.replaceChildren();
+                migrationError.hidden = true;
+                payload.removedStates.forEach((removed) => {
+                    const row = document.createElement("label");
+                    row.className = "workflow-migration-row";
+                    const source = document.createElement("span");
+                    source.textContent = removed.label + " (" + removed.paperCount + " paper" + (removed.paperCount === 1 ? "" : "s") + ")";
+                    const select = document.createElement("select");
+                    select.dataset.migrationFrom = removed.id;
+                    const placeholder = document.createElement("option");
+                    placeholder.value = "";
+                    placeholder.textContent = "Choose destination";
+                    select.appendChild(placeholder);
+                    payload.migrationTargets.forEach((target) => {
+                        const option = document.createElement("option");
+                        option.value = target.id;
+                        option.textContent = target.label + " (" + target.id + ")";
+                        select.appendChild(option);
+                    });
+                    row.append(source, select);
+                    migrationList.appendChild(row);
+                });
+                migrationDialog.showModal();
+            } catch (error) {
+                status.textContent = error.message || "Workflow validation failed.";
+                status.classList.add("error");
+            }
+        });
+        render();
+    });
+
+    migrationCancel?.addEventListener("click", () => {
+        pendingWorkflowSave = null;
+        migrationDialog.close();
+    });
+    migrationConfirm?.addEventListener("click", () => {
+        if (!pendingWorkflowSave) return;
+        const mappings = Array.from(migrationList.querySelectorAll("select[data-migration-from]"));
+        if (mappings.some((select) => !select.value)) {
+            migrationError.textContent = "Choose a destination for every removed state.";
+            migrationError.hidden = false;
+            return;
+        }
+        const { form } = pendingWorkflowSave;
+        form.querySelectorAll("input[data-workflow-migration]").forEach((input) => input.remove());
+        mappings.forEach((select) => {
+            [["migrationFrom", select.dataset.migrationFrom], ["migrationTo", select.value]].forEach(([name, value]) => {
+                const input = document.createElement("input");
+                input.type = "hidden";
+                input.name = name;
+                input.value = value;
+                input.dataset.workflowMigration = "true";
+                form.appendChild(input);
+            });
+        });
+        pendingWorkflowSave = null;
+        migrationDialog.close();
+        form.submit();
     });
 
     const settingsNavButtons = document.querySelectorAll("[data-settings-target]");

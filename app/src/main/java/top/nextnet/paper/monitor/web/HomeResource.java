@@ -1969,22 +1969,47 @@ public class HomeResource {
             @RestForm("eligibilityExclusionTaxonomy") String eligibilityExclusionTaxonomy,
             @RestForm("eligibilityInclusionTaxonomy") String eligibilityInclusionTaxonomy,
             @RestForm("publicReadable") String publicReadable,
-            @RestForm("notifyOnNewRssPapers") String notifyOnNewRssPapers
+            @RestForm("notifyOnNewRssPapers") String notifyOnNewRssPapers,
+            @RestForm("migrationFrom") List<String> migrationFrom,
+            @RestForm("migrationTo") List<String> migrationTo
     ) {
         try {
             LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
+            String normalizedWorkflowStates = normalizeWorkflowStates(workflowStates);
+            WorkflowStateConfig nextWorkflow = WorkflowStateConfig.parse(normalizedWorkflowStates);
+            validateWorkflowGraphRules(nextWorkflow);
+            applyWorkflowStateMigrations(logicalFeed, nextWorkflow, migrationFrom, migrationTo);
             logicalFeed.name = name == null ? null : name.trim();
             logicalFeed.description = normalize(description);
-            logicalFeed.workflowStates = normalizeWorkflowStates(workflowStates);
+            logicalFeed.workflowStates = normalizedWorkflowStates;
             logicalFeed.eligibilityExclusionTaxonomy = normalizeWorkflowTaxonomy(eligibilityExclusionTaxonomy, "Eligibility exclusion criteria");
             logicalFeed.eligibilityInclusionTaxonomy = normalizeWorkflowTaxonomy(eligibilityInclusionTaxonomy, "Eligibility inclusion criteria");
             logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
             logicalFeed.notifyOnNewRssPapers = !"off".equalsIgnoreCase(notifyOnNewRssPapers);
             ensurePublicShareToken(logicalFeed);
-            paperStateRepairService.repairLogicalFeed(logicalFeed);
             return seeOther("/admin");
         } catch (WebApplicationException e) {
             return rethrowOrPlainText(e);
+        }
+    }
+
+    @POST
+    @Path("/logical-feeds/{id}/workflow/validate")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response validateLogicalFeedWorkflow(
+            @jakarta.ws.rs.PathParam("id") Long id,
+            @RestForm("workflowStates") String workflowStates
+    ) {
+        try {
+            LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
+            String canonicalYaml = normalizeWorkflowStates(workflowStates);
+            WorkflowStateConfig workflow = WorkflowStateConfig.parse(canonicalYaml);
+            validateWorkflowGraphRules(workflow);
+            return jsonResponse(workflowValidationPayload(logicalFeed, workflow, canonicalYaml));
+        } catch (WebApplicationException e) {
+            return apiError(e);
         }
     }
 
@@ -2726,6 +2751,134 @@ public class HomeResource {
             return WorkflowStateConfig.parse(value).toYaml();
         } catch (IllegalArgumentException e) {
             throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
+    }
+
+    private void validateWorkflowGraphRules(WorkflowStateConfig workflow) {
+        try {
+            workflow.validateGraphRules();
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+        }
+    }
+
+    private Map<String, Object> workflowValidationPayload(
+            LogicalFeed logicalFeed,
+            WorkflowStateConfig nextWorkflow,
+            String canonicalYaml
+    ) {
+        WorkflowStateConfig currentWorkflow = workflowConfig(logicalFeed);
+        Set<String> nextStates = new LinkedHashSet<>(nextWorkflow.leafStates());
+        Map<String, Long> papersByState = new LinkedHashMap<>();
+        for (Paper paper : paperRepository.findAllForExport(logicalFeed)) {
+            String state = WorkflowStateConfig.normalizeStateId(paper.status);
+            if (state != null) {
+                papersByState.merge(state, 1L, Long::sum);
+            }
+        }
+        List<Map<String, Object>> removedStates = new ArrayList<>();
+        for (WorkflowStateConfig.State state : currentWorkflow.states()) {
+            if (nextStates.contains(state.id())) {
+                continue;
+            }
+            long paperCount = papersByState.getOrDefault(state.id(), 0L);
+            if (paperCount > 0) {
+                removedStates.add(Map.of(
+                        "id", state.id(),
+                        "label", state.label(),
+                        "paperCount", paperCount));
+            }
+        }
+        List<Map<String, Object>> migrationTargets = new ArrayList<>();
+        for (WorkflowStateConfig.State state : nextWorkflow.states()) {
+            WorkflowStateConfig.Requirements requirements = state.requirements();
+            if (requirements.exclusionCriterion() != null || requirements.inclusionCriteria() != null) {
+                continue;
+            }
+            migrationTargets.add(Map.of("id", state.id(), "label", state.label()));
+        }
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("yaml", canonicalYaml);
+        payload.put("workflow", JsonCodec.parse(nextWorkflow.configJson()));
+        payload.put("removedStates", removedStates);
+        payload.put("migrationTargets", migrationTargets);
+        return payload;
+    }
+
+    private void applyWorkflowStateMigrations(
+            LogicalFeed logicalFeed,
+            WorkflowStateConfig nextWorkflow,
+            List<String> migrationFrom,
+            List<String> migrationTo
+    ) {
+        WorkflowStateConfig currentWorkflow = workflowConfig(logicalFeed);
+        Set<String> nextStates = new LinkedHashSet<>(nextWorkflow.leafStates());
+        Map<String, String> migrations = workflowStateMigrations(migrationFrom, migrationTo);
+        List<Paper> papers = paperRepository.findAllForExport(logicalFeed);
+        Map<String, List<Paper>> papersByRemovedState = new LinkedHashMap<>();
+        for (Paper paper : papers) {
+            String state = WorkflowStateConfig.normalizeStateId(paper.status);
+            if (state != null && currentWorkflow.containsLeafState(state) && !nextStates.contains(state)) {
+                papersByRemovedState.computeIfAbsent(state, ignored -> new ArrayList<>()).add(paper);
+            }
+        }
+        for (Map.Entry<String, List<Paper>> entry : papersByRemovedState.entrySet()) {
+            String target = migrations.get(entry.getKey());
+            if (target == null) {
+                throw new WebApplicationException(
+                        "Choose a migration target for papers in removed state " + entry.getKey(),
+                        Response.Status.BAD_REQUEST);
+            }
+            validateWorkflowMigrationTarget(nextWorkflow, target);
+        }
+        for (Map.Entry<String, List<Paper>> entry : papersByRemovedState.entrySet()) {
+            String target = migrations.get(entry.getKey());
+            for (Paper paper : entry.getValue()) {
+                String previousStatus = paper.status;
+                paper.status = target;
+                paper.eligibilityExclusionCriterionId = null;
+                paper.eligibilityExclusionNotes = null;
+                paper.setEligibilityInclusionCriteriaIds(List.of());
+                paperEventService.log(paper, "STATE_MIGRATED", previousStatus + " -> " + target);
+            }
+        }
+    }
+
+    private Map<String, String> workflowStateMigrations(List<String> migrationFrom, List<String> migrationTo) {
+        if (migrationFrom == null || migrationFrom.isEmpty()) {
+            return Map.of();
+        }
+        if (migrationTo == null || migrationFrom.size() != migrationTo.size()) {
+            throw new WebApplicationException("Each workflow migration needs a target state", Response.Status.BAD_REQUEST);
+        }
+        Map<String, String> migrations = new LinkedHashMap<>();
+        for (int index = 0; index < migrationFrom.size(); index++) {
+            String from = normalizeMigrationState(migrationFrom.get(index));
+            String target = normalizeMigrationState(migrationTo.get(index));
+            if (from == null || target == null || migrations.putIfAbsent(from, target) != null) {
+                throw new WebApplicationException("Workflow migration mappings must be unique and complete", Response.Status.BAD_REQUEST);
+            }
+        }
+        return migrations;
+    }
+
+    private String normalizeMigrationState(String value) {
+        try {
+            return WorkflowStateConfig.normalizeStateId(value);
+        } catch (IllegalArgumentException e) {
+            throw new WebApplicationException("Invalid workflow migration state", Response.Status.BAD_REQUEST);
+        }
+    }
+
+    private void validateWorkflowMigrationTarget(WorkflowStateConfig workflow, String target) {
+        if (!workflow.containsLeafState(target)) {
+            throw new WebApplicationException("A migration target must be a remaining workflow state", Response.Status.BAD_REQUEST);
+        }
+        WorkflowStateConfig.Requirements requirements = workflow.requirementsFor(target);
+        if (requirements.exclusionCriterion() != null || requirements.inclusionCriteria() != null) {
+            throw new WebApplicationException(
+                    "Papers can only be migrated to a state without required criteria: " + target,
+                    Response.Status.BAD_REQUEST);
         }
     }
 

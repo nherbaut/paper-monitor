@@ -2,6 +2,7 @@ package top.nextnet.paper.monitor.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -44,5 +45,50 @@ class QuickSetupWorkflowsTest {
         assertTrue(workflow.containsTaxonomyLeaf("EXCLUSION", "EX2"));
         assertTrue(workflow.containsTaxonomyLeaf("INCLUSION", "INC1"));
         assertTrue(workflow.containsTaxonomyLeaf("INCLUSION", "INC2"));
+    }
+
+    @Test
+    void graphWorkflowsRequireConnectedStatesAndAtMostTwoEdgesPerDirection() {
+        assertThrows(IllegalArgumentException.class, () -> WorkflowStateConfig.parse("""
+                version: 2
+                initial_state: A
+                states:
+                  - id: A
+                  - id: B
+                transitions:
+                  - from: A
+                    to: [B, A]
+                """).validateGraphRules());
+
+        assertThrows(IllegalArgumentException.class, () -> WorkflowStateConfig.parse("""
+                version: 2
+                initial_state: A
+                states:
+                  - id: A
+                  - id: B
+                  - id: C
+                  - id: D
+                transitions:
+                  - from: A
+                    to: [B, C, D]
+                  - from: B
+                    to: [A]
+                  - from: C
+                    to: [A]
+                  - from: D
+                    to: [A]
+                """).validateGraphRules());
+
+        assertThrows(IllegalArgumentException.class, () -> WorkflowStateConfig.parse("""
+                version: 2
+                initial_state: A
+                states:
+                  - id: A
+                  - id: B
+                  - id: C
+                transitions:
+                  - from: A
+                    to: [B]
+                """).validateGraphRules());
     }
 }
