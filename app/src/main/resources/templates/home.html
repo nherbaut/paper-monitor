@@ -4818,6 +4818,9 @@
     };
 
     const stateLeafChoices = (group) => {
+        if (!group?.name) {
+            return [];
+        }
         const children = Array.isArray(group?.children) ? group.children.filter(Boolean) : [];
         if (!children.length) {
             return [{ value: group.name, label: group.name }];
