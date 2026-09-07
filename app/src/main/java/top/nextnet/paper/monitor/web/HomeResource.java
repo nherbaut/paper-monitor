@@ -438,8 +438,8 @@ public class HomeResource {
     ) {
         if ((state == null || state.isBlank()) && setupAction != null && !setupAction.isBlank()) {
             String info = "install".equalsIgnoreCase(setupAction)
-                    ? "GitHub App installation completed. Sign in with GitHub again to refresh Paper Monitor access."
-                    : "GitHub App installation updated. Sign in with GitHub again to refresh Paper Monitor access.";
+                    ? "GitHub App installation completed. Sign in with GitHub again to refresh MIAGE Review Factory access."
+                    : "GitHub App installation updated. Sign in with GitHub again to refresh MIAGE Review Factory access.";
             AppUser currentUser = currentUserContext.get().user();
             return seeOther((currentUser == null ? "/login" : "/admin") + "?info=" + urlEncode(info));
         }

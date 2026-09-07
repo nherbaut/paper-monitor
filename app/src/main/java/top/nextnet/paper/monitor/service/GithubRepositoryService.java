@@ -403,7 +403,7 @@ public class GithubRepositoryService {
     private UserSettings requireGithubSettings(AppUser user) {
         UserSettings settings = userSettingsRepository.findByUser(user).orElse(null);
         if (settings == null || !settings.hasGithubAccessToken()) {
-            throw new IllegalArgumentException("Sign in with GitHub first so Paper Monitor can inspect your GitHub App installations");
+            throw new IllegalArgumentException("Sign in with GitHub first so MIAGE Review Factory can inspect your GitHub App installations");
         }
         return settings;
     }

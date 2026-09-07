@@ -31,7 +31,7 @@ public class SecondaryEmailService {
         }
         AppUser owner = appUserRepository.findByEmail(normalized).orElse(null);
         if (owner != null && !owner.id.equals(user.id)) {
-            throw new IllegalArgumentException("This Google email address already belongs to another Paper Monitor account");
+            throw new IllegalArgumentException("This Google email address already belongs to another MIAGE Review Factory account");
         }
         if (user.email != null && normalized.equalsIgnoreCase(user.email)) {
             return;
@@ -39,7 +39,7 @@ public class SecondaryEmailService {
         AppUserEmail existing = appUserEmailRepository.findByEmail(normalized).orElse(null);
         if (existing != null) {
             if (!existing.user.id.equals(user.id)) {
-                throw new IllegalArgumentException("This Google email address already belongs to another Paper Monitor account");
+                throw new IllegalArgumentException("This Google email address already belongs to another MIAGE Review Factory account");
             }
             existing.verifiedAt = Instant.now();
             existing.source = "GOOGLE";

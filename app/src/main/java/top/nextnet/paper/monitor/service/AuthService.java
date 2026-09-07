@@ -122,8 +122,8 @@ public class AuthService {
         appUserRepository.persist(user);
         ensureSettings(user);
         notificationService.sendUserAccountNotification(user,
-                "Paper Monitor account created",
-                "A Paper Monitor local account was created for you.\n\nUsername: " + user.username);
+                "MIAGE Review Factory account created",
+                "A MIAGE Review Factory local account was created for you.\n\nUsername: " + user.username);
         return user;
     }
 
@@ -225,8 +225,8 @@ public class AuthService {
             setPassword(user, password.trim());
         }
         notificationService.sendUserAccountNotification(user,
-                "Paper Monitor account updated",
-                "Your Paper Monitor account settings were updated.");
+                "MIAGE Review Factory account updated",
+                "Your MIAGE Review Factory account settings were updated.");
         return user;
     }
 
@@ -241,8 +241,8 @@ public class AuthService {
             throw new IllegalArgumentException("Cannot delete a user who still owns logical feeds");
         }
         notificationService.sendUserAccountNotification(user,
-                "Paper Monitor account removed",
-                "Your Paper Monitor account was removed.");
+                "MIAGE Review Factory account removed",
+                "Your MIAGE Review Factory account was removed.");
         logicalFeedAccessGrantRepository.deleteByUser(user);
         user.delete();
     }

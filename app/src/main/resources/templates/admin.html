@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Paper Monitor Admin</title>
+    <title>MIAGE Review Factory Admin</title>
     <style>
         :root {
             --bg: #f5f0e8;
@@ -511,7 +511,7 @@
 <main>
     <header>
         <div class="pill">Paper Feed Operations</div>
-        <h1 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.67 1.5 10 3.1c.3.12.59.28.86.47l1.47-.5 1 1.73-1.15 1.03c.04.31.04.63 0 .94l1.15 1.03-1 1.73-1.47-.5c-.27.2-.56.35-.86.47L9.67 14.5H7.33L7 12.9a4.9 4.9 0 0 1-.86-.47l-1.47.5-1-1.73 1.15-1.03a3.7 3.7 0 0 1 0-.94L3.67 8.2l1-1.73 1.47.5c.27-.19.56-.35.86-.47l.33-1.6h2.34ZM8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z"/></svg></span><span>Paper Monitor Admin</span></h1>
+        <h1 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.67 1.5 10 3.1c.3.12.59.28.86.47l1.47-.5 1 1.73-1.15 1.03c.04.31.04.63 0 .94l1.15 1.03-1 1.73-1.47-.5c-.27.2-.56.35-.86.47L9.67 14.5H7.33L7 12.9a4.9 4.9 0 0 1-.86-.47l-1.47.5-1-1.73 1.15-1.03a3.7 3.7 0 0 1 0-.94L3.67 8.2l1-1.73 1.47.5c.27-.19.56-.35.86-.47l.33-1.6h2.34ZM8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z"/></svg></span><span>MIAGE Review Factory Admin</span></h1>
         <p class="meta">
             Signed in as <strong>{currentUser.displayLabel}</strong>{#if currentUser.admin} (paper admin){/if}
             | <a href="/">Back to papers</a>
@@ -646,7 +646,7 @@
                         </form>
                         {#else if githubEnabled && githubInstallationAuthConfigured && currentUser.githubLogin && ttsSettings.hasGithubAccessToken}
                         <p class="meta">1. Create the repository on GitHub yourself. 2. Install the GitHub App on only that repository. 3. Connect it here.</p>
-                        <p class="meta"><a href="{githubAppInstallUrl}" target="_blank" rel="noreferrer">Install the Paper Monitor GitHub App</a></p>
+                        <p class="meta"><a href="{githubAppInstallUrl}" target="_blank" rel="noreferrer">Install the MIAGE Review Factory GitHub App</a></p>
                         {#if githubRepositoryChoicesError}
                         <p class="meta">{githubRepositoryChoicesError}</p>
                         {#else if githubRepositoryChoices.isEmpty}
@@ -840,7 +840,7 @@
             <div class="management-card">
                 <div class="management-card-body">
                     <div class="management-card-header">
-                        <strong>Shared Paper Monitor quota</strong>
+                        <strong>Shared MIAGE Review Factory quota</strong>
                         <span class="meta">This quota is only consumed when you use the server-managed OpenAI key.</span>
                     </div>
                     <div class="status-row">
@@ -971,7 +971,7 @@
         <details class="management-card" open>
             <summary>Email Domain Policies</summary>
             <div class="management-card-body">
-                <p class="meta">Specific domain rules override the default signup policy below. If no domain rule matches, Paper Monitor uses the default policy.</p>
+                <p class="meta">Specific domain rules override the default signup policy below. If no domain rule matches, MIAGE Review Factory uses the default policy.</p>
                 <form action="/admin/default-signup-policy" method="post" class="management-card">
                     <div class="management-card-body">
                         <div class="management-card-header">

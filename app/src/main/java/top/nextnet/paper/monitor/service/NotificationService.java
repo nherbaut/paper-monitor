@@ -46,7 +46,7 @@ public class NotificationService {
     public void sendFeedAccessNotification(AppUser target, LogicalFeed logicalFeed, String role, AppUser grantedBy) {
         String grantor = grantedBy == null ? "an administrator" : grantedBy.displayLabel();
         sendText(target == null ? null : target.email,
-                "Paper Monitor access granted for " + logicalFeed.name,
+                "MIAGE Review Factory access granted for " + logicalFeed.name,
                 "You were granted " + role.toLowerCase() + " access to logical feed \"" + logicalFeed.name + "\" by " + grantor + ".");
     }
 
@@ -55,8 +55,8 @@ public class NotificationService {
                 ? "After verification, you can sign in right away."
                 : "After verification, an administrator still needs to approve your account before sign-in is enabled.";
         sendText(target == null ? null : target.email,
-                "Verify your Paper Monitor email",
-                "Welcome to Paper Monitor.\n\nVerify your email address by opening:\n" + verificationUrl
+                "Verify your MIAGE Review Factory email",
+                "Welcome to MIAGE Review Factory.\n\nVerify your email address by opening:\n" + verificationUrl
                         + "\n\n" + approvalLine);
     }
 
@@ -68,8 +68,8 @@ public class NotificationService {
             }
             recipients.add(admin.email);
         }
-        String subject = "Paper Monitor signup awaiting approval";
-        String body = "A new Paper Monitor account was created.\n\n"
+        String subject = "MIAGE Review Factory signup awaiting approval";
+        String body = "A new MIAGE Review Factory account was created.\n\n"
                 + "Username: " + pendingUser.username + "\n"
                 + "Display name: " + pendingUser.displayLabel() + "\n"
                 + "Email: " + (pendingUser.email == null ? "not provided" : pendingUser.email) + "\n"
@@ -82,8 +82,8 @@ public class NotificationService {
 
     public void sendAccountApprovedNotification(AppUser target, String loginUrl) {
         sendText(target == null ? null : target.email,
-                "Your Paper Monitor account was approved",
-                "Your Paper Monitor account is now approved.\n\nYou can sign in here:\n" + loginUrl);
+                "Your MIAGE Review Factory account was approved",
+                "Your MIAGE Review Factory account is now approved.\n\nYou can sign in here:\n" + loginUrl);
     }
 
     public void sendRssPaperDigest(LogicalFeed logicalFeed, List<Paper> papers, LocalDate digestDate) {
@@ -151,7 +151,7 @@ public class NotificationService {
         String html = "<!doctype html><html><body style=\"margin:0;background:#f4f1e8;color:#1f2925;"
                 + "font-family:Arial,Helvetica,sans-serif\"><div style=\"max-width:640px;margin:0 auto;padding:24px 12px\">"
                 + "<div style=\"background:#173f35;padding:24px 28px;border-radius:14px 14px 0 0;color:#fff\">"
-                + "<div style=\"font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#b9d8ca\">Paper Monitor</div>"
+                + "<div style=\"font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#b9d8ca\">MIAGE Review Factory</div>"
                 + "<h1 style=\"margin:8px 0 4px;font-size:24px\">" + count + " new " + paperWord + "</h1>"
                 + "<p style=\"margin:0;color:#dbe9e2\">Added to <strong>" + escapeHtml(feedName) + "</strong></p></div>"
                 + "<div style=\"background:#fff;padding:18px 28px 30px\">"

@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{#if shareMode && sharedPaper}{sharedPaper.title} · Paper Monitor{#else}Paper Monitor{/if}</title>
+    <title>{#if shareMode && sharedPaper}{sharedPaper.title} · MIAGE Review Factory{#else}MIAGE Review Factory{/if}</title>
     {#if shareMode && sharedPaper}
     <meta name="description" content="{sharedPaper.summary ?: (sharedPaper.authors ?: '') + (sharedPaper.publisher ? ' · ' + sharedPaper.publisher : '')}">
     <link rel="canonical" href="{sharedPaperUrl}">
     <meta property="og:type" content="article">
-    <meta property="og:site_name" content="Paper Monitor">
+    <meta property="og:site_name" content="MIAGE Review Factory">
     <meta property="og:title" content="{sharedPaper.title}">
     <meta property="og:description" content="{sharedPaper.summary ?: (sharedPaper.authors ?: '') + (sharedPaper.publisher ? ' · ' + sharedPaper.publisher : '')}">
     <meta property="og:url" content="{sharedPaperUrl}">
@@ -184,6 +184,10 @@
         }
 
         @media (max-width: 720px) {
+            .feed-dashboard {
+                grid-template-columns: 1fr;
+            }
+
             .temporary-feed-notice {
                 align-items: flex-start;
                 flex-direction: column;
@@ -200,7 +204,7 @@
 
         .feed-dashboard {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 1rem;
             align-items: stretch;
         }
@@ -237,10 +241,6 @@
         .feed-dashboard-card.drag-over {
             border-color: var(--accent);
             box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent), 0 10px 24px rgba(77, 56, 38, 0.06);
-        }
-
-        .feed-dashboard-reorder-hint {
-            margin: 0 0 0.75rem;
         }
 
         .feed-dashboard-card h3,
@@ -328,13 +328,9 @@
         }
 
         .feed-dashboard-card-title span {
-            display: -webkit-box;
+            display: block;
             min-width: 0;
             overflow-wrap: anywhere;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            min-height: calc(1.35em * 2);
         }
 
         .feed-dashboard-card-menu summary {
@@ -3029,7 +3025,7 @@
 <body>
 <div class="topbar">
     <div class="topbar-title">
-        <h1 class="title-with-icon"><a href="/" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 0.55rem;"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v2H2V2Zm0 4h12v10H2V6Zm1 1v8h10V7H3Zm2 1h6v1H5V8Zm0 3h6v1H5v-1Z"/></svg></span><span>Paper Monitor</span></a></h1>
+        <h1 class="title-with-icon"><a href="/" style="color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 0.55rem;"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v2H2V2Zm0 4h12v10H2V6Zm1 1v8h10V7H3Zm2 1h6v1H5V8Zm0 3h6v1H5v-1Z"/></svg></span><span>MIAGE Review Factory</span></a></h1>
     </div>
     <nav class="topbar-actions" aria-label="Primary">
         <details class="inline-menu topbar-menu">
@@ -3155,9 +3151,6 @@
 
     {#if authenticated && !logicalFeeds.isEmpty}
     <section class="panel panel-wide {#if initialLogicalFeedId}hidden{/if}" id="feed-dashboard-panel">
-        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm1 3h10v6H3V7Zm1 1v4h8V8H4Z"/></svg></span><span>Your surveys</span></h2>
-        <p class="meta">Choose a paper feed to open its papers and survey workspace.</p>
-        <p class="meta feed-dashboard-reorder-hint">Drag and drop paper feed cards to change their order.</p>
         <div class="feed-dashboard" id="feed-dashboard">
             {#for logicalFeed in logicalFeeds}
             <article class="feed-dashboard-card"
@@ -9051,7 +9044,7 @@
         paperCapturePdfButton.textContent = "Capture armed";
         notesStatus.textContent = pdfCaptureExtensionReady
             ? "Opening provider page..."
-            : "Waiting for the Paper Monitor Firefox extension...";
+            : "Waiting for the MIAGE Review Factory Firefox extension...";
         window.postMessage({
             bridge: "paper-monitor-pdf-capture",
             type: "ARM_CAPTURE",
@@ -9059,7 +9052,7 @@
         }, window.location.origin);
         window.setTimeout(() => {
             if (activePdfCapture && !pdfCaptureExtensionReady) {
-                notesStatus.textContent = "Paper Monitor Firefox extension not detected";
+                notesStatus.textContent = "MIAGE Review Factory Firefox extension not detected";
             }
         }, 1500);
         pdfCapturePollTimer = window.setTimeout(pollPdfCaptureStatus, 1000);

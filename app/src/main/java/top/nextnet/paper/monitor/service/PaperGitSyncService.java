@@ -112,7 +112,7 @@ public class PaperGitSyncService {
         Files.createDirectories(repoPath);
         if (!Files.exists(repoPath.resolve(".git"))) {
             runGit(repoPath.getParent(), "init", repoPath.getFileName().toString());
-            runGit(repoPath, "config", "user.name", "Paper Monitor");
+            runGit(repoPath, "config", "user.name", "MIAGE Review Factory");
             runGit(repoPath, "config", "user.email", "paper-monitor@local");
             runGit(repoPath, "config", "receive.denyCurrentBranch", "updateInstead");
             runGit(repoPath, "config", "http.receivepack", "true");
@@ -413,7 +413,7 @@ public class PaperGitSyncService {
                 + "Managed notes files use the pattern `paper-<id>--<name>.md`.\n"
                 + "Managed review submissions are exported under `reviews/review-<id>--<title>/paper-<id>--<title>.json`.\n"
                 + "Managed notes files start with generated `paper-monitor/paper/v1` YAML front matter.\n"
-                + "The front matter is read-only and regenerated from Paper Monitor metadata.\n"
+                + "The front matter is read-only and regenerated from MIAGE Review Factory metadata.\n"
                 + "Editing the Markdown body below the front matter updates the paper notes in the application.\n"
                 + "Moving a managed PDF between state directories changes the paper state.\n"
                 + "Moving a managed notes file between state directories changes the paper state.\n"

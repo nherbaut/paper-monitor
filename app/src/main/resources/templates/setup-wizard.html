@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create a paper feed</title>
+    <title>MIAGE Review Factory – Create a paper feed</title>
     <style>
         :root {
             --bg: #f4f6f4;
@@ -165,7 +165,7 @@
 </head>
 <body data-draft-id="{draftId ?: ''}" data-authenticated="{authenticated}" data-google-enabled="{googleDriveEnabled}" data-google-connected="{googleDriveConnected}" data-google-email="{googleDriveEmail ?: ''}">
 <header>
-    <strong>Paper Monitor</strong>
+    <strong>MIAGE Review Factory</strong>
     <a class="button secondary" href="/">Exit setup</a>
 </header>
 <main>
@@ -211,7 +211,7 @@
 
             <section class="step" data-step="4" hidden>
                 <h1>Sync hosted PDFs to Google Drive?</h1>
-                <p class="meta">This uses one personal root folder. Paper Monitor creates a subfolder named after each paper feed.</p>
+                <p class="meta">This uses one personal root folder. MIAGE Review Factory creates a subfolder named after each paper feed.</p>
                 <div class="choice-grid" id="drive-choice">
                     <button class="choice" id="drive-yes" type="button"><strong>Yes, connect Drive</strong>Choose where hosted PDFs should be copied.</button>
                     <button class="choice" id="drive-no" type="button"><strong>Not now</strong>You can enable Drive sync later from settings.</button>
@@ -260,7 +260,7 @@
 
             <section class="step" data-step="6" hidden>
                 <h1>Ready to create your paper feed</h1>
-                <p class="meta" id="complete-description">Paper Monitor will create the feed, poll the RSS source, and then open your papers.</p>
+                <p class="meta" id="complete-description">MIAGE Review Factory will create the feed, poll the RSS source, and then open your papers.</p>
                 <div class="summary" id="setup-summary"></div>
                 <div class="status hidden" id="complete-status"></div>
                 <div class="actions">
@@ -629,7 +629,7 @@
     byId("complete-setup").addEventListener("click", completeSetup);
 
     if (!authenticated) {
-        byId("complete-description").textContent = "Paper Monitor will create a temporary feed that you can use immediately. Create an account later to keep it.";
+        byId("complete-description").textContent = "MIAGE Review Factory will create a temporary feed that you can use immediately. Create an account later to keep it.";
     }
     loadHistory();
     restoreDraft();
