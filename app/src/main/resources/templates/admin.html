@@ -1731,13 +1731,29 @@
             state.requires = state.requires || {};
             state.report = state.report || {};
         });
+        let canvasSize = { width: 920, height: 416 };
+        const setCanvasSize = (width, height) => {
+            canvasSize = { width: Math.max(920, width), height: Math.max(416, height) };
+            canvas.setAttribute("viewBox", "0 0 " + canvasSize.width + " " + canvasSize.height);
+            if (canvasSize.width > 920 || canvasSize.height > 416) {
+                canvas.style.width = canvasSize.width + "px";
+                canvas.style.height = Math.max(544, canvasSize.height) + "px";
+            } else {
+                canvas.style.removeProperty("width");
+                canvas.style.removeProperty("height");
+            }
+        };
         const positions = new Map();
         const layoutStorageKey = "paper-monitor.workflow-layout.v1." + (form.dataset.logicalFeedId || "default");
         const restorePositions = () => {
             try {
                 const saved = JSON.parse(localStorage.getItem(layoutStorageKey) || "{}");
+                const savedPositions = saved.positions || saved;
+                if (Number.isFinite(saved.canvas?.width) && Number.isFinite(saved.canvas?.height)) {
+                    setCanvasSize(saved.canvas.width, saved.canvas.height);
+                }
                 workflow.states.forEach((state) => {
-                    const position = saved[state.id];
+                    const position = savedPositions[state.id];
                     if (Number.isFinite(position?.x) && Number.isFinite(position?.y)) {
                         positions.set(state.id, { x: position.x, y: position.y });
                     }
@@ -1748,7 +1764,10 @@
         };
         const persistPositions = () => {
             try {
-                localStorage.setItem(layoutStorageKey, JSON.stringify(Object.fromEntries(positions)));
+                localStorage.setItem(layoutStorageKey, JSON.stringify({
+                    positions: Object.fromEntries(positions),
+                    canvas: canvasSize
+                }));
             } catch {
                 // The graph remains usable when browser storage is unavailable.
             }
@@ -1806,8 +1825,8 @@
         const canvasPositionAt = (event) => {
             const rect = canvas.getBoundingClientRect();
             return {
-                x: Math.max(85, Math.min(835, (event.clientX - rect.left) * 920 / rect.width)),
-                y: Math.max(15, Math.min(340, (event.clientY - rect.top) * 416 / rect.height))
+                x: Math.max(85, Math.min(canvasSize.width - 85, (event.clientX - rect.left) * canvasSize.width / rect.width)),
+                y: Math.max(15, Math.min(canvasSize.height - 76, (event.clientY - rect.top) * canvasSize.height / rect.height))
             };
         };
 
@@ -2023,11 +2042,15 @@
                 levels.get(depth).push(state);
             });
             const maxDepth = Math.max(0, ...levels.keys());
+            const widestLevel = Math.max(1, ...Array.from(levels.values(), (states) => states.length));
+            const columnSpacing = 210;
+            const rowSpacing = 90;
+            setCanvasSize(200 + maxDepth * columnSpacing, 120 + (widestLevel - 1) * rowSpacing);
             levels.forEach((states, depth) => {
                 states.forEach((state, index) => {
                     positions.set(state.id, {
-                        x: maxDepth ? 100 + (720 * depth / maxDepth) : 460,
-                        y: states.length === 1 ? 178 : 25 + (315 * index / (states.length - 1))
+                        x: 100 + depth * columnSpacing,
+                        y: 30 + index * rowSpacing
                     });
                 });
             });
