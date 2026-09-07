@@ -2014,6 +2014,29 @@ public class HomeResource {
     }
 
     @POST
+    @Path("/logical-feeds/{id}/workflow/update")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response updateLogicalFeedWorkflow(
+            @jakarta.ws.rs.PathParam("id") Long id,
+            @RestForm("workflowStates") String workflowStates,
+            @RestForm("migrationFrom") List<String> migrationFrom,
+            @RestForm("migrationTo") List<String> migrationTo
+    ) {
+        try {
+            LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
+            String normalizedWorkflowStates = normalizeWorkflowStates(workflowStates);
+            WorkflowStateConfig nextWorkflow = WorkflowStateConfig.parse(normalizedWorkflowStates);
+            validateWorkflowGraphRules(nextWorkflow);
+            applyWorkflowStateMigrations(logicalFeed, nextWorkflow, migrationFrom, migrationTo);
+            logicalFeed.workflowStates = normalizedWorkflowStates;
+            return seeOther("/admin#workflow");
+        } catch (WebApplicationException e) {
+            return rethrowOrPlainText(e);
+        }
+    }
+
+    @POST
     @Path("/logical-feeds/{id}/github/connect")
     @Transactional
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)

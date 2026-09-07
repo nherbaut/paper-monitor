@@ -26,7 +26,7 @@
         }
 
         main {
-            width: min(1240px, calc(100% - 2rem));
+            width: min(1600px, calc(100% - 2rem));
             margin: 0 auto;
             padding: 2rem 0 4rem;
         }
@@ -510,12 +510,12 @@
 
         .workflow-designer-grid {
             display: grid;
-            grid-template-columns: minmax(0, 1.7fr) minmax(17rem, 0.8fr);
+            grid-template-columns: minmax(0, 2.6fr) minmax(18rem, 0.72fr);
             gap: 0.85rem;
         }
 
         .workflow-canvas-wrap {
-            min-height: 26rem;
+            min-height: 34rem;
             overflow: auto;
             border: 1px solid var(--line);
             border-radius: 10px;
@@ -527,7 +527,7 @@
             display: block;
             width: 100%;
             min-width: 40rem;
-            height: 26rem;
+            height: 34rem;
         }
 
         .workflow-edge {
@@ -624,6 +624,33 @@
             pointer-events: none;
         }
 
+        .workflow-context-menu {
+            position: fixed;
+            z-index: 101;
+            display: grid;
+            min-width: 11rem;
+            padding: 0.3rem;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            background: #fffdf9;
+            box-shadow: 0 12px 28px rgba(77, 56, 38, 0.2);
+        }
+
+        .workflow-context-menu button {
+            width: 100%;
+            padding: 0.5rem 0.65rem;
+            border: 0;
+            border-radius: 6px;
+            color: var(--ink);
+            background: transparent;
+            text-align: left;
+        }
+
+        .workflow-context-menu button:hover {
+            color: #6f2d19;
+            background: rgba(179, 79, 46, 0.12);
+        }
+
         dialog.workflow-migration-dialog {
             width: min(34rem, calc(100% - 2rem));
             border: 1px solid var(--line);
@@ -714,6 +741,7 @@
         <aside class="settings-sidebar" aria-label="Admin sections">
             <button class="settings-nav-button active" data-settings-target="setup" type="button">Wizard</button>
             <button class="settings-nav-button" data-settings-target="feeds" type="button">Paper Feed Management</button>
+            <button class="settings-nav-button" data-settings-target="workflow" type="button">Workflow Designer</button>
             <button class="settings-nav-button" data-settings-target="rss" type="button">RSS Feed Management</button>
             <button class="settings-nav-button" data-settings-target="tts" type="button">TTS Management</button>
             <button class="settings-nav-button" data-settings-target="pde" type="button">PDE Settings</button>
@@ -798,53 +826,9 @@
                     </div>
                     {#if logicalFeed.viewerCanAdmin}
                     <div class="management-actions">
-                        <form class="workflow-feed-form" action="/logical-feeds/{logicalFeed.id}/update" method="post"
-                              data-logical-feed-id="{logicalFeed.id}"
-                              data-workflow-config='{logicalFeed.workflowConfigJson}'>
+                        <form action="/logical-feeds/{logicalFeed.id}/update" method="post">
                             <input type="text" name="name" value="{logicalFeed.name}" required>
                             <textarea name="description">{logicalFeed.description}</textarea>
-                            <div class="workflow-designer" data-workflow-designer>
-                                <div class="workflow-designer-header">
-                                    <strong>Workflow designer</strong>
-                                    <p class="meta">Select a state to edit it. Use “Add transition”, then select its destination. Shift-click and drag states to rearrange the diagram.</p>
-                                </div>
-                                <div class="workflow-designer-toolbar">
-                                    <button class="secondary" type="button" data-workflow-add-state>Add state</button>
-                                    <button class="secondary" type="button" data-workflow-start-edge disabled>Add transition</button>
-                                    <button class="secondary" type="button" data-workflow-reverse-edge disabled>Reverse transition</button>
-                                    <button class="secondary" type="button" data-workflow-delete-edge disabled>Delete transition</button>
-                                    <button class="secondary" type="button" data-workflow-delete-state disabled>Delete state</button>
-                                    <label>Initial state <select data-workflow-initial-state></select></label>
-                                </div>
-                                <div class="workflow-designer-status" data-workflow-status></div>
-                                <div class="workflow-designer-grid">
-                                    <div class="workflow-canvas-wrap">
-                                        <svg class="workflow-canvas" data-workflow-canvas viewBox="0 0 920 416" role="img" aria-label="Workflow state transition designer"></svg>
-                                    </div>
-                                    <div class="workflow-inspector" data-workflow-inspector hidden>
-                                        <strong data-workflow-inspector-title>State</strong>
-                                        <label>State ID <input data-workflow-state-id type="text" autocomplete="off"></label>
-                                        <label>Label <input data-workflow-state-label type="text"></label>
-                                        <label>Group <input data-workflow-state-group type="text" placeholder="Optional group"></label>
-                                        <label class="checkbox-label"><input data-workflow-state-terminal type="checkbox"> Terminal state</label>
-                                        <label>Required criteria
-                                            <select data-workflow-requirement-kind>
-                                                <option value="">None</option>
-                                                <option value="exclusion">One exclusion criterion</option>
-                                                <option value="inclusion">Inclusion criteria</option>
-                                            </select>
-                                        </label>
-                                        <label data-workflow-requirement-taxonomy-wrap>Taxonomy <input data-workflow-requirement-taxonomy type="text" placeholder="EXCLUSION or INCLUSION"></label>
-                                        <label data-workflow-requirement-count-wrap>Minimum / exact count <input data-workflow-requirement-count type="number" min="1" value="1"></label>
-                                        <label class="checkbox-label"><input data-workflow-requirement-notes type="checkbox"> Notes optional</label>
-                                        <label>PRISMA report bucket <input data-workflow-report-bucket type="text" placeholder="Optional"></label>
-                                    </div>
-                                </div>
-                                <div class="workflow-yaml-actions">
-                                    <button class="secondary" type="button" data-workflow-load-yaml>Load YAML into designer</button>
-                                    <button class="secondary" type="button" data-workflow-copy-yaml>Copy YAML</button>
-                                </div>
-                            </div>
                             <textarea name="workflowStates" required>{logicalFeed.workflowStatesText}</textarea>
                             <textarea name="eligibilityExclusionTaxonomy" placeholder="Optional eligibility exclusion taxonomy YAML">{logicalFeed.eligibilityExclusionTaxonomy}</textarea>
                             <textarea name="eligibilityInclusionTaxonomy" placeholder="Optional eligibility inclusion taxonomy YAML">{logicalFeed.eligibilityInclusionTaxonomy}</textarea>
@@ -916,6 +900,60 @@
             </details>
             {/for}
         </div>
+    </section>
+
+    <section class="settings-panel hidden" data-settings-panel="workflow">
+        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v12H2V2Zm1 1v10h10V3H3Zm2 2h6v1H5V5Zm0 3h6v1H5V8Zm0 3h4v1H5v-1Z"/></svg></span><span>Workflow Designer</span></h2>
+        <p class="meta">Right-click the canvas to add a state, a state to add a transition or delete it, and a transition to reverse or delete it. Shift-drag states to arrange the diagram.</p>
+        <label>Paper feed <select data-workflow-feed-picker>
+            {#for logicalFeed in logicalFeeds}
+            {#if logicalFeed.viewerCanAdmin}
+            <option value="{logicalFeed.id}">{logicalFeed.name}</option>
+            {/if}
+            {/for}
+        </select></label>
+        {#for logicalFeed in logicalFeeds}
+        {#if logicalFeed.viewerCanAdmin}
+        <form class="workflow-feed-form" data-workflow-editor-feed="{logicalFeed.id}" action="/logical-feeds/{logicalFeed.id}/workflow/update" method="post"
+              data-logical-feed-id="{logicalFeed.id}" data-workflow-config='{logicalFeed.workflowConfigJson}' hidden>
+            <div class="workflow-designer" data-workflow-designer>
+                <div class="workflow-designer-toolbar">
+                    <label>Initial state <select data-workflow-initial-state></select></label>
+                </div>
+                <div class="workflow-designer-status" data-workflow-status></div>
+                <div class="workflow-designer-grid">
+                    <div class="workflow-canvas-wrap">
+                        <svg class="workflow-canvas" data-workflow-canvas viewBox="0 0 920 416" role="img" aria-label="Workflow state transition designer"></svg>
+                    </div>
+                    <div class="workflow-inspector" data-workflow-inspector hidden>
+                        <strong data-workflow-inspector-title>State</strong>
+                        <label>State ID <input data-workflow-state-id type="text" autocomplete="off"></label>
+                        <label>Label <input data-workflow-state-label type="text"></label>
+                        <label>Group <input data-workflow-state-group type="text" placeholder="Optional group"></label>
+                        <label class="checkbox-label"><input data-workflow-state-terminal type="checkbox"> Terminal state</label>
+                        <label>Required criteria
+                            <select data-workflow-requirement-kind>
+                                <option value="">None</option>
+                                <option value="exclusion">One exclusion criterion</option>
+                                <option value="inclusion">Inclusion criteria</option>
+                            </select>
+                        </label>
+                        <label>Taxonomy <input data-workflow-requirement-taxonomy type="text" placeholder="EXCLUSION or INCLUSION"></label>
+                        <label>Minimum / exact count <input data-workflow-requirement-count type="number" min="1" value="1"></label>
+                        <label class="checkbox-label"><input data-workflow-requirement-notes type="checkbox"> Notes optional</label>
+                        <label>PRISMA report bucket <input data-workflow-report-bucket type="text" placeholder="Optional"></label>
+                    </div>
+                </div>
+                <div class="workflow-yaml-actions">
+                    <button class="secondary" type="button" data-workflow-load-yaml>Load YAML into designer</button>
+                    <button class="secondary" type="button" data-workflow-copy-yaml>Copy YAML</button>
+                </div>
+            </div>
+            <label>Workflow YAML <textarea name="workflowStates" required>{logicalFeed.workflowStatesText}</textarea></label>
+            <button type="submit">Save workflow</button>
+        </form>
+        {/if}
+        {/for}
     </section>
 
     <section class="settings-panel hidden" data-settings-panel="rss">
@@ -1696,11 +1734,6 @@
         let dragState = null;
         let bypassSaveValidation = false;
         const buttons = {
-            addState: designer.querySelector("[data-workflow-add-state]"),
-            startEdge: designer.querySelector("[data-workflow-start-edge]"),
-            reverseEdge: designer.querySelector("[data-workflow-reverse-edge]"),
-            deleteEdge: designer.querySelector("[data-workflow-delete-edge]"),
-            deleteState: designer.querySelector("[data-workflow-delete-state]"),
             loadYaml: designer.querySelector("[data-workflow-load-yaml]"),
             copyYaml: designer.querySelector("[data-workflow-copy-yaml]")
         };
@@ -1714,6 +1747,42 @@
             requirementCount: designer.querySelector("[data-workflow-requirement-count]"),
             requirementNotes: designer.querySelector("[data-workflow-requirement-notes]"),
             reportBucket: designer.querySelector("[data-workflow-report-bucket]")
+        };
+        const contextMenu = document.createElement("div");
+        contextMenu.className = "workflow-context-menu";
+        contextMenu.hidden = true;
+        document.body.appendChild(contextMenu);
+        const closeContextMenu = () => {
+            contextMenu.hidden = true;
+            contextMenu.replaceChildren();
+        };
+        const openContextMenu = (event, actions) => {
+            event.preventDefault();
+            event.stopPropagation();
+            contextMenu.replaceChildren();
+            actions.forEach(({ label, run }) => {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.textContent = label;
+                button.addEventListener("click", () => {
+                    closeContextMenu();
+                    run();
+                });
+                contextMenu.appendChild(button);
+            });
+            contextMenu.style.left = Math.min(window.innerWidth - 210, event.clientX) + "px";
+            contextMenu.style.top = Math.min(window.innerHeight - 150, event.clientY) + "px";
+            contextMenu.hidden = false;
+        };
+        document.addEventListener("pointerdown", (event) => {
+            if (!contextMenu.contains(event.target)) closeContextMenu();
+        });
+        const canvasPositionAt = (event) => {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: Math.max(85, Math.min(835, (event.clientX - rect.left) * 920 / rect.width)),
+                y: Math.max(15, Math.min(340, (event.clientY - rect.top) * 416 / rect.height))
+            };
         };
 
         const stateById = (id) => workflow.states.find((state) => state.id === id) || null;
@@ -1755,18 +1824,6 @@
             fields.requirementNotes.checked = Boolean(requires.exclusionNotes || requires.inclusionNotes);
             fields.reportBucket.value = state.report?.prismaBucket || "";
         };
-        const updateButtons = () => {
-            const outgoingCount = edges().filter((edge) => edge.from === selectedStateId).length;
-            buttons.startEdge.disabled = !selectedStateId || outgoingCount >= 2;
-            buttons.startEdge.title = !selectedStateId
-                ? "Select a state first."
-                : outgoingCount >= 2
-                    ? "A state can have at most two outgoing transitions."
-                    : "Create a transition from the selected state.";
-            buttons.deleteState.disabled = !selectedStateId;
-            buttons.reverseEdge.disabled = !selectedEdgeKey;
-            buttons.deleteEdge.disabled = !selectedEdgeKey;
-        };
         const render = () => {
             canvas.replaceChildren();
             const defs = workflowSvg("defs");
@@ -1784,6 +1841,16 @@
                     event.stopPropagation();
                     selectedEdgeKey = edgeKey(edge.from, edge.to);
                     edgeStartId = null;
+                    render();
+                });
+                line.addEventListener("contextmenu", (event) => {
+                    selectedEdgeKey = edgeKey(edge.from, edge.to);
+                    selectedStateId = null;
+                    edgeStartId = null;
+                    openContextMenu(event, [
+                        { label: "Reverse transition", run: () => reverseEdge(edge.from, edge.to, event) },
+                        { label: "Delete transition", run: () => { removeEdge(edge.from, edge.to); selectedEdgeKey = null; render(); } }
+                    ]);
                     render();
                 });
                 canvas.appendChild(line);
@@ -1828,13 +1895,18 @@
                     render();
                 });
                 node.addEventListener("pointerup", () => { dragState = null; });
+                node.addEventListener("contextmenu", (event) => {
+                    selectedStateId = state.id;
+                    selectedEdgeKey = null;
+                    edgeStartId = null;
+                    openContextMenu(event, [
+                        { label: "Add transition from here", run: () => { edgeStartId = state.id; render(); } },
+                        { label: "Delete state", run: () => deleteState(state.id, event) }
+                    ]);
+                    render();
+                });
                 canvas.appendChild(node);
             });
-            canvas.addEventListener("click", () => {
-                selectedEdgeKey = null;
-                edgeStartId = null;
-                render();
-            }, { once: true });
             initialSelect.replaceChildren();
             workflow.states.forEach((state) => {
                 const option = document.createElement("option");
@@ -1844,7 +1916,6 @@
                 initialSelect.appendChild(option);
             });
             renderInspector();
-            updateButtons();
             syncYaml();
         };
         const addEdge = (from, to) => {
@@ -1866,6 +1937,41 @@
             if (!transition) return;
             transition.to = transition.to.filter((target) => target !== to);
             workflow.transitions = workflow.transitions.filter((item) => item.to.length);
+        };
+        const addState = (position) => {
+            let suffix = workflow.states.length + 1;
+            let id = "STATE_" + suffix;
+            while (stateById(id)) id = "STATE_" + (++suffix);
+            workflow.states.push({ id, label: "New state", group: null, terminal: false, requires: {}, report: {} });
+            if (position) positions.set(id, position);
+            selectedStateId = id;
+            selectedEdgeKey = null;
+            render();
+        };
+        const deleteState = (stateId, event) => {
+            if (workflow.initialState === stateId && workflow.states.length > 1) {
+                showWorkflowPointerMessage(event, "Choose a replacement initial state before deleting this state.");
+                return;
+            }
+            workflow.states = workflow.states.filter((state) => state.id !== stateId);
+            workflow.transitions = workflow.transitions
+                .filter((transition) => transition.from !== stateId)
+                .map((transition) => ({ ...transition, to: transition.to.filter((target) => target !== stateId) }))
+                .filter((transition) => transition.to.length);
+            positions.delete(stateId);
+            selectedStateId = null;
+            selectedEdgeKey = null;
+            render();
+        };
+        const reverseEdge = (from, to, event) => {
+            removeEdge(from, to);
+            const reason = addEdge(to, from);
+            if (reason) {
+                addEdge(from, to);
+                showWorkflowPointerMessage(event, "Cannot reverse transition: " + reason);
+            }
+            selectedEdgeKey = null;
+            render();
         };
         const updateSelectedState = () => {
             const state = stateById(selectedStateId);
@@ -1905,53 +2011,9 @@
             workflow.initialState = initialSelect.value;
             render();
         });
-        buttons.addState.addEventListener("click", () => {
-            let suffix = workflow.states.length + 1;
-            let id = "STATE_" + suffix;
-            while (stateById(id)) id = "STATE_" + (++suffix);
-            workflow.states.push({ id, label: "New state", group: null, terminal: false, requires: {}, report: {} });
-            selectedStateId = id;
-            render();
-        });
-        buttons.startEdge.addEventListener("click", () => {
-            edgeStartId = selectedStateId;
-            selectedEdgeKey = null;
-            render();
-        });
-        buttons.deleteState.addEventListener("click", (event) => {
-            if (!selectedStateId) return;
-            if (workflow.initialState === selectedStateId && workflow.states.length > 1) {
-                showWorkflowPointerMessage(event, "Choose a replacement initial state before deleting this state.");
-                return;
-            }
-            workflow.states = workflow.states.filter((state) => state.id !== selectedStateId);
-            workflow.transitions = workflow.transitions
-                .filter((transition) => transition.from !== selectedStateId)
-                .map((transition) => ({ ...transition, to: transition.to.filter((target) => target !== selectedStateId) }))
-                .filter((transition) => transition.to.length);
-            positions.delete(selectedStateId);
-            selectedStateId = null;
-            selectedEdgeKey = null;
-            render();
-        });
-        buttons.deleteEdge.addEventListener("click", () => {
-            if (!selectedEdgeKey) return;
-            const [from, to] = selectedEdgeKey.split("→");
-            removeEdge(from, to);
-            selectedEdgeKey = null;
-            render();
-        });
-        buttons.reverseEdge.addEventListener("click", (event) => {
-            if (!selectedEdgeKey) return;
-            const [from, to] = selectedEdgeKey.split("→");
-            removeEdge(from, to);
-            const reason = addEdge(to, from);
-            if (reason) {
-                addEdge(from, to);
-                showWorkflowPointerMessage(event, "Cannot reverse transition: " + reason);
-            }
-            selectedEdgeKey = null;
-            render();
+        canvas.addEventListener("contextmenu", (event) => {
+            if (event.target !== canvas) return;
+            openContextMenu(event, [{ label: "Add state", run: () => addState(canvasPositionAt(event)) }]);
         });
         buttons.loadYaml.addEventListener("click", async () => {
             status.textContent = "Validating YAML...";
@@ -2066,6 +2128,17 @@
         pendingWorkflowSave = null;
         migrationDialog.close();
         form.submit();
+    });
+
+    document.querySelectorAll("[data-workflow-feed-picker]").forEach((picker) => {
+        const showSelectedWorkflow = () => {
+            const selectedId = picker.value;
+            document.querySelectorAll("[data-workflow-editor-feed]").forEach((editor) => {
+                editor.hidden = editor.dataset.workflowEditorFeed !== selectedId;
+            });
+        };
+        picker.addEventListener("change", showSelectedWorkflow);
+        showSelectedWorkflow();
     });
 
     const settingsNavButtons = document.querySelectorAll("[data-settings-target]");
