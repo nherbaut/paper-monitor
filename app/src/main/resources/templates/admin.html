@@ -543,7 +543,12 @@
         }
 
         .workflow-node {
-            cursor: pointer;
+            cursor: grab;
+            touch-action: none;
+        }
+
+        .workflow-node.dragging {
+            cursor: grabbing;
         }
 
         .workflow-node rect {
@@ -914,6 +919,7 @@
             <div class="workflow-designer" data-workflow-designer>
                 <div class="workflow-designer-toolbar">
                     <label>Initial state <select data-workflow-initial-state></select></label>
+                    <button class="secondary" type="button" data-workflow-auto-layout>Automatic layout</button>
                 </div>
                 <div class="workflow-designer-status" data-workflow-status></div>
                 <div class="workflow-designer-grid">
@@ -1726,6 +1732,28 @@
             state.report = state.report || {};
         });
         const positions = new Map();
+        const layoutStorageKey = "paper-monitor.workflow-layout.v1." + (form.dataset.logicalFeedId || "default");
+        const restorePositions = () => {
+            try {
+                const saved = JSON.parse(localStorage.getItem(layoutStorageKey) || "{}");
+                workflow.states.forEach((state) => {
+                    const position = saved[state.id];
+                    if (Number.isFinite(position?.x) && Number.isFinite(position?.y)) {
+                        positions.set(state.id, { x: position.x, y: position.y });
+                    }
+                });
+            } catch {
+                // A saved layout is a convenience only; ignore malformed browser storage.
+            }
+        };
+        const persistPositions = () => {
+            try {
+                localStorage.setItem(layoutStorageKey, JSON.stringify(Object.fromEntries(positions)));
+            } catch {
+                // The graph remains usable when browser storage is unavailable.
+            }
+        };
+        restorePositions();
         let selectedStateId = null;
         let selectedEdgeKey = null;
         let edgeStartId = null;
@@ -1733,7 +1761,8 @@
         let bypassSaveValidation = false;
         const buttons = {
             loadYaml: designer.querySelector("[data-workflow-load-yaml]"),
-            copyYaml: designer.querySelector("[data-workflow-copy-yaml]")
+            copyYaml: designer.querySelector("[data-workflow-copy-yaml]"),
+            autoLayout: designer.querySelector("[data-workflow-auto-layout]")
         };
         const fields = {
             label: designer.querySelector("[data-workflow-state-label]"),
@@ -1862,32 +1891,27 @@
                 label.textContent = (state.label || state.id).slice(0, 24);
                 node.append(label);
                 node.addEventListener("pointerdown", (event) => {
-                    if (event.shiftKey) {
-                        dragState = { id: state.id, pointerId: event.pointerId };
-                        node.setPointerCapture(event.pointerId);
-                        return;
-                    }
                     event.stopPropagation();
                     if (edgeStartId && edgeStartId !== state.id) {
                         const reason = addEdge(edgeStartId, state.id);
                         if (reason) showWorkflowPointerMessage(event, reason);
                         edgeStartId = null;
+                        render();
                     } else {
                         selectedStateId = state.id;
                         selectedEdgeKey = null;
+                        dragState = {
+                            id: state.id,
+                            pointerId: event.pointerId,
+                            startX: event.clientX,
+                            startY: event.clientY,
+                            moved: false
+                        };
+                        node.classList.add("dragging");
+                        canvas.setPointerCapture(event.pointerId);
                     }
-                    render();
+                    event.preventDefault();
                 });
-                node.addEventListener("pointermove", (event) => {
-                    if (!dragState || dragState.id !== state.id) return;
-                    const rect = canvas.getBoundingClientRect();
-                    positions.set(state.id, {
-                        x: Math.max(85, Math.min(835, (event.clientX - rect.left) * 920 / rect.width)),
-                        y: Math.max(15, Math.min(340, (event.clientY - rect.top) * 416 / rect.height))
-                    });
-                    render();
-                });
-                node.addEventListener("pointerup", () => { dragState = null; });
                 node.addEventListener("contextmenu", (event) => {
                     selectedStateId = state.id;
                     selectedEdgeKey = null;
@@ -1939,6 +1963,7 @@
             while (stateById(id)) id = baseId + "_" + suffix++;
             workflow.states.push({ id, label, group: null, terminal: false, requires: {}, report: {} });
             if (position) positions.set(id, position);
+            persistPositions();
             selectedStateId = id;
             selectedEdgeKey = null;
             render();
@@ -1954,6 +1979,7 @@
                 .map((transition) => ({ ...transition, to: transition.to.filter((target) => target !== stateId) }))
                 .filter((transition) => transition.to.length);
             positions.delete(stateId);
+            persistPositions();
             selectedStateId = null;
             selectedEdgeKey = null;
             render();
@@ -1966,6 +1992,48 @@
                 showWorkflowPointerMessage(event, "Cannot reverse transition: " + reason);
             }
             selectedEdgeKey = null;
+            render();
+        };
+        const applyAutomaticLayout = () => {
+            const children = new Map(workflow.states.map((state) => [state.id, []]));
+            edges().forEach((edge) => children.get(edge.from)?.push(edge.to));
+            const depths = new Map();
+            const visitFrom = (startId, startDepth) => {
+                const queue = [[startId, startDepth]];
+                while (queue.length) {
+                    const [id, depth] = queue.shift();
+                    if (depths.has(id)) continue;
+                    depths.set(id, depth);
+                    (children.get(id) || []).forEach((childId) => {
+                        if (!depths.has(childId)) queue.push([childId, depth + 1]);
+                    });
+                }
+            };
+            if (stateById(workflow.initialState)) visitFrom(workflow.initialState, 0);
+            workflow.states.forEach((state) => {
+                if (!depths.has(state.id)) {
+                    const nextDepth = Math.max(0, ...depths.values()) + 1;
+                    visitFrom(state.id, nextDepth);
+                }
+            });
+            const levels = new Map();
+            workflow.states.forEach((state) => {
+                const depth = depths.get(state.id) || 0;
+                if (!levels.has(depth)) levels.set(depth, []);
+                levels.get(depth).push(state);
+            });
+            const maxDepth = Math.max(0, ...levels.keys());
+            levels.forEach((states, depth) => {
+                states.forEach((state, index) => {
+                    positions.set(state.id, {
+                        x: maxDepth ? 100 + (720 * depth / maxDepth) : 460,
+                        y: states.length === 1 ? 178 : 25 + (315 * index / (states.length - 1))
+                    });
+                });
+            });
+            persistPositions();
+            status.textContent = "Automatic tree layout applied.";
+            status.classList.remove("error");
             render();
         };
         const updateSelectedState = () => {
@@ -2006,6 +2074,7 @@
                 if (kind === "inclusion") state.requires.inclusionNotes = "optional";
             }
             state.report = fields.reportBucket.value.trim() ? { prismaBucket: workflowNodeId(fields.reportBucket.value) } : {};
+            persistPositions();
             render();
         };
         Object.values(fields).forEach((field) => field?.addEventListener(field.type === "checkbox" || field.tagName === "SELECT" ? "change" : "input", updateSelectedState));
@@ -2013,10 +2082,31 @@
             workflow.initialState = initialSelect.value;
             render();
         });
+        canvas.addEventListener("pointermove", (event) => {
+            if (!dragState || dragState.pointerId !== event.pointerId) return;
+            if (Math.hypot(event.clientX - dragState.startX, event.clientY - dragState.startY) > 3) {
+                dragState.moved = true;
+            }
+            if (!dragState.moved) return;
+            positions.set(dragState.id, canvasPositionAt(event));
+            persistPositions();
+            render();
+        });
+        const finishNodeDrag = (event) => {
+            if (!dragState || dragState.pointerId !== event.pointerId) return;
+            const wasMoved = dragState.moved;
+            dragState = null;
+            if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+            if (wasMoved) persistPositions();
+            render();
+        };
+        canvas.addEventListener("pointerup", finishNodeDrag);
+        canvas.addEventListener("pointercancel", finishNodeDrag);
         canvas.addEventListener("contextmenu", (event) => {
             if (event.target !== canvas) return;
             openContextMenu(event, [{ label: "Add state", run: () => addState(canvasPositionAt(event)) }]);
         });
+        buttons.autoLayout?.addEventListener("click", applyAutomaticLayout);
         buttons.loadYaml.addEventListener("click", async () => {
             status.textContent = "Validating YAML...";
             try {
@@ -2032,6 +2122,7 @@
                 workflow.states.forEach((state) => { state.requires = state.requires || {}; state.report = state.report || {}; });
                 yamlField.value = payload.yaml;
                 positions.clear();
+                restorePositions();
                 selectedStateId = null;
                 selectedEdgeKey = null;
                 render();
