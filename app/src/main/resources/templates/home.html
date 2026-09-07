@@ -4023,7 +4023,6 @@
     let reviewTemplates = [];
     let reviewSummaries = [];
     const themeStorageKey = "paper-monitor.theme";
-    const readerModeStoragePrefix = "paper-monitor.reader-mode.";
     const notesCollapsedStorageKey = "paper-monitor.notes-collapsed";
     const pdfCaptureStorageKey = "paper-monitor.active-pdf-capture";
     const KEYBOARD_STATUS_TOAST_MS = 2200;
@@ -4675,21 +4674,6 @@
             .find((option) => option.value === String(logicalFeedId)) || null;
     };
 
-    const readerModePreference = (logicalFeedId) => {
-        if (!logicalFeedId) {
-            return null;
-        }
-        const stored = window.localStorage.getItem(readerModeStoragePrefix + logicalFeedId);
-        return stored === "list" || stored === "swipe" ? stored : null;
-    };
-
-    const setReaderModePreference = (logicalFeedId, mode) => {
-        if (!logicalFeedId || (mode !== "list" && mode !== "swipe")) {
-            return;
-        }
-        window.localStorage.setItem(readerModeStoragePrefix + logicalFeedId, mode);
-    };
-
     const feedCanUseSwipeMode = (logicalFeedId) => {
         const option = logicalFeedOptionById(logicalFeedId);
         return option?.dataset.viewerCanAdmin === "true"
@@ -4698,22 +4682,6 @@
 
     const usesDefaultMiageWorkflow = (logicalFeedId) => {
         return logicalFeedOptionById(logicalFeedId)?.dataset.defaultMiageWorkflow === "true";
-    };
-
-    const resolvedReaderMode = (logicalFeedId) => {
-        const option = logicalFeedOptionById(logicalFeedId);
-        if (!option || option.dataset.viewerCanAdmin !== "true") {
-            return "list";
-        }
-        const intakeCount = Number(option.dataset.rssIntakeCount || 0);
-        if (intakeCount <= 0) {
-            return "list";
-        }
-        const preference = readerModePreference(logicalFeedId);
-        if (preference) {
-            return preference;
-        }
-        return option.dataset.defaultMiageWorkflow === "true" ? "swipe" : "list";
     };
 
     const updateReaderModeControls = () => {
@@ -4748,21 +4716,15 @@
         return logicalFeedId ? "/?logicalFeedId=" + encodeURIComponent(logicalFeedId) : "/";
     };
 
-    const navigateToSwipeMode = (logicalFeedId, remember = false) => {
+    const navigateToSwipeMode = (logicalFeedId) => {
         if (!feedCanUseSwipeMode(logicalFeedId)) {
             return false;
-        }
-        if (remember) {
-            setReaderModePreference(logicalFeedId, "swipe");
         }
         window.location.href = swipeModeUrl(logicalFeedId);
         return true;
     };
 
-    const navigateToListMode = (logicalFeedId, remember = false) => {
-        if (remember) {
-            setReaderModePreference(logicalFeedId, "list");
-        }
+    const navigateToListMode = (logicalFeedId) => {
         window.location.href = listModeUrl(logicalFeedId);
     };
 
@@ -9884,10 +9846,6 @@
         if (options.primaryTab) {
             activePrimaryTab = options.primaryTab;
         }
-        if (!classificationQueueMode && selectedFeedId && resolvedReaderMode(selectedFeedId) === "swipe") {
-            navigateToSwipeMode(selectedFeedId);
-            return;
-        }
         if (!selectedFeedId && browserReaderSection && !shareMode) {
             browserReaderSection.classList.add("hidden");
             paperRecords = [];
@@ -9946,24 +9904,11 @@
     syncClassificationLink();
     syncDoiImportLogicalFeed();
     updateReaderModeControls();
-    readerListMode?.addEventListener("click", () => {
-        const logicalFeedId = logicalFeedFilter?.value || "";
-        if (logicalFeedId) {
-            setReaderModePreference(logicalFeedId, "list");
-            updateReaderModeControls();
-        }
-    });
     readerSwipeMode?.addEventListener("click", () => {
-        navigateToSwipeMode(logicalFeedFilter?.value || "", true);
+        navigateToSwipeMode(logicalFeedFilter?.value || "");
     });
     classificationListMode?.addEventListener("click", () => {
-        navigateToListMode(logicalFeedFilter?.value || "", true);
-    });
-    classificationSwipeMode?.addEventListener("click", () => {
-        const logicalFeedId = logicalFeedFilter?.value || "";
-        if (logicalFeedId) {
-            setReaderModePreference(logicalFeedId, "swipe");
-        }
+        navigateToListMode(logicalFeedFilter?.value || "");
     });
     feedDashboard?.querySelectorAll("[data-open-feed]").forEach((button) => {
         button.addEventListener("click", async () => {
@@ -10558,19 +10503,15 @@
         if (requestedLogicalFeedId) {
             logicalFeedFilter.value = requestedLogicalFeedId;
             syncSelectedLogicalFeed();
-            if (!classificationQueueMode && resolvedReaderMode(requestedLogicalFeedId) === "swipe") {
-                window.location.replace(swipeModeUrl(requestedLogicalFeedId));
-            } else {
-                try {
-                    await loadBrowserPapers(requestedLogicalFeedId);
-                    loadedLogicalFeedId = requestedLogicalFeedId;
-                    browserPapersReady = true;
-                    browserReaderSection?.classList.remove("hidden");
-                } catch (error) {
-                    papersLoaded = true;
-                    paperList.innerHTML = "<p class=\"meta\">" + escapeHtml(error.message || "Failed to load papers.") + "</p>";
-                    paperList.appendChild(searchLoadMoreRow);
-                }
+            try {
+                await loadBrowserPapers(requestedLogicalFeedId);
+                loadedLogicalFeedId = requestedLogicalFeedId;
+                browserPapersReady = true;
+                browserReaderSection?.classList.remove("hidden");
+            } catch (error) {
+                papersLoaded = true;
+                paperList.innerHTML = "<p class=\"meta\">" + escapeHtml(error.message || "Failed to load papers.") + "</p>";
+                paperList.appendChild(searchLoadMoreRow);
             }
         } else {
             paperRecords = [];
