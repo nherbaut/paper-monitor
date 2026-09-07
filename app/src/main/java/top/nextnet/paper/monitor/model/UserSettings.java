@@ -67,6 +67,9 @@ public class UserSettings extends PanacheEntityBase {
 
     public Integer pdeOpenAiExtractionCallsUsed;
 
+    @Column(length = 4000)
+    public String feedDashboardOrder;
+
     public double effectiveSpeedMultiplier() {
         if (speedMultiplier == null || speedMultiplier <= 0) {
             return 1.1d;

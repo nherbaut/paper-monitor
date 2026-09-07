@@ -219,6 +219,30 @@
             height: 100%;
         }
 
+        .feed-dashboard-card[draggable="true"] {
+            cursor: grab;
+            transition: opacity 140ms ease, transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+        }
+
+        .feed-dashboard-card[draggable="true"]:active,
+        .feed-dashboard-card.dragging {
+            cursor: grabbing;
+        }
+
+        .feed-dashboard-card.dragging {
+            opacity: 0.45;
+            transform: scale(0.98);
+        }
+
+        .feed-dashboard-card.drag-over {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent), 0 10px 24px rgba(77, 56, 38, 0.06);
+        }
+
+        .feed-dashboard-reorder-hint {
+            margin: 0 0 0.75rem;
+        }
+
         .feed-dashboard-card h3,
         .feed-dashboard-card p {
             margin: 0;
@@ -3133,10 +3157,13 @@
     <section class="panel panel-wide {#if initialLogicalFeedId}hidden{/if}" id="feed-dashboard-panel">
         <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 4h12v2H2V4Zm1 3h10v6H3V7Zm1 1v4h8V8H4Z"/></svg></span><span>Your surveys</span></h2>
         <p class="meta">Choose a paper feed to open its papers and survey workspace.</p>
+        <p class="meta feed-dashboard-reorder-hint">Drag and drop paper feed cards to change their order.</p>
         <div class="feed-dashboard" id="feed-dashboard">
             {#for logicalFeed in logicalFeeds}
             <article class="feed-dashboard-card"
                      data-feed-card
+                     draggable="true"
+                     aria-roledescription="draggable paper feed"
                      data-logical-feed-id="{logicalFeed.id}"
                      data-logical-feed-name="{logicalFeed.name}"
                      data-default-miage-workflow="{#if logicalFeed.usesDefaultMiageWorkflow}true{#else}false{/if}"
@@ -4022,6 +4049,8 @@
     let selectedTagFilters = [];
     let reviewTemplates = [];
     let reviewSummaries = [];
+    let draggedFeedDashboardCard = null;
+    let feedDashboardOrderSaving = false;
     const themeStorageKey = "paper-monitor.theme";
     const notesCollapsedStorageKey = "paper-monitor.notes-collapsed";
     const pdfCaptureStorageKey = "paper-monitor.active-pdf-capture";
@@ -5953,6 +5982,56 @@
         } else {
             batchPaperModal.removeAttribute("open");
         }
+    };
+
+    const feedDashboardCards = () => Array.from(feedDashboard?.querySelectorAll("[data-feed-card]") || []);
+
+    const feedDashboardOrder = () => feedDashboardCards()
+        .map((card) => card.dataset.logicalFeedId)
+        .filter(Boolean);
+
+    const restoreFeedDashboardOrder = (order) => {
+        if (!feedDashboard) {
+            return;
+        }
+        const cardsById = new Map(feedDashboardCards().map((card) => [card.dataset.logicalFeedId, card]));
+        order.forEach((logicalFeedId) => {
+            const card = cardsById.get(logicalFeedId);
+            if (card) {
+                feedDashboard.appendChild(card);
+            }
+        });
+    };
+
+    const saveFeedDashboardOrder = async (previousOrder) => {
+        if (!feedDashboard || feedDashboardOrderSaving) {
+            return;
+        }
+        feedDashboardOrderSaving = true;
+        try {
+            const response = await fetch("/logical-feeds/dashboard-order", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+                    "Accept": "application/json"
+                },
+                body: new URLSearchParams(feedDashboardOrder().map((logicalFeedId) => ["feedIds", logicalFeedId]))
+            });
+            if (!response.ok) {
+                throw new Error(await response.text() || "Unable to save the paper feed order.");
+            }
+        } catch (error) {
+            restoreFeedDashboardOrder(previousOrder);
+            window.alert(error.message || "Unable to save the paper feed order.");
+        } finally {
+            feedDashboardOrderSaving = false;
+        }
+    };
+
+    const clearFeedDashboardDragState = () => {
+        draggedFeedDashboardCard?.classList.remove("dragging");
+        feedDashboardCards().forEach((card) => card.classList.remove("drag-over"));
+        draggedFeedDashboardCard = null;
     };
 
     const renderFeedDashboardReviewActions = () => {
@@ -9910,6 +9989,55 @@
     classificationListMode?.addEventListener("click", () => {
         navigateToListMode(logicalFeedFilter?.value || "");
     });
+    feedDashboard?.addEventListener("dragstart", (event) => {
+        const card = event.target.closest("[data-feed-card]");
+        if (!card || feedDashboardOrderSaving) {
+            event.preventDefault();
+            return;
+        }
+        draggedFeedDashboardCard = card;
+        event.dataTransfer?.setData("text/plain", card.dataset.logicalFeedId || "");
+        if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "move";
+        }
+        window.requestAnimationFrame(() => card.classList.add("dragging"));
+    });
+    feedDashboard?.addEventListener("dragover", (event) => {
+        const card = event.target.closest("[data-feed-card]");
+        if (!draggedFeedDashboardCard || !card || card === draggedFeedDashboardCard) {
+            return;
+        }
+        event.preventDefault();
+        if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = "move";
+        }
+        feedDashboardCards().forEach((candidate) => candidate.classList.toggle("drag-over", candidate === card));
+    });
+    feedDashboard?.addEventListener("dragleave", (event) => {
+        const card = event.target.closest("[data-feed-card]");
+        if (card && !card.contains(event.relatedTarget)) {
+            card.classList.remove("drag-over");
+        }
+    });
+    feedDashboard?.addEventListener("drop", (event) => {
+        const target = event.target.closest("[data-feed-card]");
+        const source = draggedFeedDashboardCard;
+        if (!source || !target || source === target) {
+            clearFeedDashboardDragState();
+            return;
+        }
+        event.preventDefault();
+        const previousOrder = feedDashboardOrder();
+        const targetBounds = target.getBoundingClientRect();
+        if (event.clientY < targetBounds.top + targetBounds.height / 2) {
+            target.before(source);
+        } else {
+            target.after(source);
+        }
+        clearFeedDashboardDragState();
+        void saveFeedDashboardOrder(previousOrder);
+    });
+    feedDashboard?.addEventListener("dragend", clearFeedDashboardDragState);
     feedDashboard?.querySelectorAll("[data-open-feed]").forEach((button) => {
         button.addEventListener("click", async () => {
             const logicalFeedId = button.dataset.openFeed;

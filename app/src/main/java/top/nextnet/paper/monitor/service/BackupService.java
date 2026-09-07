@@ -245,6 +245,7 @@ public class BackupService {
             row.put("pdeOpenAiApiKey", item.pdeOpenAiApiKey);
             row.put("pdeOpenAiExtractionQuota", item.pdeOpenAiExtractionQuota);
             row.put("pdeOpenAiExtractionCallsUsed", item.pdeOpenAiExtractionCallsUsed);
+            row.put("feedDashboardOrder", item.feedDashboardOrder);
             settings.add(row);
         }
         return settings;
@@ -432,6 +433,7 @@ public class BackupService {
             settings.pdeOpenAiApiKey = stringValue(item.get("pdeOpenAiApiKey"));
             settings.pdeOpenAiExtractionQuota = intValue(item.get("pdeOpenAiExtractionQuota"));
             settings.pdeOpenAiExtractionCallsUsed = intValue(item.get("pdeOpenAiExtractionCallsUsed"));
+            settings.feedDashboardOrder = stringValue(item.get("feedDashboardOrder"));
             if (settings.user != null) {
                 userSettingsRepository.persist(settings);
             }

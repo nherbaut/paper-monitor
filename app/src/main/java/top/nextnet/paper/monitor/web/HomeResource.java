@@ -537,9 +537,11 @@ public class HomeResource {
                     .data("infoMessage", normalize(info))
                     .data("errorMessage", normalize(error));
         }
-        List<LogicalFeed> logicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser).stream()
-                .filter((logicalFeed) -> !logicalFeed.archived)
-                .toList();
+        List<LogicalFeed> logicalFeeds = orderLogicalFeedsForDashboard(
+                currentUser,
+                logicalFeedAccessService.readableLogicalFeeds(currentUser).stream()
+                        .filter((logicalFeed) -> !logicalFeed.archived)
+                        .toList());
         populateLogicalFeedAccessFlags(logicalFeeds, currentUser);
         List<LogicalFeed> adminLogicalFeeds = logicalFeeds.stream()
                 .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
@@ -571,6 +573,42 @@ public class HomeResource {
                 .data("sharedFeedDiagramUrl", null)
                 .data("classificationQueueMode", false)
                 .data("startClassificationMode", false);
+    }
+
+    @POST
+    @Path("/logical-feeds/dashboard-order")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response updateLogicalFeedDashboardOrder(@RestForm("feedIds") List<Long> feedIds) {
+        AppUser currentUser = requireCurrentUser();
+        List<LogicalFeed> logicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser).stream()
+                .filter((logicalFeed) -> !logicalFeed.archived)
+                .toList();
+        LinkedHashSet<Long> requestedIds = new LinkedHashSet<>();
+        if (feedIds != null) {
+            for (Long feedId : feedIds) {
+                if (feedId != null) {
+                    requestedIds.add(feedId);
+                }
+            }
+        }
+        Set<Long> readableIds = logicalFeeds.stream().map((logicalFeed) -> logicalFeed.id).collect(java.util.stream.Collectors.toSet());
+        if (feedIds == null || requestedIds.size() != feedIds.size()
+                || requestedIds.size() != logicalFeeds.size() || !requestedIds.equals(readableIds)) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("detail", "The feed order must include each accessible paper feed exactly once."))
+                    .build();
+        }
+        Map<Long, LogicalFeed> feedsById = logicalFeeds.stream()
+                .collect(java.util.stream.Collectors.toMap((logicalFeed) -> logicalFeed.id, (logicalFeed) -> logicalFeed));
+        UserSettings settings = authService.ensureSettings(currentUser);
+        settings.feedDashboardOrder = requestedIds.stream()
+                .map(feedsById::get)
+                .filter(Objects::nonNull)
+                .map((logicalFeed) -> logicalFeed.name)
+                .collect(java.util.stream.Collectors.joining("\n"));
+        return Response.ok(Map.of("feedIds", requestedIds)).build();
     }
 
     @GET
@@ -2642,6 +2680,29 @@ public class HomeResource {
 
     private UserSettings getOrCreateUserSettings() {
         return authService.ensureSettings(requireCurrentUser());
+    }
+
+    private List<LogicalFeed> orderLogicalFeedsForDashboard(AppUser currentUser, List<LogicalFeed> logicalFeeds) {
+        if (logicalFeeds == null || logicalFeeds.size() < 2 || currentUser == null) {
+            return logicalFeeds == null ? List.of() : logicalFeeds;
+        }
+        UserSettings settings = UserSettings.find("user", currentUser).firstResult();
+        if (settings == null || settings.feedDashboardOrder == null || settings.feedDashboardOrder.isBlank()) {
+            return logicalFeeds;
+        }
+        Map<String, Integer> positions = new LinkedHashMap<>();
+        int position = 0;
+        for (String name : settings.feedDashboardOrder.split("\\R")) {
+            String normalizedName = name == null ? "" : name.trim();
+            if (!normalizedName.isEmpty()) {
+                positions.putIfAbsent(normalizedName, position++);
+            }
+        }
+        List<LogicalFeed> ordered = new ArrayList<>(logicalFeeds);
+        ordered.sort(Comparator
+                .comparingInt((LogicalFeed logicalFeed) -> positions.getOrDefault(logicalFeed.name, Integer.MAX_VALUE))
+                .thenComparing((LogicalFeed logicalFeed) -> logicalFeed.name, String.CASE_INSENSITIVE_ORDER));
+        return ordered;
     }
 
     private String normalizeWorkflowStates(String value) {
