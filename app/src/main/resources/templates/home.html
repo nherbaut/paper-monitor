@@ -4161,6 +4161,8 @@
     let classificationBusy = false;
     let classificationDragState = null;
     let classificationMobileLongPress = null;
+    let classificationQueueWheelDelta = 0;
+    let classificationQueueWheelTimer = null;
     let classificationQueueInitialTotal = null;
     const classificationQueueCompletedPaperIds = new Set();
     let classificationNotesSaveTimer = null;
@@ -7399,6 +7401,40 @@
         }
     };
 
+    const deferClassificationPaper = async () => {
+        if (!classificationModeActive || !classificationQueueMode || classificationBusy || isMobileViewport()) {
+            return;
+        }
+        const card = selectedPaperCard();
+        const queueCards = classificationQueueCards();
+        if (!card || queueCards.length < 2) {
+            return;
+        }
+        const recordIndex = paperRecords.findIndex((record) => String(record.id) === String(card.dataset.paperId));
+        if (recordIndex < 0) {
+            return;
+        }
+        classificationBusy = true;
+        classificationSurface.classList.add("busy");
+        try {
+            paperRecords.push(paperRecords.splice(recordIndex, 1)[0]);
+            applyLogicalFeedFilter();
+            const nextCard = classificationQueueCards()[0] || null;
+            classificationCard.classList.add("exiting-right");
+            await waitForClassificationAnimation();
+            if (nextCard && selectPaperForClassification(nextCard)) {
+                classificationCard.classList.add("entering");
+                void classificationCard.offsetWidth;
+                classificationCard.classList.add("entering-active");
+                await waitForClassificationAnimation();
+                classificationCard.classList.remove("entering", "entering-active");
+            }
+        } finally {
+            classificationBusy = false;
+            classificationSurface.classList.remove("busy");
+        }
+    };
+
     const handleClassificationDirection = async (side) => {
         if (classificationBusy) {
             return;
@@ -9525,6 +9561,30 @@
         }
         await finishClassificationPointerDrag(event, true);
     });
+
+    window.addEventListener("wheel", (event) => {
+        if (isMobileViewport() || !classificationModeActive || !classificationQueueMode
+                || classificationBusy || event.deltaY <= 0 || !classificationView.contains(event.target)) {
+            return;
+        }
+        if (event.target instanceof Element && event.target.closest("textarea, input, select")) {
+            return;
+        }
+        event.preventDefault();
+        const delta = event.deltaY * (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 28
+            : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? window.innerHeight : 1);
+        classificationQueueWheelDelta += delta;
+        window.clearTimeout(classificationQueueWheelTimer);
+        classificationQueueWheelTimer = window.setTimeout(() => {
+            classificationQueueWheelDelta = 0;
+        }, 180);
+        if (classificationQueueWheelDelta >= 80) {
+            classificationQueueWheelDelta = 0;
+            window.clearTimeout(classificationQueueWheelTimer);
+            classificationQueueWheelTimer = null;
+            void deferClassificationPaper();
+        }
+    }, { passive: false });
 
     window.addEventListener("mousemove", (event) => {
         updatePaperStatusDrag(event.clientX, event.clientY);
