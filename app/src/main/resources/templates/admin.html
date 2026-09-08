@@ -102,6 +102,28 @@
             justify-content: space-between;
         }
 
+        .settings-nav-label-with-icon {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+        }
+
+        .settings-nav-label-with-icon svg {
+            width: 0.95rem;
+            height: 0.95rem;
+        }
+
+        .rss-action-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .rss-action-label svg {
+            width: 0.95rem;
+            height: 0.95rem;
+        }
+
         .settings-nav-group-title::after {
             content: "›";
             font-size: 1.2rem;
@@ -371,6 +393,10 @@
             margin-top: 1rem;
             display: grid;
             gap: 1rem;
+        }
+
+        [data-admin-item-panel].management-card .management-card-body {
+            margin-top: 0;
         }
 
         .management-card-header {
@@ -782,7 +808,7 @@
                 </div>
             </div>
             <div class="settings-nav-group" data-settings-group="rss">
-                <button class="settings-nav-button settings-nav-group-title" data-settings-group-toggle="rss" type="button" aria-expanded="false">RSS</button>
+                <button class="settings-nav-button settings-nav-group-title" data-settings-group-toggle="rss" type="button" aria-expanded="false"><span class="settings-nav-label-with-icon"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 11a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-1-4a6 6 0 0 1 6 6H6a4 4 0 0 0-4-4V7Zm0-4a10 10 0 0 1 10 10h-2A8 8 0 0 0 2 5V3Z"/></svg><span>RSS</span></span></button>
                 <div class="settings-nav-items" hidden>
                     {#for feed in feeds}
                     {#if feed.logicalFeed.viewerCanAdmin}
@@ -796,7 +822,7 @@
             <button class="settings-nav-button" data-settings-target="google-drive" type="button">Google Drive</button>
             <button class="settings-nav-button" data-settings-target="users" type="button">User Management</button>
             <button class="settings-nav-button" data-settings-target="backup" type="button">Backup</button>
-            <a class="settings-nav-button settings-nav-link" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Survey Design (PDE)</a>
+            <a class="settings-nav-button settings-nav-link" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Review Design (PDE)</a>
         </aside>
 
         <div class="settings-panels">
@@ -826,8 +852,7 @@
         <div class="stack-layout">
             {#for logicalFeed in logicalFeeds}
             {#if logicalFeed.viewerCanAdmin}
-            <details class="management-card" data-admin-item-panel="feeds-{logicalFeed.id}" hidden>
-                <summary>{logicalFeed.name}</summary>
+            <section class="management-card" data-admin-item-panel="feeds-{logicalFeed.id}" hidden>
                 <div class="management-card-body">
                     <div class="management-card-header">
                         <strong>{logicalFeed.name}</strong>
@@ -925,7 +950,7 @@
                     </div>
                     {/if}
                 </div>
-            </details>
+            </section>
             {/if}
             {/for}
         </div>
@@ -992,23 +1017,20 @@
         <div class="stack-layout">
             {#for feed in feeds}
             {#if feed.logicalFeed.viewerCanAdmin}
-            <details class="management-card" data-admin-item-panel="rss-{feed.id}" hidden>
-                <summary>
-                    <span>{feed.name}</span>
-                    <span class="status-row">
-                        <span class="status-badge">{feed.lastPolledAt ?: 'Never polled'}</span>
-                        <span class="status-badge {#if feed.lastPollSucceeded}good{#else}warn{/if}">
-                            {#if feed.lastPollSucceeded}Success{#else}Error{/if}
-                        </span>
-                        <span class="status-badge {#if feed.lastPollCreatedPaperCountValue > 0}good{/if}">
-                            +{feed.lastPollCreatedPaperCountValue} new
-                        </span>
-                    </span>
-                </summary>
+            <section class="management-card" data-admin-item-panel="rss-{feed.id}" hidden>
                 <div class="management-card-body">
                     <div class="management-card-header">
                         <strong>{feed.name}</strong>
                         <span class="meta">{feed.logicalFeed.name}</span>
+                        <span class="status-row">
+                            <span class="status-badge">{feed.lastPolledAt ?: 'Never polled'}</span>
+                            <span class="status-badge {#if feed.lastPollSucceeded}good{#else}warn{/if}">
+                                {#if feed.lastPollSucceeded}Success{#else}Error{/if}
+                            </span>
+                            <span class="status-badge {#if feed.lastPollCreatedPaperCountValue > 0}good{/if}">
+                                +{feed.lastPollCreatedPaperCountValue} new
+                            </span>
+                        </span>
                     </div>
                     <div class="management-meta-grid">
                         <div class="management-meta-box">
@@ -1044,10 +1066,10 @@
                                 <option value="{logicalFeed.id}" {#if logicalFeed.id == feed.logicalFeed.id}selected{/if}>{logicalFeed.name}</option>
                                 {/for}
                             </select>
-                            <button type="submit">Save RSS feed</button>
+                            <button type="submit"><span class="rss-action-label"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 11a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-1-4a6 6 0 0 1 6 6H6a4 4 0 0 0-4-4V7Zm0-4a10 10 0 0 1 10 10h-2A8 8 0 0 0 2 5V3Z"/></svg><span>Save RSS feed</span></span></button>
                         </form>
                         <div class="toolbar">
-                            <a class="secondary" href="/classify?logicalFeedId={feed.logicalFeed.id}">Classify RSS papers</a>
+                            <a class="secondary rss-action-label" href="/classify?logicalFeedId={feed.logicalFeed.id}"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 11a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-1-4a6 6 0 0 1 6 6H6a4 4 0 0 0-4-4V7Zm0-4a10 10 0 0 1 10 10h-2A8 8 0 0 0 2 5V3Z"/></svg><span>Classify RSS papers</span></a>
                             <form action="/feeds/{feed.id}/poll" method="post">
                                 <button type="submit">Poll now</button>
                             </form>
@@ -1060,7 +1082,7 @@
                     <p class="meta">Read-only</p>
                     {/if}
                 </div>
-            </details>
+            </section>
             {/if}
             {/for}
         </div>
@@ -2321,7 +2343,6 @@
         settingsItemPanels.forEach((panel) => {
             const selected = panel.dataset.adminItemPanel === target + "-" + item;
             panel.hidden = !selected;
-            if (panel.tagName === "DETAILS") panel.open = selected;
         });
         settingsEmptyMessages.forEach((message) => {
             message.hidden = message.dataset.settingsEmpty === target && Boolean(item);
@@ -2352,6 +2373,7 @@
         showSettingsPanel(target, item);
     };
     window.addEventListener("hashchange", restoreSettingsLocation);
+    setOpenSettingsGroup("");
     restoreSettingsLocation();
 </script>
     <script src="/assets/vendor/workflow-designer.js"></script>

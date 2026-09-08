@@ -1036,7 +1036,7 @@
         pdfFullscreenButton.setAttribute("aria-label", isFullscreen ? "Exit PDF fullscreen" : "Toggle PDF fullscreen");
         if (pdfFullscreenHint) {
             pdfFullscreenHint.textContent = isFullscreen
-                ? "Press Esc to return to the survey workspace."
+                ? "Press Esc to return to the review workspace."
                 : "Use the fullscreen button to focus on the paper. Press Esc to return.";
         }
         if (isFullscreen || pdfFrame) {
@@ -1052,7 +1052,7 @@
     }
 
     async function saveForm(goNext = false) {
-        statusLine.textContent = "Saving survey form...";
+        statusLine.textContent = "Saving review form...";
         currentValues = collectValues();
         const response = await fetch(`/api/reviews/{review.id}/papers/{paper.id}/submission`, {
             method: "POST",
@@ -1072,10 +1072,10 @@
                     renderForm();
                     triggerValidationFeedback();
                     scrollToFirstValidationError();
-                    statusLine.textContent = "The survey form has validation errors.";
+                    statusLine.textContent = "The review form has validation errors.";
                     return;
                 }
-                statusLine.textContent = payload.message || "Survey form validation failed";
+                statusLine.textContent = payload.message || "Review form validation failed";
                 return;
             }
             statusLine.textContent = await response.text();
@@ -1090,10 +1090,10 @@
     }
 
     async function resetForm() {
-        if (!window.confirm("Reset this survey form?")) {
+        if (!window.confirm("Reset this review form?")) {
             return;
         }
-        statusLine.textContent = "Resetting survey form...";
+        statusLine.textContent = "Resetting review form...";
         const response = await fetch(`/api/reviews/{review.id}/papers/{paper.id}/submission`, { method: "DELETE" });
         if (!response.ok) {
             statusLine.textContent = await response.text();
