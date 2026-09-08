@@ -239,16 +239,25 @@ public class SetupWizardService {
     }
 
     @Transactional
-    public Map<String, Object> saveWorkflow(AppUser user, String draftId, String workflowType, String customWorkflow) {
+    public Map<String, Object> saveWorkflow(
+            AppUser user,
+            String draftId,
+            String workflowType,
+            String customWorkflow,
+            String inclusionCriteria,
+            String exclusionCriteria
+    ) {
         PaperFeedSetupDraft draft = requireDraft(user, draftId);
         String normalized = required(workflowType, "Choose a classification workflow").toUpperCase(Locale.ROOT);
         if (!Set.of("MIAGE", "PRISMA", "CUSTOM").contains(normalized)) {
             throw new WebApplicationException("Unknown classification workflow", Response.Status.BAD_REQUEST);
         }
         draft.workflowType = normalized;
-        draft.customWorkflow = "CUSTOM".equals(normalized)
-                ? normalizeCustomWorkflow(customWorkflow)
-                : null;
+        draft.customWorkflow = switch (normalized) {
+            case "CUSTOM" -> normalizeCustomWorkflow(customWorkflow);
+            case "PRISMA" -> prismaWorkflowWithCriteria(inclusionCriteria, exclusionCriteria);
+            default -> null;
+        };
         touch(draft);
         return draftMap(draft);
     }
@@ -271,7 +280,7 @@ public class SetupWizardService {
         String workflowType = required(draft.workflowType, "Choose a classification workflow");
         String workflowYaml = switch (workflowType) {
             case "MIAGE" -> QuickSetupWorkflows.KANBAN;
-            case "PRISMA" -> QuickSetupWorkflows.PRISMA;
+            case "PRISMA" -> draft.customWorkflow == null ? QuickSetupWorkflows.PRISMA : draft.customWorkflow;
             case "CUSTOM" -> normalizeCustomWorkflow(
                     draft.customWorkflow == null ? customWorkflow : draft.customWorkflow,
                     "Custom workflow YAML is required");
@@ -320,6 +329,56 @@ public class SetupWizardService {
         }
         feedRepository.flush();
         return new CompletionResult(logicalFeed.id, feed.id);
+    }
+
+    private String prismaWorkflowWithCriteria(String inclusionCriteria, String exclusionCriteria) {
+        List<String> inclusion = criterionLabels(inclusionCriteria, "Topic relevance", "Empirical evidence");
+        List<String> exclusion = criterionLabels(exclusionCriteria, "Wrong population", "Wrong intervention");
+        String yaml = QuickSetupWorkflows.PRISMA;
+        yaml = replacePrismaTaxonomyValues(yaml, "EXCLUSION", exclusion);
+        yaml = replacePrismaTaxonomyValues(yaml, "INCLUSION", inclusion);
+        return WorkflowStateConfig.parse(yaml).toYaml();
+    }
+
+    private List<String> criterionLabels(String raw, String... defaults) {
+        List<String> labels = raw == null ? List.of() : java.util.Arrays.stream(raw.split("\\R"))
+                .map(String::trim).filter(value -> !value.isBlank()).distinct().toList();
+        return labels.isEmpty() ? List.of(defaults) : labels;
+    }
+
+    private String replacePrismaTaxonomyValues(String yaml, String taxonomyId, List<String> labels) {
+        StringBuilder values = new StringBuilder();
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        for (String label : labels) {
+            String base = WorkflowStateConfig.normalizeStateSegment(label);
+            String id = base;
+            int suffix = 2;
+            while (!ids.add(id)) {
+                id = base + "_" + suffix++;
+            }
+            values.append("      - id: ").append(id).append("\n")
+                    .append("        label: ").append(yamlValue(label)).append("\n");
+        }
+        String marker = "  " + taxonomyId + ":\n    label:";
+        int start = yaml.indexOf(marker);
+        if (start < 0) {
+            throw new IllegalArgumentException("Missing PRISMA taxonomy: " + taxonomyId);
+        }
+        int valuesStart = yaml.indexOf("    values:\n", start) + "    values:\n".length();
+        int sectionEnd = yaml.length();
+        for (int index = valuesStart; index < yaml.length(); index++) {
+            if ((index == 0 || yaml.charAt(index - 1) == '\n')
+                    && yaml.startsWith("  ", index)
+                    && (index + 2 >= yaml.length() || yaml.charAt(index + 2) != ' ')) {
+                sectionEnd = index;
+                break;
+            }
+        }
+        return yaml.substring(0, valuesStart) + values + yaml.substring(sectionEnd);
+    }
+
+    private String yamlValue(String value) {
+        return value.matches("[A-Za-z0-9_./-]+") ? value : "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 
     @Transactional

@@ -49,6 +49,36 @@ class QuickSetupWorkflowsTest {
     }
 
     @Test
+    void workflowSupportsAtLeastOneExclusionCriteria() {
+        WorkflowStateConfig workflow = WorkflowStateConfig.parse("""
+                version: 2
+                initial_state: REVIEW
+                states:
+                  - id: REVIEW
+                  - id: EXCLUDED
+                    requires:
+                      exclusion_criteria:
+                        taxonomy: EXCLUSION
+                        min: 1
+                transitions:
+                  - from: REVIEW
+                    to: [EXCLUDED]
+                taxonomies:
+                  EXCLUSION:
+                    label: Exclusion criteria
+                    values:
+                      - id: OUT_OF_SCOPE
+                        label: Out of scope
+                      - id: WRONG_METHOD
+                        label: Wrong method
+                """);
+
+        assertEquals(1, workflow.requirementsFor("EXCLUDED").exclusionCriterion().minimum());
+        assertTrue(workflow.containsTaxonomyLeaf("EXCLUSION", "WRONG_METHOD"));
+        assertTrue(workflow.toYaml().contains("exclusion_criteria:"));
+    }
+
+    @Test
     void graphWorkflowsRequireConnectedStatesButAllowBranching() {
         assertThrows(IllegalArgumentException.class, () -> WorkflowStateConfig.parse("""
                 version: 2

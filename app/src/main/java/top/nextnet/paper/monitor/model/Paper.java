@@ -82,6 +82,9 @@ public class Paper extends PanacheEntityBase {
     public String eligibilityExclusionCriterionId;
 
     @Column(length = 4000)
+    public String eligibilityExclusionCriteriaJson;
+
+    @Column(length = 4000)
     public String eligibilityExclusionNotes;
 
     @Column(length = 4000)
@@ -152,6 +155,35 @@ public class Paper extends PanacheEntityBase {
             }
         }
         return List.copyOf(values);
+    }
+
+    public List<String> eligibilityExclusionCriteriaIds() {
+        if (eligibilityExclusionCriteriaJson == null || eligibilityExclusionCriteriaJson.isBlank()) {
+            return eligibilityExclusionCriterionId == null || eligibilityExclusionCriterionId.isBlank()
+                    ? List.of() : List.of(eligibilityExclusionCriterionId);
+        }
+        Object parsed = JsonCodec.parse(eligibilityExclusionCriteriaJson);
+        if (!(parsed instanceof List<?> rows)) {
+            return List.of();
+        }
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (Object row : rows) {
+            if (row != null && !String.valueOf(row).isBlank()) {
+                values.add(String.valueOf(row).trim());
+            }
+        }
+        return List.copyOf(values);
+    }
+
+    public void setEligibilityExclusionCriteriaIds(List<String> values) {
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String value : values == null ? List.<String>of() : values) {
+            if (value != null && !value.isBlank()) {
+                normalized.add(value.trim());
+            }
+        }
+        eligibilityExclusionCriteriaJson = normalized.isEmpty() ? null : JsonCodec.stringify(List.copyOf(normalized));
+        eligibilityExclusionCriterionId = normalized.isEmpty() ? null : normalized.iterator().next();
     }
 
     public void setEligibilityInclusionCriteriaIds(List<String> values) {

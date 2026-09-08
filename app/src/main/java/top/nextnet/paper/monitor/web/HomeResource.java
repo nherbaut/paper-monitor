@@ -1342,10 +1342,13 @@ public class HomeResource {
     public Response setupWorkflow(
             @jakarta.ws.rs.PathParam("id") String id,
             @RestForm("workflowType") String workflowType,
-            @RestForm("customWorkflow") String customWorkflow
+            @RestForm("customWorkflow") String customWorkflow,
+            @RestForm("inclusionCriteria") String inclusionCriteria,
+            @RestForm("exclusionCriteria") String exclusionCriteria
     ) {
         try {
-            return jsonResponse(setupWizardService.saveWorkflow(currentUserContext.get().user(), id, workflowType, customWorkflow));
+            return jsonResponse(setupWizardService.saveWorkflow(currentUserContext.get().user(), id, workflowType,
+                    customWorkflow, inclusionCriteria, exclusionCriteria));
         } catch (WebApplicationException e) {
             return apiError(e);
         }
@@ -1751,6 +1754,7 @@ public class HomeResource {
             @RestForm("summary") String summary,
             @RestForm("status") String status,
             @RestForm("eligibilityExclusionCriterionId") String exclusionCriterionId,
+            @RestForm("eligibilityExclusionCriterionIds") List<String> exclusionCriterionIds,
             @RestForm("eligibilityExclusionNotes") String exclusionNotes,
             @RestForm("eligibilityInclusionCriterionIds") List<String> inclusionCriterionIds
     ) {
@@ -1788,7 +1792,7 @@ public class HomeResource {
         paper.logicalFeed = logicalFeed;
 
         validatePaperStatusAssignment(workflow, logicalFeed, paper, null, normalizedStatus,
-                exclusionCriterionId, exclusionNotes,
+                exclusionCriterionId, exclusionCriterionIds == null ? List.of() : exclusionCriterionIds, exclusionNotes,
                 inclusionCriterionIds == null ? List.of() : inclusionCriterionIds);
         paperRepository.persist(paper);
         paperEventService.log(paper, "FETCH", "Imported gray literature URL " + sourceLink);
@@ -1971,14 +1975,17 @@ public class HomeResource {
             @RestForm("publicReadable") String publicReadable,
             @RestForm("notifyOnNewRssPapers") String notifyOnNewRssPapers,
             @RestForm("migrationFrom") List<String> migrationFrom,
-            @RestForm("migrationTo") List<String> migrationTo
+            @RestForm("migrationTo") List<String> migrationTo,
+            @RestForm("migrationExclusionCriteria") List<String> migrationExclusionCriteria,
+            @RestForm("migrationInclusionCriteria") List<String> migrationInclusionCriteria
     ) {
         try {
             LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
             String normalizedWorkflowStates = normalizeWorkflowStates(workflowStates);
             WorkflowStateConfig nextWorkflow = WorkflowStateConfig.parse(normalizedWorkflowStates);
             validateWorkflowGraphRules(nextWorkflow);
-            applyWorkflowStateMigrations(logicalFeed, nextWorkflow, migrationFrom, migrationTo);
+            applyWorkflowStateMigrations(logicalFeed, nextWorkflow, migrationFrom, migrationTo,
+                    migrationExclusionCriteria, migrationInclusionCriteria);
             logicalFeed.name = name == null ? null : name.trim();
             logicalFeed.description = normalize(description);
             logicalFeed.workflowStates = normalizedWorkflowStates;
@@ -2021,14 +2028,17 @@ public class HomeResource {
             @jakarta.ws.rs.PathParam("id") Long id,
             @RestForm("workflowStates") String workflowStates,
             @RestForm("migrationFrom") List<String> migrationFrom,
-            @RestForm("migrationTo") List<String> migrationTo
+            @RestForm("migrationTo") List<String> migrationTo,
+            @RestForm("migrationExclusionCriteria") List<String> migrationExclusionCriteria,
+            @RestForm("migrationInclusionCriteria") List<String> migrationInclusionCriteria
     ) {
         try {
             LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
             String normalizedWorkflowStates = normalizeWorkflowStates(workflowStates);
             WorkflowStateConfig nextWorkflow = WorkflowStateConfig.parse(normalizedWorkflowStates);
             validateWorkflowGraphRules(nextWorkflow);
-            applyWorkflowStateMigrations(logicalFeed, nextWorkflow, migrationFrom, migrationTo);
+            applyWorkflowStateMigrations(logicalFeed, nextWorkflow, migrationFrom, migrationTo,
+                    migrationExclusionCriteria, migrationInclusionCriteria);
             logicalFeed.workflowStates = normalizedWorkflowStates;
             return seeOther("/admin#workflow");
         } catch (WebApplicationException e) {
@@ -2419,6 +2429,7 @@ public class HomeResource {
             @jakarta.ws.rs.PathParam("id") Long id,
             @RestForm("status") String status,
             @RestForm("eligibilityExclusionCriterionId") String eligibilityExclusionCriterionId,
+            @RestForm("eligibilityExclusionCriterionIds") List<String> eligibilityExclusionCriterionIds,
             @RestForm("eligibilityExclusionNotes") String eligibilityExclusionNotes,
             @RestForm("eligibilityInclusionCriterionIds") List<String> eligibilityInclusionCriterionIds
     ) {
@@ -2444,6 +2455,7 @@ public class HomeResource {
                     previousStatus,
                     normalizedStatus,
                     eligibilityExclusionCriterionId,
+                    eligibilityExclusionCriterionIds,
                     eligibilityExclusionNotes,
                     eligibilityInclusionCriterionIds);
             paper.status = normalizedStatus;
@@ -2493,6 +2505,7 @@ public class HomeResource {
                     previousStatus,
                     normalizedStatus,
                     null,
+                    List.of(),
                     null,
                     List.of());
             paper.status = normalizedStatus;
@@ -2517,6 +2530,7 @@ public class HomeResource {
             @RestForm("status") String status,
             @RestForm("tag") String tag,
             @RestForm("eligibilityExclusionCriterionId") String eligibilityExclusionCriterionId,
+            @RestForm("eligibilityExclusionCriterionIds") List<String> eligibilityExclusionCriterionIds,
             @RestForm("eligibilityExclusionNotes") String eligibilityExclusionNotes,
             @RestForm("eligibilityInclusionCriterionIds") List<String> eligibilityInclusionCriterionIds
     ) {
@@ -2533,7 +2547,8 @@ public class HomeResource {
         String normalizedOperation = normalizeRequired(operation, "Batch operation is required").toLowerCase(Locale.ROOT);
         switch (normalizedOperation) {
             case "change_state" -> applyBatchStateChange(logicalFeed, papers, status,
-                    eligibilityExclusionCriterionId, eligibilityExclusionNotes, eligibilityInclusionCriterionIds);
+                    eligibilityExclusionCriterionId, eligibilityExclusionCriterionIds,
+                    eligibilityExclusionNotes, eligibilityInclusionCriterionIds);
             case "add_tag" -> applyBatchTagAddition(papers, tag);
             case "remove_tag" -> applyBatchTagRemoval(papers, tag);
             default -> throw new WebApplicationException("Unsupported batch operation", Response.Status.BAD_REQUEST);
@@ -2546,6 +2561,7 @@ public class HomeResource {
             List<Paper> papers,
             String status,
             String eligibilityExclusionCriterionId,
+            List<String> eligibilityExclusionCriterionIds,
             String eligibilityExclusionNotes,
             List<String> eligibilityInclusionCriterionIds
     ) {
@@ -2561,7 +2577,8 @@ public class HomeResource {
                 continue;
             }
             validatePaperStatusAssignment(workflow, logicalFeed, paper, previousStatus, normalizedStatus,
-                    eligibilityExclusionCriterionId, eligibilityExclusionNotes, eligibilityInclusionCriterionIds);
+                    eligibilityExclusionCriterionId, eligibilityExclusionCriterionIds,
+                    eligibilityExclusionNotes, eligibilityInclusionCriterionIds);
             paper.status = normalizedStatus;
             paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
             changed = true;
@@ -2814,10 +2831,6 @@ public class HomeResource {
         }
         List<Map<String, Object>> migrationTargets = new ArrayList<>();
         for (WorkflowStateConfig.State state : nextWorkflow.states()) {
-            WorkflowStateConfig.Requirements requirements = state.requirements();
-            if (requirements.exclusionCriterion() != null || requirements.inclusionCriteria() != null) {
-                continue;
-            }
             migrationTargets.add(Map.of("id", state.id(), "label", state.label()));
         }
         Map<String, Object> payload = new LinkedHashMap<>();
@@ -2832,11 +2845,15 @@ public class HomeResource {
             LogicalFeed logicalFeed,
             WorkflowStateConfig nextWorkflow,
             List<String> migrationFrom,
-            List<String> migrationTo
+            List<String> migrationTo,
+            List<String> migrationExclusionCriteria,
+            List<String> migrationInclusionCriteria
     ) {
         WorkflowStateConfig currentWorkflow = workflowConfig(logicalFeed);
         Set<String> nextStates = new LinkedHashSet<>(nextWorkflow.leafStates());
         Map<String, String> migrations = workflowStateMigrations(migrationFrom, migrationTo);
+        Map<String, List<String>> exclusionCriteria = workflowMigrationCriteria(migrationExclusionCriteria);
+        Map<String, List<String>> inclusionCriteria = workflowMigrationCriteria(migrationInclusionCriteria);
         List<Paper> papers = paperRepository.findAllForExport(logicalFeed);
         Map<String, List<Paper>> papersByRemovedState = new LinkedHashMap<>();
         for (Paper paper : papers) {
@@ -2852,16 +2869,18 @@ public class HomeResource {
                         "Choose a migration target for papers in removed state " + entry.getKey(),
                         Response.Status.BAD_REQUEST);
             }
-            validateWorkflowMigrationTarget(nextWorkflow, target);
+            validateWorkflowMigrationTarget(nextWorkflow, target,
+                    exclusionCriteria.getOrDefault(entry.getKey(), List.of()),
+                    inclusionCriteria.getOrDefault(entry.getKey(), List.of()));
         }
         for (Map.Entry<String, List<Paper>> entry : papersByRemovedState.entrySet()) {
             String target = migrations.get(entry.getKey());
             for (Paper paper : entry.getValue()) {
                 String previousStatus = paper.status;
                 paper.status = target;
-                paper.eligibilityExclusionCriterionId = null;
+                paper.setEligibilityExclusionCriteriaIds(exclusionCriteria.getOrDefault(entry.getKey(), List.of()));
                 paper.eligibilityExclusionNotes = null;
-                paper.setEligibilityInclusionCriteriaIds(List.of());
+                paper.setEligibilityInclusionCriteriaIds(inclusionCriteria.getOrDefault(entry.getKey(), List.of()));
                 paperEventService.log(paper, "STATE_MIGRATED", previousStatus + " -> " + target);
             }
         }
@@ -2893,15 +2912,63 @@ public class HomeResource {
         }
     }
 
-    private void validateWorkflowMigrationTarget(WorkflowStateConfig workflow, String target) {
+    private Map<String, List<String>> workflowMigrationCriteria(List<String> values) {
+        Map<String, List<String>> criteriaBySource = new LinkedHashMap<>();
+        if (values == null) {
+            return criteriaBySource;
+        }
+        for (String value : values) {
+            int delimiter = value == null ? -1 : value.indexOf('|');
+            if (delimiter < 1 || delimiter == value.length() - 1) {
+                throw new WebApplicationException("Invalid workflow migration criterion", Response.Status.BAD_REQUEST);
+            }
+            String source = normalizeMigrationState(value.substring(0, delimiter));
+            String criterion;
+            try {
+                criterion = WorkflowStateConfig.normalizeStateSegment(value.substring(delimiter + 1));
+            } catch (IllegalArgumentException e) {
+                throw new WebApplicationException("Invalid workflow migration criterion", Response.Status.BAD_REQUEST);
+            }
+            criteriaBySource.computeIfAbsent(source, ignored -> new ArrayList<>()).add(criterion);
+        }
+        return criteriaBySource.entrySet().stream().collect(java.util.stream.Collectors.toMap(
+                Map.Entry::getKey,
+                entry -> normalizeWorkflowCriterionList(entry.getValue()),
+                (left, right) -> left,
+                LinkedHashMap::new));
+    }
+
+    private void validateWorkflowMigrationTarget(
+            WorkflowStateConfig workflow,
+            String target,
+            List<String> exclusionCriteria,
+            List<String> inclusionCriteria
+    ) {
         if (!workflow.containsLeafState(target)) {
             throw new WebApplicationException("A migration target must be a remaining workflow state", Response.Status.BAD_REQUEST);
         }
         WorkflowStateConfig.Requirements requirements = workflow.requirementsFor(target);
-        if (requirements.exclusionCriterion() != null || requirements.inclusionCriteria() != null) {
-            throw new WebApplicationException(
-                    "Papers can only be migrated to a state without required criteria: " + target,
-                    Response.Status.BAD_REQUEST);
+        if (requirements.exclusionCriterion() != null) {
+            if (exclusionCriteria.size() < requirements.exclusionCriterion().minimum()) {
+                throw new WebApplicationException("Choose the required exclusion criteria for migration to " + target,
+                        Response.Status.BAD_REQUEST);
+            }
+            for (String criterion : exclusionCriteria) {
+                if (!workflow.containsTaxonomyLeaf(requirements.exclusionCriterion().taxonomy(), criterion)) {
+                    throw new WebApplicationException("Invalid exclusion criterion for migration", Response.Status.BAD_REQUEST);
+                }
+            }
+        }
+        if (requirements.inclusionCriteria() != null) {
+            if (inclusionCriteria.size() < requirements.inclusionCriteria().minimum()) {
+                throw new WebApplicationException("Choose the required inclusion criteria for migration to " + target,
+                        Response.Status.BAD_REQUEST);
+            }
+            for (String criterion : inclusionCriteria) {
+                if (!workflow.containsTaxonomyLeaf(requirements.inclusionCriteria().taxonomy(), criterion)) {
+                    throw new WebApplicationException("Invalid inclusion criterion for migration", Response.Status.BAD_REQUEST);
+                }
+            }
         }
     }
 
@@ -2960,11 +3027,12 @@ public class HomeResource {
             String previousStatus,
             String nextStatus,
             String exclusionCriterionId,
+            List<String> exclusionCriterionIds,
             String exclusionNotes,
             List<String> inclusionCriterionIds
     ) {
         validatePaperStatusChange(workflow, logicalFeed, paper, previousStatus, nextStatus,
-                exclusionCriterionId, exclusionNotes, inclusionCriterionIds, true);
+                exclusionCriterionId, exclusionCriterionIds, exclusionNotes, inclusionCriterionIds, true);
     }
 
     private void validatePaperStatusAssignment(
@@ -2974,11 +3042,12 @@ public class HomeResource {
             String previousStatus,
             String nextStatus,
             String exclusionCriterionId,
+            List<String> exclusionCriterionIds,
             String exclusionNotes,
             List<String> inclusionCriterionIds
     ) {
         validatePaperStatusChange(workflow, logicalFeed, paper, previousStatus, nextStatus,
-                exclusionCriterionId, exclusionNotes, inclusionCriterionIds, false);
+                exclusionCriterionId, exclusionCriterionIds, exclusionNotes, inclusionCriterionIds, false);
     }
 
     private void validatePaperStatusChange(
@@ -2988,6 +3057,7 @@ public class HomeResource {
             String previousStatus,
             String nextStatus,
             String exclusionCriterionId,
+            List<String> exclusionCriterionIds,
             String exclusionNotes,
             List<String> inclusionCriterionIds,
             boolean enforceTransition
@@ -3001,21 +3071,20 @@ public class HomeResource {
         }
         WorkflowStateConfig.Requirements requirements = workflow.requirementsFor(nextStatus);
         if (requirements.exclusionCriterion() != null) {
-            String normalizedCriterionId = normalizeOptionalWorkflowCriterion(exclusionCriterionId);
-            if (normalizedCriterionId == null) {
-                throw new WebApplicationException("An eligibility exclusion criterion is required", Response.Status.BAD_REQUEST);
+            List<String> normalizedCriteria = normalizeWorkflowCriterionList(
+                    mergeWorkflowCriteria(exclusionCriterionId, exclusionCriterionIds));
+            if (normalizedCriteria.size() < requirements.exclusionCriterion().minimum()) {
+                throw new WebApplicationException("At least one exclusion criterion is required", Response.Status.BAD_REQUEST);
             }
-            if (!WorkflowStateConfig.standaloneTaxonomyContainsLeaf(
-                    logicalFeed.eligibilityExclusionTaxonomy,
-                    requirements.exclusionCriterion().taxonomy(),
-                    "Eligibility exclusion criteria",
-                    normalizedCriterionId)) {
-                throw new WebApplicationException("Invalid eligibility exclusion criterion", Response.Status.BAD_REQUEST);
+            for (String criterionId : normalizedCriteria) {
+                if (!workflow.containsTaxonomyLeaf(requirements.exclusionCriterion().taxonomy(), criterionId)) {
+                    throw new WebApplicationException("Invalid eligibility exclusion criterion", Response.Status.BAD_REQUEST);
+                }
             }
-            paper.eligibilityExclusionCriterionId = normalizedCriterionId;
-            paper.eligibilityExclusionNotes = normalize(exclusionNotes);
+            paper.setEligibilityExclusionCriteriaIds(normalizedCriteria);
+            paper.eligibilityExclusionNotes = null;
         } else {
-            paper.eligibilityExclusionCriterionId = null;
+            paper.setEligibilityExclusionCriteriaIds(List.of());
             paper.eligibilityExclusionNotes = null;
         }
 
@@ -3025,11 +3094,7 @@ public class HomeResource {
                 throw new WebApplicationException("At least one inclusion criterion is required", Response.Status.BAD_REQUEST);
             }
             for (String criterionId : normalizedCriteria) {
-                if (!WorkflowStateConfig.standaloneTaxonomyContainsLeaf(
-                        logicalFeed.eligibilityInclusionTaxonomy,
-                        requirements.inclusionCriteria().taxonomy(),
-                        "Eligibility inclusion criteria",
-                        criterionId)) {
+                if (!workflow.containsTaxonomyLeaf(requirements.inclusionCriteria().taxonomy(), criterionId)) {
                     throw new WebApplicationException("Invalid eligibility inclusion criterion", Response.Status.BAD_REQUEST);
                 }
             }
@@ -3058,6 +3123,17 @@ public class HomeResource {
             normalized.add(WorkflowStateConfig.normalizeStateSegment(value));
         }
         return List.copyOf(normalized);
+    }
+
+    private List<String> mergeWorkflowCriteria(String legacyValue, List<String> values) {
+        List<String> merged = new ArrayList<>();
+        if (legacyValue != null && !legacyValue.isBlank()) {
+            merged.add(legacyValue);
+        }
+        if (values != null) {
+            merged.addAll(values);
+        }
+        return merged;
     }
 
     private LogicalFeed requireLogicalFeed(Long logicalFeedId) {
@@ -3713,10 +3789,13 @@ public class HomeResource {
             }
         }
 
-        WorkflowStateConfig.Taxonomy exclusionTaxonomy = WorkflowStateConfig.standaloneTaxonomy(
-                logicalFeed.eligibilityExclusionTaxonomy,
-                "EXCLUSION",
-                "Eligibility exclusion criteria");
+        WorkflowStateConfig.Taxonomy exclusionTaxonomy = workflow.taxonomy("EXCLUSION");
+        if (exclusionTaxonomy == null) {
+            exclusionTaxonomy = WorkflowStateConfig.standaloneTaxonomy(
+                    logicalFeed.eligibilityExclusionTaxonomy,
+                    "EXCLUSION",
+                    "Eligibility exclusion criteria");
+        }
         Map<String, String> exclusionLabels = new LinkedHashMap<>();
         collectCriterionLabels(exclusionTaxonomy.values(), exclusionLabels);
 
@@ -3859,11 +3938,12 @@ public class HomeResource {
         Map<String, Long> counts = new LinkedHashMap<>();
         for (Paper paper : papers) {
             String bucket = prismaBucketByState.get(WorkflowStateConfig.normalizeStateId(paper.status));
-            if (!targetBucket.equals(bucket) || paper.eligibilityExclusionCriterionId == null || paper.eligibilityExclusionCriterionId.isBlank()) {
+            if (!targetBucket.equals(bucket)) {
                 continue;
             }
-            String criterionId = WorkflowStateConfig.normalizeStateSegment(paper.eligibilityExclusionCriterionId);
-            counts.merge(criterionId, 1L, Long::sum);
+            for (String criterionId : paper.eligibilityExclusionCriteriaIds()) {
+                counts.merge(WorkflowStateConfig.normalizeStateSegment(criterionId), 1L, Long::sum);
+            }
         }
         return counts;
     }

@@ -110,10 +110,9 @@ public final class QuickSetupWorkflows {
                 group: ELIGIBILITY
                 terminal: true
                 requires:
-                  exclusion_criterion:
+                  exclusion_criteria:
                     taxonomy: EXCLUSION
-                    exactly: 1
-                  exclusion_notes: optional
+                    min: 1
                 report:
                   prisma_bucket: database_eligibility_excluded
               - id: ELIGIBILITY/OTHER_ASSESSED_FOR_ELIGIBILITY
@@ -126,10 +125,9 @@ public final class QuickSetupWorkflows {
                 group: ELIGIBILITY
                 terminal: true
                 requires:
-                  exclusion_criterion:
+                  exclusion_criteria:
                     taxonomy: EXCLUSION
-                    exactly: 1
-                  exclusion_notes: optional
+                    min: 1
                 report:
                   prisma_bucket: other_eligibility_excluded
               - id: INCLUDED/DATABASE_INCLUDED_IN_REVIEW

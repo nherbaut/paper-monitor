@@ -638,6 +638,18 @@
             align-items: center;
         }
 
+        .workflow-migration-row [data-migration-criteria] {
+            grid-column: 1 / -1;
+            display: grid;
+            gap: 0.4rem;
+        }
+
+        .workflow-migration-row fieldset {
+            display: grid;
+            gap: 0.25rem;
+            margin: 0;
+        }
+
         @media (max-width: 900px) {
             .settings-layout {
                 grid-template-columns: 1fr;
@@ -895,13 +907,13 @@
                         <label>Required criteria
                             <select data-workflow-requirement-kind>
                                 <option value="">None</option>
-                                <option value="exclusion">One exclusion criterion</option>
+                                <option value="exclusion">Exclusion criteria</option>
                                 <option value="inclusion">Inclusion criteria</option>
                             </select>
                         </label>
                         <label>Taxonomy <input data-workflow-requirement-taxonomy type="text" placeholder="EXCLUSION or INCLUSION"></label>
-                        <label>Minimum / exact count <input data-workflow-requirement-count type="number" min="1" value="1"></label>
-                        <label class="checkbox-label"><input data-workflow-requirement-notes type="checkbox"> Notes optional</label>
+                        <label>Minimum selections <input data-workflow-requirement-count type="number" min="1" value="1"></label>
+                        <label>Selectable criteria <textarea data-workflow-requirement-values placeholder="One criterion per line"></textarea></label>
                         <label>PRISMA report bucket <input data-workflow-report-bucket type="text" placeholder="Optional"></label>
                     </div>
                 </div>
@@ -1362,7 +1374,7 @@
 <dialog class="workflow-migration-dialog" id="workflow-migration-dialog">
     <form>
         <h2>Move papers before deleting states</h2>
-        <p class="meta">Choose a remaining state for each removed state that still contains papers. Only states without required criteria can receive migrated papers.</p>
+        <p class="meta">Choose a remaining state for each removed state that still contains papers. When its state requires criteria, choose the criteria to apply to the migrated papers.</p>
         <div class="workflow-migration-list" id="workflow-migration-list"></div>
         <p class="message error" id="workflow-migration-error" hidden></p>
         <div class="toolbar">
@@ -1703,7 +1715,8 @@
         return [...new Set(errors)];
     };
 
-    document.querySelectorAll("[data-workflow-designer]").forEach((designer) => {
+    // Replaced by the maintained Cytoscape designer in workflow-designer.js.
+    document.querySelectorAll("[data-workflow-designer-legacy]").forEach((designer) => {
         const form = designer.closest("form");
         const yamlField = form?.querySelector("textarea[name='workflowStates']");
         const canvas = designer.querySelector("[data-workflow-canvas]");

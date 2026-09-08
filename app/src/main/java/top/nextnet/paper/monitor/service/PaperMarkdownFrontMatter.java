@@ -100,30 +100,42 @@ final class PaperMarkdownFrontMatter {
         Map<String, Object> workflowMetadata = new LinkedHashMap<>();
         workflowMetadata.put("state", stateMetadata);
         workflowMetadata.put("tags", paper.tagList());
-        workflowMetadata.put("eligibility", eligibility(paper, logicalFeed));
+        workflowMetadata.put("eligibility", eligibility(paper, logicalFeed, workflow, state));
         return workflowMetadata;
     }
 
-    private static Map<String, Object> eligibility(Paper paper, LogicalFeed logicalFeed) {
+    private static Map<String, Object> eligibility(Paper paper, LogicalFeed logicalFeed,
+            WorkflowStateConfig workflow, WorkflowStateConfig.State state) {
         Map<String, Object> eligibility = new LinkedHashMap<>();
-        if (paper.eligibilityExclusionCriterionId == null) {
+        String exclusionTaxonomyId = state == null || state.requirements() == null
+                || state.requirements().exclusionCriterion() == null
+                ? "EXCLUSION" : state.requirements().exclusionCriterion().taxonomy();
+        WorkflowStateConfig.Taxonomy exclusionTaxonomy = workflow == null ? null : workflow.taxonomy(exclusionTaxonomyId);
+        if (exclusionTaxonomy == null) {
+            exclusionTaxonomy = taxonomy(logicalFeed == null ? null : logicalFeed.eligibilityExclusionTaxonomy,
+                    exclusionTaxonomyId, "Eligibility exclusion criteria");
+        }
+        List<Map<String, Object>> exclusionCriteria = new ArrayList<>();
+        for (String criterionId : paper.eligibilityExclusionCriteriaIds()) {
+            exclusionCriteria.add(criterion(criterionId, exclusionTaxonomy));
+        }
+        if (exclusionCriteria.isEmpty()) {
             eligibility.put("exclusion", null);
         } else {
-            Map<String, Object> criterion = criterion(
-                    paper.eligibilityExclusionCriterionId,
-                    taxonomy(logicalFeed == null ? null : logicalFeed.eligibilityExclusionTaxonomy,
-                            "EXCLUSION", "Eligibility exclusion criteria"));
             Map<String, Object> exclusion = new LinkedHashMap<>();
-            exclusion.put("criterion", criterion);
-            exclusion.put("notes", paper.eligibilityExclusionNotes);
+            exclusion.put("criteria", exclusionCriteria);
             eligibility.put("exclusion", exclusion);
         }
 
         List<Map<String, Object>> inclusionCriteria = new ArrayList<>();
-        WorkflowStateConfig.Taxonomy inclusionTaxonomy = taxonomy(
-                logicalFeed == null ? null : logicalFeed.eligibilityInclusionTaxonomy,
-                "INCLUSION",
-                "Eligibility inclusion criteria");
+        String inclusionTaxonomyId = state == null || state.requirements() == null
+                || state.requirements().inclusionCriteria() == null
+                ? "INCLUSION" : state.requirements().inclusionCriteria().taxonomy();
+        WorkflowStateConfig.Taxonomy inclusionTaxonomy = workflow == null ? null : workflow.taxonomy(inclusionTaxonomyId);
+        if (inclusionTaxonomy == null) {
+            inclusionTaxonomy = taxonomy(logicalFeed == null ? null : logicalFeed.eligibilityInclusionTaxonomy,
+                    inclusionTaxonomyId, "Eligibility inclusion criteria");
+        }
         for (String criterionId : paper.eligibilityInclusionCriteriaIds()) {
             inclusionCriteria.add(criterion(criterionId, inclusionTaxonomy));
         }

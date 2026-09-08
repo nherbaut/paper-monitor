@@ -3524,6 +3524,26 @@
             </form>
         </div>
     </dialog>
+
+    <dialog class="review-modal" id="criteria-selection-modal">
+        <div class="review-modal-body">
+            <div class="review-modal-header">
+                <div>
+                    <h3 id="criteria-selection-title">Choose criteria</h3>
+                    <p class="meta" id="criteria-selection-status">Select the criteria that justify this state.</p>
+                </div>
+                <button class="icon-button secondary" id="criteria-selection-close" type="button" title="Cancel">×</button>
+            </div>
+            <form class="stack" id="criteria-selection-form">
+                <div class="stack" id="criteria-selection-groups"></div>
+                <p class="message error hidden" id="criteria-selection-error"></p>
+                <div class="manual-import-actions">
+                    <button class="secondary" id="criteria-selection-cancel" type="button">Cancel</button>
+                    <button type="submit">Apply state</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
     {/if}
 
     <section class="panel panel-wide {#if authenticated && !shareMode && !initialLogicalFeedId}hidden{/if}" id="browser-reader-section">
@@ -4002,6 +4022,14 @@
     const batchPaperFormSummary = document.getElementById("batch-paper-form-summary");
     const batchPaperFormFeedback = document.getElementById("batch-paper-form-feedback");
     const batchPaperApply = document.getElementById("batch-paper-apply");
+    const criteriaSelectionModal = document.getElementById("criteria-selection-modal");
+    const criteriaSelectionClose = document.getElementById("criteria-selection-close");
+    const criteriaSelectionCancel = document.getElementById("criteria-selection-cancel");
+    const criteriaSelectionForm = document.getElementById("criteria-selection-form");
+    const criteriaSelectionGroups = document.getElementById("criteria-selection-groups");
+    const criteriaSelectionTitle = document.getElementById("criteria-selection-title");
+    const criteriaSelectionStatus = document.getElementById("criteria-selection-status");
+    const criteriaSelectionError = document.getElementById("criteria-selection-error");
     const manualImportForm = document.getElementById("manual-import-form");
     const manualImportDoi = document.getElementById("manual-import-doi");
     const manualImportFetch = document.getElementById("manual-import-fetch");
@@ -8552,43 +8580,67 @@
         return queued;
     };
 
-    const collectStateRequirementParams = (logicalFeedId, nextStatus) => {
+    let criteriaSelectionResolve = null;
+
+    const closeCriteriaSelection = (params = null) => {
+        const resolve = criteriaSelectionResolve;
+        criteriaSelectionResolve = null;
+        if (criteriaSelectionModal?.open) {
+            criteriaSelectionModal.close();
+        }
+        resolve?.(params);
+    };
+
+    const addCriteriaSelectionGroup = (kind, rule, logicalFeedId) => {
+        const choices = taxonomyLeaves(rule.taxonomy, logicalFeedId);
+        const fieldset = document.createElement("fieldset");
+        fieldset.dataset.criteriaKind = kind;
+        fieldset.dataset.criteriaMin = String(rule.min || rule.exactly || 1);
+        const legend = document.createElement("legend");
+        legend.textContent = (kind === "exclusion" ? "Exclusion" : "Inclusion")
+            + " criteria (choose at least " + fieldset.dataset.criteriaMin + ")";
+        fieldset.appendChild(legend);
+        choices.forEach((choice) => {
+            const label = document.createElement("label");
+            label.className = "review-state-option";
+            const input = document.createElement("input");
+            input.type = "checkbox";
+            input.value = choice.id;
+            input.dataset.criteriaChoice = kind;
+            const text = document.createElement("span");
+            text.textContent = choice.label;
+            label.append(input, text);
+            fieldset.appendChild(label);
+        });
+        criteriaSelectionGroups.appendChild(fieldset);
+    };
+
+    const collectStateRequirementParams = async (logicalFeedId, nextStatus) => {
         const params = new URLSearchParams({ status: nextStatus });
         const workflowState = workflowStateById(logicalFeedId, nextStatus);
         const requires = workflowState?.requires || {};
-
-        if (requires.exclusionCriterion) {
-            const choices = taxonomyLeaves(requires.exclusionCriterion.taxonomy, logicalFeedId);
-            const promptMessage = "Enter one exclusion criterion id:\n" + choices.map((item) => item.id + " - " + item.label).join("\n");
-            const selected = window.prompt(promptMessage, choices[0]?.id || "");
-            if (!selected) {
-                return null;
-            }
-            params.set("eligibilityExclusionCriterionId", selected.trim());
-            const notes = window.prompt("Optional exclusion notes", "");
-            if (notes) {
-                params.set("eligibilityExclusionNotes", notes);
-            }
+        const exclusionRule = requires.exclusionCriteria || requires.exclusionCriterion;
+        const inclusionRule = requires.inclusionCriteria;
+        if (!exclusionRule && !inclusionRule) {
+            return params;
         }
-
-        if (requires.inclusionCriteria) {
-            const choices = taxonomyLeaves(requires.inclusionCriteria.taxonomy, logicalFeedId);
-            const promptMessage = "Enter one or more inclusion criterion ids, separated by commas:\n"
-                + choices.map((item) => item.id + " - " + item.label).join("\n");
-            const selected = window.prompt(promptMessage, choices[0]?.id || "");
-            if (!selected) {
-                return null;
-            }
-            selected.split(",")
-                .map((value) => value.trim())
-                .filter(Boolean)
-                .forEach((value) => params.append("eligibilityInclusionCriterionIds", value));
-            if (!params.getAll("eligibilityInclusionCriterionIds").length) {
-                return null;
-            }
+        if (!criteriaSelectionModal || !criteriaSelectionGroups) {
+            window.alert("Criteria selection is unavailable. Please reopen the paper feed.");
+            return null;
         }
-
-        return params;
+        criteriaSelectionGroups.innerHTML = "";
+        criteriaSelectionModal.dataset.nextStatus = nextStatus;
+        criteriaSelectionError.classList.add("hidden");
+        criteriaSelectionError.textContent = "";
+        criteriaSelectionTitle.textContent = "Choose criteria for " + classificationStateLabel(
+            { dataset: { logicalFeedId } }, nextStatus);
+        criteriaSelectionStatus.textContent = "Choose all criteria that apply before moving this paper.";
+        if (exclusionRule) addCriteriaSelectionGroup("exclusion", exclusionRule, logicalFeedId);
+        if (inclusionRule) addCriteriaSelectionGroup("inclusion", inclusionRule, logicalFeedId);
+        criteriaSelectionModal.showModal();
+        return new Promise((resolve) => {
+            criteriaSelectionResolve = resolve;
+        });
     };
 
     const syncPaperStatusCounts = (card, previousStatus, nextStatus) => {
@@ -8632,7 +8684,7 @@
         }
         suppressCardClick = true;
         const paperId = card.dataset.paperId;
-        const requestParams = collectStateRequirementParams(card.dataset.logicalFeedId, nextStatus);
+        const requestParams = await collectStateRequirementParams(card.dataset.logicalFeedId, nextStatus);
         if (requestParams == null) {
             return false;
         }
@@ -10509,7 +10561,7 @@
         event.preventDefault();
         const logicalFeedId = logicalFeedFilter?.value || "";
         const status = urlImportStatus?.value || "";
-        const requirementParams = collectStateRequirementParams(logicalFeedId, status);
+        const requirementParams = await collectStateRequirementParams(logicalFeedId, status);
         if (!requirementParams) {
             return;
         }
@@ -10549,6 +10601,35 @@
         if (event.target === batchPaperModal) {
             closeBatchPaperModal();
         }
+    });
+    criteriaSelectionClose?.addEventListener("click", () => closeCriteriaSelection());
+    criteriaSelectionCancel?.addEventListener("click", () => closeCriteriaSelection());
+    criteriaSelectionModal?.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        closeCriteriaSelection();
+    });
+    criteriaSelectionForm?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const params = new URLSearchParams({ status: criteriaSelectionModal.dataset.nextStatus || "" });
+        let valid = true;
+        criteriaSelectionGroups.querySelectorAll("fieldset[data-criteria-kind]").forEach((fieldset) => {
+            const selected = Array.from(fieldset.querySelectorAll("input:checked")).map((input) => input.value);
+            const minimum = Number(fieldset.dataset.criteriaMin || "1");
+            if (selected.length < minimum) {
+                valid = false;
+                return;
+            }
+            const key = fieldset.dataset.criteriaKind === "exclusion"
+                ? "eligibilityExclusionCriterionIds"
+                : "eligibilityInclusionCriterionIds";
+            selected.forEach((value) => params.append(key, value));
+        });
+        if (!valid) {
+            criteriaSelectionError.textContent = "Choose at least the required number of criteria in each section.";
+            criteriaSelectionError.classList.remove("hidden");
+            return;
+        }
+        closeCriteriaSelection(params);
     });
     batchPaperOperation?.addEventListener("change", () => {
         syncBatchPaperOperation();
@@ -10705,7 +10786,7 @@
             params.set("operation", operation);
             if (operation === "change_state") {
                 params.set("status", status);
-                const requirementParams = collectStateRequirementParams(logicalFeedId, status);
+                const requirementParams = await collectStateRequirementParams(logicalFeedId, status);
                 if (requirementParams == null) {
                     setBatchPaperFeedback("State change cancelled.", true);
                     return;

@@ -279,9 +279,9 @@ public final class WorkflowStateConfig {
             if (state.requirements().hasEntries()) {
                 appendLine(builder, 2, "requires:");
                 if (state.requirements().exclusionCriterion() != null) {
-                    appendLine(builder, 3, "exclusion_criterion:");
+                    appendLine(builder, 3, "exclusion_criteria:");
                     appendLine(builder, 4, "taxonomy: " + state.requirements().exclusionCriterion().taxonomy());
-                    appendLine(builder, 4, "exactly: " + state.requirements().exclusionCriterion().exactly());
+                    appendLine(builder, 4, "min: " + state.requirements().exclusionCriterion().minimum());
                 }
                 if (state.requirements().inclusionCriteria() != null) {
                     appendLine(builder, 3, "inclusion_criteria:");
@@ -352,9 +352,9 @@ public final class WorkflowStateConfig {
             item.put("terminal", state.terminal());
             Map<String, Object> requires = new LinkedHashMap<>();
             if (state.requirements().exclusionCriterion() != null) {
-                requires.put("exclusionCriterion", Map.of(
+                requires.put("exclusionCriteria", Map.of(
                         "taxonomy", state.requirements().exclusionCriterion().taxonomy(),
-                        "exactly", state.requirements().exclusionCriterion().exactly()));
+                        "min", state.requirements().exclusionCriterion().minimum()));
             }
             if (state.requirements().inclusionCriteria() != null) {
                 requires.put("inclusionCriteria", Map.of(
@@ -616,7 +616,8 @@ public final class WorkflowStateConfig {
             return Requirements.none();
         }
         Map<?, ?> item = asMap(rawRequirements, "Workflow state requires must be an object");
-        CriterionRule exclusionCriterion = parseCriterionRule(item.get("exclusion_criterion"), true);
+        CriterionRule exclusionCriterion = parseCriterionRule(
+                item.containsKey("exclusion_criteria") ? item.get("exclusion_criteria") : item.get("exclusion_criterion"), true);
         CriterionRule inclusionCriteria = parseCriterionRule(item.get("inclusion_criteria"), false);
         boolean exclusionNotesOptional = "optional".equalsIgnoreCase(stringValue(item.get("exclusion_notes")));
         boolean inclusionNotesOptional = "optional".equalsIgnoreCase(stringValue(item.get("inclusion_notes")));
@@ -632,16 +633,9 @@ public final class WorkflowStateConfig {
         if (taxonomy == null) {
             throw new IllegalArgumentException("Criterion rule taxonomy is required");
         }
-        if (exact) {
-            int count = intValue(item.get("exactly"), 1);
-            if (count < 1) {
-                throw new IllegalArgumentException("Criterion rule exactly must be positive");
-            }
-            return new CriterionRule(taxonomy, count, null);
-        }
-        int min = intValue(item.get("min"), 1);
+        int min = intValue(item.get("min"), exact ? intValue(item.get("exactly"), 1) : 1);
         if (min < 1) {
-            throw new IllegalArgumentException("Criterion rule min must be positive");
+            throw new IllegalArgumentException("Criterion rule minimum must be positive");
         }
         return new CriterionRule(taxonomy, null, min);
     }
@@ -670,8 +664,18 @@ public final class WorkflowStateConfig {
             if (requirements.exclusionCriterion() != null && !taxonomies.containsKey(requirements.exclusionCriterion().taxonomy())) {
                 throw new IllegalArgumentException("Unknown taxonomy referenced by state " + state.id());
             }
+            if (requirements.exclusionCriterion() != null
+                    && taxonomies.get(requirements.exclusionCriterion().taxonomy()).leafIds().isEmpty()) {
+                throw new IllegalArgumentException("Required taxonomy has no criteria: "
+                        + requirements.exclusionCriterion().taxonomy());
+            }
             if (requirements.inclusionCriteria() != null && !taxonomies.containsKey(requirements.inclusionCriteria().taxonomy())) {
                 throw new IllegalArgumentException("Unknown taxonomy referenced by state " + state.id());
+            }
+            if (requirements.inclusionCriteria() != null
+                    && taxonomies.get(requirements.inclusionCriteria().taxonomy()).leafIds().isEmpty()) {
+                throw new IllegalArgumentException("Required taxonomy has no criteria: "
+                        + requirements.inclusionCriteria().taxonomy());
             }
         }
     }
@@ -947,6 +951,9 @@ public final class WorkflowStateConfig {
     }
 
     public record CriterionRule(String taxonomy, Integer exactly, Integer min) {
+        public int minimum() {
+            return min != null ? min : exactly == null ? 1 : exactly;
+        }
     }
 
     public record Report(String prismaBucket) {

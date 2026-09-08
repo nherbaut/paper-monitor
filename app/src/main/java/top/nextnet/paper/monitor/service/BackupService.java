@@ -319,6 +319,7 @@ public class BackupService {
             item.put("publishedOn", paper.publishedOn == null ? null : paper.publishedOn.toString());
             item.put("status", paper.status);
             item.put("eligibilityExclusionCriterionId", paper.eligibilityExclusionCriterionId);
+            item.put("eligibilityExclusionCriteriaJson", paper.eligibilityExclusionCriteriaJson);
             item.put("eligibilityExclusionNotes", paper.eligibilityExclusionNotes);
             item.put("eligibilityInclusionCriteriaJson", paper.eligibilityInclusionCriteriaJson);
             item.put("discoveredAt", paper.discoveredAt.toString());
@@ -518,6 +519,7 @@ public class BackupService {
             paper.publishedOn = localDateValue(item.get("publishedOn"));
             paper.status = stringValue(item.get("status"));
             paper.eligibilityExclusionCriterionId = stringValue(item.get("eligibilityExclusionCriterionId"));
+            paper.eligibilityExclusionCriteriaJson = stringValue(item.get("eligibilityExclusionCriteriaJson"));
             paper.eligibilityExclusionNotes = stringValue(item.get("eligibilityExclusionNotes"));
             paper.eligibilityInclusionCriteriaJson = stringValue(item.get("eligibilityInclusionCriteriaJson"));
             paper.discoveredAt = instantValue(item.get("discoveredAt"));

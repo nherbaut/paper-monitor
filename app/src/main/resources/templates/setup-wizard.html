@@ -246,8 +246,17 @@
                     <button class="choice" id="workflow-other" type="button"><strong>Use another scheme</strong>Choose PRISMA or configure workflow YAML.</button>
                 </div>
                 <div id="workflow-alternatives" class="choice-grid hidden">
-                    <button class="choice" data-workflow="PRISMA" type="button"><strong>Use PRISMA</strong>A systematic-review workflow with screening and eligibility stages.</button>
+                    <button class="choice" id="workflow-prisma" type="button"><strong>Use PRISMA</strong>A systematic-review workflow with screening and eligibility stages.</button>
                     <button class="choice" id="workflow-custom" type="button"><strong>Custom setup</strong>Configure your own states and transitions.</button>
+                </div>
+                <div id="prisma-criteria-panel" class="hidden stack">
+                    <h2>Review criteria</h2>
+                    <p class="meta">Write one criterion per line. Papers moved to an included or excluded state must later select at least one matching criterion.</p>
+                    <label>Inclusion criteria<textarea id="prisma-inclusion-criteria">Topic relevance
+Empirical evidence</textarea></label>
+                    <label>Exclusion criteria<textarea id="prisma-exclusion-criteria">Wrong population
+Wrong intervention</textarea></label>
+                    <div class="actions"><button id="prisma-criteria-continue" type="button">Continue with PRISMA</button></div>
                 </div>
                 <div id="custom-workflow-panel" class="hidden">
                     <h2>Custom workflow YAML</h2>
@@ -515,7 +524,12 @@
 
     async function selectWorkflow(type) {
         try {
-            draft = await request("/api/setup/drafts/" + encodeURIComponent(draftId) + "/workflow", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ workflowType: type, customWorkflow: type === "CUSTOM" ? byId("custom-workflow").value : "" }) });
+            draft = await request("/api/setup/drafts/" + encodeURIComponent(draftId) + "/workflow", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({
+                workflowType: type,
+                customWorkflow: type === "CUSTOM" ? byId("custom-workflow").value : "",
+                inclusionCriteria: type === "PRISMA" ? byId("prisma-inclusion-criteria").value : "",
+                exclusionCriteria: type === "PRISMA" ? byId("prisma-exclusion-criteria").value : ""
+            }) });
             renderSummary();
             showStep(6);
         } catch (error) { setStatus("workflow-status", error.message, true); }
@@ -624,6 +638,11 @@
         byId("workflow-alternatives").classList.add("hidden");
         byId("custom-workflow-panel").classList.remove("hidden");
     });
+    byId("workflow-prisma").addEventListener("click", () => {
+        byId("workflow-alternatives").classList.add("hidden");
+        byId("prisma-criteria-panel").classList.remove("hidden");
+    });
+    byId("prisma-criteria-continue").addEventListener("click", () => selectWorkflow("PRISMA"));
     document.querySelectorAll("[data-workflow]").forEach((button) => button.addEventListener("click", () => selectWorkflow(button.dataset.workflow)));
     document.querySelectorAll("[data-back]").forEach((button) => button.addEventListener("click", () => showStep(Number(button.dataset.back))));
     byId("complete-setup").addEventListener("click", completeSetup);
