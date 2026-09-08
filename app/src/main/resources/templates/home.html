@@ -6837,15 +6837,16 @@
                 ? candidate
                 : closest;
         }, null);
+        if (radius < CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS) {
+            classificationDragTarget?.classList.remove("visible");
+            classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
+                .forEach((element) => element.classList.remove("active"));
+            return null;
+        }
         if (classificationDragTarget && classificationDragTargetLabel && match) {
             classificationDragTargetLabel.textContent = classificationStateLabel(dragState.card, match.target);
             classificationDragTarget.style.color = match.color;
             classificationDragTarget.classList.add("visible");
-        }
-        if (radius < CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS) {
-            classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
-                .forEach((element) => element.classList.remove("active"));
-            return null;
         }
         classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
             .forEach((element) => element.classList.toggle("active", element.dataset.targetState === match?.target));
