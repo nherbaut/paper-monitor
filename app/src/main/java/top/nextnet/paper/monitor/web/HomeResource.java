@@ -1261,6 +1261,17 @@ public class HomeResource {
     }
 
     @POST
+    @Path("/api/setup/fresh")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setupFresh() {
+        try {
+            return jsonResponse(setupWizardService.startFresh(currentUserContext.get().user()));
+        } catch (WebApplicationException e) {
+            return apiError(e);
+        }
+    }
+
+    @POST
     @Path("/api/setup/drafts/{id}/title")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.APPLICATION_JSON)
@@ -1366,8 +1377,11 @@ public class HomeResource {
             AppUser currentUser = currentUserContext.get().user();
             SetupWizardService.CompletionResult result = setupWizardService.complete(
                     currentUser, id, customWorkflow);
-            feedPollingService.pollFeedById(result.feedId());
-            Feed feed = feedRepository.findById(result.feedId());
+            Feed feed = null;
+            if (result.feedId() != null) {
+                feedPollingService.pollFeedById(result.feedId());
+                feed = feedRepository.findById(result.feedId());
+            }
             Map<String, Object> payload = new LinkedHashMap<>();
             String warning = feed == null ? null : normalize(feed.lastError);
             String destination = currentUser == null
@@ -1994,7 +2008,7 @@ public class HomeResource {
             logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
             logicalFeed.notifyOnNewRssPapers = !"off".equalsIgnoreCase(notifyOnNewRssPapers);
             ensurePublicShareToken(logicalFeed);
-            return seeOther("/admin");
+            return seeOther("/admin#feeds/" + id);
         } catch (WebApplicationException e) {
             return rethrowOrPlainText(e);
         }
@@ -2040,7 +2054,7 @@ public class HomeResource {
             applyWorkflowStateMigrations(logicalFeed, nextWorkflow, migrationFrom, migrationTo,
                     migrationExclusionCriteria, migrationInclusionCriteria);
             logicalFeed.workflowStates = normalizedWorkflowStates;
-            return seeOther("/admin#workflow");
+            return seeOther("/admin#workflow/" + id);
         } catch (WebApplicationException e) {
             return rethrowOrPlainText(e);
         }
@@ -2064,9 +2078,9 @@ public class HomeResource {
                     repositorySelection,
                     branch);
             paperGitSyncService.syncLogicalFeed(logicalFeed);
-            return seeOther("/admin?info=" + urlEncode("Connected GitHub repository for paper feed: " + logicalFeed.name) + "#feeds");
+            return seeOther("/admin?info=" + urlEncode("Connected GitHub repository for paper feed: " + logicalFeed.name) + "#feeds/" + id);
         } catch (IllegalArgumentException | IOException e) {
-            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#feeds");
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#feeds/" + id);
         }
     }
 
@@ -2077,14 +2091,22 @@ public class HomeResource {
         AppUser currentUser = requireCurrentUser();
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, currentUser);
         githubRepositoryService.disconnectRepositoryFromLogicalFeed(logicalFeed);
-        return seeOther("/admin?info=" + urlEncode("Disconnected GitHub repository from paper feed: " + logicalFeed.name) + "#feeds");
+        return seeOther("/admin?info=" + urlEncode("Disconnected GitHub repository from paper feed: " + logicalFeed.name) + "#feeds/" + id);
     }
 
     @POST
     @Path("/logical-feeds/{id}/delete")
     @Transactional
-    public Response deleteLogicalFeed(@jakarta.ws.rs.PathParam("id") Long id) {
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response deleteLogicalFeed(
+            @jakarta.ws.rs.PathParam("id") Long id,
+            @RestForm("expectedName") String expectedName
+    ) {
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
+        if (expectedName == null || !expectedName.equals(logicalFeed.name)) {
+            return seeOther("/?error=" + urlEncode("Type the exact paper feed name to delete it"));
+        }
+        String logicalFeedName = logicalFeed.name;
         if (logicalFeed != null) {
             reviewService.deleteReviewsForLogicalFeed(logicalFeed);
             reviewSubmissionRepository.deleteForLogicalFeed(logicalFeed);
@@ -2097,7 +2119,7 @@ public class HomeResource {
             paperFeedSetupDraftRepository.flush();
             logicalFeed.delete();
         }
-        return seeOther("/admin");
+        return seeOther("/?info=" + urlEncode("Deleted paper feed: " + logicalFeedName));
     }
 
     @POST
@@ -2145,7 +2167,7 @@ public class HomeResource {
             paperGitSyncService.syncLogicalFeed(previousLogicalFeed);
         }
         paperGitSyncService.syncLogicalFeed(logicalFeed);
-        return seeOther("/admin");
+        return seeOther("/admin#rss/" + id);
     }
 
     @POST
@@ -2157,7 +2179,7 @@ public class HomeResource {
         if (feed != null) {
             paperGitSyncService.syncLogicalFeed(feed.logicalFeed);
         }
-        return seeOther("/admin");
+        return seeOther("/admin#rss/" + id);
     }
 
     @POST
@@ -2168,7 +2190,7 @@ public class HomeResource {
         if (feed != null) {
             feed.delete();
         }
-        return seeOther("/admin");
+        return seeOther("/admin#rss");
     }
 
     @POST

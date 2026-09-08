@@ -91,6 +91,55 @@
             color: #6f2d19;
         }
 
+        .settings-nav-group {
+            display: grid;
+            gap: 0.2rem;
+        }
+
+        .settings-nav-group-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .settings-nav-group-title::after {
+            content: "›";
+            font-size: 1.2rem;
+            transition: transform 160ms ease;
+        }
+
+        .settings-nav-group.open .settings-nav-group-title::after {
+            transform: rotate(90deg);
+        }
+
+        .settings-nav-items {
+            display: grid;
+            gap: 0.15rem;
+            padding: 0.1rem 0 0.2rem 0.8rem;
+        }
+
+        .settings-nav-item {
+            width: 100%;
+            border: 0;
+            border-left: 2px solid transparent;
+            background: transparent;
+            color: var(--muted);
+            padding: 0.45rem 0.6rem;
+            text-align: left;
+            overflow-wrap: anywhere;
+        }
+
+        .settings-nav-item:hover,
+        .settings-nav-item.active {
+            color: var(--ink);
+            background: rgba(255, 255, 255, 0.7);
+        }
+
+        .settings-nav-item.active {
+            border-left-color: var(--accent);
+            font-weight: 700;
+        }
+
         .settings-nav-link {
             display: block;
             text-decoration: none;
@@ -712,10 +761,36 @@
 
     <div class="settings-layout">
         <aside class="settings-sidebar" aria-label="Admin sections">
-            <button class="settings-nav-button active" data-settings-target="setup" type="button">Wizard</button>
-            <button class="settings-nav-button" data-settings-target="feeds" type="button">Paper Feed Management</button>
-            <button class="settings-nav-button" data-settings-target="workflow" type="button">Workflow Designer</button>
-            <button class="settings-nav-button" data-settings-target="rss" type="button">RSS Feed Management</button>
+            <div class="settings-nav-group" data-settings-group="feeds">
+                <button class="settings-nav-button settings-nav-group-title" data-settings-group-toggle="feeds" type="button" aria-expanded="false">Paper Feed Management</button>
+                <div class="settings-nav-items" hidden>
+                    {#for logicalFeed in logicalFeeds}
+                    {#if logicalFeed.viewerCanAdmin}
+                    <button class="settings-nav-item" data-settings-target="feeds" data-settings-item="{logicalFeed.id}" type="button">{logicalFeed.name}</button>
+                    {/if}
+                    {/for}
+                </div>
+            </div>
+            <div class="settings-nav-group" data-settings-group="workflow">
+                <button class="settings-nav-button settings-nav-group-title" data-settings-group-toggle="workflow" type="button" aria-expanded="false">Workflow</button>
+                <div class="settings-nav-items" hidden>
+                    {#for logicalFeed in logicalFeeds}
+                    {#if logicalFeed.viewerCanAdmin}
+                    <button class="settings-nav-item" data-settings-target="workflow" data-settings-item="{logicalFeed.id}" type="button">{logicalFeed.name}</button>
+                    {/if}
+                    {/for}
+                </div>
+            </div>
+            <div class="settings-nav-group" data-settings-group="rss">
+                <button class="settings-nav-button settings-nav-group-title" data-settings-group-toggle="rss" type="button" aria-expanded="false">RSS</button>
+                <div class="settings-nav-items" hidden>
+                    {#for feed in feeds}
+                    {#if feed.logicalFeed.viewerCanAdmin}
+                    <button class="settings-nav-item" data-settings-target="rss" data-settings-item="{feed.id}" type="button">{feed.name}</button>
+                    {/if}
+                    {/for}
+                </div>
+            </div>
             <button class="settings-nav-button" data-settings-target="tts" type="button">TTS Management</button>
             <button class="settings-nav-button" data-settings-target="pde" type="button">PDE Settings</button>
             <button class="settings-nav-button" data-settings-target="google-drive" type="button">Google Drive</button>
@@ -733,11 +808,9 @@
         </form>
     </div>
     {/if}
-    <section class="settings-panel" data-settings-panel="setup">
-        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v8h10V4H3Zm2 2h6v1H5V6Zm0 2h4v1H5V8Z"/></svg></span><span>Create a paper feed</span></h2>
-        <p class="meta">The guided setup starts from a recent MIAGE Scholar query, previews its papers, and configures Google Drive and classification before creating anything locally.</p>
-        <a class="open-link" href="/setup">Start guided setup</a>
-        <p class="meta">Use Paper Feed Management and RSS Feed Management for advanced or manual setup.</p>
+    <section class="settings-panel" id="settings-empty-panel">
+        <h2>Administration</h2>
+        <p class="meta">Choose a section and an item from the sidebar to configure it.</p>
     </section>
 
     <section class="settings-panel hidden" data-settings-panel="feeds">
@@ -749,24 +822,11 @@
             <p class="meta">As a paper admin, you can see every paper feed in the system here.</p>
             {/if}
         </div>
+        <p class="meta" data-settings-empty="feeds">Select a paper feed from the sidebar to configure it.</p>
         <div class="stack-layout">
-            <details class="management-card" open>
-                <summary>Create paper feed</summary>
-                <div class="management-card-body">
-                    <form action="/logical-feeds" method="post">
-                        <input type="text" name="name" placeholder="Paper feed name" required>
-                        <textarea name="description" placeholder="Optional description"></textarea>
-                        <textarea name="workflowStates" required></textarea>
-                        <textarea name="eligibilityExclusionTaxonomy" placeholder="Optional eligibility exclusion taxonomy YAML"></textarea>
-                        <textarea name="eligibilityInclusionTaxonomy" placeholder="Optional eligibility inclusion taxonomy YAML"></textarea>
-                        <label><input type="checkbox" name="publicReadable"> Public read-only feed</label>
-                        <label><input type="checkbox" name="notifyOnNewRssPapers" checked> Send owner and feed admins a daily RSS paper digest</label>
-                        <button type="submit">Create paper feed</button>
-                    </form>
-                </div>
-            </details>
             {#for logicalFeed in logicalFeeds}
-            <details class="management-card">
+            {#if logicalFeed.viewerCanAdmin}
+            <details class="management-card" data-admin-item-panel="feeds-{logicalFeed.id}" hidden>
                 <summary>{logicalFeed.name}</summary>
                 <div class="management-card-body">
                     <div class="management-card-header">
@@ -862,32 +922,22 @@
                             {/for}
                         </div>
                         {/if}
-                        <form action="/logical-feeds/{logicalFeed.id}/delete" method="post">
-                            <button class="secondary" type="submit">Delete paper feed</button>
-                        </form>
                     </div>
-                    {#else}
-                    <p class="meta">Read-only</p>
                     {/if}
                 </div>
             </details>
+            {/if}
             {/for}
         </div>
     </section>
 
     <section class="settings-panel hidden" data-settings-panel="workflow">
-        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v12H2V2Zm1 1v10h10V3H3Zm2 2h6v1H5V5Zm0 3h6v1H5V8Zm0 3h4v1H5v-1Z"/></svg></span><span>Workflow Designer</span></h2>
+        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2h12v12H2V2Zm1 1v10h10V3H3Zm2 2h6v1H5V5Zm0 3h6v1H5V8Zm0 3h4v1H5v-1Z"/></svg></span><span>Workflow</span></h2>
         <p class="meta">Right-click the canvas to add a state, a state to add a transition or delete it, and a transition to reverse or delete it. Drag nodes to arrange the diagram; use Automatic layout to reset it.</p>
-        <label>Paper feed <select data-workflow-feed-picker>
-            {#for logicalFeed in logicalFeeds}
-            {#if logicalFeed.viewerCanAdmin}
-            <option value="{logicalFeed.id}">{logicalFeed.name}</option>
-            {/if}
-            {/for}
-        </select></label>
+        <p class="meta" data-settings-empty="workflow">Select a paper feed from the sidebar to edit its workflow.</p>
         {#for logicalFeed in logicalFeeds}
         {#if logicalFeed.viewerCanAdmin}
-        <form class="workflow-feed-form" data-workflow-editor-feed="{logicalFeed.id}" action="/logical-feeds/{logicalFeed.id}/workflow/update" method="post"
+        <form class="workflow-feed-form" data-admin-item-panel="workflow-{logicalFeed.id}" data-workflow-editor-feed="{logicalFeed.id}" action="/logical-feeds/{logicalFeed.id}/workflow/update" method="post"
               data-logical-feed-id="{logicalFeed.id}" data-workflow-config='{logicalFeed.workflowConfigJson}' hidden>
             <div class="workflow-designer" data-workflow-designer>
                 <div class="workflow-designer-toolbar">
@@ -938,45 +988,11 @@
             <p class="meta">As a paper admin, you can see every RSS feed in the system here.</p>
             {/if}
         </div>
+        <p class="meta" data-settings-empty="rss">Select an RSS feed from the sidebar to configure it. Add new sources from a paper feed card.</p>
         <div class="stack-layout">
-            <details class="management-card" open>
-                <summary>Create RSS feed</summary>
-                <div class="management-card-body">
-                    <form action="/feeds" method="post">
-                        <input type="text" name="name" placeholder="RSS feed name" required data-scholar-name-field>
-                        <input type="url" name="url" placeholder="https://example.com/feed.xml" required data-scholar-url-field>
-                        <div class="scholar-picker" data-scholar-picker>
-                            <div class="scholar-picker-header">
-                                <p class="meta"><strong>Choose from MIAGE Scholar</strong><br>Pick an existing RSS feed or create one from a recent Scholar query.</p>
-                                <div class="scholar-tabs">
-                                    <button class="secondary scholar-tab active" type="button" data-scholar-tab="feeds">Existing feeds</button>
-                                    <button class="secondary scholar-tab" type="button" data-scholar-tab="history">Recent queries</button>
-                                </div>
-                            </div>
-                            <input type="search" data-scholar-search placeholder="Search query, id, URL, or permalink">
-                            <p class="meta" data-scholar-status>Loading Scholar feeds...</p>
-                            <div class="scholar-results" data-scholar-results></div>
-                        </div>
-                        <div class="poll-slider">
-                            <input type="range" min="0" max="2" step="1" value="0" data-poll-slider>
-                            <input type="hidden" name="pollIntervalMinutes" value="1440" data-poll-minutes>
-                            <div class="poll-slider-output">
-                                <span>Daily</span>
-                                <strong data-poll-label>Daily</strong>
-                            </div>
-                        </div>
-                        <select name="logicalFeedId" required>
-                            <option value="">Attach to paper feed</option>
-                            {#for logicalFeed in adminLogicalFeeds}
-                            <option value="{logicalFeed.id}">{logicalFeed.name}</option>
-                            {/for}
-                        </select>
-                        <button type="submit">Create RSS feed</button>
-                    </form>
-                </div>
-            </details>
             {#for feed in feeds}
-            <details class="management-card">
+            {#if feed.logicalFeed.viewerCanAdmin}
+            <details class="management-card" data-admin-item-panel="rss-{feed.id}" hidden>
                 <summary>
                     <span>{feed.name}</span>
                     <span class="status-row">
@@ -1045,6 +1061,7 @@
                     {/if}
                 </div>
             </details>
+            {/if}
             {/for}
         </div>
     </section>
@@ -1389,7 +1406,7 @@
     const availableSettingsPanels = Array.from(document.querySelectorAll("[data-settings-panel]"))
         .map((panel) => panel.dataset.settingsPanel);
     const requestedSettingsPanel = window.location.hash ? window.location.hash.slice(1) : "";
-    const initialSettingsPanel = availableSettingsPanels.includes(requestedSettingsPanel) ? requestedSettingsPanel : "setup";
+    const initialSettingsPanel = availableSettingsPanels.includes(requestedSettingsPanel) ? requestedSettingsPanel : "";
     const POLL_PRESETS = [
         { label: "Daily", minutes: 1440 },
         { label: "Weekly", minutes: 10080 },
@@ -2275,37 +2292,67 @@
         form.submit();
     });
 
-    document.querySelectorAll("[data-workflow-feed-picker]").forEach((picker) => {
-        const showSelectedWorkflow = () => {
-            const selectedId = picker.value;
-            document.querySelectorAll("[data-workflow-editor-feed]").forEach((editor) => {
-                editor.hidden = editor.dataset.workflowEditorFeed !== selectedId;
-            });
-        };
-        picker.addEventListener("change", showSelectedWorkflow);
-        showSelectedWorkflow();
-    });
-
     const settingsNavButtons = document.querySelectorAll("[data-settings-target]");
+    const settingsGroups = document.querySelectorAll("[data-settings-group]");
     const settingsPanels = document.querySelectorAll("[data-settings-panel]");
+    const settingsEmptyPanel = document.getElementById("settings-empty-panel");
+    const settingsItemPanels = document.querySelectorAll("[data-admin-item-panel]");
+    const settingsEmptyMessages = document.querySelectorAll("[data-settings-empty]");
 
-    const showSettingsPanel = (target) => {
+    const setOpenSettingsGroup = (target) => {
+        settingsGroups.forEach((group) => {
+            const open = group.dataset.settingsGroup === target;
+            group.classList.toggle("open", open);
+            group.querySelector("[data-settings-group-toggle]")?.setAttribute("aria-expanded", String(open));
+            const items = group.querySelector(".settings-nav-items");
+            if (items) items.hidden = !open;
+        });
+    };
+
+    const showSettingsPanel = (target, item = "") => {
         settingsNavButtons.forEach((button) => {
-            button.classList.toggle("active", button.dataset.settingsTarget === target);
+            button.classList.toggle("active", button.dataset.settingsTarget === target
+                && (!button.dataset.settingsItem || button.dataset.settingsItem === item));
         });
         settingsPanels.forEach((panel) => {
             panel.classList.toggle("hidden", panel.dataset.settingsPanel !== target);
         });
+        if (settingsEmptyPanel) settingsEmptyPanel.hidden = Boolean(target);
+        settingsItemPanels.forEach((panel) => {
+            const selected = panel.dataset.adminItemPanel === target + "-" + item;
+            panel.hidden = !selected;
+            if (panel.tagName === "DETAILS") panel.open = selected;
+        });
+        settingsEmptyMessages.forEach((message) => {
+            message.hidden = message.dataset.settingsEmpty === target && Boolean(item);
+        });
+        if (item) setOpenSettingsGroup(target);
     };
 
+    document.querySelectorAll("[data-settings-group-toggle]").forEach((button) => {
+        button.addEventListener("click", () => {
+            const group = button.dataset.settingsGroupToggle;
+            const isOpen = button.closest("[data-settings-group]")?.classList.contains("open");
+            setOpenSettingsGroup(isOpen ? "" : group);
+        });
+    });
     settingsNavButtons.forEach((button) => {
         button.addEventListener("click", () => {
-            window.location.hash = button.dataset.settingsTarget;
-            showSettingsPanel(button.dataset.settingsTarget);
+            const target = button.dataset.settingsTarget;
+            const item = button.dataset.settingsItem || "";
+            window.location.hash = target + (item ? "/" + encodeURIComponent(item) : "");
+            showSettingsPanel(target, item);
         });
     });
 
-    showSettingsPanel(initialSettingsPanel);
+    const restoreSettingsLocation = () => {
+        const requested = window.location.hash ? window.location.hash.slice(1).split("/") : [];
+        const target = availableSettingsPanels.includes(requested[0]) ? requested[0] : initialSettingsPanel;
+        const item = requested.length > 1 ? decodeURIComponent(requested.slice(1).join("/")) : "";
+        showSettingsPanel(target, item);
+    };
+    window.addEventListener("hashchange", restoreSettingsLocation);
+    restoreSettingsLocation();
 </script>
     <script src="/assets/vendor/workflow-designer.js"></script>
 </body>

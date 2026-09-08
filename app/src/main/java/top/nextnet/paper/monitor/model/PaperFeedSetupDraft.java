@@ -42,6 +42,9 @@ public class PaperFeedSetupDraft extends PanacheEntityBase {
     @Column(nullable = false, columnDefinition = "boolean default false")
     public boolean previewConfirmed;
 
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    public boolean freshSetup;
+
     @Column(length = 120)
     public String title;
 

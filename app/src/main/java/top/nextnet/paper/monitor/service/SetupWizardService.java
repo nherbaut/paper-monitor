@@ -69,6 +69,18 @@ public class SetupWizardService {
         return collapseDuplicateQueries(scholarService.history());
     }
 
+    @Transactional
+    public Map<String, Object> startFresh(AppUser user) {
+        deleteExpiredDrafts();
+        PaperFeedSetupDraft draft = new PaperFeedSetupDraft();
+        draft.id = UUID.randomUUID().toString();
+        draft.user = user;
+        draft.freshSetup = true;
+        touch(draft);
+        draftRepository.persist(draft);
+        return draftMap(draft);
+    }
+
     public PreviewResult preview(AppUser user, String draftId, long queryId) {
         Map<String, Object> selected = scholarService.history().stream()
                 .filter(row -> longValue(row.get("queryId")) == queryId)
@@ -170,6 +182,7 @@ public class SetupWizardService {
         draft.availableCount = availableCount;
         draft.previewJson = JsonCodec.stringify(previewPapers);
         draft.previewConfirmed = false;
+        draft.freshSetup = false;
         draft.updatedAt = Instant.now();
         draft.expiresAt = draft.updatedAt.plus(24, ChronoUnit.HOURS);
         return draft;
@@ -183,7 +196,7 @@ public class SetupWizardService {
     @Transactional
     public Map<String, Object> saveTitle(AppUser user, String draftId, String title) {
         PaperFeedSetupDraft draft = requireDraft(user, draftId);
-        if (!draft.previewConfirmed) {
+        if (!draft.freshSetup && !draft.previewConfirmed) {
             throw new WebApplicationException("Confirm the paper preview before continuing", Response.Status.BAD_REQUEST);
         }
         String normalized = required(title, "Paper feed title is required");
@@ -267,13 +280,12 @@ public class SetupWizardService {
         PaperFeedSetupDraft draft = requireDraft(user, draftId);
         if (draft.logicalFeed != null) {
             Feed existingFeed = feedRepository.find("logicalFeed", draft.logicalFeed).firstResult();
-            if (existingFeed == null) {
-                throw new WebApplicationException("The temporary paper feed is incomplete", Response.Status.CONFLICT);
-            }
-            return new CompletionResult(draft.logicalFeed.id, existingFeed.id);
+            return new CompletionResult(draft.logicalFeed.id, existingFeed == null ? null : existingFeed.id);
         }
-        required(draft.rssUrl, "Choose and confirm a Scholar query first");
-        if (!draft.previewConfirmed) {
+        if (!draft.freshSetup) {
+            required(draft.rssUrl, "Choose and confirm a Scholar query first");
+        }
+        if (!draft.freshSetup && !draft.previewConfirmed) {
             throw new WebApplicationException("Confirm the paper preview before completing setup", Response.Status.BAD_REQUEST);
         }
         required(draft.title, "Paper feed title is required");
@@ -292,7 +304,7 @@ public class SetupWizardService {
 
         LogicalFeed logicalFeed = new LogicalFeed();
         logicalFeed.name = draft.title;
-        logicalFeed.description = "Created from MIAGE Scholar query " + draft.scholarQueryId;
+        logicalFeed.description = draft.freshSetup ? "Created without an RSS source" : "Created from MIAGE Scholar query " + draft.scholarQueryId;
         logicalFeed.workflowStates = workflowYaml;
         logicalFeed.owner = user;
         logicalFeed.publicReadable = false;
@@ -300,12 +312,15 @@ public class SetupWizardService {
         logicalFeed.publicShareToken = UUID.randomUUID().toString();
         logicalFeedRepository.persist(logicalFeed);
 
-        Feed feed = new Feed();
-        feed.name = draft.title + " RSS";
-        feed.url = draft.rssUrl;
-        feed.pollIntervalMinutes = 1440;
-        feed.logicalFeed = logicalFeed;
-        feedRepository.persist(feed);
+        Feed feed = null;
+        if (!draft.freshSetup) {
+            feed = new Feed();
+            feed.name = draft.title + " RSS";
+            feed.url = draft.rssUrl;
+            feed.pollIntervalMinutes = 1440;
+            feed.logicalFeed = logicalFeed;
+            feedRepository.persist(feed);
+        }
 
         draft.logicalFeed = logicalFeed;
         touch(draft);
@@ -328,7 +343,7 @@ public class SetupWizardService {
             draftRepository.delete(draft);
         }
         feedRepository.flush();
-        return new CompletionResult(logicalFeed.id, feed.id);
+        return new CompletionResult(logicalFeed.id, feed == null ? null : feed.id);
     }
 
     private String prismaWorkflowWithCriteria(String inclusionCriteria, String exclusionCriteria) {
@@ -461,6 +476,7 @@ public class SetupWizardService {
         result.put("rssUrl", draft.rssUrl);
         result.put("availableCount", draft.availableCount);
         result.put("previewConfirmed", draft.previewConfirmed);
+        result.put("freshSetup", draft.freshSetup);
         result.put("papers", draft.previewJson == null ? List.of() : JsonCodec.parse(draft.previewJson));
         result.put("title", draft.title);
         result.put("driveEnabled", draft.driveEnabled);

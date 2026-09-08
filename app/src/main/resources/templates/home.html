@@ -302,6 +302,54 @@
             margin: 0;
         }
 
+        .feed-dashboard-icon-actions {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .feed-dashboard-icon-action {
+            width: 2.25rem;
+            height: 2.25rem;
+            padding: 0.45rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .feed-dashboard-icon-action svg {
+            width: 1.05rem;
+            height: 1.05rem;
+        }
+
+        .feed-dashboard-icon-action.rss { color: #1677c8; border-color: color-mix(in srgb, #1677c8 35%, var(--line)); }
+        .feed-dashboard-icon-action.survey { color: #9b6a00; border-color: color-mix(in srgb, #e0ab18 45%, var(--line)); }
+        .feed-dashboard-icon-action.delete { color: #b42318; border-color: color-mix(in srgb, #b42318 35%, var(--line)); }
+
+        .feed-dashboard-create-card {
+            align-items: center;
+            justify-content: center;
+            min-height: 13rem;
+            border-style: dashed;
+            text-align: center;
+        }
+
+        .feed-dashboard-create-card .create-feed-link {
+            display: grid;
+            justify-items: center;
+            gap: 0.65rem;
+            color: inherit;
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        .feed-dashboard-create-card .create-feed-link svg {
+            width: 2.25rem;
+            height: 2.25rem;
+            color: var(--accent);
+        }
+
         .feed-dashboard-card-header {
             display: flex;
             align-items: start;
@@ -327,10 +375,6 @@
             display: block;
             min-width: 0;
             overflow-wrap: anywhere;
-        }
-
-        .feed-dashboard-card-menu summary {
-            padding: 0.55rem 0.75rem;
         }
 
         .feed-dashboard-review {
@@ -3272,16 +3316,15 @@
         </select>
     </div>
 
-    {#if authenticated && logicalFeeds.isEmpty}
-    <section class="panel panel-wide getting-started-callout">
-        <p class="meta">You do not have any paper feed yet. A paper feed is your workspace for RSS papers, notes, PDFs, and classification states.</p>
-        <a class="secondary" href="/setup">Create your first paper feed</a>
-    </section>
-    {/if}
-
-    {#if authenticated && !logicalFeeds.isEmpty}
+    {#if authenticated}
     <section class="panel panel-wide {#if initialLogicalFeedId}hidden{/if}" id="feed-dashboard-panel">
         <div class="feed-dashboard" id="feed-dashboard">
+            <article class="feed-dashboard-card feed-dashboard-create-card">
+                <a class="create-feed-link" href="/setup" aria-label="Create paper feed">
+                    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M7.25 2h1.5v5.25H14v1.5H8.75V14h-1.5V8.75H2v-1.5h5.25V2Z"/></svg>
+                    <span>Create paper feed</span>
+                </a>
+            </article>
             {#for logicalFeed in logicalFeeds}
             <article class="feed-dashboard-card"
                      data-feed-card
@@ -3291,23 +3334,21 @@
                      data-logical-feed-name="{logicalFeed.name}"
                      data-default-miage-workflow="{#if logicalFeed.usesDefaultMiageWorkflow}true{#else}false{/if}"
                      data-rss-intake-count="{logicalFeed.recentNewPaperCount}"
-                     data-viewer-can-admin="{#if logicalFeed.viewerCanAdmin}true{#else}false{/if}"
-                     data-review-action-target="feed-review-action-{logicalFeed.id}">
+                     data-viewer-can-admin="{#if logicalFeed.viewerCanAdmin}true{#else}false{/if}">
                 <div class="feed-dashboard-card-header">
                     <h3 class="feed-dashboard-card-title"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 4h12v2H2V4Zm1 3h10v6H3V7Zm1 1v4h8V8H4Z"/></svg><span title="{logicalFeed.name}">{logicalFeed.name}</span></h3>
                     {#if logicalFeed.viewerCanAdmin}
-                    <details class="inline-menu feed-dashboard-card-menu">
-                        <summary class="secondary button-with-icon" title="Feed actions"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 8a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 3 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 8 8Zm5 0a1.25 1.25 0 1 1 0-2.5A1.25 1.25 0 0 1 13 8Z"/></svg><span>Manage</span></summary>
-                        <div class="inline-menu-panel">
-                            <div data-card-review-admin="{logicalFeed.id}"></div>
-                            <button class="secondary button-with-icon" type="button"
-                                    data-open-add-feed="{logicalFeed.id}"
-                                    data-add-feed-name="{logicalFeed.name}">
-                                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 3h10v2H3V3Zm0 4h6v2H3V7Zm0 4h6v2H3v-2Zm9-4v2h2v1h-2v2h-1v-2H9V9h2V7h1Z"/></svg>
-                                <span>Add RSS feed</span>
-                            </button>
-                        </div>
-                    </details>
+                    <div class="feed-dashboard-icon-actions">
+                        <button class="secondary feed-dashboard-icon-action rss" type="button"
+                                data-open-add-feed="{logicalFeed.id}" data-add-feed-name="{logicalFeed.name}" title="Add RSS feed" aria-label="Add RSS feed">
+                            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 3h10v2H3V3Zm0 4h6v2H3V7Zm0 4h6v2H3v-2Zm9-4v2h2v1h-2v2h-1v-2H9V9h2V7h1Z"/></svg>
+                        </button>
+                        <span id="feed-review-action-{logicalFeed.id}" class="feed-dashboard-review"></span>
+                        <button class="secondary feed-dashboard-icon-action delete" type="button"
+                                data-delete-logical-feed="{logicalFeed.id}" data-delete-logical-feed-name="{logicalFeed.name}" title="Delete paper feed" aria-label="Delete paper feed">
+                            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5.5 2h5l.5 1.5H14V4.5H2V3.5h3L5.5 2Zm-1 3h7l-.5 8h-6L4.5 5Z"/></svg>
+                        </button>
+                    </div>
                     {/if}
                 </div>
                 <div class="feed-dashboard-stats">
@@ -3324,7 +3365,6 @@
                 </div>
                 <div class="feed-dashboard-actions">
                     <button class="secondary button-with-icon" type="button" data-open-feed="{logicalFeed.id}"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M2 3h5l1 1h6v8.5A1.5 1.5 0 0 1 12.5 14h-9A1.5 1.5 0 0 1 2 12.5V3Z"/></svg><span>Open paper feed</span></button>
-                    <div class="feed-dashboard-review" id="feed-review-action-{logicalFeed.id}"></div>
                 </div>
             </article>
             {/for}
@@ -3411,6 +3451,27 @@
                 </div>
                 <div class="manual-import-actions">
                     <button class="secondary" type="submit">Add RSS feed</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <dialog class="review-modal" id="feed-delete-modal">
+        <div class="review-modal-body">
+            <div class="review-modal-header">
+                <div>
+                    <h3>Delete paper feed</h3>
+                    <p class="meta" id="feed-delete-modal-status"></p>
+                </div>
+                <button class="icon-button secondary" id="feed-delete-modal-close" type="button" title="Cancel">×</button>
+            </div>
+            <form class="stack" id="feed-delete-form" method="post">
+                <p class="message error">This permanently removes the paper feed, its papers, RSS feeds, surveys, integrations, and stored associations.</p>
+                <label class="meta" for="feed-delete-expected-name">Type the paper feed name to confirm</label>
+                <input id="feed-delete-expected-name" name="expectedName" type="text" autocomplete="off" required>
+                <div class="manual-import-actions">
+                    <button class="secondary" id="feed-delete-cancel" type="button">Cancel</button>
+                    <button id="feed-delete-submit" type="submit" disabled>Delete paper feed</button>
                 </div>
             </form>
         </div>
@@ -3999,6 +4060,14 @@
     const feedCreateReturnTo = document.getElementById("feed-create-return-to");
     const feedCreateName = document.getElementById("feed-create-name");
     const feedCreateUrl = document.getElementById("feed-create-url");
+    const feedDeleteModal = document.getElementById("feed-delete-modal");
+    const feedDeleteModalStatus = document.getElementById("feed-delete-modal-status");
+    const feedDeleteModalClose = document.getElementById("feed-delete-modal-close");
+    const feedDeleteForm = document.getElementById("feed-delete-form");
+    const feedDeleteExpectedName = document.getElementById("feed-delete-expected-name");
+    const feedDeleteCancel = document.getElementById("feed-delete-cancel");
+    const feedDeleteSubmit = document.getElementById("feed-delete-submit");
+    let deletingLogicalFeedName = "";
     const doiImportModal = document.getElementById("doi-import-modal");
     const doiImportModalClose = document.getElementById("doi-import-modal-close");
     const doiImportModalStatus = document.getElementById("manual-import-modal-status");
@@ -5965,6 +6034,26 @@
         }
     };
 
+    const closeFeedDeleteModal = () => {
+        deletingLogicalFeedName = "";
+        feedDeleteForm?.reset();
+        if (feedDeleteSubmit) feedDeleteSubmit.disabled = true;
+        if (typeof feedDeleteModal?.close === "function") feedDeleteModal.close();
+        else feedDeleteModal?.removeAttribute("open");
+    };
+
+    const openFeedDeleteModal = (logicalFeedId, logicalFeedName) => {
+        if (!feedDeleteModal || !feedDeleteForm || !logicalFeedId) return;
+        deletingLogicalFeedName = logicalFeedName || "";
+        feedDeleteForm.action = "/logical-feeds/" + encodeURIComponent(logicalFeedId) + "/delete";
+        feedDeleteForm.reset();
+        if (feedDeleteModalStatus) feedDeleteModalStatus.textContent = 'To delete "' + deletingLogicalFeedName + '", type its name exactly below.';
+        if (feedDeleteSubmit) feedDeleteSubmit.disabled = true;
+        if (typeof feedDeleteModal.showModal === "function") feedDeleteModal.showModal();
+        else feedDeleteModal.setAttribute("open", "open");
+        window.setTimeout(() => feedDeleteExpectedName?.focus(), 0);
+    };
+
     const closeDoiImportModal = () => {
         if (!doiImportModal) {
             return;
@@ -6222,58 +6311,21 @@
         }
         feedDashboard.querySelectorAll("[data-feed-card]").forEach((card) => {
             const logicalFeedId = card.dataset.logicalFeedId;
-            const targetId = card.dataset.reviewActionTarget;
-            const target = targetId ? document.getElementById(targetId) : null;
-            const adminTarget = card.querySelector("[data-card-review-admin]");
+            const target = document.getElementById("feed-review-action-" + logicalFeedId);
             if (!target) {
                 return;
             }
             const existing = reviewForLogicalFeed(logicalFeedId);
             if (existing) {
-                target.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-open-live-review=\"" + existing.id + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M8 2.5 14 5.5v5L8 13.5l-6-3v-5l6-3Zm0 1.1L3.2 6 8 8.4 12.8 6 8 3.6Zm-5 3.2v3l4.5 2.2v-3L3 6.8Zm5.5 5.2 4.5-2.2v-3L8.5 9v3Z\"/></svg><span>Open survey</span></button>";
+                target.innerHTML = "<button class=\"secondary feed-dashboard-icon-action survey\" type=\"button\" data-open-live-review=\"" + existing.id + "\" title=\"Open survey\" aria-label=\"Open survey\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M8 2.5 14 5.5v5L8 13.5l-6-3v-5l6-3Zm0 1.1L3.2 6 8 8.4 12.8 6 8 3.6Zm-5 3.2v3l4.5 2.2v-3L3 6.8Zm5.5 5.2 4.5-2.2v-3L8.5 9v3Z\"/></svg></button>";
                 const openReviewButton = target.querySelector("[data-open-live-review]");
                 openReviewButton?.addEventListener("click", () => {
                     window.location.href = "/reviews/" + existing.id;
                 });
-                if (adminTarget) {
-                    adminTarget.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-delete-review-feed=\"" + logicalFeedId + "\" data-review-id=\"" + existing.id + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M5.5 2h5l.5 1.5H14V4.5H2V3.5h3L5.5 2Zm-1 3h7l-.5 8h-6L4.5 5Z\"/></svg><span>Delete review</span></button>";
-                    const deleteButton = adminTarget.querySelector("[data-delete-review-feed]");
-                    deleteButton?.addEventListener("click", async () => {
-                        deleteButton.closest("details")?.removeAttribute("open");
-                        if (!window.confirm("Delete this review?")) {
-                            return;
-                        }
-                        try {
-                            const response = await fetch("/api/reviews/" + existing.id, { method: "DELETE" });
-                            if (!response.ok) {
-                                const body = await response.text();
-                                throw new Error(body || "Failed to delete review.");
-                            }
-                            await loadReviewWorkspace();
-                        } catch (error) {
-                            window.alert(error.message || "Failed to delete review.");
-                        }
-                    });
-                }
                 return;
             }
-            if (adminTarget) {
-                target.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-open-create-review-card=\"" + logicalFeedId + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M7.5 2h1v5.5H14v1H8.5V14h-1V8.5H2v-1h5.5V2Z\"/></svg><span>Create survey</span></button>";
-                const createSurveyButton = target.querySelector("[data-open-create-review-card]");
-                createSurveyButton?.addEventListener("click", () => {
-                    openReviewCreateModal(logicalFeedId);
-                });
-            } else {
-                target.innerHTML = "";
-            }
-            if (adminTarget) {
-                adminTarget.innerHTML = "<button class=\"secondary button-with-icon\" type=\"button\" data-open-create-review=\"" + logicalFeedId + "\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M7.5 2h1v5.5H14v1H8.5V14h-1V8.5H2v-1h5.5V2Z\"/></svg><span>Create survey</span></button>";
-                const createButton = adminTarget.querySelector("[data-open-create-review]");
-                createButton?.addEventListener("click", () => {
-                    createButton.closest("details")?.removeAttribute("open");
-                    openReviewCreateModal(logicalFeedId);
-                });
-            }
+            target.innerHTML = "<button class=\"secondary feed-dashboard-icon-action survey\" type=\"button\" data-open-create-review-card=\"" + logicalFeedId + "\" title=\"Create survey\" aria-label=\"Create survey\"><svg viewBox=\"0 0 16 16\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M7.5 2h1v5.5H14v1H8.5V14h-1V8.5H2v-1h5.5V2Z\"/></svg></button>";
+            target.querySelector("[data-open-create-review-card]")?.addEventListener("click", () => openReviewCreateModal(logicalFeedId));
         });
     };
 
@@ -10463,31 +10515,31 @@
             window.location.href = "/classify?logicalFeedId=" + encodeURIComponent(logicalFeedId);
         });
     });
-    feedDashboard?.querySelectorAll(".feed-dashboard-card-menu").forEach((menu) => {
-        menu.addEventListener("toggle", () => {
-            if (!menu.open) {
-                return;
-            }
-            feedDashboard.querySelectorAll(".feed-dashboard-card-menu").forEach((otherMenu) => {
-                if (otherMenu !== menu) {
-                    otherMenu.open = false;
-                }
-            });
-        });
-    });
     feedDashboard?.querySelectorAll("[data-open-add-feed]").forEach((button) => {
         button.addEventListener("click", () => {
             const logicalFeedId = button.dataset.openAddFeed;
             const logicalFeedName = button.dataset.addFeedName || "";
-            button.closest(".feed-dashboard-card-menu")?.removeAttribute("open");
             openFeedCreateModal(logicalFeedId, logicalFeedName);
         });
+    });
+    feedDashboard?.querySelectorAll("[data-delete-logical-feed]").forEach((button) => {
+        button.addEventListener("click", () => openFeedDeleteModal(
+            button.dataset.deleteLogicalFeed,
+            button.dataset.deleteLogicalFeedName || ""));
     });
     feedCreateModalClose?.addEventListener("click", closeFeedCreateModal);
     feedCreateModal?.addEventListener("click", (event) => {
         if (event.target === feedCreateModal) {
             closeFeedCreateModal();
         }
+    });
+    feedDeleteModalClose?.addEventListener("click", closeFeedDeleteModal);
+    feedDeleteCancel?.addEventListener("click", closeFeedDeleteModal);
+    feedDeleteModal?.addEventListener("click", (event) => {
+        if (event.target === feedDeleteModal) closeFeedDeleteModal();
+    });
+    feedDeleteExpectedName?.addEventListener("input", () => {
+        if (feedDeleteSubmit) feedDeleteSubmit.disabled = feedDeleteExpectedName.value !== deletingLogicalFeedName;
     });
     readerImportDoiButton?.addEventListener("click", () => {
         exportTabMenu.open = false;

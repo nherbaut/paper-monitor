@@ -176,13 +176,23 @@
     <div class="workspace">
         <div class="content">
             <section class="step" data-step="1">
-                <h1>Choose a recent Scholar query</h1>
-                <p class="meta">Select the research query that should supply this paper feed. The result count comes from MIAGE Scholar.</p>
-                <input id="query-search" type="search" placeholder="Search recent queries">
-                <div class="status" id="history-status">Loading recent queries...</div>
-                <div class="query-list" id="query-list"></div>
-                <div class="actions hidden" id="query-selection-actions">
-                    <button class="secondary" id="change-query" type="button">Choose another query</button>
+                <div id="setup-start-choice">
+                    <h1>Create a paper feed</h1>
+                    <p class="meta">Start with a MIAGE Scholar query, or create an empty workspace and add RSS sources later.</p>
+                    <div class="choice-grid">
+                        <button class="choice" id="setup-from-scholar" type="button"><strong>From MIAGE Scholar</strong>Preview papers from a recent query and create its RSS source.</button>
+                        <button class="choice" id="setup-start-fresh" type="button"><strong>Start fresh</strong>Create an empty paper feed without an RSS source.</button>
+                    </div>
+                </div>
+                <div id="scholar-query-choice" class="hidden">
+                    <h1>Choose a recent Scholar query</h1>
+                    <p class="meta">Select the research query that should supply this paper feed. The result count comes from MIAGE Scholar.</p>
+                    <input id="query-search" type="search" placeholder="Search recent queries">
+                    <div class="status" id="history-status">Loading recent queries...</div>
+                    <div class="query-list" id="query-list"></div>
+                    <div class="actions hidden" id="query-selection-actions">
+                        <button class="secondary" id="change-query" type="button">Choose another query</button>
+                    </div>
                 </div>
             </section>
 
@@ -557,8 +567,9 @@ Wrong intervention</textarea></label>
 
     async function completeSetup() {
         const button = byId("complete-setup");
-        busy(button, true, " Creating and polling...");
-        setStatus("complete-status", "Working: creating your paper feed and polling its RSS source...", false);
+        const fresh = Boolean(draft?.freshSetup);
+        busy(button, true, fresh ? " Creating..." : " Creating and polling...");
+        setStatus("complete-status", fresh ? "Working: creating your empty paper feed..." : "Working: creating your paper feed and polling its RSS source...", false);
         try {
             const payload = await request("/api/setup/drafts/" + encodeURIComponent(draftId) + "/complete", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form({ customWorkflow: byId("custom-workflow").value }) });
             if (authenticated) {
@@ -597,6 +608,8 @@ Wrong intervention</textarea></label>
                 prepareDrive();
                 showStep(4);
                 if (googleConnected) enableDrivePanel();
+            } else if (draft.freshSetup) {
+                showStep(3);
             } else if (draft.previewConfirmed) {
                 showStep(3);
             } else if (draft.rssUrl) {
@@ -610,6 +623,22 @@ Wrong intervention</textarea></label>
         }
     }
 
+    byId("setup-from-scholar").addEventListener("click", () => {
+        byId("setup-start-choice").classList.add("hidden");
+        byId("scholar-query-choice").classList.remove("hidden");
+    });
+    byId("setup-start-fresh").addEventListener("click", async () => {
+        try {
+            draft = await request("/api/setup/fresh", { method: "POST" });
+            draftId = draft.id;
+            window.localStorage.setItem("paperMonitorSetupDraftId", draftId);
+            window.history.replaceState(null, "", "/setup?draft=" + encodeURIComponent(draftId));
+            byId("feed-title").value = "";
+            showStep(3);
+        } catch (error) {
+            setStatus("history-status", error.message || "Could not start an empty paper feed.", true);
+        }
+    });
     byId("query-search").addEventListener("input", renderHistory);
     byId("change-query").addEventListener("click", resetQuerySelection);
     byId("preview-confirm").addEventListener("click", () => previewDecision(true));
