@@ -588,6 +588,40 @@
             cursor: not-allowed;
         }
 
+        #reader-swipe-mode {
+            position: relative;
+        }
+
+        .swipe-availability-cue {
+            display: none;
+            position: absolute;
+            top: -0.52rem;
+            right: -0.38rem;
+            width: 1rem;
+            height: 1rem;
+            place-items: center;
+            border: 2px solid var(--panel);
+            border-radius: 50%;
+            background: #2589d8;
+            color: white;
+            font-size: 0.72rem;
+            font-weight: 950;
+            line-height: 1;
+            box-shadow: 0 2px 5px rgba(37, 137, 216, 0.4);
+        }
+
+        #reader-swipe-mode.available:not(:disabled) .swipe-availability-cue {
+            display: grid;
+            animation: swipe-availability-bounce 1.35s ease-in-out infinite;
+        }
+
+        @keyframes swipe-availability-bounce {
+            0%, 100% { transform: translateY(0) scale(1); }
+            18% { transform: translateY(-0.28rem) scale(1.08); }
+            35% { transform: translateY(0.04rem) scale(0.96); }
+            52% { transform: translateY(-0.1rem) scale(1.02); }
+        }
+
         .reader-view-switch .lucide-icon {
             width: 1rem;
             height: 1rem;
@@ -1380,7 +1414,7 @@
         }
 
         .classification-progress-label {
-            min-width: 2.7rem;
+            min-width: 7.5rem;
             color: var(--ink);
             font-size: 0.8rem;
             font-weight: 800;
@@ -1914,6 +1948,15 @@
             display: grid;
             justify-items: center;
             gap: 0.35rem;
+        }
+
+        .classification-action-dock.radial-only {
+            grid-template-columns: 1fr;
+            width: auto;
+        }
+
+        .classification-action-dock.radial-only .classification-action:not(:nth-child(2)) {
+            display: none;
         }
 
         .classification-action-button {
@@ -3495,6 +3538,7 @@
                     <button id="reader-swipe-mode" type="button" aria-pressed="false">
                         <svg class="lucide-icon" aria-hidden="true"><use href="#lucide-layers"></use></svg>
                         <span>Swipe</span>
+                        <span class="swipe-availability-cue" aria-hidden="true">!</span>
                     </button>
                 </div>
             </div>
@@ -3776,10 +3820,10 @@
             </div>
             {/if}
             <div class="classification-queue-progress">
-                <span class="classification-queue-title">RSS classification queue</span>
+                <span class="classification-queue-title" id="classification-queue-title">Papers queue</span>
                 <progress class="classification-progress" id="classification-progress" max="100" value="0"
-                          aria-label="RSS classification progress">0%</progress>
-                <span class="classification-progress-label" id="classification-progress-label">0%</span>
+                          aria-label="Classification queue progress">0 / 0 papers</progress>
+                <span class="classification-progress-label" id="classification-progress-label">0 / 0 papers</span>
             </div>
             <div class="reader-view-switch" id="classification-view-switch" aria-label="Paper feed view">
                 <button id="classification-list-mode" type="button" aria-pressed="false">
@@ -4017,6 +4061,7 @@
     const classificationNextCard = document.getElementById("classification-next-card");
     const classificationNextTitle = document.getElementById("classification-next-title");
     const classificationNextMeta = document.getElementById("classification-next-meta");
+    const classificationQueueTitle = document.getElementById("classification-queue-title");
     const classificationProgress = document.getElementById("classification-progress");
     const classificationProgressLabel = document.getElementById("classification-progress-label");
     const classificationListMode = document.getElementById("classification-list-mode");
@@ -4027,6 +4072,7 @@
     const classificationTags = document.getElementById("classification-tags");
     const classificationLinks = document.getElementById("classification-links");
     const classificationAbstract = document.getElementById("classification-abstract");
+    const classificationActionDock = document.getElementById("classification-action-dock");
     const classificationActions = document.getElementById("classification-actions");
     const classificationFooter = document.getElementById("classification-footer");
     const classificationLeftAction = document.getElementById("classification-left-action");
@@ -4820,6 +4866,7 @@
         readerSwipeMode?.setAttribute("aria-pressed", "false");
         if (readerSwipeMode) {
             readerSwipeMode.disabled = !canAdmin || (!selectedState && intakeCount <= 0);
+            readerSwipeMode.classList.toggle("available", !readerSwipeMode.disabled);
             readerSwipeMode.title = selectedState
                 ? "Classify papers in " + selectedStateLabel + " in Swipe view"
                 : intakeCount > 0
@@ -7138,14 +7185,23 @@
             classificationQueueInitialTotal = paperRecords.length || classificationQueueCards().length;
         }
         const completed = Math.min(classificationQueueInitialTotal, classificationQueueCompletedPaperIds.size);
-        const percentage = classificationQueueInitialTotal === 0
-            ? 100
-            : Math.min(100, Math.round((completed / classificationQueueInitialTotal) * 100));
-        const percentageLabel = percentage + "%";
-        classificationProgress.value = percentage;
-        classificationProgress.textContent = percentageLabel;
-        classificationProgress.setAttribute("aria-valuetext", percentageLabel + " complete");
-        classificationProgressLabel.textContent = percentageLabel;
+        const countLabel = completed + " / " + classificationQueueInitialTotal + " papers";
+        const currentCard = selectedPaperCard();
+        const stateId = classificationQueueStates.length === 1
+            ? classificationQueueStates[0]
+            : normalizeStatus(currentCard?.dataset.paperStatus || paperRecords[0]?.paperStatus || "");
+        const stateLabel = stateId
+            ? currentCard
+                ? classificationStateLabel(currentCard, stateId)
+                : statusLabel(stateId)
+            : "Papers";
+        classificationQueueTitle.textContent = stateLabel + " papers queue";
+        classificationProgress.max = Math.max(1, classificationQueueInitialTotal);
+        classificationProgress.value = completed;
+        classificationProgress.textContent = countLabel;
+        classificationProgress.setAttribute("aria-label", stateLabel + " papers queue progress");
+        classificationProgress.setAttribute("aria-valuetext", countLabel + " classified");
+        classificationProgressLabel.textContent = countLabel;
     };
 
     const appendClassificationLink = (label, href) => {
@@ -7177,7 +7233,10 @@
         classificationActions.innerHTML = "";
         const currentStatus = normalizeStatus(card.dataset.paperStatus);
         const directional = classificationDirectionalTargets(card);
+        const targetCount = classificationTargetCount(directional);
+        const radialOnly = targetCount > 2;
         const swipeChoices = classificationSwipeChoices(card, directional);
+        classificationActionDock?.classList.toggle("radial-only", radialOnly);
         const leftLabel = swipeChoices.left
             ? classificationStateLabel(card, swipeChoices.left)
             : directional.left.length > 1 ? directional.left.length + " earlier states" : "No earlier state";
@@ -7231,7 +7290,6 @@
             classificationActions.appendChild(button);
         });
         classificationActions.classList.toggle("branching", explicitTargets.length > 0);
-        const targetCount = directional.left.length + directional.right.length + directional.other.length;
         classificationFooter.textContent = targetCount
             ? isMobileViewport()
                 ? "Press and hold the card, move to a state, then lift your finger."
