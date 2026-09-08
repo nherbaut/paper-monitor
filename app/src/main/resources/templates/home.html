@@ -184,10 +184,6 @@
         }
 
         @media (max-width: 720px) {
-            .feed-dashboard {
-                grid-template-columns: 1fr;
-            }
-
             .temporary-feed-notice {
                 align-items: flex-start;
                 flex-direction: column;
@@ -356,6 +352,16 @@
             width: 0.95rem;
             height: 0.95rem;
             flex: 0 0 auto;
+        }
+
+        @media (max-width: 720px) {
+            .feed-dashboard {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .feed-dashboard-card-header h3 {
+                min-width: 0;
+            }
         }
 
         .export-menu {
