@@ -1507,6 +1507,81 @@
             transform: translate(-50%, -50%) scale(1.06);
         }
 
+        .classification-mobile-state-picker {
+            position: fixed;
+            z-index: 30;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            padding: max(0.85rem, env(safe-area-inset-top)) 0.85rem max(0.85rem, env(safe-area-inset-bottom));
+            background: color-mix(in srgb, var(--bg) 35%, rgba(24, 28, 36, 0.64));
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+            transition: opacity 120ms ease, visibility 120ms ease;
+        }
+
+        .classification-mobile-state-picker.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .classification-mobile-state-stack {
+            display: grid;
+            gap: 0.5rem;
+            width: min(100%, 30rem);
+            max-height: calc(100dvh - 1.7rem);
+            overflow: auto;
+            padding: 0.35rem;
+        }
+
+        .classification-mobile-state-instruction {
+            margin: 0 0 0.15rem;
+            color: var(--panel);
+            font-size: 0.82rem;
+            font-weight: 800;
+            text-align: center;
+        }
+
+        .classification-mobile-state-option {
+            display: grid;
+            place-items: center;
+            min-height: 3.15rem;
+            padding: 0.6rem 0.85rem;
+            border: 2px solid color-mix(in srgb, var(--classification-drop-zone-color) 76%, var(--panel));
+            border-radius: 0.85rem;
+            background: color-mix(in srgb, var(--panel) 92%, var(--classification-drop-zone-color));
+            color: var(--ink);
+            font-size: 0.95rem;
+            font-weight: 850;
+            line-height: 1.2;
+            text-align: center;
+            overflow-wrap: anywhere;
+            transition: transform 90ms ease, background 90ms ease, box-shadow 90ms ease;
+        }
+
+        .classification-mobile-state-option.cancel {
+            border-color: color-mix(in srgb, var(--line) 72%, var(--panel));
+            background: color-mix(in srgb, var(--panel) 90%, var(--muted));
+            color: var(--ink);
+        }
+
+        .classification-mobile-state-option.active {
+            background: color-mix(in srgb, var(--classification-drop-zone-color) 68%, var(--panel));
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--classification-drop-zone-color) 55%, transparent);
+            transform: scale(1.025);
+        }
+
+        .classification-mobile-state-option.cancel.active {
+            background: color-mix(in srgb, var(--muted) 52%, var(--panel));
+            box-shadow: 0 0 0 4px color-mix(in srgb, var(--muted) 35%, transparent);
+        }
+
+        body.mobile-state-picker-open {
+            overflow: hidden;
+            touch-action: none;
+        }
+
         .classification-next-label {
             margin: 0 0 0.35rem;
             color: var(--muted);
@@ -2194,6 +2269,12 @@
             .classification-drop-zone {
                 padding: 0.65rem;
                 font-size: 0.82rem;
+            }
+
+            .classification-mobile-state-option {
+                min-height: 2.8rem;
+                padding: 0.48rem 0.65rem;
+                font-size: 0.88rem;
             }
 
             .classification-abstract.has-summary {
@@ -3679,6 +3760,7 @@
 </svg>
 <section class="classification-view" id="classification-view" aria-label="Paper classification" aria-hidden="true">
     <div class="classification-drop-zones" id="classification-drop-zones" aria-hidden="true"></div>
+    <div class="classification-mobile-state-picker" id="classification-mobile-state-picker" aria-hidden="true"></div>
     <section class="classification-surface" id="classification-surface">
         <div class="classification-queue-header" id="classification-queue-header">
             {#if anonymousSetup}
@@ -3924,6 +4006,7 @@
     const classificationDeck = document.getElementById("classification-deck");
     const classificationCard = document.getElementById("classification-card");
     const classificationDropZones = document.getElementById("classification-drop-zones");
+    const classificationMobileStatePicker = document.getElementById("classification-mobile-state-picker");
     const classificationKeyboardBar = document.getElementById("classification-keyboard-bar");
     const classificationNextCard = document.getElementById("classification-next-card");
     const classificationNextTitle = document.getElementById("classification-next-title");
@@ -4000,6 +4083,8 @@
     const CLASSIFICATION_DRAG_TRIGGER_X = 96;
     const CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS = 170;
     const CLASSIFICATION_HANDOFF_MS = 380;
+    const MOBILE_STATE_LONG_PRESS_MS = 400;
+    const MOBILE_STATE_LONG_PRESS_MOVE_TOLERANCE = 12;
     let currentRenderToken = 0;
     let selectedPaperId = null;
     let notesSaveTimer = null;
@@ -4023,6 +4108,7 @@
     let classificationModeTemporary = false;
     let classificationBusy = false;
     let classificationDragState = null;
+    let classificationMobileLongPress = null;
     let classificationQueueInitialTotal = null;
     const classificationQueueCompletedPaperIds = new Set();
     let classificationNotesSaveTimer = null;
@@ -6713,6 +6799,147 @@
         return match;
     };
 
+    const hideClassificationMobileStatePicker = () => {
+        document.body.classList.remove("mobile-state-picker-open");
+        classificationMobileStatePicker?.classList.remove("visible");
+        classificationMobileStatePicker?.setAttribute("aria-hidden", "true");
+        if (classificationMobileStatePicker) {
+            classificationMobileStatePicker.innerHTML = "";
+        }
+    };
+
+    const mobileStatePickerRowAt = (clientX, clientY) => {
+        return Array.from(classificationMobileStatePicker?.querySelectorAll("[data-mobile-state-option]") || [])
+            .find((row) => {
+                const bounds = row.getBoundingClientRect();
+                return clientX >= bounds.left && clientX <= bounds.right
+                    && clientY >= bounds.top && clientY <= bounds.bottom;
+            }) || null;
+    };
+
+    const updateClassificationMobileStatePicker = (longPress, clientX, clientY) => {
+        const row = mobileStatePickerRowAt(clientX, clientY);
+        classificationMobileStatePicker?.querySelectorAll("[data-mobile-state-option]")
+            .forEach((candidate) => candidate.classList.toggle("active", candidate === row));
+        if (!row || row.dataset.mobileStateCancel === "true") {
+            longPress.activeTransition = null;
+            return;
+        }
+        longPress.activeTransition = longPress.transitions.find((transition) => transition.target === row.dataset.mobileStateTarget) || null;
+    };
+
+    const showClassificationMobileStatePicker = (longPress) => {
+        if (!classificationMobileStatePicker || !longPress.transitions.length) {
+            return false;
+        }
+        classificationMobileStatePicker.innerHTML = "";
+        const stack = document.createElement("div");
+        stack.className = "classification-mobile-state-stack";
+        const instruction = document.createElement("p");
+        instruction.className = "classification-mobile-state-instruction";
+        instruction.textContent = "Move to a state, then lift your finger";
+        stack.appendChild(instruction);
+        longPress.transitions.forEach((transition, index) => {
+            const option = document.createElement("div");
+            option.className = "classification-mobile-state-option";
+            option.dataset.mobileStateOption = "true";
+            option.dataset.mobileStateTarget = transition.target;
+            option.style.setProperty("--classification-drop-zone-color", DROP_ZONE_COLORS[index % DROP_ZONE_COLORS.length]);
+            option.textContent = classificationStateLabel(longPress.card, transition.target);
+            stack.appendChild(option);
+        });
+        const cancel = document.createElement("div");
+        cancel.className = "classification-mobile-state-option cancel";
+        cancel.dataset.mobileStateOption = "true";
+        cancel.dataset.mobileStateCancel = "true";
+        cancel.style.setProperty("--classification-drop-zone-color", "var(--muted)");
+        cancel.textContent = "Cancel";
+        stack.appendChild(cancel);
+        classificationMobileStatePicker.appendChild(stack);
+        document.body.classList.add("mobile-state-picker-open");
+        classificationMobileStatePicker.classList.add("visible");
+        classificationMobileStatePicker.setAttribute("aria-hidden", "false");
+        return true;
+    };
+
+    const beginClassificationMobileLongPress = (event, card) => {
+        const longPress = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            lastX: event.clientX,
+            lastY: event.clientY,
+            card,
+            activated: false,
+            movedAfterActivation: false,
+            activeTransition: null,
+            transitions: classificationRadialTargets(card),
+            timer: null
+        };
+        if (!longPress.transitions.length) {
+            return;
+        }
+        longPress.timer = window.setTimeout(() => {
+            if (classificationMobileLongPress !== longPress) {
+                return;
+            }
+            longPress.timer = null;
+            if (!showClassificationMobileStatePicker(longPress)) {
+                classificationMobileLongPress = null;
+                return;
+            }
+            longPress.activated = true;
+            classificationCard?.setPointerCapture?.(longPress.pointerId);
+        }, MOBILE_STATE_LONG_PRESS_MS);
+        classificationMobileLongPress = longPress;
+    };
+
+    const updateClassificationMobileLongPress = (event) => {
+        const longPress = classificationMobileLongPress;
+        if (!longPress || event.pointerId !== longPress.pointerId) {
+            return false;
+        }
+        longPress.lastX = event.clientX;
+        longPress.lastY = event.clientY;
+        const moved = Math.hypot(event.clientX - longPress.startX, event.clientY - longPress.startY);
+        if (!longPress.activated) {
+            if (moved > MOBILE_STATE_LONG_PRESS_MOVE_TOLERANCE) {
+                window.clearTimeout(longPress.timer);
+                classificationMobileLongPress = null;
+            }
+            return true;
+        }
+        event.preventDefault();
+        if (moved < MOBILE_STATE_LONG_PRESS_MOVE_TOLERANCE) {
+            return true;
+        }
+        longPress.movedAfterActivation = true;
+        updateClassificationMobileStatePicker(longPress, event.clientX, event.clientY);
+        return true;
+    };
+
+    const finishClassificationMobileLongPress = async (event, cancelled = false) => {
+        const longPress = classificationMobileLongPress;
+        if (!longPress || event.pointerId !== longPress.pointerId) {
+            return false;
+        }
+        classificationMobileLongPress = null;
+        window.clearTimeout(longPress.timer);
+        if (!longPress.activated) {
+            return true;
+        }
+        event.preventDefault?.();
+        if (classificationCard?.hasPointerCapture?.(event.pointerId)) {
+            classificationCard.releasePointerCapture(event.pointerId);
+        }
+        const transition = !cancelled && longPress.movedAfterActivation ? longPress.activeTransition : null;
+        hideClassificationMobileStatePicker();
+        if (transition) {
+            await performClassificationTransition(longPress.card, transition.target, transition.side, { preserveDragVisual: true });
+        }
+        return true;
+    };
+
     const classificationQueueCards = () => visiblePaperCards().filter(canClassifyCard);
 
     const nextClassificationCard = (card) => {
@@ -6831,6 +7058,7 @@
         }
         classificationEmpty?.classList.remove("celebrating");
         hideClassificationDropZones();
+        hideClassificationMobileStatePicker();
         hideStateWheels();
         classificationCard.classList.remove(
             "dragging", "dragging-left", "dragging-right", "exiting-left", "exiting-right", "entering", "entering-active"
@@ -6999,7 +7227,9 @@
         classificationActions.classList.toggle("branching", explicitTargets.length > 0);
         const targetCount = directional.left.length + directional.right.length + directional.other.length;
         classificationFooter.textContent = targetCount
-            ? explicitTargets.length
+            ? isMobileViewport()
+                ? "Press and hold the card, move to a state, then lift your finger."
+                : explicitTargets.length
                 ? "Choose a labeled state, or swipe where one destination is available."
                 : swipeChoices.neutral
                     ? "Drag the card or use either labeled arrow."
@@ -7017,6 +7247,7 @@
             return;
         }
         hideClassificationDropZones();
+        hideClassificationMobileStatePicker();
         classificationDragTarget?.classList.remove("visible");
         classificationCard.classList.remove("dragging", "dragging-left", "dragging-right");
         classificationCard.style.setProperty("--classification-drag-x", "0px");
@@ -9118,6 +9349,10 @@
         if (!card) {
             return;
         }
+        if (isMobileViewport()) {
+            beginClassificationMobileLongPress(event, card);
+            return;
+        }
         classificationDragState = {
             pointerId: event.pointerId,
             startX: event.clientX,
@@ -9131,6 +9366,9 @@
     });
 
     window.addEventListener("pointermove", (event) => {
+        if (updateClassificationMobileLongPress(event)) {
+            return;
+        }
         if (!classificationDragState || event.pointerId !== classificationDragState.pointerId) {
             return;
         }
@@ -9210,8 +9448,18 @@
         await performClassificationTransition(dragState.card, swipeTarget, side, { preserveDragVisual: true });
     };
 
-    window.addEventListener("pointerup", (event) => finishClassificationPointerDrag(event));
-    window.addEventListener("pointercancel", (event) => finishClassificationPointerDrag(event, true));
+    window.addEventListener("pointerup", async (event) => {
+        if (await finishClassificationMobileLongPress(event)) {
+            return;
+        }
+        await finishClassificationPointerDrag(event);
+    });
+    window.addEventListener("pointercancel", async (event) => {
+        if (await finishClassificationMobileLongPress(event, true)) {
+            return;
+        }
+        await finishClassificationPointerDrag(event, true);
+    });
 
     window.addEventListener("mousemove", (event) => {
         updatePaperStatusDrag(event.clientX, event.clientY);
