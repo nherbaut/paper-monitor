@@ -1,6 +1,7 @@
 package top.nextnet.paper.monitor.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -102,5 +103,27 @@ class MendeleySyncServiceTest {
         assertEquals("Sipos", authors.get(2).get("last_name"));
         assertTrue(authors.get(0).get("first_name").codePointCount(0,
                 authors.get(0).get("first_name").length()) <= 255);
+    }
+
+    @Test
+    void treatsEmptyMendeleyValuesAndAnUnassignedRemoteStateAsEquivalent() {
+        Map<String, Object> local = new LinkedHashMap<>();
+        local.put("title", "Detection of Gender and Age");
+        local.put("doi", "10.1109/iitcee67948.2026.11394555");
+        local.put("authors", "Mr. Shrikanth N G, Priyanka R B");
+        local.put("year", 2026);
+        local.put("tags", null);
+        local.put("notes", null);
+        local.put("state", "INCLUDED/DATABASE_INCLUDED_IN_REVIEW");
+        local.put("pdf", null);
+        Map<String, Object> remote = new LinkedHashMap<>(local);
+        remote.put("tags", List.of());
+        remote.put("state", null);
+        remote.put("pdf", false);
+
+        assertTrue(MendeleySyncService.equivalentDocumentValues(local, remote));
+
+        remote.put("title", "A genuinely different title");
+        assertFalse(MendeleySyncService.equivalentDocumentValues(local, remote));
     }
 }

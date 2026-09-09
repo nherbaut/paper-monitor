@@ -135,28 +135,46 @@ public class MendeleySyncService {
             MendeleyPaperSync link = linkByRemote.get(documentId);
             Paper local = link == null ? localByDoi.get(remoteDoi(remote)) : link.paper;
             List<String> assignedRemoteStates = remoteStates(memberships.get(documentId), stateFolders);
+            String assignedRemoteState = assignedRemoteStates.size() == 1 ? assignedRemoteStates.get(0) : null;
             if (assignedRemoteStates.size() > 1) {
                 actions.add(action(local == null ? "IMPORT_CONFLICT" : "CONFLICT",
                         local == null ? null : local.id, documentId,
-                        "Document belongs to multiple mapped state folders", remote));
+                        "Document belongs to multiple mapped state folders", remote, null));
                 if (local != null) matchedLocal.add(local.id);
                 continue;
             }
             if (local == null) {
-                actions.add(action("IMPORT", null, documentId, "New Mendeley document", remote));
+                actions.add(action("IMPORT", null, documentId, "New Mendeley document", remote,
+                        assignedRemoteState));
                 continue;
             }
             matchedLocal.add(local.id);
-            String localHash = fingerprint(localSnapshot(local));
-            String remoteHash = fingerprint(remoteSnapshot(remote, remoteState(memberships.get(documentId), stateFolders)));
+            Map<String, Object> localValues = localSnapshot(local);
+            Map<String, Object> remoteValues = remoteSnapshot(remote, assignedRemoteState);
+            String localHash = fingerprint(localValues);
+            String remoteHash = fingerprint(remoteValues);
             if (link == null) {
-                actions.add(action("CONFLICT", local.id, documentId, "Matching DOI has different ownership", remote));
+                String type = equivalentDocumentValues(localValues, remoteValues) ? "LINK" : "CONFLICT";
+                String reason = "LINK".equals(type)
+                        ? "Matching DOI has equivalent values"
+                        : "Matching DOI has different values";
+                actions.add(action(type, local.id, documentId, reason, remote, assignedRemoteState));
             } else {
                 boolean localChanged = !Objects.equals(localHash, link.localFingerprint);
                 boolean remoteChanged = !Objects.equals(remoteHash, link.remoteFingerprint);
-                if (localChanged && remoteChanged) actions.add(action("CONFLICT", local.id, documentId, "Both copies changed", remote));
-                else if (localChanged) actions.add(action("PUSH", local.id, documentId, "Paper Monitor changed", remote));
-                else if (remoteChanged) actions.add(action("PULL", local.id, documentId, "Mendeley changed", remote));
+                if ((localChanged || remoteChanged) && equivalentDocumentValues(localValues, remoteValues)) {
+                    actions.add(action("LINK", local.id, documentId, "Copies have equivalent values", remote,
+                            assignedRemoteState));
+                } else if (localChanged && remoteChanged) {
+                    actions.add(action("CONFLICT", local.id, documentId, "Both copies changed", remote,
+                            assignedRemoteState));
+                } else if (localChanged) {
+                    actions.add(action("PUSH", local.id, documentId, "MIAGE Review Factory changed", remote,
+                            assignedRemoteState));
+                } else if (remoteChanged) {
+                    actions.add(action("PULL", local.id, documentId, "Mendeley changed", remote,
+                            assignedRemoteState));
+                }
             }
         }
         for (Paper paper : localPapers) {
@@ -267,6 +285,12 @@ public class MendeleySyncService {
         if ("CONFLICT".equals(type) || "REMOTE_DELETED".equals(type)) {
             recordConflict(config, paperId, documentId, type, action);
             conflicts++;
+        } else if ("LINK".equals(type)) {
+            Paper paper = requirePaper(config.logicalFeed, paperId);
+            setRemoteState(settings, documentId, paper.status, stateFolders);
+            Map<String, Object> remote = remoteDocument(settings, documentId);
+            syncLink(config, paper, remote, documentId);
+            applied++;
         } else if ("IMPORT".equals(type) || "IMPORT_CONFLICT".equals(type)) {
             Map<String, Object> remote = remoteDocument(settings, documentId);
             Paper paper = importPaper(settings, config, remote, stateFolders);
@@ -611,14 +635,19 @@ public class MendeleySyncService {
     private UserSettings settings(AppUser user) { UserSettings settings = auth.ensureSettings(user); if (!settings.hasMendeleyConnection()) throw new BadRequestException("Connect Mendeley first"); return settings; }
 
     private Map<String, Object> previewPayload(MendeleyFeedSync config, List<Map<String, Object>> actions) { Map<String, Long> counts = new LinkedHashMap<>(); actions.forEach(a -> counts.merge(value(a.get("type")), 1L, Long::sum)); return Map.of("feedId", config.logicalFeed.id, "generatedAt", Instant.now().toString(), "counts", counts, "actions", actions); }
-    private Map<String, Object> action(String type, Long paperId, String documentId, String reason, Map<String, Object> remote) {
+    private Map<String, Object> action(String type, Long paperId, String documentId, String reason,
+            Map<String, Object> remote) {
+        return action(type, paperId, documentId, reason, remote, null);
+    }
+    private Map<String, Object> action(String type, Long paperId, String documentId, String reason,
+            Map<String, Object> remote, String remoteState) {
         Map<String, Object> row = new LinkedHashMap<>();
         Paper local = paperId == null ? null : papers.findById(paperId);
         row.put("type", type); row.put("paperId", paperId); row.put("documentId", documentId);
         row.put("reason", reason);
         row.put("title", remote == null ? (local == null ? "" : local.title) : first(value(remote.get("title")), "Untitled"));
-        if (local != null) row.put("local", localSnapshot(local));
-        if (remote != null) row.put("mendeley", remoteSnapshot(remote, null));
+        if (local != null) row.put("local", comparisonSnapshot(localSnapshot(local)));
+        if (remote != null) row.put("mendeley", comparisonSnapshot(remoteSnapshot(remote, remoteState)));
         return row;
     }
     private String requirePaperTitle(Long id) { Paper p = papers.findById(id); return p == null ? "Deleted paper" : p.title; }
@@ -627,6 +656,44 @@ public class MendeleySyncService {
 
     private Map<String, Object> localSnapshot(Paper p) { Map<String, Object> m = new LinkedHashMap<>(); m.put("title", p.title); m.put("doi", localDoi(p)); m.put("authors", p.authors); m.put("abstract", p.summary); m.put("year", p.publishedOn == null ? null : p.publishedOn.getYear()); m.put("source", p.publisher); m.put("tags", p.tags); m.put("notes", p.notes); m.put("state", p.status); m.put("pdf", p.uploadedPdfPath); return m; }
     private Map<String, Object> remoteSnapshot(Map<String, Object> r, String state) { Map<String, Object> m = new LinkedHashMap<>(); m.put("title", r.get("title")); m.put("doi", remoteDoi(r)); m.put("authors", authorText(r.get("authors"))); m.put("abstract", r.get("abstract")); m.put("year", r.get("year")); m.put("source", first(value(r.get("source")), value(r.get("publisher")))); m.put("tags", strings(r.get("tags"))); m.put("notes", r.get("paper_monitor_notes")); m.put("state", state); m.put("pdf", r.get("file_attached")); return m; }
+    static boolean equivalentDocumentValues(Map<String, Object> local, Map<String, Object> remote) {
+        for (String field : List.of("title", "doi", "authors", "abstract", "year", "source", "notes")) {
+            if (!Objects.equals(comparableValue(local.get(field)), comparableValue(remote.get(field)))) return false;
+        }
+        if (!comparableTags(local.get("tags")).equals(comparableTags(remote.get("tags")))) return false;
+        if (hasPdf(local.get("pdf")) != hasPdf(remote.get("pdf"))) return false;
+        String remoteState = comparableValue(remote.get("state"));
+        return remoteState == null || Objects.equals(comparableValue(local.get("state")), remoteState);
+    }
+    private static Map<String, Object> comparisonSnapshot(Map<String, Object> snapshot) {
+        Map<String, Object> result = new LinkedHashMap<>(snapshot);
+        Set<String> tags = comparableTags(snapshot.get("tags"));
+        result.put("tags", tags.isEmpty() ? null : String.join(", ", tags));
+        result.put("pdf", hasPdf(snapshot.get("pdf")));
+        return result;
+    }
+    private static String comparableValue(Object raw) {
+        String result = value(raw);
+        return result == null ? null : result.trim();
+    }
+    private static Set<String> comparableTags(Object raw) {
+        Set<String> result = new java.util.TreeSet<>();
+        if (raw instanceof List<?> list) {
+            for (Object item : list) {
+                String value = comparableValue(item);
+                if (value != null) result.add(value);
+            }
+        } else {
+            String value = comparableValue(raw);
+            if (value != null) {
+                for (String tag : value.split("\\s*,\\s*|\\R")) if (!tag.isBlank()) result.add(tag.trim());
+            }
+        }
+        return result;
+    }
+    private static boolean hasPdf(Object raw) {
+        return raw instanceof Boolean available ? available : comparableValue(raw) != null;
+    }
     static String fingerprint(Map<String, Object> map) { try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(JsonCodec.stringify(map).getBytes(StandardCharsets.UTF_8))); } catch (Exception e) { throw new IllegalStateException(e); } }
     static String localDoi(Paper paper) {
         for (String link : new String[] {paper.sourceLink, paper.openAccessLink}) {
