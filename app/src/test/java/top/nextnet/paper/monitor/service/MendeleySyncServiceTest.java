@@ -142,4 +142,18 @@ class MendeleySyncServiceTest {
         assertEquals("RESTORE_REMOTE", MendeleySyncService.remoteDeletionAction("old", "new"));
         assertEquals("RESTORE_REMOTE", MendeleySyncService.remoteDeletionAction(null, "legacy"));
     }
+
+    @Test
+    void exposesOnlyTopLevelMendeleyCollections() {
+        Map<String, Object> rootWithoutParent = Map.of("id", "root-a", "name", "Review A");
+        Map<String, Object> rootWithNullParent = new LinkedHashMap<>();
+        rootWithNullParent.put("id", "root-b");
+        rootWithNullParent.put("name", "Review B");
+        rootWithNullParent.put("parent_id", null);
+        Map<String, Object> child = Map.of(
+                "id", "child", "name", "Included", "parent_id", "root-a");
+
+        assertEquals(List.of(rootWithoutParent, rootWithNullParent),
+                MendeleySyncService.rootFolders(List.of(rootWithoutParent, child, rootWithNullParent)));
+    }
 }

@@ -2598,7 +2598,7 @@
         title.textContent = feed.logicalFeedName;
         const select = document.createElement("select");
         const placeholder = document.createElement("option");
-        placeholder.value = ""; placeholder.textContent = "Choose a Mendeley root folder";
+        placeholder.value = ""; placeholder.textContent = "Choose a top-level Mendeley collection";
         select.appendChild(placeholder);
         folders.forEach((folder) => {
             const option = document.createElement("option");
@@ -2606,16 +2606,25 @@
             option.selected = folder.id === feed.rootFolderId;
             select.appendChild(option);
         });
+        const createOption = document.createElement("option");
+        createOption.value = "__create_collection__";
+        createOption.textContent = "Create new collection “" + feed.logicalFeedName + "”";
+        select.appendChild(createOption);
         const configure = document.createElement("button");
-        configure.type = "button"; configure.textContent = feed.configured ? "Update folder mapping" : "Configure synchronization";
+        configure.type = "button"; configure.textContent = feed.configured ? "Update collection mapping" : "Configure synchronization";
         configure.addEventListener("click", async () => {
-            if (!select.value) { showMendeleyError("Choose a Mendeley folder first."); return; }
+            if (!select.value) { showMendeleyError("Choose a Mendeley collection first."); return; }
             configure.disabled = true;
             try {
                 const option = select.selectedOptions[0];
+                const createCollection = select.value === "__create_collection__";
                 await mendeleyRequest("/api/mendeley/feeds/" + feed.logicalFeedId + "/configure", {
                     method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-                    body: new URLSearchParams({ folderId: select.value, folderName: option.textContent })
+                    body: new URLSearchParams({
+                        folderId: createCollection ? "" : select.value,
+                        folderName: createCollection ? feed.logicalFeedName : option.textContent,
+                        createCollection: String(createCollection)
+                    })
                 });
                 await loadMendeleySettings();
             } catch (error) { showMendeleyError(error.message); configure.disabled = false; }
@@ -2624,7 +2633,7 @@
         if (feed.configured) {
             const mapping = document.createElement("p");
             mapping.className = "meta";
-            mapping.textContent = "State folders: " + Object.keys(feed.stateFolders || {}).length
+            mapping.textContent = "State subcollections: " + Object.keys(feed.stateFolders || {}).length
                 + (feed.lastSyncedAt ? " · Last synced: " + feed.lastSyncedAt : " · Never synchronized");
             const synchronize = document.createElement("button");
             synchronize.type = "button";

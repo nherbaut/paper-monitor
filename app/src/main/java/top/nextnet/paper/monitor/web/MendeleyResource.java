@@ -84,10 +84,11 @@ public class MendeleyResource {
 
     @POST @Path("/api/mendeley/feeds/{id}/configure") @Produces(MediaType.APPLICATION_JSON)
     public Object configure(@PathParam("id") Long id, @RestForm("folderId") String folderId,
-            @RestForm("folderName") String folderName) {
+            @RestForm("folderName") String folderName,
+            @RestForm("createCollection") boolean createCollection) {
         AppUser user = requireUser(); LogicalFeed feed = access.requireAdminLogicalFeed(id, user);
         try {
-            sync.configure(user, feed, folderId, folderName);
+            sync.configure(user, feed, folderId, folderName, createCollection);
             return backgroundSync.start(user, feed, true, "configuration");
         } catch (IOException e) { throw apiError("configure feed", e); }
     }

@@ -69,7 +69,7 @@ public class MendeleySyncService {
     }
 
     public List<Map<String, Object>> folders(AppUser user) throws IOException {
-        return api.folders(settings(user));
+        return rootFolders(api.folders(settings(user)));
     }
 
     @Transactional
@@ -87,13 +87,26 @@ public class MendeleySyncService {
 
     @Transactional
     @TransactionConfiguration(timeout = 300)
-    public Map<String, Object> configure(AppUser user, LogicalFeed logicalFeed, String folderId, String folderName)
-            throws IOException {
-        if (folderId == null || folderId.isBlank()) throw new BadRequestException("Choose a Mendeley folder");
+    public Map<String, Object> configure(AppUser user, LogicalFeed logicalFeed, String folderId, String folderName,
+            boolean createCollection) throws IOException {
         UserSettings settings = settings(user);
-        Map<String, Object> selected = api.folders(settings).stream()
-                .filter(row -> folderId.equals(value(row.get("id")))).findFirst()
-                .orElseThrow(() -> new BadRequestException("The selected Mendeley folder is unavailable"));
+        Map<String, Object> selected;
+        if (createCollection) {
+            String collectionName = first(folderName, logicalFeed.name);
+            if (collectionName == null) throw new BadRequestException("A Mendeley collection name is required");
+            selected = api.createFolder(settings, collectionName, null);
+            folderId = value(selected.get("id"));
+            if (folderId == null) throw new IOException("Mendeley did not return the new collection identifier");
+        } else {
+            if (folderId == null || folderId.isBlank()) {
+                throw new BadRequestException("Choose a Mendeley collection");
+            }
+            String selectedFolderId = folderId;
+            selected = rootFolders(api.folders(settings)).stream()
+                    .filter(row -> selectedFolderId.equals(value(row.get("id")))).findFirst()
+                    .orElseThrow(() -> new BadRequestException(
+                            "The selected top-level Mendeley collection is unavailable"));
+        }
         MendeleyFeedSync config = feeds.findByUserAndFeed(user, logicalFeed).orElseGet(MendeleyFeedSync::new);
         config.user = user;
         config.logicalFeed = logicalFeed;
@@ -105,6 +118,11 @@ public class MendeleySyncService {
         config.lastError = null;
         if (config.id == null) feeds.persist(config);
         return configView(config);
+    }
+
+    static List<Map<String, Object>> rootFolders(List<Map<String, Object>> folders) {
+        if (folders == null) return List.of();
+        return folders.stream().filter(folder -> value(folder.get("parent_id")) == null).toList();
     }
 
     @Transactional
