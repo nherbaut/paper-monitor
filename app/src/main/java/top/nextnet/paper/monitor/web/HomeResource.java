@@ -1122,10 +1122,10 @@ public class HomeResource {
     public Response updateOwnPdeSettings(@RestForm("pdeOpenAiApiKey") String pdeOpenAiApiKey) {
         AppUser currentUser = requireCurrentUser();
         if (normalize(pdeOpenAiApiKey) == null) {
-            return seeOther("/admin?error=" + urlEncode("Paste an OpenAI API key to save it, or use Remove personal OpenAI key") + "#pde");
+            return seeOther("/admin?error=" + urlEncode("Paste an OpenAI API key to save it, or use Remove personal OpenAI key") + "#pde/configuration");
         }
         authService.updateOwnPdeOpenAiKey(currentUser, pdeOpenAiApiKey);
-        return seeOther("/admin?info=" + urlEncode("PDE OpenAI settings updated") + "#pde");
+        return seeOther("/admin?info=" + urlEncode("PDE OpenAI settings updated") + "#pde/configuration");
     }
 
     @POST
@@ -1134,7 +1134,7 @@ public class HomeResource {
     public Response removeOwnPdeOpenAiKey() {
         AppUser currentUser = requireCurrentUser();
         authService.clearOwnPdeOpenAiKey(currentUser);
-        return seeOther("/admin?info=" + urlEncode("Personal OpenAI key removed") + "#pde");
+        return seeOther("/admin?info=" + urlEncode("Personal OpenAI key removed") + "#pde/configuration");
     }
 
     @POST
@@ -1615,7 +1615,7 @@ public class HomeResource {
                     .orElseThrow(() -> new WebApplicationException("Unknown user", Response.Status.BAD_REQUEST));
             LogicalFeedAccessGrant grant = logicalFeedAccessService.grant(logicalFeed, target, role);
             notificationService.sendFeedAccessNotification(target, logicalFeed, grant.role, currentUser);
-            return seeOther("/admin");
+            return seeOther("/admin#feeds/" + id + "/configuration");
         } catch (IllegalArgumentException e) {
             throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
         }
@@ -1634,7 +1634,7 @@ public class HomeResource {
         if (target != null) {
             logicalFeedAccessService.revoke(logicalFeed, target);
         }
-        return seeOther("/admin");
+        return seeOther("/admin#feeds/" + id + "/configuration");
     }
 
     @GET
@@ -2008,7 +2008,7 @@ public class HomeResource {
             logicalFeed.publicReadable = "on".equalsIgnoreCase(publicReadable);
             logicalFeed.notifyOnNewRssPapers = !"off".equalsIgnoreCase(notifyOnNewRssPapers);
             ensurePublicShareToken(logicalFeed);
-            return seeOther("/admin#feeds/" + id);
+            return seeOther("/admin#feeds/" + id + "/configuration");
         } catch (WebApplicationException e) {
             return rethrowOrPlainText(e);
         }
@@ -2078,9 +2078,9 @@ public class HomeResource {
                     repositorySelection,
                     branch);
             paperGitSyncService.syncLogicalFeed(logicalFeed);
-            return seeOther("/admin?info=" + urlEncode("Connected GitHub repository for paper feed: " + logicalFeed.name) + "#feeds/" + id);
+            return seeOther("/admin?info=" + urlEncode("Connected GitHub repository for paper feed: " + logicalFeed.name) + "#feeds/" + id + "/sync");
         } catch (IllegalArgumentException | IOException e) {
-            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#feeds/" + id);
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#feeds/" + id + "/sync");
         }
     }
 
@@ -2091,7 +2091,7 @@ public class HomeResource {
         AppUser currentUser = requireCurrentUser();
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, currentUser);
         githubRepositoryService.disconnectRepositoryFromLogicalFeed(logicalFeed);
-        return seeOther("/admin?info=" + urlEncode("Disconnected GitHub repository from paper feed: " + logicalFeed.name) + "#feeds/" + id);
+        return seeOther("/admin?info=" + urlEncode("Disconnected GitHub repository from paper feed: " + logicalFeed.name) + "#feeds/" + id + "/sync");
     }
 
     @POST
@@ -2167,7 +2167,7 @@ public class HomeResource {
             paperGitSyncService.syncLogicalFeed(previousLogicalFeed);
         }
         paperGitSyncService.syncLogicalFeed(logicalFeed);
-        return seeOther("/admin#rss/" + id);
+        return seeOther("/admin#feeds/" + logicalFeed.id + "/rss/" + id);
     }
 
     @POST
@@ -2179,7 +2179,7 @@ public class HomeResource {
         if (feed != null) {
             paperGitSyncService.syncLogicalFeed(feed.logicalFeed);
         }
-        return seeOther("/admin#rss/" + id);
+        return seeOther(feed == null ? "/admin" : "/admin#feeds/" + feed.logicalFeed.id + "/rss/" + id);
     }
 
     @POST
@@ -2187,10 +2187,11 @@ public class HomeResource {
     @Transactional
     public Response deleteFeed(@jakarta.ws.rs.PathParam("id") Long id) {
         Feed feed = logicalFeedAccessService.requireAdminFeed(id, requireCurrentUser());
+        Long logicalFeedId = feed == null || feed.logicalFeed == null ? null : feed.logicalFeed.id;
         if (feed != null) {
             feed.delete();
         }
-        return seeOther("/admin#rss");
+        return seeOther(logicalFeedId == null ? "/admin" : "/admin#feeds/" + logicalFeedId + "/rss");
     }
 
     @POST
