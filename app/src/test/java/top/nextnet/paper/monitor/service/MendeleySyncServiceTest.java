@@ -58,4 +58,19 @@ class MendeleySyncServiceTest {
         paper.sourceLink = "https://example.test/article";
         assertEquals("10.1000/abc", MendeleySyncService.localDoi(paper));
     }
+
+    @Test
+    void keepsOnlyUnfinishedActionsInAResumablePreview() {
+        Map<String, Object> preview = new LinkedHashMap<>();
+        preview.put("feedId", 12L);
+        preview.put("counts", Map.of("EXPORT", 2L, "PULL", 1L));
+        Map<String, Object> export = Map.of("type", "EXPORT", "paperId", 1L);
+        Map<String, Object> pull = Map.of("type", "PULL", "paperId", 2L);
+
+        Map<String, Object> remaining = MendeleySyncService.withRemainingActions(preview, List.of(export, pull));
+
+        assertEquals(12L, remaining.get("feedId"));
+        assertEquals(Map.of("EXPORT", 1L, "PULL", 1L), remaining.get("counts"));
+        assertEquals(List.of(export, pull), remaining.get("actions"));
+    }
 }

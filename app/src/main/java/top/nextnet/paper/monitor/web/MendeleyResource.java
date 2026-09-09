@@ -85,10 +85,12 @@ public class MendeleyResource {
         try { return sync.preview(user, feed); } catch (IOException e) { throw apiError("preview synchronization", e); }
     }
 
-    @POST @Path("/api/mendeley/feeds/{id}/apply") @Produces(MediaType.APPLICATION_JSON) @Transactional
+    @POST @Path("/api/mendeley/feeds/{id}/apply") @Produces(MediaType.APPLICATION_JSON)
     public Object apply(@PathParam("id") Long id) {
         AppUser user = requireUser(); LogicalFeed feed = access.requireAdminLogicalFeed(id, user);
-        try { return sync.apply(user, feed); } catch (IOException e) { throw apiError("apply synchronization", e); }
+        try { return sync.apply(user, feed); }
+        catch (WebApplicationException e) { throw e; }
+        catch (Exception e) { throw apiError("apply synchronization", e); }
     }
 
     @POST @Path("/api/mendeley/feeds/{id}/conflicts/{linkId}/resolve") @Produces(MediaType.APPLICATION_JSON) @Transactional
@@ -103,7 +105,7 @@ public class MendeleyResource {
         if (user == null) throw new WebApplicationException("Authentication is required", Response.Status.UNAUTHORIZED);
         return user;
     }
-    private WebApplicationException apiError(String operation, IOException error) {
+    private WebApplicationException apiError(String operation, Exception error) {
         LOG.errorf(error, "Mendeley %s failed", operation);
         return new WebApplicationException(Response.status(Response.Status.BAD_GATEWAY)
                 .type(MediaType.TEXT_PLAIN).entity(error.getMessage()).build());

@@ -72,6 +72,7 @@ public class LogicalFeedAccessService {
         return logicalFeed;
     }
 
+    @Transactional
     public LogicalFeed requireAdminLogicalFeed(Long id, AppUser user) {
         LogicalFeed logicalFeed = logicalFeedRepository.findById(id);
         if (logicalFeed == null) {

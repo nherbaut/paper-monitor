@@ -4,6 +4,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.NotFoundException;
+import io.quarkus.narayana.jta.QuarkusTransaction;
+import io.quarkus.narayana.jta.QuarkusTransactionException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -37,6 +39,7 @@ import top.nextnet.paper.monitor.repo.PaperRepository;
 @ApplicationScoped
 public class MendeleySyncService {
     private static final Logger LOG = Logger.getLogger(MendeleySyncService.class);
+    private static final int APPLY_ACTION_TRANSACTION_TIMEOUT_SECONDS = 300;
     private final MendeleyApiClient api;
     private final AuthService auth;
     private final MendeleyFeedSyncRepository feeds;
@@ -155,66 +158,165 @@ public class MendeleySyncService {
         return preview;
     }
 
-    @Transactional
     public Map<String, Object> apply(AppUser user, LogicalFeed logicalFeed) throws IOException {
+        ApplyPlan plan = inApplyTransaction(() -> prepareApply(user, logicalFeed));
+        List<Map<String, Object>> remaining = new ArrayList<>(plan.actions());
+        LOG.infof("Applying Mendeley synchronization configuration %s with %d action(s)",
+                plan.configId(), remaining.size());
+        int applied = 0, conflicts = 0;
+        while (!remaining.isEmpty()) {
+            Map<String, Object> action = remaining.get(0);
+            List<Map<String, Object>> afterAction = List.copyOf(remaining.subList(1, remaining.size()));
+            try {
+                ApplyOutcome outcome = inApplyTransaction(
+                        () -> applyAction(plan.configId(), action, plan.preview(), afterAction));
+                applied += outcome.applied();
+                conflicts += outcome.conflicts();
+                remaining.remove(0);
+            } catch (IOException | RuntimeException error) {
+                String message = "Mendeley synchronization stopped after " + applied + " completed action(s): "
+                        + "action " + value(action.get("type")) + " for paper " + value(action.get("paperId"))
+                        + " failed: " + rootMessage(error) + ". Retry Apply to resume the remaining preview.";
+                rememberApplyError(plan.configId(), message);
+                if (error instanceof BadRequestException badRequest) throw badRequest;
+                throw new IOException(message, error);
+            }
+        }
+        Instant lastSyncedAt = inApplyTransaction(() -> {
+            MendeleyFeedSync config = feeds.findById(plan.configId());
+            if (config == null) throw new BadRequestException("The Mendeley synchronization configuration was deleted");
+            if (config.pendingPreviewJson != null) {
+                config.lastSyncedAt = Instant.now();
+                config.pendingPreviewJson = null;
+                config.lastError = null;
+            }
+            return config.lastSyncedAt;
+        });
+        LOG.infof("Mendeley synchronization configuration %s completed: applied=%d, conflicts=%d",
+                plan.configId(), applied, conflicts);
+        return Map.of("applied", applied, "conflicts", conflicts, "lastSyncedAt", lastSyncedAt.toString());
+    }
+
+    private ApplyPlan prepareApply(AppUser user, LogicalFeed logicalFeed) {
         MendeleyFeedSync config = requireConfig(user, logicalFeed);
         if (config.pendingPreviewJson == null || config.previewedAt == null
                 || config.previewedAt.isBefore(Instant.now().minus(30, ChronoUnit.MINUTES))) {
             throw new BadRequestException("Create a fresh Mendeley sync preview first");
         }
         Map<String, Object> preview = object(JsonCodec.parse(config.pendingPreviewJson));
-        List<Map<String, Object>> actions = objects(preview.get("actions"));
-        UserSettings settings = settings(user);
+        return new ApplyPlan(config.id, new LinkedHashMap<>(preview), List.copyOf(objects(preview.get("actions"))));
+    }
+
+    private ApplyOutcome applyAction(Long configId, Map<String, Object> action, Map<String, Object> preview,
+            List<Map<String, Object>> remaining) throws IOException {
+        MendeleyFeedSync config = feeds.findById(configId);
+        if (config == null || !config.enabled) {
+            throw new BadRequestException("The Mendeley synchronization configuration is no longer available");
+        }
+        UserSettings settings = settings(config.user);
         Map<String, String> stateFolders = mappings(config);
+        String type = value(action.get("type"));
+        Long paperId = longValue(action.get("paperId"));
+        String documentId = value(action.get("documentId"));
         int applied = 0, conflicts = 0;
-        for (Map<String, Object> action : actions) {
-            String type = value(action.get("type"));
-            Long paperId = longValue(action.get("paperId"));
-            String documentId = value(action.get("documentId"));
-            if ("CONFLICT".equals(type) || "REMOTE_DELETED".equals(type)) {
-                recordConflict(config, paperId, documentId, type, action);
+        if ("CONFLICT".equals(type) || "REMOTE_DELETED".equals(type)) {
+            recordConflict(config, paperId, documentId, type, action);
+            conflicts++;
+        } else if ("IMPORT".equals(type) || "IMPORT_CONFLICT".equals(type)) {
+            Map<String, Object> remote = remoteDocument(settings, documentId);
+            Paper paper = importPaper(settings, config, remote, stateFolders);
+            syncLink(config, paper, remote, documentId);
+            if ("IMPORT_CONFLICT".equals(type)) {
+                recordConflict(config, paper.id, documentId, MendeleyPaperSync.CONFLICT, action);
                 conflicts++;
-                continue;
-            }
-            if ("IMPORT".equals(type) || "IMPORT_CONFLICT".equals(type)) {
-                Map<String, Object> remote = remoteDocument(settings, documentId);
-                Paper paper = importPaper(settings, config, remote, stateFolders);
-                syncLink(config, paper, remote, documentId);
-                if ("IMPORT_CONFLICT".equals(type)) {
-                    recordConflict(config, paper.id, documentId, MendeleyPaperSync.CONFLICT, action);
-                    conflicts++;
-                }
-            } else if ("EXPORT".equals(type)) {
-                Paper paper = requirePaper(logicalFeed, paperId);
-                Map<String, Object> remote = api.createDocument(settings, documentPayload(paper));
-                documentId = value(remote.get("id"));
-                api.addToFolder(settings, config.rootFolderId, documentId);
-                setRemoteState(settings, documentId, paper.status, stateFolders);
-                syncPdfToMendeley(settings, paper, documentId);
-                api.updateDocumentNote(settings, documentId, settings.mendeleyProfileId, paper.notes);
-                remote = remoteDocument(settings, documentId);
-                syncLink(config, paper, remote, documentId);
-            } else if ("PULL".equals(type)) {
-                Paper paper = requirePaper(logicalFeed, paperId);
-                Map<String, Object> remote = remoteDocument(settings, documentId);
-                applyRemoteToPaper(settings, paper, remote, stateFolders, config);
-                syncLink(config, paper, remote, documentId);
-            } else if ("PUSH".equals(type)) {
-                Paper paper = requirePaper(logicalFeed, paperId);
-                Map<String, Object> remote = api.updateDocument(settings, documentId, documentPayload(paper), null);
-                setRemoteState(settings, documentId, paper.status, stateFolders);
-                syncPdfToMendeley(settings, paper, documentId);
-                api.updateDocumentNote(settings, documentId, settings.mendeleyProfileId, paper.notes);
-                remote = remoteDocument(settings, documentId);
-                syncLink(config, paper, remote, documentId);
             }
             applied++;
+        } else if ("EXPORT".equals(type)) {
+            Paper paper = requirePaper(config.logicalFeed, paperId);
+            Map<String, Object> remote = api.createDocument(settings, documentPayload(paper));
+            documentId = value(remote.get("id"));
+            api.addToFolder(settings, config.rootFolderId, documentId);
+            setRemoteState(settings, documentId, paper.status, stateFolders);
+            syncPdfToMendeley(settings, paper, documentId);
+            api.updateDocumentNote(settings, documentId, settings.mendeleyProfileId, paper.notes);
+            remote = remoteDocument(settings, documentId);
+            syncLink(config, paper, remote, documentId);
+            applied++;
+        } else if ("PULL".equals(type)) {
+            Paper paper = requirePaper(config.logicalFeed, paperId);
+            Map<String, Object> remote = remoteDocument(settings, documentId);
+            applyRemoteToPaper(settings, paper, remote, stateFolders, config);
+            syncLink(config, paper, remote, documentId);
+            applied++;
+        } else if ("PUSH".equals(type)) {
+            Paper paper = requirePaper(config.logicalFeed, paperId);
+            Map<String, Object> remote = api.updateDocument(settings, documentId, documentPayload(paper), null);
+            setRemoteState(settings, documentId, paper.status, stateFolders);
+            syncPdfToMendeley(settings, paper, documentId);
+            api.updateDocumentNote(settings, documentId, settings.mendeleyProfileId, paper.notes);
+            remote = remoteDocument(settings, documentId);
+            syncLink(config, paper, remote, documentId);
+            applied++;
+        } else {
+            throw new BadRequestException("Unknown Mendeley preview action: " + type);
         }
-        config.lastSyncedAt = Instant.now();
-        config.pendingPreviewJson = null;
+        if (remaining.isEmpty()) {
+            config.lastSyncedAt = Instant.now();
+            config.pendingPreviewJson = null;
+        } else {
+            config.pendingPreviewJson = JsonCodec.stringify(withRemainingActions(preview, remaining));
+        }
         config.lastError = null;
-        return Map.of("applied", applied, "conflicts", conflicts, "lastSyncedAt", config.lastSyncedAt.toString());
+        return new ApplyOutcome(applied, conflicts);
     }
+
+    static Map<String, Object> withRemainingActions(Map<String, Object> preview,
+            List<Map<String, Object>> remaining) {
+        Map<String, Object> updated = new LinkedHashMap<>(preview);
+        Map<String, Long> counts = new LinkedHashMap<>();
+        remaining.forEach(action -> counts.merge(value(action.get("type")), 1L, Long::sum));
+        updated.put("counts", counts);
+        updated.put("actions", remaining);
+        return updated;
+    }
+
+    private <T> T inApplyTransaction(java.util.concurrent.Callable<T> work) throws IOException {
+        try {
+            return QuarkusTransaction.requiringNew().timeout(APPLY_ACTION_TRANSACTION_TIMEOUT_SECONDS).call(work);
+        } catch (QuarkusTransactionException error) {
+            Throwable cause = rootCause(error);
+            if (cause instanceof IOException io) throw io;
+            if (cause instanceof RuntimeException runtime) throw runtime;
+            throw new IOException("Mendeley synchronization transaction failed: " + rootMessage(error), error);
+        }
+    }
+
+    private void rememberApplyError(Long configId, String message) {
+        try {
+            QuarkusTransaction.requiringNew().call(() -> {
+                MendeleyFeedSync config = feeds.findById(configId);
+                if (config != null) config.lastError = message.length() > 2000 ? message.substring(0, 2000) : message;
+                return null;
+            });
+        } catch (RuntimeException persistenceError) {
+            LOG.warnf(persistenceError, "Could not save Mendeley apply error for configuration %s", configId);
+        }
+    }
+
+    private static Throwable rootCause(Throwable error) {
+        Throwable result = error;
+        while (result.getCause() != null && result.getCause() != result) result = result.getCause();
+        return result;
+    }
+
+    private static String rootMessage(Throwable error) {
+        Throwable cause = rootCause(error);
+        String message = cause.getMessage();
+        return message == null || message.isBlank() ? cause.getClass().getSimpleName() : message;
+    }
+
+    private record ApplyPlan(Long configId, Map<String, Object> preview, List<Map<String, Object>> actions) {}
+    private record ApplyOutcome(int applied, int conflicts) {}
 
     @Transactional
     public Map<String, Object> resolve(AppUser user, LogicalFeed logicalFeed, Long linkId, String resolution) throws IOException {
