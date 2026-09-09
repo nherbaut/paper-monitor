@@ -11,6 +11,10 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -62,7 +66,9 @@ public class MendeleyApiClient {
 
     public Map<String, Object> updateDocument(UserSettings settings, String id, Map<String, Object> data,
             String unmodifiedSince) throws IOException {
-        Map<String, String> headers = unmodifiedSince == null ? Map.of() : Map.of("If-Unmodified-Since", unmodifiedSince);
+        String conditionalDate = ifUnmodifiedSince(unmodifiedSince);
+        Map<String, String> headers = conditionalDate == null ? Map.of()
+                : Map.of("If-Unmodified-Since", conditionalDate);
         return object(send(settings, "PATCH", API + "/documents/" + path(id), DOCUMENT, DOCUMENT,
                 JsonCodec.stringify(data).getBytes(StandardCharsets.UTF_8), headers));
     }
@@ -190,6 +196,15 @@ public class MendeleyApiClient {
     private static String path(String value) { return query(value).replace("+", "%20"); }
     private static String query(String value) { return URLEncoder.encode(value, StandardCharsets.UTF_8); }
     static String paginated(String url) { return url + (url.contains("?") ? "&" : "?") + "limit=" + PAGE_SIZE; }
+    /** HTTP conditional headers require an RFC 1123 date, whereas Mendeley documents expose ISO-8601 timestamps. */
+    static String ifUnmodifiedSince(String remoteModifiedAt) {
+        if (remoteModifiedAt == null || remoteModifiedAt.isBlank()) return null;
+        try {
+            return DateTimeFormatter.RFC_1123_DATE_TIME.format(Instant.parse(remoteModifiedAt).atOffset(ZoneOffset.UTC));
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
+    }
     private static String value(Object value) { return value == null || String.valueOf(value).isBlank() ? null : String.valueOf(value); }
     private static boolean isDocumentNote(Map<String, Object> row) {
         Object positions = row.get("positions");

@@ -2,6 +2,7 @@ package top.nextnet.paper.monitor.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
@@ -26,5 +27,12 @@ class MendeleyApiClientTest {
         assertFalse(MendeleyApiClient.isExistingFolderMembership(
                 new MendeleyApiClient.MendeleyApiException(400,
                         "{\"message\":\"The document already exists in the internalFolder\"}")));
+    }
+
+    @Test
+    void convertsMendeleyIsoTimestampToAnHttpConditionalDate() {
+        assertEquals("Wed, 9 Sep 2026 14:58:27 GMT",
+                MendeleyApiClient.ifUnmodifiedSince("2026-09-09T14:58:27.748789646Z"));
+        assertNull(MendeleyApiClient.ifUnmodifiedSince("not-a-timestamp"));
     }
 }
