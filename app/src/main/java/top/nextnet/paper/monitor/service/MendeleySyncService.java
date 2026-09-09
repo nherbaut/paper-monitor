@@ -99,8 +99,12 @@ public class MendeleySyncService {
     @Transactional
     @TransactionConfiguration(timeout = 900)
     public Map<String, Object> preview(AppUser user, LogicalFeed logicalFeed) throws IOException {
-        MendeleyFeedSync config = requireConfig(user, logicalFeed);
-        UserSettings settings = settings(user);
+        return preview(requireConfig(user, logicalFeed));
+    }
+
+    private Map<String, Object> preview(MendeleyFeedSync config) throws IOException {
+        LogicalFeed logicalFeed = config.logicalFeed;
+        UserSettings settings = settings(config.user);
         Map<String, String> stateFolders = ensureStateFolders(settings, logicalFeed, config.rootFolderId);
         config.stateFolderMappingsJson = JsonCodec.stringify(stateFolders);
         Map<String, Set<String>> memberships = folderMemberships(settings, config, stateFolders);
@@ -174,6 +178,12 @@ public class MendeleySyncService {
         return preview;
     }
 
+    @Transactional
+    @TransactionConfiguration(timeout = 900)
+    public Map<String, Object> previewConfiguration(Long configId) throws IOException {
+        return preview(requireConfig(configId));
+    }
+
     public Map<String, Object> apply(AppUser user, LogicalFeed logicalFeed) throws IOException {
         return apply(user, logicalFeed, (completed, total) -> {});
     }
@@ -181,6 +191,15 @@ public class MendeleySyncService {
     public Map<String, Object> apply(AppUser user, LogicalFeed logicalFeed, ProgressListener progress)
             throws IOException {
         ApplyPlan plan = inApplyTransaction(() -> prepareApply(user, logicalFeed));
+        return apply(plan, progress);
+    }
+
+    public Map<String, Object> applyConfiguration(Long configId, ProgressListener progress) throws IOException {
+        ApplyPlan plan = inApplyTransaction(() -> prepareApply(requireConfig(configId)));
+        return apply(plan, progress);
+    }
+
+    private Map<String, Object> apply(ApplyPlan plan, ProgressListener progress) throws IOException {
         List<Map<String, Object>> remaining = new ArrayList<>(plan.actions());
         LOG.infof("Applying Mendeley synchronization configuration %s with %d action(s)",
                 plan.configId(), remaining.size());
@@ -221,7 +240,10 @@ public class MendeleySyncService {
     }
 
     private ApplyPlan prepareApply(AppUser user, LogicalFeed logicalFeed) {
-        MendeleyFeedSync config = requireConfig(user, logicalFeed);
+        return prepareApply(requireConfig(user, logicalFeed));
+    }
+
+    private ApplyPlan prepareApply(MendeleyFeedSync config) {
         if (config.pendingPreviewJson == null || config.previewedAt == null
                 || config.previewedAt.isBefore(Instant.now().minus(30, ChronoUnit.MINUTES))) {
             throw new BadRequestException("Create a fresh Mendeley sync preview first");
@@ -551,6 +573,7 @@ public class MendeleySyncService {
 
     private Paper requirePaper(LogicalFeed feed, Long id) { Paper paper = papers.findById(id); if (paper == null || !Objects.equals(paper.logicalFeed.id, feed.id)) throw new NotFoundException(); return paper; }
     private MendeleyFeedSync requireConfig(AppUser user, LogicalFeed feed) { MendeleyFeedSync config = feeds.findByUserAndFeed(user, feed).orElseThrow(() -> new BadRequestException("Configure this feed's Mendeley folder first")); if (!config.enabled) throw new BadRequestException("Mendeley sync is disabled for this feed"); return config; }
+    private MendeleyFeedSync requireConfig(Long configId) { MendeleyFeedSync config = feeds.findById(configId); if (config == null) throw new BadRequestException("The Mendeley synchronization configuration no longer exists"); if (!config.enabled) throw new BadRequestException("Mendeley sync is disabled for this feed"); return config; }
     private UserSettings settings(AppUser user) { UserSettings settings = auth.ensureSettings(user); if (!settings.hasMendeleyConnection()) throw new BadRequestException("Connect Mendeley first"); return settings; }
 
     private Map<String, Object> previewPayload(MendeleyFeedSync config, List<Map<String, Object>> actions) { Map<String, Long> counts = new LinkedHashMap<>(); actions.forEach(a -> counts.merge(value(a.get("type")), 1L, Long::sum)); return Map.of("feedId", config.logicalFeed.id, "generatedAt", Instant.now().toString(), "counts", counts, "actions", actions); }

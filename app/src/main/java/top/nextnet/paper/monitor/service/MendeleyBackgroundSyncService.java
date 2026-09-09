@@ -131,16 +131,15 @@ public class MendeleyBackgroundSyncService {
             LOG.infof("Starting background Mendeley synchronization %s (trigger=%s, refreshPreview=%s)",
                     configId, trigger, refreshPreview);
             ensureNotCancelled(configId);
-            SyncTarget target = target(configId);
             updateJob(configId, "DISCOVERING", "Comparing Paper Monitor and Mendeley", trigger,
                     0, 0, null, false);
             Map<String, Object> preview = refreshPreview
-                    ? sync.preview(target.user(), target.logicalFeed())
+                    ? sync.previewConfiguration(configId)
                     : null;
             ensureNotCancelled(configId);
             int total = preview == null ? 0 : actionCount(preview);
             updateJob(configId, "RUNNING", "Synchronizing papers", trigger, 0, total, null, false);
-            sync.apply(target.user(), target.logicalFeed(), (completed, actionTotal) -> {
+            sync.applyConfiguration(configId, (completed, actionTotal) -> {
                 ensureNotCancelled(configId);
                 updateJob(configId, "RUNNING", "Synchronizing papers", trigger,
                         completed, actionTotal, null, false);
@@ -175,15 +174,6 @@ public class MendeleyBackgroundSyncService {
 
     private void ensureNotCancelled(Long configId) {
         if (cancelled.contains(configId)) throw new CancellationException();
-    }
-
-    private SyncTarget target(Long configId) {
-        return QuarkusTransaction.requiringNew().call(() -> {
-            MendeleyFeedSync config = feeds.findById(configId);
-            if (config == null || !config.enabled) throw new BadRequestException(
-                    "Mendeley synchronization configuration is unavailable");
-            return new SyncTarget(config.user, config.logicalFeed);
-        });
     }
 
     private void updateJob(Long configId, String status, String phase, String trigger,
@@ -245,5 +235,4 @@ public class MendeleyBackgroundSyncService {
         return message == null || message.isBlank() ? result.getClass().getSimpleName() : message;
     }
 
-    private record SyncTarget(AppUser user, LogicalFeed logicalFeed) {}
 }
