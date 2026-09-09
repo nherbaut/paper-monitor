@@ -15,6 +15,7 @@ import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import org.jboss.logging.Logger;
 import org.jboss.resteasy.reactive.RestForm;
 import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.LogicalFeed;
@@ -25,6 +26,7 @@ import top.nextnet.paper.monitor.service.MendeleySyncService;
 
 @Path("")
 public class MendeleyResource {
+    private static final Logger LOG = Logger.getLogger(MendeleyResource.class);
     private final CurrentUserContext currentUser;
     private final LogicalFeedAccessService access;
     private final MendeleyAuthService auth;
@@ -39,16 +41,17 @@ public class MendeleyResource {
     public Response start(@QueryParam("returnTo") String returnTo) {
         AppUser user = requireUser();
         try { return Response.seeOther(auth.start(user, returnTo)).build(); }
-        catch (IOException e) { return adminError(e); }
+        catch (IOException e) { return adminError("authorization start", e); }
     }
 
     @GET @Path("/auth/mendeley/callback")
     public Response callback(@QueryParam("state") String state, @QueryParam("code") String code,
             @QueryParam("error") String error) {
         AppUser user = requireUser();
-        if (error != null) return adminError(new IOException("Mendeley authorization was declined: " + error));
+        if (error != null) return adminError("authorization callback",
+                new IOException("Mendeley authorization was declined: " + error));
         try { return Response.seeOther(URI.create(auth.finish(user, state, code))).build(); }
-        catch (IOException e) { return adminError(e); }
+        catch (IOException e) { return adminError("authorization callback", e); }
     }
 
     @POST @Path("/api/mendeley/disconnect") @Transactional
@@ -67,32 +70,32 @@ public class MendeleyResource {
     }
 
     @GET @Path("/api/mendeley/folders") @Produces(MediaType.APPLICATION_JSON) @Transactional
-    public Object folders() { try { return Map.of("folders", sync.folders(requireUser())); } catch (IOException e) { throw apiError(e); } }
+    public Object folders() { try { return Map.of("folders", sync.folders(requireUser())); } catch (IOException e) { throw apiError("list folders", e); } }
 
     @POST @Path("/api/mendeley/feeds/{id}/configure") @Produces(MediaType.APPLICATION_JSON) @Transactional
     public Object configure(@PathParam("id") Long id, @RestForm("folderId") String folderId,
             @RestForm("folderName") String folderName) {
         AppUser user = requireUser(); LogicalFeed feed = access.requireAdminLogicalFeed(id, user);
-        try { return sync.configure(user, feed, folderId, folderName); } catch (IOException e) { throw apiError(e); }
+        try { return sync.configure(user, feed, folderId, folderName); } catch (IOException e) { throw apiError("configure feed", e); }
     }
 
     @POST @Path("/api/mendeley/feeds/{id}/preview") @Produces(MediaType.APPLICATION_JSON) @Transactional
     public Object preview(@PathParam("id") Long id) {
         AppUser user = requireUser(); LogicalFeed feed = access.requireAdminLogicalFeed(id, user);
-        try { return sync.preview(user, feed); } catch (IOException e) { throw apiError(e); }
+        try { return sync.preview(user, feed); } catch (IOException e) { throw apiError("preview synchronization", e); }
     }
 
     @POST @Path("/api/mendeley/feeds/{id}/apply") @Produces(MediaType.APPLICATION_JSON) @Transactional
     public Object apply(@PathParam("id") Long id) {
         AppUser user = requireUser(); LogicalFeed feed = access.requireAdminLogicalFeed(id, user);
-        try { return sync.apply(user, feed); } catch (IOException e) { throw apiError(e); }
+        try { return sync.apply(user, feed); } catch (IOException e) { throw apiError("apply synchronization", e); }
     }
 
     @POST @Path("/api/mendeley/feeds/{id}/conflicts/{linkId}/resolve") @Produces(MediaType.APPLICATION_JSON) @Transactional
     public Object resolve(@PathParam("id") Long id, @PathParam("linkId") Long linkId,
             @RestForm("resolution") String resolution) {
         AppUser user = requireUser(); LogicalFeed feed = access.requireAdminLogicalFeed(id, user);
-        try { return sync.resolve(user, feed, linkId, resolution); } catch (IOException e) { throw apiError(e); }
+        try { return sync.resolve(user, feed, linkId, resolution); } catch (IOException e) { throw apiError("resolve conflict", e); }
     }
 
     private AppUser requireUser() {
@@ -100,11 +103,13 @@ public class MendeleyResource {
         if (user == null) throw new WebApplicationException("Authentication is required", Response.Status.UNAUTHORIZED);
         return user;
     }
-    private WebApplicationException apiError(IOException error) {
+    private WebApplicationException apiError(String operation, IOException error) {
+        LOG.errorf(error, "Mendeley %s failed", operation);
         return new WebApplicationException(Response.status(Response.Status.BAD_GATEWAY)
                 .type(MediaType.TEXT_PLAIN).entity(error.getMessage()).build());
     }
-    private Response adminError(IOException error) {
+    private Response adminError(String operation, IOException error) {
+        LOG.errorf(error, "Mendeley %s failed", operation);
         return Response.seeOther(URI.create("/admin?error=" + URLEncoder.encode(error.getMessage(), StandardCharsets.UTF_8) + "#mendeley")).build();
     }
 }

@@ -15,6 +15,11 @@ class MendeleyAuthServiceTest {
         assertNull(service(true, "client", "secret").configurationIssue());
     }
 
+    @Test
+    void usesTheCollectionProfileMediaTypeRequiredByProfilesMe() {
+        assertEquals("application/vnd.mendeley-profiles.1+json", MendeleyAuthService.PROFILE_MEDIA_TYPE);
+    }
+
     private MendeleyAuthService service(boolean enabled, String clientId, String clientSecret) {
         return new MendeleyAuthService(HttpClient.newHttpClient(), null, null,
                 clientId, clientSecret, "all", enabled, "https://papers.example.test");

@@ -30,6 +30,7 @@ public class MendeleyAuthService {
     private static final Logger LOG = Logger.getLogger(MendeleyAuthService.class);
     private static final String AUTHORIZE_URL = "https://api.mendeley.com/oauth/authorize";
     private static final String TOKEN_URL = "https://api.mendeley.com/oauth/token";
+    static final String PROFILE_MEDIA_TYPE = "application/vnd.mendeley-profiles.1+json";
     private final HttpClient httpClient;
     private final MendeleyLoginRequestRepository requests;
     private final AuthService authService;
@@ -106,29 +107,40 @@ public class MendeleyAuthService {
     public String finish(AppUser user, String state, String code) throws IOException {
         if (user == null || state == null || code == null) throw new IOException("Invalid Mendeley callback");
         MendeleyLoginRequest login = requests.findByState(state)
-                .orElseThrow(() -> new IOException("Unknown Mendeley connection state"));
+                .orElseThrow(() -> new IOException(
+                        "This Mendeley connection callback has already been used or expired; start the connection again"));
         if (!Objects.equals(login.user.id, user.id)) throw new IOException("Mendeley connection state belongs to another user");
         if (login.createdAt.isBefore(Instant.now().minus(30, ChronoUnit.MINUTES))) {
             requests.delete(login);
             throw new IOException("The Mendeley connection request expired; start again");
         }
-        requests.delete(login);
         Map<String, Object> tokens = tokenRequest("grant_type=authorization_code&code=" + encode(code)
                 + "&redirect_uri=" + encode(callbackUrl()));
         String refreshToken = value(tokens.get("refresh_token"));
         String accessToken = value(tokens.get("access_token"));
         if (refreshToken == null || accessToken == null) throw new IOException("Mendeley did not return reusable credentials");
-        Map<String, Object> profile = getObject("https://api.mendeley.com/profiles/me", accessToken,
-                "application/vnd.mendeley-profile.1+json");
         UserSettings settings = authService.ensureSettings(user);
         settings.mendeleyRefreshToken = refreshToken;
         settings.mendeleyAccessToken = accessToken;
         settings.mendeleyAccessTokenExpiresAt = expiry(tokens);
         settings.mendeleyGrantedScopes = value(tokens.get("scope"));
         settings.mendeleyConnectedAt = Instant.now();
-        settings.mendeleyProfileId = value(profile.get("id"));
-        settings.mendeleyDisplayName = displayName(profile);
-        settings.mendeleyLastError = null;
+        requests.delete(login);
+        try {
+            Map<String, Object> profile = getObject("https://api.mendeley.com/profiles/me", accessToken,
+                    PROFILE_MEDIA_TYPE);
+            settings.mendeleyProfileId = value(profile.get("id"));
+            settings.mendeleyDisplayName = displayName(profile);
+            settings.mendeleyLastError = null;
+        } catch (IOException profileError) {
+            settings.mendeleyProfileId = null;
+            settings.mendeleyDisplayName = null;
+            settings.mendeleyLastError = "Connected, but the Mendeley profile could not be loaded: "
+                    + profileError.getMessage();
+            LOG.warnf(profileError,
+                    "Mendeley OAuth token exchange succeeded for user %s, but profile lookup failed; connection retained",
+                    user.id);
+        }
         return safeReturnTo(login.returnTo);
     }
 
@@ -152,7 +164,7 @@ public class MendeleyAuthService {
             return settings.mendeleyAccessToken;
         }
         Map<String, Object> tokens = tokenRequest("grant_type=refresh_token&refresh_token="
-                + encode(settings.mendeleyRefreshToken));
+                + encode(settings.mendeleyRefreshToken) + "&redirect_uri=" + encode(callbackUrl()));
         String accessToken = value(tokens.get("access_token"));
         if (accessToken == null) throw new IOException("Mendeley token refresh did not return an access token");
         String replacement = value(tokens.get("refresh_token"));

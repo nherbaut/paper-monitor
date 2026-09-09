@@ -274,7 +274,8 @@ public class MendeleySyncService {
             configs.add(row);
         }
         return Map.of("serverEnabled", true, "connected", settings.hasMendeleyConnection(),
-                "displayName", nonNull(settings.mendeleyDisplayName), "feeds", configs);
+                "displayName", nonNull(settings.mendeleyDisplayName),
+                "connectionWarning", nonNull(settings.mendeleyLastError), "feeds", configs);
     }
 
     private Map<String, String> ensureStateFolders(UserSettings settings, LogicalFeed feed, String root) throws IOException {
