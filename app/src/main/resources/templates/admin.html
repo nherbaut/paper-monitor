@@ -2524,7 +2524,12 @@
             mendeleyConnectionActions.replaceChildren();
             mendeleyFeedSettings.replaceChildren();
             if (!status.serverEnabled) {
-                mendeleyStatusText.textContent = "Mendeley is not configured on this server.";
+                mendeleyStatusText.textContent = "Mendeley is not configured: "
+                    + (status.configurationIssue || "check the server environment variables") + ".";
+                const callback = document.createElement("p");
+                callback.className = "meta";
+                callback.textContent = "Expected OAuth callback: " + status.callbackUrl;
+                mendeleyFeedSettings.appendChild(callback);
                 return;
             }
             if (!status.connected) {

@@ -1,6 +1,7 @@
 package top.nextnet.paper.monitor.service;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.io.IOException;
@@ -16,7 +17,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Objects;
+import org.jboss.logging.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import io.quarkus.runtime.StartupEvent;
 import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.MendeleyLoginRequest;
 import top.nextnet.paper.monitor.model.UserSettings;
@@ -24,6 +27,7 @@ import top.nextnet.paper.monitor.repo.MendeleyLoginRequestRepository;
 
 @ApplicationScoped
 public class MendeleyAuthService {
+    private static final Logger LOG = Logger.getLogger(MendeleyAuthService.class);
     private static final String AUTHORIZE_URL = "https://api.mendeley.com/oauth/authorize";
     private static final String TOKEN_URL = "https://api.mendeley.com/oauth/token";
     private final HttpClient httpClient;
@@ -58,12 +62,32 @@ public class MendeleyAuthService {
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.replaceAll("/+$", "");
     }
 
-    public boolean isEnabled() { return enabled && !clientId.isBlank() && !clientSecret.isBlank(); }
+    public boolean isEnabled() { return configurationIssue() == null; }
     public String requestedScopes() { return scopes; }
+    public String callbackUrl() { return baseUrl + "/auth/mendeley/callback"; }
+
+    public String configurationIssue() {
+        if (!enabled) return "PAPER_MONITOR_MENDELEY_ENABLED is false";
+        if (clientId.isBlank()) return "PAPER_MONITOR_MENDELEY_CLIENT_ID is missing";
+        if (clientSecret.isBlank()) return "PAPER_MONITOR_MENDELEY_CLIENT_SECRET is missing";
+        return null;
+    }
+
+    void logConfiguration(@Observes StartupEvent ignored) {
+        String issue = configurationIssue();
+        if (issue == null) {
+            LOG.infof("Mendeley integration configured: enabled=true, clientIdConfigured=true, "
+                    + "clientSecretConfigured=true, scopes=%s, callbackUrl=%s", scopes, callbackUrl());
+        } else {
+            LOG.warnf("Mendeley integration unavailable: %s; enabled=%s, clientIdConfigured=%s, "
+                    + "clientSecretConfigured=%s, callbackUrl=%s", issue, enabled, !clientId.isBlank(),
+                    !clientSecret.isBlank(), callbackUrl());
+        }
+    }
 
     @Transactional
     public URI start(AppUser user, String returnTo) throws IOException {
-        if (!isEnabled()) throw new IOException("Mendeley integration is not configured");
+        if (!isEnabled()) throw new IOException("Mendeley integration is not configured: " + configurationIssue());
         if (user == null) throw new IOException("A signed-in user is required to connect Mendeley");
         requests.deleteOlderThan(Instant.now().minus(30, ChronoUnit.MINUTES));
         byte[] bytes = new byte[32];
@@ -168,7 +192,6 @@ public class MendeleyAuthService {
         }
     }
 
-    private String callbackUrl() { return baseUrl + "/auth/mendeley/callback"; }
     private static Instant expiry(Map<String, Object> tokens) {
         try { return Instant.now().plusSeconds(Long.parseLong(String.valueOf(tokens.getOrDefault("expires_in", 3600)))); }
         catch (RuntimeException e) { return Instant.now().plusSeconds(3600); }

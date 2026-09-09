@@ -60,7 +60,9 @@ public class MendeleyResource {
         Map<String, Object> result = new java.util.LinkedHashMap<>(sync.status(user,
                 access.readableLogicalFeeds(user).stream().filter(feed -> access.canAdmin(feed, user)).toList()));
         result.put("serverEnabled", auth.isEnabled());
+        result.put("configurationIssue", auth.configurationIssue());
         result.put("requestedScopes", auth.requestedScopes());
+        result.put("callbackUrl", auth.callbackUrl());
         return result;
     }
 
