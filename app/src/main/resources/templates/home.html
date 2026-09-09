@@ -455,9 +455,9 @@
             right: 0;
             top: calc(100% - 1px);
             z-index: 5;
-            min-width: 10rem;
+            width: min(18rem, calc(100vw - 2rem));
             display: grid;
-            gap: 0.35rem;
+            gap: 0.18rem;
             padding: 0.55rem;
             border: 1px solid var(--line);
             border-radius: 0 0 14px 14px;
@@ -483,6 +483,35 @@
         .export-menu-panel button {
             width: 100%;
             text-align: left;
+        }
+
+        .tool-menu-action {
+            display: grid;
+            grid-template-columns: 1.25rem minmax(0, 1fr);
+            align-items: center;
+            gap: 0.65rem;
+            min-height: 2.55rem;
+            padding: 0.5rem 0.6rem;
+            border-color: transparent;
+            background: transparent;
+            color: var(--ink);
+            box-shadow: none;
+        }
+
+        .tool-menu-action:not(:disabled):hover,
+        .tool-menu-action:not(:disabled):focus-visible {
+            border-color: var(--line);
+            background: color-mix(in srgb, var(--panel-quiet) 88%, var(--accent) 12%);
+        }
+
+        .tool-menu-action svg {
+            width: 1.15rem;
+            height: 1.15rem;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
         }
 
         .manual-import-panel {
@@ -681,8 +710,12 @@
 
         .export-state-grid {
             display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 0.45rem;
             margin-top: 0.35rem;
+            max-height: min(42vh, 22rem);
+            overflow-y: auto;
+            padding-right: 0.25rem;
         }
 
         .export-state-option {
@@ -696,6 +729,61 @@
             margin: 0;
             width: auto;
             padding: 0;
+        }
+
+        .dialog-tabs {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.2rem;
+            padding: 0.2rem;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: var(--panel-quiet);
+        }
+
+        .dialog-tabs button {
+            border: 0;
+            background: transparent;
+            color: var(--muted);
+            box-shadow: none;
+        }
+
+        .dialog-tabs button.active {
+            background: var(--panel);
+            color: var(--ink);
+            box-shadow: 0 1px 5px rgba(42, 48, 59, 0.14);
+        }
+
+        .import-mode-panel,
+        .export-dialog-section {
+            display: grid;
+            gap: 0.8rem;
+        }
+
+        .export-dialog-section {
+            padding: 0.85rem;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--panel-quiet) 92%, var(--panel));
+        }
+
+        .export-dialog-section h4,
+        .export-dialog-section p {
+            margin: 0;
+        }
+
+        .export-dialog-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+            gap: 0.5rem;
+        }
+
+        .export-dialog-actions button {
+            width: 100%;
+        }
+
+        @media (max-width: 560px) {
+            .export-state-grid { grid-template-columns: minmax(0, 1fr); }
         }
 
         .review-modal {
@@ -716,6 +804,12 @@
             display: grid;
             gap: 1rem;
             padding: 1.1rem;
+        }
+
+        #paper-import-modal .review-modal-body,
+        #paper-export-modal .review-modal-body {
+            max-height: calc(100vh - 2rem);
+            overflow-y: auto;
         }
 
         .review-modal-header {
@@ -944,25 +1038,6 @@
             to {
                 transform: rotate(360deg);
             }
-        }
-
-        .export-menu-group {
-            display: grid;
-            gap: 0.35rem;
-        }
-
-        .export-menu-group + .export-menu-group {
-            margin-top: 0.35rem;
-            padding-top: 0.45rem;
-            border-top: 1px solid var(--line);
-        }
-
-        .export-menu-group-title {
-            color: var(--muted);
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            padding: 0 0.2rem;
         }
 
         .title-with-icon {
@@ -3596,79 +3671,117 @@
         </div>
     </dialog>
 
-    <dialog class="review-modal" id="doi-import-modal">
+    <dialog class="review-modal" id="paper-import-modal">
         <div class="review-modal-body">
             <div class="review-modal-header">
                 <div>
-                    <h3>Import paper by DOI</h3>
-                    <p class="meta" id="manual-import-modal-status">Paste one DOI or several DOIs separated by spaces or commas. The papers will be added to the current paper feed.</p>
+                    <h3>Import paper</h3>
+                    <p class="meta">Add published research or a web resource to the current paper feed.</p>
                 </div>
-                <button class="icon-button secondary" id="doi-import-modal-close" type="button" title="Close">×</button>
+                <button class="icon-button secondary" id="paper-import-modal-close" type="button" title="Close">×</button>
             </div>
-            <form class="stack manual-import-form" id="manual-import-form" action="/papers/import-doi" method="post" enctype="multipart/form-data">
-                <div class="hidden" aria-hidden="true">
-                    <select id="doi-import-logical-feed" name="logicalFeedId" tabindex="-1">
-                        <option value="">Select paper feed</option>
-                        {#for logicalFeed in logicalFeeds}
-                        <option value="{logicalFeed.id}">{logicalFeed.name}</option>
-                        {/for}
-                    </select>
-                </div>
-                <label class="meta" for="manual-import-doi">DOI</label>
-                <input id="manual-import-doi" name="doi" type="text" placeholder="10.1145/1234567 or 10.1145/1234567, 10.5555/7654321" required>
-                <div class="manual-import-actions">
-                    <button class="secondary" id="manual-import-fetch" type="button">Fetch metadata</button>
-                </div>
-                <p class="meta hidden" id="manual-import-status"></p>
-                <div class="manual-import-preview hidden" id="manual-import-preview">
-                    <h3 id="manual-import-preview-title">Preview</h3>
-                    <p class="meta" id="manual-import-preview-meta"></p>
-                    <p class="manual-import-preview-summary" id="manual-import-preview-summary"></p>
-                    <p class="meta" id="manual-import-preview-links"></p>
-                </div>
-                <div class="manual-import-dropzone hidden" id="manual-import-dropzone" tabindex="0">
-                    <input id="manual-import-pdf" name="pdf" type="file" accept="application/pdf" class="hidden">
-                    <p class="meta" id="manual-import-file-label">Drop a PDF here, or select one from your device.</p>
-                    <div class="manual-import-actions">
-                        <button class="secondary" id="manual-import-file-button" type="button">Choose PDF</button>
+            <div class="dialog-tabs" role="tablist" aria-label="Paper import method">
+                <button class="active" id="paper-import-doi-tab" type="button" role="tab" aria-selected="true" aria-controls="paper-import-doi-panel" tabindex="0">DOI</button>
+                <button id="paper-import-web-tab" type="button" role="tab" aria-selected="false" aria-controls="paper-import-web-panel" tabindex="-1">Web resource</button>
+            </div>
+            <section class="import-mode-panel" id="paper-import-doi-panel" role="tabpanel" aria-labelledby="paper-import-doi-tab">
+                <p class="meta" id="manual-import-modal-status">Paste one DOI or several DOIs separated by spaces or commas. The papers will be added to the current paper feed.</p>
+                <form class="stack manual-import-form" id="manual-import-form" action="/papers/import-doi" method="post" enctype="multipart/form-data">
+                    <div class="hidden" aria-hidden="true">
+                        <select id="doi-import-logical-feed" name="logicalFeedId" tabindex="-1">
+                            <option value="">Select paper feed</option>
+                            {#for logicalFeed in logicalFeeds}
+                            <option value="{logicalFeed.id}">{logicalFeed.name}</option>
+                            {/for}
+                        </select>
                     </div>
-                </div>
-                <div class="manual-import-actions">
-                    <button class="secondary hidden" id="manual-import-submit" type="submit">Import paper</button>
-                </div>
-            </form>
+                    <label class="meta" for="manual-import-doi">DOI</label>
+                    <input id="manual-import-doi" name="doi" type="text" placeholder="10.1145/1234567 or 10.1145/1234567, 10.5555/7654321" required>
+                    <div class="manual-import-actions">
+                        <button class="secondary" id="manual-import-fetch" type="button">Fetch metadata</button>
+                    </div>
+                    <p class="meta hidden" id="manual-import-status"></p>
+                    <div class="manual-import-preview hidden" id="manual-import-preview">
+                        <h3 id="manual-import-preview-title">Preview</h3>
+                        <p class="meta" id="manual-import-preview-meta"></p>
+                        <p class="manual-import-preview-summary" id="manual-import-preview-summary"></p>
+                        <p class="meta" id="manual-import-preview-links"></p>
+                    </div>
+                    <div class="manual-import-dropzone hidden" id="manual-import-dropzone" tabindex="0">
+                        <input id="manual-import-pdf" name="pdf" type="file" accept="application/pdf" class="hidden">
+                        <p class="meta" id="manual-import-file-label">Drop a PDF here, or select one from your device.</p>
+                        <div class="manual-import-actions">
+                            <button class="secondary" id="manual-import-file-button" type="button">Choose PDF</button>
+                        </div>
+                    </div>
+                    <div class="manual-import-actions">
+                        <button class="secondary hidden" id="manual-import-submit" type="submit">Import paper</button>
+                    </div>
+                </form>
+            </section>
+            <section class="import-mode-panel hidden" id="paper-import-web-panel" role="tabpanel" aria-labelledby="paper-import-web-tab" hidden>
+                <p class="meta" id="url-import-modal-status">Add a web resource to the current paper feed.</p>
+                <form class="stack" id="url-import-form">
+                    <label class="meta" for="url-import-url">Source URL</label>
+                    <input id="url-import-url" name="url" type="url" placeholder="https://example.org/report" required>
+                    <label class="meta" for="url-import-title">Title</label>
+                    <input id="url-import-title" name="title" type="text" required>
+                    <label class="meta" for="url-import-authors">Authors</label>
+                    <input id="url-import-authors" name="authors" type="text" placeholder="Jane Doe, John Smith">
+                    <label class="meta" for="url-import-publisher">Organization or publisher</label>
+                    <input id="url-import-publisher" name="publisher" type="text">
+                    <label class="meta" for="url-import-published-on">Published date</label>
+                    <input id="url-import-published-on" name="publishedOn" type="date">
+                    <label class="meta" for="url-import-summary">Description or abstract</label>
+                    <textarea id="url-import-summary" name="summary" rows="6"></textarea>
+                    <label class="meta" for="url-import-status">Initial state</label>
+                    <select id="url-import-status" name="status" required></select>
+                    <p class="meta hidden" id="url-import-feedback"></p>
+                    <div class="manual-import-actions">
+                        <button class="secondary" id="url-import-submit" type="submit">Import resource</button>
+                    </div>
+                </form>
+            </section>
         </div>
     </dialog>
 
-    <dialog class="review-modal" id="url-import-modal">
+    <dialog class="review-modal" id="paper-export-modal">
         <div class="review-modal-body">
             <div class="review-modal-header">
                 <div>
-                    <h3>Import gray literature</h3>
-                    <p class="meta" id="url-import-modal-status">Add a web resource to the current paper feed.</p>
+                    <h3>Export paper feed</h3>
+                    <p class="meta" id="paper-export-scope"></p>
                 </div>
-                <button class="icon-button secondary" id="url-import-modal-close" type="button" title="Close">×</button>
+                <button class="icon-button secondary" id="paper-export-modal-close" type="button" title="Close">×</button>
             </div>
-            <form class="stack" id="url-import-form">
-                <label class="meta" for="url-import-url">Source URL</label>
-                <input id="url-import-url" name="url" type="url" placeholder="https://example.org/report" required>
-                <label class="meta" for="url-import-title">Title</label>
-                <input id="url-import-title" name="title" type="text" required>
-                <label class="meta" for="url-import-authors">Authors</label>
-                <input id="url-import-authors" name="authors" type="text" placeholder="Jane Doe, John Smith">
-                <label class="meta" for="url-import-publisher">Organization or publisher</label>
-                <input id="url-import-publisher" name="publisher" type="text">
-                <label class="meta" for="url-import-published-on">Published date</label>
-                <input id="url-import-published-on" name="publishedOn" type="date">
-                <label class="meta" for="url-import-summary">Description or abstract</label>
-                <textarea id="url-import-summary" name="summary" rows="6"></textarea>
-                <label class="meta" for="url-import-status">Initial state</label>
-                <select id="url-import-status" name="status" required></select>
-                <p class="meta hidden" id="url-import-feedback"></p>
-                <div class="manual-import-actions">
-                    <button class="secondary" id="url-import-submit" type="submit">Import resource</button>
+            <section class="export-dialog-section">
+                <div class="status">
+                    <h4>States</h4>
+                    <div class="manual-import-actions">
+                        <button class="secondary" id="paper-export-select-all" type="button">Select all</button>
+                        <button class="secondary" id="paper-export-clear" type="button">Clear</button>
+                    </div>
                 </div>
-            </form>
+                <div class="export-state-grid" id="export-state-list"></div>
+            </section>
+            <p class="message error hidden" id="paper-export-error"></p>
+            <section class="export-dialog-section">
+                <h4>Report</h4>
+                <p class="meta">Export the selected papers and their review information.</p>
+                <div class="export-dialog-actions">
+                    <button class="secondary export-format-button" data-kind="report" data-format="md" type="button">Markdown</button>
+                    <button class="secondary export-format-button" data-kind="report" data-format="pdf" type="button">PDF</button>
+                    <button class="secondary export-format-button" data-kind="report" data-format="docx" type="button">DOCX</button>
+                    <button class="secondary export-format-button" data-kind="report" data-format="csv" type="button">CSV</button>
+                </div>
+            </section>
+            <section class="export-dialog-section">
+                <h4>Paper archive</h4>
+                <p class="meta">Download stored PDFs together with generated reports.</p>
+                <div class="export-dialog-actions">
+                    <button class="secondary export-format-button" data-kind="all" data-format="zip" type="button">PDFs + reports (ZIP)</button>
+                </div>
+            </section>
         </div>
     </dialog>
 
@@ -3781,45 +3894,30 @@
                 <details class="export-menu" id="reader-export-menu">
                     <summary class="secondary" id="reader-export-button">Tools</summary>
                     <div class="export-menu-panel">
-                        <div class="export-menu-group">
-                            <div class="export-menu-group-title">Import</div>
-                            <button class="secondary" id="reader-import-doi-button" type="button">Import by DOI</button>
-                            <button class="secondary" id="reader-import-url-button" type="button">Import gray literature</button>
-                        </div>
-                        <div class="export-menu-group">
-                            <div class="export-menu-group-title">Batch update</div>
-                            <button class="secondary" id="reader-batch-update-button" type="button">Batch update papers</button>
-                        </div>
-                        <div class="export-menu-group">
-                            <div class="export-menu-group-title">Diagram</div>
-                            <button class="secondary" id="reader-diagram-button" type="button">View live diagram</button>
-                        </div>
-                        <div class="export-menu-group">
-                            <div class="export-menu-group-title">Mendeley</div>
-                            <button class="secondary button-with-icon" id="reader-mendeley-sync-button" type="button">
-                                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.1 4.4A6 6 0 0 0 2.4 5.8l1 .25A5 5 0 0 1 12 4.9L10.5 6.4l.7.7L14 4.3l-2.8-2.8-.7.7 1.6 1.6ZM2.9 11.6a6 6 0 0 0 10.7-1.4l-1-.25A5 5 0 0 1 4 11.1l1.5-1.5-.7-.7L2 11.7l2.8 2.8.7-.7-1.6-1.6Z"/></svg>
-                                <span>Sync Mendeley</span>
-                            </button>
-                        </div>
-                        <div class="export-menu-group">
-                            <div class="export-menu-group-title">Share</div>
-                            <button class="secondary" id="reader-public-url-button" type="button">Copy public URL</button>
-                        </div>
-                        <div class="export-menu-group">
-                            <div class="export-menu-group-title">States</div>
-                            <div class="export-state-grid" id="export-state-list"></div>
-                        </div>
-                        <div class="export-menu-group">
-                            <div class="export-menu-group-title">Export Reports</div>
-                            <button class="secondary export-format-button" data-kind="report" data-format="md" type="button">Markdown</button>
-                            <button class="secondary export-format-button" data-kind="report" data-format="pdf" type="button">PDF</button>
-                            <button class="secondary export-format-button" data-kind="report" data-format="docx" type="button">DOCX</button>
-                            <button class="secondary export-format-button" data-kind="report" data-format="csv" type="button">CSV</button>
-                        </div>
-                        <div class="export-menu-group">
-                            <div class="export-menu-group-title">Export View</div>
-                            <button class="secondary export-format-button" data-kind="all" data-format="zip" type="button">PDF+reports</button>
-                        </div>
+                        <button class="tool-menu-action" id="reader-import-paper-button" type="button">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path><path d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"></path></svg>
+                            <span>Import paper…</span>
+                        </button>
+                        <button class="tool-menu-action" id="reader-batch-update-button" type="button">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"></path><path d="m3 6 1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"></path></svg>
+                            <span>Batch update…</span>
+                        </button>
+                        <button class="tool-menu-action" id="reader-mendeley-sync-button" type="button">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7h-9M20 7l-3-3M20 7l-3 3M4 17h9M4 17l3-3M4 17l3 3"></path></svg>
+                            <span>Sync Mendeley</span>
+                        </button>
+                        <button class="tool-menu-action" id="reader-open-export-button" type="button">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"></path><path d="M5 21h14"></path></svg>
+                            <span>Export…</span>
+                        </button>
+                        <button class="tool-menu-action" id="reader-diagram-button" type="button">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="6" height="5" rx="1"></rect><rect x="15" y="16" width="6" height="5" rx="1"></rect><rect x="3" y="16" width="6" height="5" rx="1"></rect><path d="M6 8v4h12v4M6 12v4"></path></svg>
+                            <span>View workflow diagram</span>
+                        </button>
+                        <button class="tool-menu-action" id="reader-public-url-button" type="button">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"></path><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"></path></svg>
+                            <span id="reader-public-url-label">Share paper feed</span>
+                        </button>
                     </div>
                 </details>
             </div>
@@ -4229,11 +4327,13 @@
     const feedDeleteCancel = document.getElementById("feed-delete-cancel");
     const feedDeleteSubmit = document.getElementById("feed-delete-submit");
     let deletingLogicalFeedName = "";
-    const doiImportModal = document.getElementById("doi-import-modal");
-    const doiImportModalClose = document.getElementById("doi-import-modal-close");
+    const paperImportModal = document.getElementById("paper-import-modal");
+    const paperImportModalClose = document.getElementById("paper-import-modal-close");
+    const paperImportDoiTab = document.getElementById("paper-import-doi-tab");
+    const paperImportWebTab = document.getElementById("paper-import-web-tab");
+    const paperImportDoiPanel = document.getElementById("paper-import-doi-panel");
+    const paperImportWebPanel = document.getElementById("paper-import-web-panel");
     const doiImportModalStatus = document.getElementById("manual-import-modal-status");
-    const urlImportModal = document.getElementById("url-import-modal");
-    const urlImportModalClose = document.getElementById("url-import-modal-close");
     const urlImportModalStatus = document.getElementById("url-import-modal-status");
     const urlImportForm = document.getElementById("url-import-form");
     const urlImportUrl = document.getElementById("url-import-url");
@@ -4277,8 +4377,8 @@
     const manualImportSubmit = document.getElementById("manual-import-submit");
     const exportTabButton = document.getElementById("reader-export-button");
     const exportTabMenu = document.getElementById("reader-export-menu");
-    const readerImportDoiButton = document.getElementById("reader-import-doi-button");
-    const readerImportUrlButton = document.getElementById("reader-import-url-button");
+    const readerImportPaperButton = document.getElementById("reader-import-paper-button");
+    const readerOpenExportButton = document.getElementById("reader-open-export-button");
     const readerBatchUpdateButton = document.getElementById("reader-batch-update-button");
     const readerDiagramButton = document.getElementById("reader-diagram-button");
     const readerMendeleySyncButton = document.getElementById("reader-mendeley-sync-button");
@@ -4293,6 +4393,13 @@
     const mendeleySyncWatchButton = document.getElementById("mendeley-sync-watch-button");
     const mendeleySyncWatchClose = document.getElementById("mendeley-sync-watch-close");
     const readerPublicUrlButton = document.getElementById("reader-public-url-button");
+    const readerPublicUrlLabel = document.getElementById("reader-public-url-label");
+    const paperExportModal = document.getElementById("paper-export-modal");
+    const paperExportModalClose = document.getElementById("paper-export-modal-close");
+    const paperExportScope = document.getElementById("paper-export-scope");
+    const paperExportSelectAll = document.getElementById("paper-export-select-all");
+    const paperExportClear = document.getElementById("paper-export-clear");
+    const paperExportError = document.getElementById("paper-export-error");
     const exportStateList = document.getElementById("export-state-list");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
     const feedDashboard = document.getElementById("feed-dashboard");
@@ -6434,21 +6541,37 @@
         window.setTimeout(() => feedDeleteExpectedName?.focus(), 0);
     };
 
-    const closeDoiImportModal = () => {
-        if (!doiImportModal) {
+    const closePaperImportModal = () => {
+        if (!paperImportModal) {
             return;
         }
-        if (typeof doiImportModal.close === "function") {
-            doiImportModal.close();
+        if (typeof paperImportModal.close === "function") {
+            paperImportModal.close();
         } else {
-            doiImportModal.removeAttribute("open");
+            paperImportModal.removeAttribute("open");
         }
     };
 
-    const openDoiImportModal = () => {
-        if (!doiImportModal || !doiImportLogicalFeed || !syncDoiImportLogicalFeed()) {
-            window.alert("Select a paper feed before importing by DOI.");
-            return;
+    const showPaperImportTab = (mode, focus = true) => {
+        const showDoi = mode !== "web";
+        paperImportDoiTab?.classList.toggle("active", showDoi);
+        paperImportDoiTab?.setAttribute("aria-selected", String(showDoi));
+        paperImportDoiTab?.setAttribute("tabindex", showDoi ? "0" : "-1");
+        paperImportWebTab?.classList.toggle("active", !showDoi);
+        paperImportWebTab?.setAttribute("aria-selected", String(!showDoi));
+        paperImportWebTab?.setAttribute("tabindex", showDoi ? "-1" : "0");
+        paperImportDoiPanel?.classList.toggle("hidden", !showDoi);
+        paperImportWebPanel?.classList.toggle("hidden", showDoi);
+        if (paperImportDoiPanel) paperImportDoiPanel.hidden = !showDoi;
+        if (paperImportWebPanel) paperImportWebPanel.hidden = showDoi;
+        if (focus) {
+            window.setTimeout(() => (showDoi ? manualImportDoi : urlImportUrl)?.focus(), 0);
+        }
+    };
+
+    const prepareDoiImport = () => {
+        if (!doiImportLogicalFeed || !syncDoiImportLogicalFeed()) {
+            return false;
         }
         manualImportForm?.reset();
         resetManualImportPreview();
@@ -6458,39 +6581,14 @@
             const feedName = logicalFeedFilter.selectedOptions?.[0]?.dataset?.feedName || "the current paper feed";
             doiImportModalStatus.textContent = "Paste one DOI or several DOIs separated by spaces or commas. The papers will be added to " + feedName + ".";
         }
-        if (typeof doiImportModal.showModal === "function") {
-            doiImportModal.showModal();
-        } else {
-            doiImportModal.setAttribute("open", "open");
-        }
-        window.setTimeout(() => {
-            manualImportDoi?.focus();
-        }, 0);
+        return true;
     };
 
-    const setUrlImportFeedback = (message, error = false) => {
-        if (!urlImportFeedback) {
-            return;
-        }
-        urlImportFeedback.textContent = message || "";
-        urlImportFeedback.classList.toggle("hidden", !message);
-        urlImportFeedback.classList.toggle("error", error);
-    };
-
-    const closeUrlImportModal = () => {
-        if (typeof urlImportModal?.close === "function") {
-            urlImportModal.close();
-        } else {
-            urlImportModal?.removeAttribute("open");
-        }
-    };
-
-    const openUrlImportModal = () => {
+    const prepareUrlImport = () => {
         const logicalFeedId = logicalFeedFilter?.value || "";
         const config = workflowConfigForLogicalFeed(logicalFeedId);
-        if (!urlImportModal || !logicalFeedId || !Array.isArray(config?.states)) {
-            window.alert("Select a paper feed before importing gray literature.");
-            return;
+        if (!logicalFeedId || !Array.isArray(config?.states)) {
+            return false;
         }
         urlImportForm?.reset();
         urlImportStatus.replaceChildren();
@@ -6506,12 +6604,30 @@
         setUrlImportFeedback("");
         const feedName = logicalFeedFilter.selectedOptions?.[0]?.dataset?.feedName || "the current paper feed";
         urlImportModalStatus.textContent = "Add a web resource to " + feedName + ".";
-        if (typeof urlImportModal.showModal === "function") {
-            urlImportModal.showModal();
-        } else {
-            urlImportModal.setAttribute("open", "open");
+        return true;
+    };
+
+    const openPaperImportModal = () => {
+        if (!paperImportModal || !prepareDoiImport() || !prepareUrlImport()) {
+            window.alert("Select a paper feed before importing a paper.");
+            return;
         }
-        window.setTimeout(() => urlImportUrl?.focus(), 0);
+        showPaperImportTab("doi", false);
+        if (typeof paperImportModal.showModal === "function") {
+            paperImportModal.showModal();
+        } else {
+            paperImportModal.setAttribute("open", "open");
+        }
+        window.setTimeout(() => manualImportDoi?.focus(), 0);
+    };
+
+    const setUrlImportFeedback = (message, error = false) => {
+        if (!urlImportFeedback) {
+            return;
+        }
+        urlImportFeedback.textContent = message || "";
+        urlImportFeedback.classList.toggle("hidden", !message);
+        urlImportFeedback.classList.toggle("error", error);
     };
 
     const setBatchPaperFeedback = (message, isError = false) => {
@@ -6744,6 +6860,24 @@
             .map((input) => input.value);
     };
 
+    const setPaperExportError = (message = "") => {
+        if (!paperExportError) {
+            return;
+        }
+        paperExportError.textContent = message;
+        paperExportError.classList.toggle("hidden", !message);
+    };
+
+    const updatePaperExportControls = () => {
+        const hasSelection = selectedExportStates().length > 0;
+        exportFormatButtons.forEach((button) => {
+            button.disabled = !(logicalFeedFilter?.value || "");
+        });
+        if (hasSelection) {
+            setPaperExportError();
+        }
+    };
+
     const renderExportStateOptions = () => {
         if (!exportStateList) {
             return;
@@ -6752,6 +6886,7 @@
         exportStateList.innerHTML = "";
         if (!logicalFeedId) {
             exportStateList.innerHTML = "<p class=\"meta\">Select a paper feed to choose states.</p>";
+            updatePaperExportControls();
             return;
         }
         workflowStatesForLogicalFeed(logicalFeedId).forEach((state) => {
@@ -6760,6 +6895,38 @@
             label.innerHTML = "<input type=\"checkbox\" name=\"export-selected-state\" value=\"" + state + "\" checked><span>" + statusLabel(state) + "</span>";
             exportStateList.appendChild(label);
         });
+        updatePaperExportControls();
+    };
+
+    const closePaperExportModal = () => {
+        if (typeof paperExportModal?.close === "function") {
+            paperExportModal.close();
+        } else {
+            paperExportModal?.removeAttribute("open");
+        }
+    };
+
+    const openPaperExportModal = () => {
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        if (!paperExportModal || !logicalFeedId) {
+            window.alert("Select a paper feed before exporting.");
+            return;
+        }
+        renderExportStateOptions();
+        setPaperExportError();
+        if (paperExportScope) {
+            const feedName = logicalFeedFilter.selectedOptions?.[0]?.dataset?.feedName || "the current paper feed";
+            const filterNote = selectedTagFilters.length
+                ? " Current tag filters will also be applied."
+                : "";
+            paperExportScope.textContent = "Choose what to export from " + feedName + "." + filterNote;
+        }
+        if (typeof paperExportModal.showModal === "function") {
+            paperExportModal.showModal();
+        } else {
+            paperExportModal.setAttribute("open", "open");
+        }
+        window.setTimeout(() => exportStateList?.querySelector("input")?.focus(), 0);
     };
 
     const renderTagBrowser = () => {
@@ -8666,12 +8833,12 @@
             const { hasMore } = renderPaginatedPaperList();
             searchLoadMoreRow.classList.toggle("hidden", !hasMore);
 
-            const exportDisabled = !selectedLogicalFeedId || (activePrimaryTab === "state" && !activeStatusTab);
-            exportTabButton.classList.toggle("disabled", exportDisabled);
-            exportTabButton.title = exportDisabled ? "Select a paper feed before using tools." : "Tools";
-            exportFormatButtons.forEach((button) => {
-                button.disabled = exportDisabled;
-            });
+            const toolsDisabled = !selectedLogicalFeedId;
+            exportTabButton.classList.toggle("disabled", toolsDisabled);
+            exportTabButton.title = toolsDisabled ? "Select a paper feed before using tools." : "Tools";
+            if (readerImportPaperButton) readerImportPaperButton.disabled = toolsDisabled;
+            if (readerOpenExportButton) readerOpenExportButton.disabled = toolsDisabled;
+            updatePaperExportControls();
             if (readerBatchUpdateButton) {
                 const batchDisabled = !selectedLogicalFeedId || filtered.length === 0;
                 readerBatchUpdateButton.disabled = batchDisabled;
@@ -8701,7 +8868,9 @@
                 const isPublic = selectedLogicalFeedIsPublic();
                 const shareDisabled = !selectedLogicalFeedId || !canAdmin;
                 readerPublicUrlButton.disabled = shareDisabled;
-                readerPublicUrlButton.textContent = isPublic ? "Copy public URL" : "Make public + copy URL";
+                if (readerPublicUrlLabel) {
+                    readerPublicUrlLabel.textContent = isPublic ? "Copy public link" : "Share paper feed";
+                }
                 readerPublicUrlButton.title = shareDisabled
                     ? "Select a paper feed you can manage first."
                     : isPublic
@@ -8786,12 +8955,12 @@
         searchLoadMoreRow.classList.toggle("hidden",
             !isStateSearchActive || matchingSearchCards.length <= stateSearchVisibleLimit);
 
-        const exportDisabled = !selectedLogicalFeedId || (activePrimaryTab === "state" && !activeStatusTab);
-        exportTabButton.classList.toggle("disabled", exportDisabled);
-        exportTabButton.title = exportDisabled ? "Select a paper feed before using tools." : "Tools";
-        exportFormatButtons.forEach((button) => {
-            button.disabled = exportDisabled;
-        });
+        const toolsDisabled = !selectedLogicalFeedId;
+        exportTabButton.classList.toggle("disabled", toolsDisabled);
+        exportTabButton.title = toolsDisabled ? "Select a paper feed before using tools." : "Tools";
+        if (readerImportPaperButton) readerImportPaperButton.disabled = toolsDisabled;
+        if (readerOpenExportButton) readerOpenExportButton.disabled = toolsDisabled;
+        updatePaperExportControls();
         if (readerDiagramButton) {
             const diagramDisabled = !selectedLogicalFeedId;
             readerDiagramButton.disabled = diagramDisabled;
@@ -8814,7 +8983,9 @@
             const isPublic = selectedLogicalFeedIsPublic();
             const shareDisabled = !selectedLogicalFeedId || !canAdmin;
             readerPublicUrlButton.disabled = shareDisabled;
-            readerPublicUrlButton.textContent = isPublic ? "Copy public URL" : "Make public + copy URL";
+            if (readerPublicUrlLabel) {
+                readerPublicUrlLabel.textContent = isPublic ? "Copy public link" : "Share paper feed";
+            }
             readerPublicUrlButton.title = shareDisabled
                 ? "Select a paper feed you can manage first."
                 : isPublic
@@ -10890,13 +11061,13 @@
     feedDeleteExpectedName?.addEventListener("input", () => {
         if (feedDeleteSubmit) feedDeleteSubmit.disabled = feedDeleteExpectedName.value !== deletingLogicalFeedName;
     });
-    readerImportDoiButton?.addEventListener("click", () => {
+    readerImportPaperButton?.addEventListener("click", () => {
         exportTabMenu.open = false;
-        openDoiImportModal();
+        openPaperImportModal();
     });
-    readerImportUrlButton?.addEventListener("click", () => {
+    readerOpenExportButton?.addEventListener("click", () => {
         exportTabMenu.open = false;
-        openUrlImportModal();
+        openPaperExportModal();
     });
     readerBatchUpdateButton?.addEventListener("click", () => {
         exportTabMenu.open = false;
@@ -11021,18 +11192,53 @@
             applyLogicalFeedFilter();
         }
     });
-    doiImportModalClose?.addEventListener("click", closeDoiImportModal);
-    doiImportModal?.addEventListener("click", (event) => {
-        if (event.target === doiImportModal) {
-            closeDoiImportModal();
+    paperImportModalClose?.addEventListener("click", closePaperImportModal);
+    paperImportModal?.addEventListener("click", (event) => {
+        if (event.target === paperImportModal) {
+            closePaperImportModal();
         }
     });
-    urlImportModalClose?.addEventListener("click", closeUrlImportModal);
-    urlImportModal?.addEventListener("click", (event) => {
-        if (event.target === urlImportModal) {
-            closeUrlImportModal();
+    paperImportModal?.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        closePaperImportModal();
+    });
+    paperImportDoiTab?.addEventListener("click", () => showPaperImportTab("doi"));
+    paperImportWebTab?.addEventListener("click", () => showPaperImportTab("web"));
+    [paperImportDoiTab, paperImportWebTab].forEach((tab, index, tabs) => {
+        tab?.addEventListener("keydown", (event) => {
+            let nextIndex = null;
+            if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (index + tabs.length - 1) % tabs.length;
+            if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (index + 1) % tabs.length;
+            if (event.key === "Home") nextIndex = 0;
+            if (event.key === "End") nextIndex = tabs.length - 1;
+            if (nextIndex == null) return;
+            event.preventDefault();
+            const nextTab = tabs[nextIndex];
+            showPaperImportTab(nextTab === paperImportWebTab ? "web" : "doi", false);
+            nextTab?.focus();
+        });
+    });
+    paperExportModalClose?.addEventListener("click", closePaperExportModal);
+    paperExportModal?.addEventListener("click", (event) => {
+        if (event.target === paperExportModal) {
+            closePaperExportModal();
         }
     });
+    paperExportModal?.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        closePaperExportModal();
+    });
+    paperExportSelectAll?.addEventListener("click", () => {
+        exportStateList?.querySelectorAll("input[name='export-selected-state']")
+            .forEach((input) => input.checked = true);
+        updatePaperExportControls();
+    });
+    paperExportClear?.addEventListener("click", () => {
+        exportStateList?.querySelectorAll("input[name='export-selected-state']")
+            .forEach((input) => input.checked = false);
+        updatePaperExportControls();
+    });
+    exportStateList?.addEventListener("change", updatePaperExportControls);
     urlImportForm?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const logicalFeedId = logicalFeedFilter?.value || "";
@@ -11064,7 +11270,7 @@
                 throw new Error(body || "Failed to import the resource.");
             }
             paperRecords.push(JSON.parse(body));
-            closeUrlImportModal();
+            closePaperImportModal();
             applyLogicalFeedFilter();
         } catch (error) {
             setUrlImportFeedback(error.message || "Failed to import the resource.", true);
@@ -11462,12 +11668,13 @@
     const triggerTabExport = (kind, format) => {
         const logicalFeedId = logicalFeedFilter.value;
         if (!logicalFeedId) {
-            window.alert("Select a paper feed before exporting.");
+            setPaperExportError("Select a paper feed before exporting.");
             return;
         }
         const statuses = selectedExportStates();
         if (!statuses.length) {
-            window.alert("Select at least one state to export.");
+            setPaperExportError("Select at least one state to export.");
+            exportStateList?.querySelector("input")?.focus();
             return;
         }
         const params = new URLSearchParams({ logicalFeedId, kind, format });
@@ -11475,12 +11682,12 @@
         if (selectedTagFilters.length) {
             params.set("tags", selectedTagFilters.join(","));
         }
+        closePaperExportModal();
         window.location.href = "/exports/tab?" + params.toString();
     };
 
     exportFormatButtons.forEach((button) => {
         button.addEventListener("click", () => {
-            exportTabMenu.open = false;
             triggerTabExport(button.dataset.kind || "report", button.dataset.format || "md");
         });
     });
