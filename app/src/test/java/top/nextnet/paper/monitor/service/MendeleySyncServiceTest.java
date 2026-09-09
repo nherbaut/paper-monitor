@@ -2,12 +2,14 @@ package top.nextnet.paper.monitor.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import top.nextnet.paper.monitor.model.Paper;
 
 class MendeleySyncServiceTest {
     @Test
@@ -43,5 +45,17 @@ class MendeleySyncServiceTest {
     void representsMissingProfileNameAsAnEmptyString() {
         assertEquals("", MendeleySyncService.nonNull(null));
         assertEquals("Ada Lovelace", MendeleySyncService.nonNull("Ada Lovelace"));
+    }
+
+    @Test
+    void extractsDoiWhenPaperLinksAreOptional() {
+        Paper paper = new Paper();
+        assertNull(MendeleySyncService.localDoi(paper));
+
+        paper.openAccessLink = "https://doi.org/10.1000/ABC";
+        assertEquals("10.1000/abc", MendeleySyncService.localDoi(paper));
+
+        paper.sourceLink = "https://example.test/article";
+        assertEquals("10.1000/abc", MendeleySyncService.localDoi(paper));
     }
 }

@@ -441,7 +441,14 @@ public class MendeleySyncService {
     private Map<String, Object> localSnapshot(Paper p) { Map<String, Object> m = new LinkedHashMap<>(); m.put("title", p.title); m.put("doi", localDoi(p)); m.put("authors", p.authors); m.put("abstract", p.summary); m.put("year", p.publishedOn == null ? null : p.publishedOn.getYear()); m.put("source", p.publisher); m.put("tags", p.tags); m.put("notes", p.notes); m.put("state", p.status); m.put("pdf", p.uploadedPdfPath); return m; }
     private Map<String, Object> remoteSnapshot(Map<String, Object> r, String state) { Map<String, Object> m = new LinkedHashMap<>(); m.put("title", r.get("title")); m.put("doi", remoteDoi(r)); m.put("authors", authorText(r.get("authors"))); m.put("abstract", r.get("abstract")); m.put("year", r.get("year")); m.put("source", first(value(r.get("source")), value(r.get("publisher")))); m.put("tags", strings(r.get("tags"))); m.put("notes", r.get("paper_monitor_notes")); m.put("state", state); m.put("pdf", r.get("file_attached")); return m; }
     static String fingerprint(Map<String, Object> map) { try { return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(JsonCodec.stringify(map).getBytes(StandardCharsets.UTF_8))); } catch (Exception e) { throw new IllegalStateException(e); } }
-    private static String localDoi(Paper p) { for (String s : List.of(first(p.sourceLink, ""), first(p.openAccessLink, ""))) { int i = s.toLowerCase(Locale.ROOT).indexOf("doi.org/"); if (i >= 0) return s.substring(i + 8).trim().toLowerCase(Locale.ROOT); } return null; }
+    static String localDoi(Paper paper) {
+        for (String link : new String[] {paper.sourceLink, paper.openAccessLink}) {
+            if (link == null || link.isBlank()) continue;
+            int marker = link.toLowerCase(Locale.ROOT).indexOf("doi.org/");
+            if (marker >= 0) return link.substring(marker + 8).trim().toLowerCase(Locale.ROOT);
+        }
+        return null;
+    }
     private static String remoteDoi(Map<String, Object> r) { Object ids = r.get("identifiers"); if (ids instanceof Map<?, ?> map) { String doi = value(map.get("doi")); return doi == null ? null : doi.toLowerCase(Locale.ROOT); } return null; }
     private static String authorText(Object raw) { List<String> names = new ArrayList<>(); for (Map<String, Object> p : objects(raw)) names.add((first(value(p.get("first_name")), "") + " " + first(value(p.get("last_name")), "")).trim()); return names.isEmpty() ? null : String.join("; ", names); }
     static String mergeTags(String local, List<String> remote) { LinkedHashSet<String> tags = new LinkedHashSet<>(); if (local != null) for (String tag : local.split("\\s*,\\s*|\\R")) if (!tag.isBlank()) tags.add(tag.trim()); tags.addAll(remote); return tags.isEmpty() ? null : String.join(", ", tags); }
