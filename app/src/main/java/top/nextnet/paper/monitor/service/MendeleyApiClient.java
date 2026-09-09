@@ -18,6 +18,7 @@ import top.nextnet.paper.monitor.model.UserSettings;
 
 @ApplicationScoped
 public class MendeleyApiClient {
+    static final int PAGE_SIZE = 100;
     static final String API = "https://api.mendeley.com";
     static final String DOCUMENT = "application/vnd.mendeley-document.1+json";
     static final String FOLDER = "application/vnd.mendeley-folder.1+json";
@@ -34,7 +35,7 @@ public class MendeleyApiClient {
     MendeleyApiClient(HttpClient client, MendeleyAuthService auth) { this.client = client; this.auth = auth; }
 
     public List<Map<String, Object>> folders(UserSettings settings) throws IOException {
-        return getPages(settings, API + "/folders?limit=500", FOLDER);
+        return getPages(settings, paginated(API + "/folders"), FOLDER);
     }
 
     public Map<String, Object> createFolder(UserSettings settings, String name, String parentId) throws IOException {
@@ -46,7 +47,7 @@ public class MendeleyApiClient {
     }
 
     public List<Map<String, Object>> documents(UserSettings settings) throws IOException {
-        return getPages(settings, API + "/documents?view=all&limit=500", DOCUMENT);
+        return getPages(settings, paginated(API + "/documents?view=all"), DOCUMENT);
     }
 
     public Map<String, Object> document(UserSettings settings, String id) throws IOException {
@@ -68,7 +69,7 @@ public class MendeleyApiClient {
     public List<String> folderDocumentIds(UserSettings settings, String folderId) throws IOException {
         List<String> ids = new ArrayList<>();
         for (Map<String, Object> row : getPages(settings,
-                API + "/folders/" + path(folderId) + "/documents?limit=500", DOCUMENT)) {
+                paginated(API + "/folders/" + path(folderId) + "/documents"), DOCUMENT)) {
             String id = value(row.get("id"));
             if (id != null) ids.add(id);
         }
@@ -86,11 +87,11 @@ public class MendeleyApiClient {
     }
 
     public List<Map<String, Object>> files(UserSettings settings, String documentId) throws IOException {
-        return getPages(settings, API + "/files?document_id=" + query(documentId) + "&limit=500", FILE);
+        return getPages(settings, paginated(API + "/files?document_id=" + query(documentId)), FILE);
     }
 
     public List<Map<String, Object>> annotations(UserSettings settings, String documentId) throws IOException {
-        return getPages(settings, API + "/annotations?document_id=" + query(documentId) + "&limit=500", ANNOTATION);
+        return getPages(settings, paginated(API + "/annotations?document_id=" + query(documentId)), ANNOTATION);
     }
 
     public String documentNote(UserSettings settings, String documentId) throws IOException {
@@ -177,6 +178,7 @@ public class MendeleyApiClient {
     }
     private static String path(String value) { return query(value).replace("+", "%20"); }
     private static String query(String value) { return URLEncoder.encode(value, StandardCharsets.UTF_8); }
+    static String paginated(String url) { return url + (url.contains("?") ? "&" : "?") + "limit=" + PAGE_SIZE; }
     private static String value(Object value) { return value == null || String.valueOf(value).isBlank() ? null : String.valueOf(value); }
     private static boolean isDocumentNote(Map<String, Object> row) {
         Object positions = row.get("positions");
