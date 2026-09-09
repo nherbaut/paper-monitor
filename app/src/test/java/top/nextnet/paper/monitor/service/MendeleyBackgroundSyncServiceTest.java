@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
+import java.io.IOException;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import top.nextnet.paper.monitor.model.MendeleyFeedSync;
@@ -42,5 +43,14 @@ class MendeleyBackgroundSyncServiceTest {
         assertEquals(0, job.get("completed"));
         assertEquals(0, job.get("total"));
         assertFalse((Boolean) job.get("running"));
+    }
+
+    @Test
+    void recognizesWrappedStaleSynchronizationFailures() {
+        assertTrue(MendeleyBackgroundSyncService.isStaleFailure(
+                new IOException("apply failed", new MendeleySyncService.StaleSyncException("changed"))));
+        assertTrue(MendeleyBackgroundSyncService.isStaleFailure(
+                new MendeleyApiClient.MendeleyApiException(412, "precondition failed")));
+        assertFalse(MendeleyBackgroundSyncService.isStaleFailure(new IOException("network failed")));
     }
 }

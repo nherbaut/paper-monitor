@@ -126,4 +126,20 @@ class MendeleySyncServiceTest {
         remote.put("title", "A genuinely different title");
         assertFalse(MendeleySyncService.equivalentDocumentValues(local, remote));
     }
+
+    @Test
+    void resolvesThreeWayChangesDeterministically() {
+        assertNull(MendeleySyncService.synchronizationAction(false, false, false));
+        assertEquals("LINK", MendeleySyncService.synchronizationAction(true, true, true));
+        assertEquals("PUSH", MendeleySyncService.synchronizationAction(false, true, false));
+        assertEquals("PULL", MendeleySyncService.synchronizationAction(false, false, true));
+        assertEquals("PUSH", MendeleySyncService.synchronizationAction(false, true, true));
+    }
+
+    @Test
+    void remoteDeletionRemovesAnUnchangedPaperAndRestoresAChangedPaper() {
+        assertEquals("DELETE_LOCAL", MendeleySyncService.remoteDeletionAction("same", "same"));
+        assertEquals("RESTORE_REMOTE", MendeleySyncService.remoteDeletionAction("old", "new"));
+        assertEquals("RESTORE_REMOTE", MendeleySyncService.remoteDeletionAction(null, "legacy"));
+    }
 }

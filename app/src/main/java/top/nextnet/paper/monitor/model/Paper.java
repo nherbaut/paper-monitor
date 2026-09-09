@@ -1,5 +1,6 @@
 package top.nextnet.paper.monitor.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -92,6 +93,10 @@ public class Paper extends PanacheEntityBase {
 
     @Column(nullable = false)
     public Instant discoveredAt;
+
+    /** Last change originating in MIAGE Review Factory. Nullable for schema-compatible legacy rows. */
+    @JsonIgnore
+    public Instant updatedAt;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(nullable = false)

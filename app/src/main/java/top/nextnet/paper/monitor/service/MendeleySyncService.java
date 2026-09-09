@@ -33,9 +33,12 @@ import top.nextnet.paper.monitor.model.MendeleyPaperSync;
 import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.UserSettings;
 import top.nextnet.paper.monitor.repo.FeedRepository;
+import top.nextnet.paper.monitor.repo.GoogleDrivePdfSyncRepository;
 import top.nextnet.paper.monitor.repo.MendeleyFeedSyncRepository;
 import top.nextnet.paper.monitor.repo.MendeleyPaperSyncRepository;
+import top.nextnet.paper.monitor.repo.PdfCaptureRepository;
 import top.nextnet.paper.monitor.repo.PaperRepository;
+import top.nextnet.paper.monitor.repo.ReviewSubmissionRepository;
 
 @ApplicationScoped
 public class MendeleySyncService {
@@ -49,12 +52,20 @@ public class MendeleySyncService {
     private final FeedRepository rssFeeds;
     private final PaperStorageService storage;
     private final PaperEventService events;
+    private final ReviewSubmissionRepository reviewSubmissions;
+    private final PdfCaptureRepository pdfCaptures;
+    private final GoogleDrivePdfSyncRepository drivePdfSyncs;
 
     public MendeleySyncService(MendeleyApiClient api, AuthService auth, MendeleyFeedSyncRepository feeds,
             MendeleyPaperSyncRepository links, PaperRepository papers, FeedRepository rssFeeds,
-            PaperStorageService storage, PaperEventService events) {
+            PaperStorageService storage, PaperEventService events,
+            ReviewSubmissionRepository reviewSubmissions, PdfCaptureRepository pdfCaptures,
+            GoogleDrivePdfSyncRepository drivePdfSyncs) {
         this.api = api; this.auth = auth; this.feeds = feeds; this.links = links; this.papers = papers;
         this.rssFeeds = rssFeeds; this.storage = storage; this.events = events;
+        this.reviewSubmissions = reviewSubmissions;
+        this.pdfCaptures = pdfCaptures;
+        this.drivePdfSyncs = drivePdfSyncs;
     }
 
     public List<Map<String, Object>> folders(AppUser user) throws IOException {
@@ -154,26 +165,26 @@ public class MendeleySyncService {
             String localHash = fingerprint(localValues);
             String remoteHash = fingerprint(remoteValues);
             if (link == null) {
-                String type = equivalentDocumentValues(localValues, remoteValues) ? "LINK" : "CONFLICT";
+                String type = equivalentDocumentValues(localValues, remoteValues) ? "LINK" : "PUSH";
                 String reason = "LINK".equals(type)
                         ? "Matching DOI has equivalent values"
-                        : "Matching DOI has different values";
+                        : "First matching DOI has different values; MIAGE Review Factory wins";
                 actions.add(action(type, local.id, documentId, reason, remote, assignedRemoteState));
             } else {
                 boolean localChanged = !Objects.equals(localHash, link.localFingerprint);
                 boolean remoteChanged = !Objects.equals(remoteHash, link.remoteFingerprint);
-                if ((localChanged || remoteChanged) && equivalentDocumentValues(localValues, remoteValues)) {
-                    actions.add(action("LINK", local.id, documentId, "Copies have equivalent values", remote,
-                            assignedRemoteState));
-                } else if (localChanged && remoteChanged) {
-                    actions.add(action("CONFLICT", local.id, documentId, "Both copies changed", remote,
-                            assignedRemoteState));
-                } else if (localChanged) {
-                    actions.add(action("PUSH", local.id, documentId, "MIAGE Review Factory changed", remote,
-                            assignedRemoteState));
-                } else if (remoteChanged) {
-                    actions.add(action("PULL", local.id, documentId, "Mendeley changed", remote,
-                            assignedRemoteState));
+                String type = synchronizationAction(
+                        equivalentDocumentValues(localValues, remoteValues), localChanged, remoteChanged);
+                if (type != null) {
+                    String reason = switch (type) {
+                        case "LINK" -> "Copies have equivalent values";
+                        case "PUSH" -> localChanged && remoteChanged
+                                ? "Both copies changed; MIAGE Review Factory wins"
+                                : "MIAGE Review Factory changed";
+                        case "PULL" -> "Mendeley changed";
+                        default -> throw new IllegalStateException("Unknown synchronization action " + type);
+                    };
+                    actions.add(action(type, local.id, documentId, reason, remote, assignedRemoteState));
                 }
             }
         }
@@ -185,8 +196,12 @@ public class MendeleySyncService {
         for (MendeleyPaperSync link : existingLinks) {
             if (link.paper != null && !remoteById.containsKey(link.mendeleyDocumentId)
                     && !MendeleyPaperSync.IGNORED.equals(link.status)) {
-                actions.add(action("REMOTE_DELETED", link.paper.id, link.mendeleyDocumentId,
-                        "Document is no longer in the mapped Mendeley folders", null));
+                String type = remoteDeletionAction(link.localFingerprint,
+                        fingerprint(localSnapshot(link.paper)));
+                String reason = "RESTORE_REMOTE".equals(type)
+                        ? "Mendeley document was deleted after the local paper changed"
+                        : "Mendeley document was deleted and the local paper is unchanged";
+                actions.add(action(type, link.paper.id, link.mendeleyDocumentId, reason, null));
             }
         }
         Map<String, Object> preview = previewPayload(config, actions);
@@ -231,6 +246,13 @@ public class MendeleySyncService {
                         () -> applyAction(plan.configId(), action, plan.preview(), afterAction));
                 applied += outcome.applied();
                 conflicts += outcome.conflicts();
+                if (outcome.deletedPdfPath() != null) {
+                    try {
+                        storage.deleteIfExists(outcome.deletedPdfPath());
+                    } catch (IOException deletionError) {
+                        LOG.warnf(deletionError, "Could not delete the PDF of a paper removed by Mendeley sync");
+                    }
+                }
                 remaining.remove(0);
                 progress.onProgress(plan.actions().size() - remaining.size(), plan.actions().size());
             } catch (IOException | RuntimeException error) {
@@ -282,7 +304,16 @@ public class MendeleySyncService {
         Long paperId = longValue(action.get("paperId"));
         String documentId = value(action.get("documentId"));
         int applied = 0, conflicts = 0;
-        if ("CONFLICT".equals(type) || "REMOTE_DELETED".equals(type)) {
+        String deletedPdfPath = null;
+        if ("REMOTE_DELETED".equals(type)) {
+            MendeleyPaperSync link = links.findByFeedAndDocument(config, documentId).orElse(null);
+            if (link == null || link.paper == null) {
+                throw new StaleSyncException("The deleted Mendeley document is no longer linked locally");
+            }
+            type = remoteDeletionAction(link.localFingerprint, fingerprint(localSnapshot(link.paper)));
+        }
+        validateAction(settings, config, action, type, paperId, documentId, stateFolders);
+        if ("CONFLICT".equals(type)) {
             recordConflict(config, paperId, documentId, type, action);
             conflicts++;
         } else if ("LINK".equals(type)) {
@@ -319,12 +350,20 @@ public class MendeleySyncService {
             applied++;
         } else if ("PUSH".equals(type)) {
             Paper paper = requirePaper(config.logicalFeed, paperId);
-            Map<String, Object> remote = api.updateDocument(settings, documentId, documentPayload(paper), null);
-            setRemoteState(settings, documentId, paper.status, stateFolders);
-            syncPdfToMendeley(settings, paper, documentId);
-            api.updateDocumentNote(settings, documentId, settings.mendeleyProfileId, paper.notes);
-            remote = remoteDocument(settings, documentId);
-            syncLink(config, paper, remote, documentId);
+            pushLocalPaper(settings, config, paper, documentId, stateFolders,
+                    value(action.get("expectedRemoteModifiedAt")));
+            applied++;
+        } else if ("RESTORE_REMOTE".equals(type)) {
+            Paper paper = requirePaper(config.logicalFeed, paperId);
+            pushLocalPaper(settings, config, paper, documentId, stateFolders, null);
+            applied++;
+        } else if ("DELETE_LOCAL".equals(type)) {
+            Paper paper = requirePaper(config.logicalFeed, paperId);
+            deletedPdfPath = paper.uploadedPdfPath;
+            reviewSubmissions.delete("paper", paper);
+            pdfCaptures.delete("paper", paper);
+            drivePdfSyncs.delete("paper", paper);
+            papers.delete(paper);
             applied++;
         } else {
             throw new BadRequestException("Unknown Mendeley preview action: " + type);
@@ -336,7 +375,55 @@ public class MendeleySyncService {
             config.pendingPreviewJson = JsonCodec.stringify(withRemainingActions(preview, remaining));
         }
         config.lastError = null;
-        return new ApplyOutcome(applied, conflicts);
+        return new ApplyOutcome(applied, conflicts, deletedPdfPath);
+    }
+
+    private void validateAction(UserSettings settings, MendeleyFeedSync config, Map<String, Object> action,
+            String type, Long paperId, String documentId, Map<String, String> stateFolders) throws IOException {
+        String expectedLocal = value(action.get("expectedLocalFingerprint"));
+        if (expectedLocal != null) {
+            Paper paper = requirePaper(config.logicalFeed, paperId);
+            if (!Objects.equals(expectedLocal, fingerprint(localSnapshot(paper)))) {
+                throw new StaleSyncException("The local paper changed after this synchronization preview");
+            }
+        }
+        String expectedRemote = value(action.get("expectedRemoteFingerprint"));
+        if (expectedRemote == null || "RESTORE_REMOTE".equals(type) || "DELETE_LOCAL".equals(type)) return;
+        Map<String, Object> remote;
+        try {
+            remote = remoteDocument(settings, documentId);
+        } catch (MendeleyApiClient.MendeleyApiException error) {
+            if (error.status == 404) {
+                throw new StaleSyncException("The Mendeley document changed after this synchronization preview",
+                        error);
+            }
+            throw error;
+        }
+        String remoteState = remoteStateForDocument(settings, documentId, stateFolders, null);
+        if (!Objects.equals(expectedRemote, fingerprint(remoteSnapshot(remote, remoteState)))) {
+            throw new StaleSyncException("The Mendeley document changed after this synchronization preview");
+        }
+    }
+
+    private void pushLocalPaper(UserSettings settings, MendeleyFeedSync config, Paper paper, String documentId,
+            Map<String, String> stateFolders, String expectedRemoteModifiedAt) throws IOException {
+        Map<String, Object> remote;
+        try {
+            remote = api.updateDocument(settings, documentId, documentPayload(paper), expectedRemoteModifiedAt);
+        } catch (MendeleyApiClient.MendeleyApiException error) {
+            if (error.status == 412) {
+                throw new StaleSyncException("The Mendeley document changed while it was being updated", error);
+            }
+            if (error.status != 404) throw error;
+            remote = api.createDocument(settings, documentPayload(paper));
+            documentId = value(remote.get("id"));
+        }
+        api.addToFolder(settings, config.rootFolderId, documentId);
+        setRemoteState(settings, documentId, paper.status, stateFolders);
+        syncPdfToMendeley(settings, paper, documentId);
+        api.updateDocumentNote(settings, documentId, settings.mendeleyProfileId, paper.notes);
+        remote = remoteDocument(settings, documentId);
+        syncLink(config, paper, remote, documentId);
     }
 
     static Map<String, Object> withRemainingActions(Map<String, Object> preview,
@@ -385,7 +472,17 @@ public class MendeleySyncService {
     }
 
     private record ApplyPlan(Long configId, Map<String, Object> preview, List<Map<String, Object>> actions) {}
-    private record ApplyOutcome(int applied, int conflicts) {}
+    private record ApplyOutcome(int applied, int conflicts, String deletedPdfPath) {}
+
+    public static class StaleSyncException extends IOException {
+        public StaleSyncException(String message) {
+            super(message);
+        }
+
+        public StaleSyncException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
 
     @FunctionalInterface
     public interface ProgressListener {
@@ -426,6 +523,7 @@ public class MendeleySyncService {
             if (remoteNotes != null && (link.paper.notes == null || !link.paper.notes.contains(remoteNotes))) {
                 link.paper.notes = first(link.paper.notes, "") + (link.paper.notes == null || link.paper.notes.isBlank() ? "" : "\n\n") + remoteNotes;
             }
+            events.log(link.paper, "MENDELEY_MERGE", "Merged local and Mendeley metadata");
             Map<String, Object> updated = api.updateDocument(settings, link.mendeleyDocumentId, documentPayload(link.paper), null);
             api.updateDocumentNote(settings, link.mendeleyDocumentId, settings.mendeleyProfileId, link.paper.notes);
             setRemoteState(settings, link.mendeleyDocumentId, link.paper.status, stateFolders);
@@ -481,6 +579,7 @@ public class MendeleySyncService {
         paper.logicalFeed = config.logicalFeed;
         paper.feed = mendeleySource(config);
         paper.discoveredAt = Instant.now();
+        paper.updatedAt = paper.discoveredAt;
         paper.status = remoteStateForDocument(settings, value(remote.get("id")), stateFolders, config.logicalFeed.initialPaperStatus());
         applyMetadata(paper, remote);
         papers.persist(paper);
@@ -606,7 +705,9 @@ public class MendeleySyncService {
     }
 
     private void syncLink(MendeleyFeedSync config, Paper paper, Map<String, Object> remote, String documentId) {
-        MendeleyPaperSync link = links.findByFeedAndDocument(config, documentId).orElseGet(MendeleyPaperSync::new);
+        MendeleyPaperSync link = links.findByFeedAndDocument(config, documentId)
+                .or(() -> links.findByFeedAndPaper(config, paper))
+                .orElseGet(MendeleyPaperSync::new);
         link.feedSync = config; link.paper = paper; link.mendeleyDocumentId = documentId;
         link.localFingerprint = fingerprint(localSnapshot(paper));
         link.remoteFingerprint = fingerprint(remoteSnapshot(remote, paper.status));
@@ -646,8 +747,18 @@ public class MendeleySyncService {
         row.put("type", type); row.put("paperId", paperId); row.put("documentId", documentId);
         row.put("reason", reason);
         row.put("title", remote == null ? (local == null ? "" : local.title) : first(value(remote.get("title")), "Untitled"));
-        if (local != null) row.put("local", comparisonSnapshot(localSnapshot(local)));
-        if (remote != null) row.put("mendeley", comparisonSnapshot(remoteSnapshot(remote, remoteState)));
+        if (local != null) {
+            Map<String, Object> localValues = localSnapshot(local);
+            row.put("local", comparisonSnapshot(localValues));
+            row.put("expectedLocalFingerprint", fingerprint(localValues));
+        }
+        if (remote != null) {
+            Map<String, Object> remoteValues = remoteSnapshot(remote, remoteState);
+            row.put("mendeley", comparisonSnapshot(remoteValues));
+            row.put("expectedRemoteFingerprint", fingerprint(remoteValues));
+            String modifiedAt = value(remote.get("last_modified"));
+            if (modifiedAt != null) row.put("expectedRemoteModifiedAt", modifiedAt);
+        }
         return row;
     }
     private String requirePaperTitle(Long id) { Paper p = papers.findById(id); return p == null ? "Deleted paper" : p.title; }
@@ -664,6 +775,18 @@ public class MendeleySyncService {
         if (hasPdf(local.get("pdf")) != hasPdf(remote.get("pdf"))) return false;
         String remoteState = comparableValue(remote.get("state"));
         return remoteState == null || Objects.equals(comparableValue(local.get("state")), remoteState);
+    }
+    static String synchronizationAction(boolean equivalent, boolean localChanged, boolean remoteChanged) {
+        if (!localChanged && !remoteChanged) return null;
+        if (equivalent) return "LINK";
+        if (localChanged) return "PUSH";
+        return "PULL";
+    }
+    static String remoteDeletionAction(String baselineLocalFingerprint, String currentLocalFingerprint) {
+        return baselineLocalFingerprint != null
+                && Objects.equals(baselineLocalFingerprint, currentLocalFingerprint)
+                ? "DELETE_LOCAL"
+                : "RESTORE_REMOTE";
     }
     private static Map<String, Object> comparisonSnapshot(Map<String, Object> snapshot) {
         Map<String, Object> result = new LinkedHashMap<>(snapshot);

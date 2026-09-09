@@ -523,23 +523,29 @@ public class BackupService {
             paper.eligibilityExclusionNotes = stringValue(item.get("eligibilityExclusionNotes"));
             paper.eligibilityInclusionCriteriaJson = stringValue(item.get("eligibilityInclusionCriteriaJson"));
             paper.discoveredAt = instantValue(item.get("discoveredAt"));
+            paper.updatedAt = paper.discoveredAt;
             paper.feed = feedsByOldId.get(longValue(item.get("feedId")));
             paper.logicalFeed = logicalFeedsByOldId.get(longValue(item.get("logicalFeedId")));
             paperRepository.persist(paper);
             papersByOldId.put(longValue(item.get("id")), paper);
         }
 
+        Map<Long, List<PaperEvent>> restoredEventsByPaper = new LinkedHashMap<>();
         for (Object value : asList(root.get("paperEvents"))) {
             Map<?, ?> item = asMap(value);
+            Long oldPaperId = longValue(item.get("paperId"));
             PaperEvent event = new PaperEvent();
             event.type = stringValue(item.get("type"));
             event.details = stringValue(item.get("details"));
             event.happenedAt = instantValue(item.get("happenedAt"));
-            event.paper = papersByOldId.get(longValue(item.get("paperId")));
+            event.paper = papersByOldId.get(oldPaperId);
             if (event.paper != null && event.type != null && event.happenedAt != null) {
                 paperEventRepository.persist(event);
+                restoredEventsByPaper.computeIfAbsent(oldPaperId, ignored -> new ArrayList<>()).add(event);
             }
         }
+        papersByOldId.forEach((oldPaperId, paper) -> paper.updatedAt = PaperEventService.backfilledUpdatedAt(
+                paper, restoredEventsByPaper.get(oldPaperId)));
 
         for (Map.Entry<String, byte[]> entry : files.entrySet()) {
             try (InputStream inputStream = new java.io.ByteArrayInputStream(entry.getValue())) {

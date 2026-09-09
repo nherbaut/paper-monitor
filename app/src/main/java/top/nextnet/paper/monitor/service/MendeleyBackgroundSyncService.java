@@ -27,6 +27,7 @@ import top.nextnet.paper.monitor.repo.MendeleyFeedSyncRepository;
 @ApplicationScoped
 public class MendeleyBackgroundSyncService {
     private static final Logger LOG = Logger.getLogger(MendeleyBackgroundSyncService.class);
+    private static final int MAX_STALE_RETRIES = 3;
     private static final Set<String> AUTOMATIC_EVENT_TYPES = Set.of(
             "FETCH", "PDF_UPLOADED", "STATE_CHANGED", "STATE_MIGRATED", "STATE_REPAIRED",
             "NOTES_CHANGED", "TAGS_CHANGED");
@@ -130,20 +131,33 @@ public class MendeleyBackgroundSyncService {
         try {
             LOG.infof("Starting background Mendeley synchronization %s (trigger=%s, refreshPreview=%s)",
                     configId, trigger, refreshPreview);
-            ensureNotCancelled(configId);
-            updateJob(configId, "DISCOVERING", "Comparing Paper Monitor and Mendeley", trigger,
-                    0, 0, null, false);
-            Map<String, Object> preview = refreshPreview
-                    ? sync.previewConfiguration(configId)
-                    : null;
-            ensureNotCancelled(configId);
-            int total = preview == null ? 0 : actionCount(preview);
-            updateJob(configId, "RUNNING", "Synchronizing papers", trigger, 0, total, null, false);
-            sync.applyConfiguration(configId, (completed, actionTotal) -> {
+            int staleRetries = 0;
+            while (true) {
                 ensureNotCancelled(configId);
-                updateJob(configId, "RUNNING", "Synchronizing papers", trigger,
-                        completed, actionTotal, null, false);
-            });
+                updateJob(configId, "DISCOVERING",
+                        staleRetries == 0 ? "Comparing Paper Monitor and Mendeley"
+                                : "Refreshing after a concurrent change",
+                        trigger, 0, 0, null, false);
+                try {
+                    Map<String, Object> preview = refreshPreview || staleRetries > 0
+                            ? sync.previewConfiguration(configId)
+                            : null;
+                    ensureNotCancelled(configId);
+                    int total = preview == null ? 0 : actionCount(preview);
+                    updateJob(configId, "RUNNING", "Synchronizing papers", trigger, 0, total, null, false);
+                    sync.applyConfiguration(configId, (completed, actionTotal) -> {
+                        ensureNotCancelled(configId);
+                        updateJob(configId, "RUNNING", "Synchronizing papers", trigger,
+                                completed, actionTotal, null, false);
+                    });
+                    break;
+                } catch (Exception error) {
+                    if (!isStaleFailure(error) || staleRetries >= MAX_STALE_RETRIES) throw error;
+                    staleRetries++;
+                    LOG.warnf("Mendeley synchronization %s changed during apply; refreshing preview (%d/%d)",
+                            configId, staleRetries, MAX_STALE_RETRIES);
+                }
+            }
             MendeleyFeedSync completed = QuarkusTransaction.requiringNew().call(() -> {
                 MendeleyFeedSync config = feeds.findById(configId);
                 if (config != null) {
@@ -233,6 +247,17 @@ public class MendeleyBackgroundSyncService {
         while (result.getCause() != null && result.getCause() != result) result = result.getCause();
         String message = result.getMessage();
         return message == null || message.isBlank() ? result.getClass().getSimpleName() : message;
+    }
+
+    static boolean isStaleFailure(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof MendeleySyncService.StaleSyncException) return true;
+            if (current instanceof MendeleyApiClient.MendeleyApiException apiError
+                    && apiError.status == 412) return true;
+            current = current.getCause() == current ? null : current.getCause();
+        }
+        return false;
     }
 
 }

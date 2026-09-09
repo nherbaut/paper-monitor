@@ -314,7 +314,11 @@ public class PaperGitSyncService {
 
     private void importNotesBlob(Path repoPath, String commit, String repoFilePath, Paper paper) throws IOException {
         byte[] data = gitShowBytes(repoPath, commit + ":" + repoFilePath);
-        paper.notes = PaperMarkdownFrontMatter.extractNotes(new String(data, StandardCharsets.UTF_8));
+        String notes = PaperMarkdownFrontMatter.extractNotes(new String(data, StandardCharsets.UTF_8));
+        if (!java.util.Objects.equals(paper.notes, notes)) {
+            paper.notes = notes;
+            paperEventService.log(paper, "NOTES_CHANGED", "Updated paper notes from git commit " + commit);
+        }
     }
 
     private void exportWorkingTree(LogicalFeed logicalFeed, Path repoPath) throws IOException {
