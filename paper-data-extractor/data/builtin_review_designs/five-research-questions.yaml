@@ -1,0 +1,60 @@
+id: five-research-questions
+title: Five research questions
+target_entity: paper
+selected_model_ids: []
+research_questions:
+  - key: builtin-rq-1
+    slot_id: rq_1
+    ordinal: 1
+    question: RQ1
+    required: false
+  - key: builtin-rq-2
+    slot_id: rq_2
+    ordinal: 2
+    question: RQ2
+    required: false
+  - key: builtin-rq-3
+    slot_id: rq_3
+    ordinal: 3
+    question: RQ3
+    required: false
+  - key: builtin-rq-4
+    slot_id: rq_4
+    ordinal: 4
+    question: RQ4
+    required: false
+  - key: builtin-rq-5
+    slot_id: rq_5
+    ordinal: 5
+    question: RQ5
+    required: false
+composed_model:
+  id: five-research-questions-composed
+  title: Five research questions
+  target_entity: paper
+  dimensions:
+    - id: rq_1
+      label: RQ1
+      value_type: free_text
+      cardinality: single
+      required: false
+    - id: rq_2
+      label: RQ2
+      value_type: free_text
+      cardinality: single
+      required: false
+    - id: rq_3
+      label: RQ3
+      value_type: free_text
+      cardinality: single
+      required: false
+    - id: rq_4
+      label: RQ4
+      value_type: free_text
+      cardinality: single
+      required: false
+    - id: rq_5
+      label: RQ5
+      value_type: free_text
+      cardinality: single
+      required: false

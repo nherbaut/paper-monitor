@@ -12,6 +12,7 @@ COPY schemas ./schemas
 COPY templates ./templates
 COPY static ./static
 COPY data/contributed_models ./data/contributed_models
+COPY data/builtin_review_designs ./data/builtin_review_designs
 
 RUN pip install --no-cache-dir --no-deps .
 

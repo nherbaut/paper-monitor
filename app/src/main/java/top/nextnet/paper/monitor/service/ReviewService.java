@@ -83,9 +83,7 @@ public class ReviewService {
         String normalizedTemplateId = normalizeRequired(templateId, "Review template is required");
         PaperDataExtractorService.ReviewTemplateDetail template = paperDataExtractorService.loadReviewTemplate(normalizedTemplateId, owner);
         Map<String, Object> reviewDesign = template.reviewDesign();
-        String title = firstNonBlank(
-                stringValue(reviewDesign.get("title")),
-                normalizedTemplateId);
+        String title = logicalFeed.name + " review";
 
         Review review = reviewRepository.findByOwnerAndLogicalFeed(owner, logicalFeed).orElseGet(Review::new);
         review.owner = owner;

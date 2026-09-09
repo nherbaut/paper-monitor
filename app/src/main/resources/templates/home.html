@@ -3345,13 +3345,13 @@
                                 data-open-add-feed="{logicalFeed.id}" data-add-feed-name="{logicalFeed.name}" title="Add RSS feed" aria-label="Add RSS feed">
                             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M3 11a2 2 0 1 1 0 4 2 2 0 0 1 0-4Zm-1-4a6 6 0 0 1 6 6H6a4 4 0 0 0-4-4V7Zm0-4a10 10 0 0 1 9.2 7.1l-1 .3A9 9 0 0 0 2 5V3Zm10.5 6.5h1v1.5H15v1h-1.5V13h-1v-1.5H11v-1h1.5V9.5Z"/></svg>
                         </button>
-                        <span id="feed-review-action-{logicalFeed.id}" class="feed-dashboard-review"></span>
                         <button class="secondary feed-dashboard-icon-action delete" type="button"
                                 data-delete-logical-feed="{logicalFeed.id}" data-delete-logical-feed-name="{logicalFeed.name}" title="Delete paper feed" aria-label="Delete paper feed">
                             <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M5.5 2h5l.5 1.5H14V4.5H2V3.5h3L5.5 2Zm-1 3h7l-.5 8h-6L4.5 5Z"/></svg>
                         </button>
                     </div>
                     {/if}
+                    <span id="feed-review-action-{logicalFeed.id}" class="feed-dashboard-review"></span>
                 </div>
                 <div class="feed-dashboard-stats">
                     <div class="feed-dashboard-stat">
@@ -3391,39 +3391,31 @@
                 <button class="icon-button secondary" id="review-modal-close" type="button" title="Close">×</button>
             </div>
             <form class="stack" id="review-create-form">
-                <label class="meta" for="review-template-select">Review template</label>
-                <select id="review-template-select" name="templateId" required>
-                    <option value="">Loading templates...</option>
-                </select>
-                <button class="secondary" id="review-customize-button" type="button" disabled>Customize research questions</button>
-                <div>
-                    <p class="meta">States included in the live review scope</p>
+                <section data-review-wizard-step="questions">
+                    <p class="meta">Step 1 of 3 · Start with the built-in five-question review scheme and tailor the research questions for this paper feed.</p>
+                    <div class="rq-editor-list" id="rq-editor-list"></div>
+                    <div class="manual-import-actions">
+                        <button class="secondary" id="rq-add-button" type="button">Add question</button>
+                        <button class="secondary" id="review-wizard-questions-next" type="button">Next: choose states</button>
+                    </div>
+                </section>
+                <section data-review-wizard-step="states" hidden>
+                    <p class="meta">Step 2 of 3 · States included in the live review scope.</p>
                     <div class="review-state-list" id="review-state-list"></div>
-                </div>
-                <div class="manual-import-actions">
-                    <a class="secondary" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Open PDE</a>
-                    <button class="secondary" id="review-create-button" type="submit">Create review</button>
-                </div>
+                    <div class="manual-import-actions">
+                        <button class="secondary" id="review-wizard-states-back" type="button">Back</button>
+                        <button class="secondary" id="review-wizard-states-next" type="button">Next: review</button>
+                    </div>
+                </section>
+                <section data-review-wizard-step="confirm" hidden>
+                    <p class="meta">Step 3 of 3 · Review the scope and create the review.</p>
+                    <p class="meta" id="review-wizard-summary"></p>
+                    <div class="manual-import-actions">
+                        <button class="secondary" id="review-wizard-confirm-back" type="button">Back</button>
+                        <button class="secondary" id="review-create-button" type="submit">Create review</button>
+                    </div>
+                </section>
             </form>
-        </div>
-    </dialog>
-
-    <dialog class="review-modal" id="rq-design-modal">
-        <div class="review-modal-body">
-            <div class="review-modal-header">
-                <div>
-                    <h3>Research questions</h3>
-                    <p class="meta" id="rq-design-status">Define the questions answered for every paper.</p>
-                </div>
-                <button class="icon-button secondary" id="rq-design-close" type="button" title="Close">×</button>
-            </div>
-            <label class="meta" for="rq-design-title">Private design title</label>
-            <input id="rq-design-title" maxlength="255" required>
-            <div class="rq-editor-list" id="rq-editor-list"></div>
-            <div class="manual-import-actions">
-                <button class="secondary" id="rq-add-button" type="button">Add question</button>
-                <button id="rq-save-button" type="button">Generate design</button>
-            </div>
         </div>
     </dialog>
 
@@ -4047,17 +4039,17 @@
     const reviewModalClose = document.getElementById("review-modal-close");
     const reviewMenuStatus = document.getElementById("review-menu-status");
     const reviewCreateForm = document.getElementById("review-create-form");
-    const reviewTemplateSelect = document.getElementById("review-template-select");
-    const reviewCustomizeButton = document.getElementById("review-customize-button");
     const reviewStateList = document.getElementById("review-state-list");
-    const rqDesignModal = document.getElementById("rq-design-modal");
-    const rqDesignClose = document.getElementById("rq-design-close");
-    const rqDesignTitle = document.getElementById("rq-design-title");
-    const rqDesignStatus = document.getElementById("rq-design-status");
     const rqEditorList = document.getElementById("rq-editor-list");
     const rqAddButton = document.getElementById("rq-add-button");
-    const rqSaveButton = document.getElementById("rq-save-button");
-    let rqBaseTemplateId = null;
+    const reviewWizardSteps = document.querySelectorAll("[data-review-wizard-step]");
+    const reviewWizardQuestionsNext = document.getElementById("review-wizard-questions-next");
+    const reviewWizardStatesBack = document.getElementById("review-wizard-states-back");
+    const reviewWizardStatesNext = document.getElementById("review-wizard-states-next");
+    const reviewWizardConfirmBack = document.getElementById("review-wizard-confirm-back");
+    const reviewWizardSummary = document.getElementById("review-wizard-summary");
+    const builtInReviewTemplateId = "five-research-questions";
+    let reviewBaseQuestions = [];
     let draggedRqRow = null;
     const feedCreateModal = document.getElementById("feed-create-modal");
     const feedCreateModalTitle = document.getElementById("feed-create-modal-title");
@@ -4285,7 +4277,6 @@
     let stateSearchQuery = "";
     let stateSearchVisibleLimit = 10;
     let selectedTagFilters = [];
-    let reviewTemplates = [];
     let reviewSummaries = [];
     let draggedFeedDashboardCard = null;
     let feedDashboardOrderSaving = false;
@@ -5727,12 +5718,12 @@
             return;
         }
         logicalFeedFilter.value = String(logicalFeedId || "");
-        renderReviewLauncher();
         if (typeof reviewCreateModal.showModal === "function") {
             reviewCreateModal.showModal();
         } else {
             reviewCreateModal.setAttribute("open", "open");
         }
+        prepareReviewWizard();
     };
 
     const closeReviewCreateModal = () => {
@@ -5744,12 +5735,6 @@
         } else {
             reviewCreateModal.removeAttribute("open");
         }
-    };
-
-    const closeRqDesignModal = () => {
-        if (!rqDesignModal) return;
-        if (typeof rqDesignModal.close === "function") rqDesignModal.close();
-        else rqDesignModal.removeAttribute("open");
     };
 
     const refreshRqOrdinals = () => {
@@ -5793,7 +5778,7 @@
         remove.textContent = "×";
         remove.addEventListener("click", () => {
             if (rqEditorList.children.length <= 1) {
-                rqDesignStatus.textContent = "A design must contain at least one research question.";
+                reviewMenuStatus.textContent = "A review must contain at least one research question.";
                 return;
             }
             row.remove();
@@ -5830,7 +5815,7 @@
 
     const renderRqEditor = (questions) => {
         rqEditorList.innerHTML = "";
-        const rows = questions.length ? questions : new Array(7).fill(null).map(() => Object.create(null));
+        const rows = questions.length ? questions : new Array(5).fill(null).map((_, index) => ({ question: "RQ" + (index + 1) }));
         rows.forEach((question) => rqEditorList.append(createRqRow(question)));
         refreshRqOrdinals();
     };
@@ -5854,6 +5839,71 @@
             rqEditorList.insertBefore(draggedRqRow, after ? target.nextSibling : target);
         });
     }
+
+    const setReviewWizardStep = (step) => {
+        reviewWizardSteps.forEach((panel) => {
+            panel.hidden = panel.dataset.reviewWizardStep !== step;
+        });
+    };
+
+    const reviewFeedName = () => logicalFeedFilter?.selectedOptions?.[0]?.dataset?.feedName || "Paper feed";
+    const reviewSchemeTitle = () => reviewFeedName() + " review";
+    const normalizedQuestions = (questions) => questions.map((question) => ({
+        key: question.key || "",
+        question: (question.question || "").trim(),
+        required: Boolean(question.required)
+    }));
+    const reviewQuestionsChanged = (questions) => JSON.stringify(normalizedQuestions(questions))
+        !== JSON.stringify(normalizedQuestions(reviewBaseQuestions));
+
+    const validateReviewQuestions = () => {
+        const questions = collectResearchQuestions();
+        const missingIndex = questions.findIndex((question) => !question.question);
+        if (missingIndex >= 0) {
+            reviewMenuStatus.textContent = "Enter a question for RQ " + (missingIndex + 1) + ".";
+            rqEditorList.children[missingIndex].querySelector(".rq-question").focus();
+            return null;
+        }
+        return questions;
+    };
+
+    const renderReviewScope = () => {
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        reviewStateList.innerHTML = "";
+        workflowStatesForLogicalFeed(logicalFeedId).forEach((state, index) => {
+            const label = document.createElement("label");
+            label.className = "review-state-option";
+            label.innerHTML = "<input type=\"checkbox\" name=\"review-selected-state\" value=\"" + state + "\""
+                + (index === 0 ? " checked" : "") + "><span>" + statusLabel(state) + "</span>";
+            reviewStateList.appendChild(label);
+        });
+    };
+
+    const prepareReviewWizard = async () => {
+        if (!logicalFeedFilter?.value) return;
+        if (reviewModalTitle) reviewModalTitle.textContent = "Create review for " + reviewFeedName();
+        setReviewWizardStep("questions");
+        reviewMenuStatus.textContent = "Loading the five-question review scheme...";
+        try {
+            const response = await fetch("/api/review-templates/" + builtInReviewTemplateId, {
+                headers: { Accept: "application/json" }
+            });
+            const body = await response.text();
+            if (!response.ok) throw new Error(body || "Could not load the built-in review scheme.");
+            const detail = JSON.parse(body);
+            reviewBaseQuestions = detail.researchQuestions || [];
+            renderRqEditor(reviewBaseQuestions);
+            renderReviewScope();
+            const existing = reviewForLogicalFeed(logicalFeedFilter.value);
+            reviewMenuStatus.textContent = existing
+                ? "A live review already exists and will be replaced when you finish."
+                : "Tailor the research questions, then choose the review scope.";
+        } catch (error) {
+            reviewBaseQuestions = [];
+            renderRqEditor([]);
+            reviewMenuStatus.textContent = error.message || "Could not load the built-in review scheme.";
+        }
+    };
 
     const scholarCache = {
         feeds: null,
@@ -6349,75 +6399,23 @@
             .map((input) => input.value);
     };
 
-    const renderReviewLauncher = () => {
-        if (!reviewMenuStatus || !reviewCreateForm || !reviewTemplateSelect || !reviewStateList) {
-            return;
-        }
-        const logicalFeedId = logicalFeedFilter.value;
-        if (!logicalFeedId) {
-            reviewMenuStatus.textContent = "Select a paper feed to create its review.";
-            if (reviewModalTitle) {
-                reviewModalTitle.textContent = "Create review";
-            }
-            reviewCreateForm.classList.remove("hidden");
-            reviewStateList.innerHTML = "";
-            return;
-        }
-
-        reviewCreateForm.classList.remove("hidden");
-        if (reviewModalTitle) {
-            const feedName = logicalFeedFilter.selectedOptions?.[0]?.dataset?.feedName || "Create review";
-            reviewModalTitle.textContent = "Create review for " + feedName;
-        }
-        const existing = reviewForLogicalFeed(logicalFeedId);
-        reviewMenuStatus.textContent = existing
-            ? "A live review already exists. Creating a new one here will replace it."
-            : "Select at least one state and one review template.";
-        reviewStateList.innerHTML = "";
-        workflowStatesForLogicalFeed(logicalFeedId).forEach((state, index) => {
-            const label = document.createElement("label");
-            label.className = "review-state-option";
-            label.innerHTML = "<input type=\"checkbox\" name=\"review-selected-state\" value=\"" + state + "\""
-                + (index === 0 ? " checked" : "") + "><span>" + statusLabel(state) + "</span>";
-            reviewStateList.appendChild(label);
-        });
-
-        reviewTemplateSelect.innerHTML = "";
-        if (!reviewTemplates.length) {
-            reviewTemplateSelect.innerHTML = "<option value=\"\">No review templates available</option>";
-            return;
-        }
-        reviewTemplateSelect.innerHTML = "<option value=\"\">Select review template</option>";
-        reviewTemplates.forEach((template) => {
-            const option = document.createElement("option");
-            option.value = template.id;
-            option.textContent = template.title + (template.revision ? " · revision " + template.revision : "");
-            reviewTemplateSelect.appendChild(option);
-        });
-        if (reviewCustomizeButton) reviewCustomizeButton.disabled = !reviewTemplateSelect.value;
-    };
-
     const loadReviewWorkspace = async () => {
         if (!authenticated) {
             return;
         }
         try {
-            const [templatesResponse, reviewsResponse] = await Promise.all([
-                fetch("/api/review-templates", { headers: { Accept: "application/json" } }),
-                fetch("/api/reviews", { headers: { Accept: "application/json" } })
-            ]);
-            reviewTemplates = templatesResponse.ok ? await templatesResponse.json() : [];
+            const reviewsResponse = await fetch("/api/reviews", { headers: { Accept: "application/json" } });
             reviewSummaries = reviewsResponse.ok ? await reviewsResponse.json() : [];
         } catch (error) {
-            reviewTemplates = [];
             reviewSummaries = [];
             if (reviewMenuStatus) {
                 reviewMenuStatus.textContent = error.message || "Failed to load review workspace.";
             }
         }
-        renderReviewLauncher();
         renderFeedDashboardReviewActions();
     };
+
+    const renderReviewLauncher = () => {};
 
     const selectedExportStates = () => {
         return Array.from(exportStateList?.querySelectorAll("input[name='export-selected-state']:checked") || [])
@@ -10886,44 +10884,10 @@
         });
     }
 
-    if (reviewTemplateSelect && reviewCustomizeButton) {
-        reviewTemplateSelect.addEventListener("change", () => {
-            reviewCustomizeButton.disabled = !reviewTemplateSelect.value;
-        });
-    }
-
-    if (reviewCustomizeButton) {
-        reviewCustomizeButton.addEventListener("click", async () => {
-            const templateId = reviewTemplateSelect.value;
-            if (!templateId) return;
-            reviewCustomizeButton.disabled = true;
-            reviewMenuStatus.textContent = "Loading research questions...";
-            try {
-                const response = await fetch("/api/review-templates/" + encodeURIComponent(templateId), {
-                    headers: {"Accept": "application/json"}
-                });
-                const body = await response.text();
-                if (!response.ok) throw new Error(body || "Failed to load review design.");
-                const detail = JSON.parse(body);
-                rqBaseTemplateId = templateId;
-                rqDesignTitle.value = detail.title + " with custom research questions";
-                rqDesignStatus.textContent = "Define the questions answered for every paper.";
-                renderRqEditor(detail.researchQuestions || []);
-                closeReviewCreateModal();
-                if (typeof rqDesignModal.showModal === "function") rqDesignModal.showModal();
-                else rqDesignModal.setAttribute("open", "open");
-            } catch (error) {
-                reviewMenuStatus.textContent = error.message || "Failed to load review design.";
-            } finally {
-                reviewCustomizeButton.disabled = !reviewTemplateSelect.value;
-            }
-        });
-    }
-
     if (rqAddButton) {
         rqAddButton.addEventListener("click", () => {
             if (rqEditorList.children.length >= 50) {
-                rqDesignStatus.textContent = "A design can contain at most 50 research questions.";
+                reviewMenuStatus.textContent = "A review can contain at most 50 research questions.";
                 return;
             }
             rqEditorList.append(createRqRow());
@@ -10932,73 +10896,60 @@
         });
     }
 
-    if (rqDesignClose) {
-        rqDesignClose.addEventListener("click", () => {
-            closeRqDesignModal();
-            openReviewCreateModal(logicalFeedFilter.value);
-        });
-    }
-
-    if (rqSaveButton) {
-        rqSaveButton.addEventListener("click", async () => {
-            const title = rqDesignTitle.value.trim();
-            const questions = collectResearchQuestions();
-            if (!title) {
-                rqDesignStatus.textContent = "Enter a title for the private design.";
-                return;
-            }
-            const missingIndex = questions.findIndex((question) => !question.question);
-            if (missingIndex >= 0) {
-                rqDesignStatus.textContent = "Enter a question for RQ " + (missingIndex + 1) + ".";
-                rqEditorList.children[missingIndex].querySelector(".rq-question").focus();
-                return;
-            }
-            rqSaveButton.disabled = true;
-            rqDesignStatus.textContent = "Generating the private review design...";
-            const logicalFeedId = logicalFeedFilter.value;
-            try {
-                const response = await fetch("/api/review-templates/" + encodeURIComponent(rqBaseTemplateId) + "/derivations", {
-                    method: "POST",
-                    headers: {"Content-Type": "application/json", "Accept": "application/json"},
-                    body: JSON.stringify({"title": title, "research_questions": questions})
-                });
-                const body = await response.text();
-                if (!response.ok) throw new Error(body || "Failed to generate review design.");
-                const created = JSON.parse(body);
-                closeRqDesignModal();
-                await loadReviewWorkspace();
-                openReviewCreateModal(logicalFeedId);
-                reviewTemplateSelect.value = created.id;
-                reviewCustomizeButton.disabled = false;
-                reviewMenuStatus.textContent = "Private design generated. Select the review states and create the review.";
-            } catch (error) {
-                rqDesignStatus.textContent = error.message || "Failed to generate review design.";
-            } finally {
-                rqSaveButton.disabled = false;
-            }
-        });
-    }
+    reviewWizardQuestionsNext?.addEventListener("click", () => {
+        if (!validateReviewQuestions()) return;
+        setReviewWizardStep("states");
+        reviewMenuStatus.textContent = "Choose the workflow states included in this review.";
+    });
+    reviewWizardStatesBack?.addEventListener("click", () => setReviewWizardStep("questions"));
+    reviewWizardStatesNext?.addEventListener("click", () => {
+        const questions = validateReviewQuestions();
+        const selectedStates = selectedReviewStates();
+        if (!questions || !selectedStates.length) {
+            reviewMenuStatus.textContent = selectedStates.length
+                ? reviewMenuStatus.textContent : "Select at least one state.";
+            return;
+        }
+        const changes = reviewQuestionsChanged(questions);
+        reviewWizardSummary.textContent = reviewSchemeTitle() + " will cover "
+            + selectedStates.map(statusLabel).join(", ") + ". "
+            + (changes
+                ? "Your edited questions will be saved as a private version 1 review scheme."
+                : "The built-in five-question scheme will be used unchanged.");
+        setReviewWizardStep("confirm");
+        reviewMenuStatus.textContent = "Check the review details, then create it.";
+    });
+    reviewWizardConfirmBack?.addEventListener("click", () => setReviewWizardStep("states"));
 
     if (reviewCreateForm) {
         reviewCreateForm.addEventListener("submit", async (event) => {
             event.preventDefault();
             const logicalFeedId = logicalFeedFilter.value;
-            const templateId = reviewTemplateSelect.value;
+            const questions = validateReviewQuestions();
             const selectedStates = selectedReviewStates();
             if (!logicalFeedId) {
                 reviewMenuStatus.textContent = "Select a paper feed first.";
                 return;
             }
-            if (!templateId) {
-                reviewMenuStatus.textContent = "Select a review template.";
-                return;
-            }
-            if (!selectedStates.length) {
+            if (!questions || !selectedStates.length) {
                 reviewMenuStatus.textContent = "Select at least one state.";
                 return;
             }
             reviewMenuStatus.textContent = "Creating review...";
             try {
+                let templateId = builtInReviewTemplateId;
+                if (reviewQuestionsChanged(questions)) {
+                    reviewMenuStatus.textContent = "Saving your private review scheme...";
+                    const designResponse = await fetch("/api/review-templates/" + builtInReviewTemplateId + "/derivations", {
+                        method: "POST",
+                        headers: {"Content-Type": "application/json", "Accept": "application/json"},
+                        body: JSON.stringify({ title: reviewSchemeTitle(), research_questions: questions })
+                    });
+                    const designBody = await designResponse.text();
+                    if (!designResponse.ok) throw new Error(designBody || "Failed to save the private review scheme.");
+                    templateId = JSON.parse(designBody).id;
+                }
+                reviewMenuStatus.textContent = "Creating review...";
                 const response = await fetch("/api/reviews", {
                     method: "POST",
                     headers: {

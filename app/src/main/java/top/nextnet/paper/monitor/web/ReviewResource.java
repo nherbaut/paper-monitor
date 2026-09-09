@@ -129,7 +129,7 @@ public class ReviewResource {
     ) {
         AppUser currentUser = requireCurrentUser();
         Review reviewEntity = reviewService.requireReview(id, currentUser);
-        logicalFeedAccessService.requireAdminLogicalFeed(reviewEntity.logicalFeed.id, currentUser);
+        logicalFeedAccessService.requireReadableLogicalFeed(reviewEntity.logicalFeed.id, currentUser);
         PaperDataExtractorService.ReviewTemplateDetail currentTemplate =
                 paperDataExtractorService.loadReviewTemplate(reviewEntity.templateId, currentUser);
         String title = requiredPayloadString(payload, "title", "A review design title is required");
@@ -231,7 +231,7 @@ public class ReviewResource {
                 .data("analyzedAngle", analyzedRatio * 360.0d)
                 .data("rows", rows)
                 .data("canCustomizeResearchQuestions",
-                        logicalFeedAccessService.canAdmin(reviewEntity.logicalFeed, currentUser))
+                        logicalFeedAccessService.canRead(reviewEntity.logicalFeed, currentUser))
                 .data("derivedReviewDesign", derivedDesign)
                 .data("reviewRevision", design.get("revision"))
                 .data("researchQuestionsBase64", encodeBase64(JsonCodec.stringify(

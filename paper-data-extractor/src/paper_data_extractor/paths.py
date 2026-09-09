@@ -25,6 +25,7 @@ CONTRIBUTED_MODELS_DIR = DATA_DIR / "contributed_models"
 CUSTOM_MODELS_DIR = DATA_DIR / "custom_models"
 COMPOSED_MODELS_DIR = DATA_DIR / "composed_models"
 REVIEW_DESIGNS_DIR = DATA_DIR / "review_designs"
+BUILTIN_REVIEW_DESIGNS_DIR = DATA_DIR / "builtin_review_designs"
 CLASSIFICATIONS_DIR = DATA_DIR / "classifications"
 GENERATED_SCHEMAS_DIR = DATA_DIR / "generated_schemas"
 

@@ -279,7 +279,7 @@
                 <a class="back-link" href="/?logicalFeedId={logicalFeed.id}">Back to paper feed</a>
                 <div class="hero-actions">
                     {#if canCustomizeResearchQuestions}
-                    <button class="back-link" id="revise-rq-button" type="button">{#if derivedReviewDesign}Revise research questions{#else}Customize research questions{/if}</button>
+                    <button class="back-link" id="revise-rq-button" type="button">Edit research questions</button>
                     {/if}
                     <details class="action-menu">
                         <summary class="back-link">Download report</summary>
@@ -361,11 +361,11 @@
 </main>
 {#if canCustomizeResearchQuestions}
 <dialog id="revise-rq-dialog">
-    <h2>{#if derivedReviewDesign}Revise research questions{#else}Customize research questions{/if}</h2>
+    <h2>Edit research questions</h2>
     {#if derivedReviewDesign}
-    <p class="meta">Revision {reviewRevision}. Existing answers follow their question when reordered or reworded. Incomplete migrations become drafts.</p>
+    <p class="meta">Current scheme version: v{reviewRevision}. Saving creates the next version. Renamed questions let you choose whether to keep or drop their existing responses.</p>
     {#else}
-    <p class="meta">Create a private review design from this review. Existing answers are migrated to the matching research-question positions.</p>
+    <p class="meta">Saving creates private scheme version v1. Renamed questions let you choose whether to keep or drop their existing responses.</p>
     {/if}
     <label for="revision-title">Design title</label>
     <input id="revision-title" type="text" maxlength="255" value="{review.title}">
@@ -377,12 +377,23 @@
         <button class="back-link" id="revision-save" type="button">{#if derivedReviewDesign}Create revision{#else}Create private design{/if}</button>
     </div>
 </dialog>
+<dialog id="rq-rename-dialog">
+    <h2>Keep answers for renamed questions?</h2>
+    <p class="meta">Choose what happens to existing responses for every renamed research question.</p>
+    <div class="rq-list" id="rq-rename-list"></div>
+    <div class="dialog-actions">
+        <button class="back-link" id="rq-rename-cancel" type="button">Cancel</button>
+        <button class="back-link" id="rq-rename-continue" type="button">Save revision</button>
+    </div>
+</dialog>
 <script>
 (() => {
     const questions = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob("{researchQuestionsBase64}"), c => c.charCodeAt(0))));
     const dialog = document.getElementById("revise-rq-dialog");
     const list = document.getElementById("revision-rq-list");
     const status = document.getElementById("revision-status");
+    const renameDialog = document.getElementById("rq-rename-dialog");
+    const renameList = document.getElementById("rq-rename-list");
     let dragged = null;
 
     const refresh = () => Array.from(list.children).forEach((row, index) => {
@@ -393,6 +404,7 @@
         row.className = "rq-row";
         row.draggable = true;
         row.dataset.key = question.key || "";
+        row.dataset.originalQuestion = question.question || "";
         const header = document.createElement("div");
         header.className = "rq-row-header";
         const code = document.createElement("span");
@@ -442,9 +454,45 @@
     document.getElementById("revision-add").addEventListener("click", () => {
         if (list.children.length < 50) addRow();
     });
+    const newQuestionKey = () => "rq-" + (window.crypto?.randomUUID?.() || Date.now() + "-" + Math.random().toString(36).slice(2));
+    const chooseRenameHandling = (renamed) => new Promise((resolve) => {
+        renameList.replaceChildren();
+        renamed.forEach(({ row, index }) => {
+            const fieldset = document.createElement("fieldset");
+            const legend = document.createElement("legend");
+            legend.textContent = "RQ " + (index + 1) + ": \"" + row.dataset.originalQuestion + "\" → \"" + row.querySelector(".rq-question").value.trim() + "\"";
+            fieldset.appendChild(legend);
+            [["keep", "Keep existing responses under the renamed RQ"], ["drop", "Drop existing responses"]].forEach(([value, labelText], optionIndex) => {
+                const label = document.createElement("label");
+                const input = document.createElement("input");
+                input.type = "radio";
+                input.name = "rename-" + index;
+                input.value = value;
+                input.checked = optionIndex === 0;
+                label.append(input, document.createTextNode(" " + labelText));
+                fieldset.appendChild(label);
+            });
+            fieldset.dataset.rqKey = row.dataset.key;
+            renameList.appendChild(fieldset);
+        });
+        const finish = (choices) => {
+            renameDialog.close();
+            resolve(choices);
+        };
+        document.getElementById("rq-rename-cancel").onclick = () => finish(null);
+        document.getElementById("rq-rename-continue").onclick = () => {
+            const choices = Object.fromEntries(Array.from(renameList.querySelectorAll("fieldset")).map((fieldset) => [
+                fieldset.dataset.rqKey,
+                fieldset.querySelector("input:checked")?.value || "keep"
+            ]));
+            finish(choices);
+        };
+        renameDialog.showModal();
+    });
     document.getElementById("revision-save").addEventListener("click", async (event) => {
         const title = document.getElementById("revision-title").value.trim();
-        const researchQuestions = Array.from(list.children).map((row) => {
+        const rows = Array.from(list.children);
+        const researchQuestions = rows.map((row) => {
             const value = {
                 "question": row.querySelector(".rq-question").value.trim(),
                 "required": row.querySelector(".rq-required-input").checked
@@ -455,6 +503,15 @@
         if (!title || researchQuestions.some((item) => !item.question)) {
             status.textContent = "Enter a title and text for every research question.";
             return;
+        }
+        const renamed = rows.map((row, index) => ({ row, index })).filter(({ row }) => row.dataset.key
+            && row.dataset.originalQuestion !== row.querySelector(".rq-question").value.trim());
+        if (renamed.length) {
+            const choices = await chooseRenameHandling(renamed);
+            if (!choices) return;
+            researchQuestions.forEach((question) => {
+                if (choices[question.key] === "drop") question.key = newQuestionKey();
+            });
         }
         event.currentTarget.disabled = true;
         status.textContent = "{#if derivedReviewDesign}Creating revision{#else}Creating private design{/if} and migrating answers...";

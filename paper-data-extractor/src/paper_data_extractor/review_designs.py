@@ -16,7 +16,7 @@ import yaml
 from fastapi import HTTPException
 from linkml.generators.jsonschemagen import JsonSchemaGenerator
 
-from paper_data_extractor.paths import REVIEW_DESIGNS_DIR, SCHEMA_DIR
+from paper_data_extractor.paths import BUILTIN_REVIEW_DESIGNS_DIR, REVIEW_DESIGNS_DIR, SCHEMA_DIR
 from paper_data_extractor.review_schema import compile_review_schema_artifacts
 from paper_data_extractor.taxonomy import (
     compose_taxonomies,
@@ -63,7 +63,7 @@ def list_review_designs(current_user_id: str | None = None, is_admin: bool = Fal
     reviews: list[dict[str, Any]] = []
     latest_revisions: dict[str, int] = {}
     readable: list[tuple[Path, dict[str, Any], dict[str, Any]]] = []
-    for path in sorted(REVIEW_DESIGNS_DIR.glob("*.yaml")):
+    for path in review_design_paths():
         design = load_yaml(path)
         metadata = load_review_design_metadata(path)
         if not can_read_review_design(metadata, current_user_id, is_admin):
@@ -97,10 +97,12 @@ def list_review_designs(current_user_id: str | None = None, is_admin: bool = Fal
 
 
 def review_design_file(review_design_id: str) -> Path:
-    path = REVIEW_DESIGNS_DIR / f"{slugify(review_design_id)}.yaml"
-    if not path.exists():
-        raise HTTPException(status_code=404, detail=f"Unknown review design: {review_design_id}")
-    return path
+    filename = f"{slugify(review_design_id)}.yaml"
+    for directory in (BUILTIN_REVIEW_DESIGNS_DIR, REVIEW_DESIGNS_DIR):
+        path = directory / filename
+        if path.exists():
+            return path
+    raise HTTPException(status_code=404, detail=f"Unknown review design: {review_design_id}")
 
 
 def load_review_design(
@@ -117,7 +119,7 @@ def load_review_design(
 
 def save_review_design(review_design: dict[str, Any], metadata: dict[str, Any] | None = None) -> dict[str, Any]:
     path = REVIEW_DESIGNS_DIR / f"{slugify(str(review_design['id']))}.yaml"
-    if path.exists():
+    if path.exists() or (BUILTIN_REVIEW_DESIGNS_DIR / path.name).exists():
         raise HTTPException(status_code=409, detail=f"A review design already exists for id: {review_design['id']}")
     if metadata is not None:
         atomic_write(review_design_metadata_file(path), json.dumps(metadata, indent=2, sort_keys=True))
@@ -127,6 +129,8 @@ def save_review_design(review_design: dict[str, Any], metadata: dict[str, Any] |
 
 def delete_review_design(review_design_id: str, current_user_id: str | None = None, is_admin: bool = False) -> None:
     path = review_design_file(review_design_id)
+    if path.parent == BUILTIN_REVIEW_DESIGNS_DIR:
+        raise HTTPException(status_code=403, detail="Built-in review designs cannot be deleted")
     metadata = load_review_design_metadata(path)
     if not can_write_review_design(metadata, current_user_id, is_admin):
         raise HTTPException(status_code=403, detail="You cannot delete this review design")
@@ -358,6 +362,14 @@ def string_or_none(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def review_design_paths() -> list[Path]:
+    paths: dict[str, Path] = {}
+    for directory in (BUILTIN_REVIEW_DESIGNS_DIR, REVIEW_DESIGNS_DIR):
+        for path in directory.glob("*.yaml"):
+            paths.setdefault(path.name, path)
+    return sorted(paths.values())
 
 
 def review_design_to_preview(review_design: dict[str, Any]) -> dict[str, Any]:
