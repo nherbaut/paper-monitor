@@ -86,10 +86,16 @@ public class MendeleyBackgroundSyncService {
     }
 
     void resumeInterruptedJobs(@Observes StartupEvent ignored) {
-        List<Long> interrupted = QuarkusTransaction.requiringNew().call(() -> feeds
-                .find("enabled = true and syncStatus in ?1", List.of("QUEUED", "DISCOVERING", "RUNNING"))
-                .list().stream().map(config -> config.id).toList());
-        interrupted.forEach(configId -> enqueue(configId, true, "restart", false));
+        executor.execute(() -> {
+            try {
+                List<Long> interrupted = QuarkusTransaction.requiringNew().call(() -> feeds
+                        .find("enabled = true and syncStatus in ?1", List.of("QUEUED", "DISCOVERING", "RUNNING"))
+                        .list().stream().map(config -> config.id).toList());
+                interrupted.forEach(configId -> enqueue(configId, true, "restart", false));
+            } catch (RuntimeException error) {
+                LOG.error("Could not resume interrupted Mendeley jobs; application startup will continue", error);
+            }
+        });
     }
 
     private void enqueueLogicalFeed(Long logicalFeedId) {
@@ -132,7 +138,8 @@ public class MendeleyBackgroundSyncService {
                 if (config != null) {
                     config.syncStatus = "COMPLETED";
                     config.syncPhase = "Synchronization complete";
-                    config.syncCompletedActions = Math.max(config.syncCompletedActions, config.syncTotalActions);
+                    config.syncCompletedActions = Math.max(count(config.syncCompletedActions),
+                            count(config.syncTotalActions));
                     config.syncFinishedAt = Instant.now();
                     config.lastError = null;
                 }
@@ -188,8 +195,8 @@ public class MendeleyBackgroundSyncService {
         result.put("status", status);
         result.put("phase", config.syncPhase == null ? "Not running" : config.syncPhase);
         result.put("trigger", config.syncTrigger == null ? "" : config.syncTrigger);
-        result.put("completed", config.syncCompletedActions);
-        result.put("total", config.syncTotalActions);
+        result.put("completed", count(config.syncCompletedActions));
+        result.put("total", count(config.syncTotalActions));
         result.put("running", Set.of("QUEUED", "DISCOVERING", "RUNNING").contains(status));
         result.put("startedAt", config.syncStartedAt == null ? "" : config.syncStartedAt.toString());
         result.put("finishedAt", config.syncFinishedAt == null ? "" : config.syncFinishedAt.toString());
@@ -204,6 +211,10 @@ public class MendeleyBackgroundSyncService {
 
     private static String truncate(String value, int maximum) {
         return value.length() <= maximum ? value : value.substring(0, maximum);
+    }
+
+    private static int count(Integer value) {
+        return value == null ? 0 : value;
     }
 
     private static String rootMessage(Throwable error) {

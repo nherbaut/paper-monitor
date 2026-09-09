@@ -33,10 +33,14 @@ class MendeleyBackgroundSyncServiceTest {
     void treatsExistingRowsWithoutAStatusAsIdle() {
         MendeleyFeedSync config = new MendeleyFeedSync();
         config.syncStatus = null;
+        config.syncCompletedActions = null;
+        config.syncTotalActions = null;
 
         Map<String, Object> job = MendeleyBackgroundSyncService.jobView(config);
 
         assertEquals("IDLE", job.get("status"));
+        assertEquals(0, job.get("completed"));
+        assertEquals(0, job.get("total"));
         assertFalse((Boolean) job.get("running"));
     }
 }

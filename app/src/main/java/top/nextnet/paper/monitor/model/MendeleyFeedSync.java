@@ -44,8 +44,8 @@ public class MendeleyFeedSync extends PanacheEntityBase {
     public String syncPhase;
     @Column(length = 24)
     public String syncTrigger;
-    public int syncCompletedActions;
-    public int syncTotalActions;
+    public Integer syncCompletedActions = 0;
+    public Integer syncTotalActions = 0;
     public Instant syncStartedAt;
     public Instant syncFinishedAt;
     @Column(nullable = false, columnDefinition = "boolean default false")
