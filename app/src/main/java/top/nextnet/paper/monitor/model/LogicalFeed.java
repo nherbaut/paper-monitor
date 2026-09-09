@@ -95,6 +95,9 @@ public class LogicalFeed extends PanacheEntityBase {
     @OneToMany(mappedBy = "logicalFeed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     public List<LogicalFeedAccessGrant> accessGrants = new ArrayList<>();
 
+    @OneToMany(mappedBy = "logicalFeed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    public List<MendeleyFeedSync> mendeleyFeedSyncs = new ArrayList<>();
+
     @Transient
     public Map<String, Long> paperCountsByState = new LinkedHashMap<>();
 

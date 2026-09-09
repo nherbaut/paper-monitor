@@ -824,6 +824,7 @@
             <button class="settings-nav-button" data-settings-target="tts" type="button">TTS Management</button>
             <button class="settings-nav-button" data-settings-target="pde" type="button">PDE Settings</button>
             <button class="settings-nav-button" data-settings-target="google-drive" type="button">Google Drive</button>
+            <button class="settings-nav-button" data-settings-target="mendeley" type="button">Mendeley</button>
             <button class="settings-nav-button" data-settings-target="users" type="button">User Management</button>
             <button class="settings-nav-button" data-settings-target="backup" type="button">Backup</button>
             <a class="settings-nav-button settings-nav-link" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Review Design (PDE)</a>
@@ -1231,6 +1232,22 @@
                 </div>
             </div>
         </div>
+    </section>
+
+    <section class="settings-panel hidden" data-settings-panel="mendeley">
+        <h2>Mendeley synchronization</h2>
+        <p class="meta">Connect your Mendeley account, map a folder to each paper feed, then preview and apply a two-way synchronization.</p>
+        <div class="management-card">
+            <div class="management-card-body">
+                <div class="management-card-header">
+                    <strong>Connection</strong>
+                    <span class="meta" id="mendeley-connection-status">Loading Mendeley status…</span>
+                </div>
+                <div class="toolbar" id="mendeley-connection-actions"></div>
+            </div>
+        </div>
+        <div class="stack-layout" id="mendeley-feed-settings"></div>
+        <p class="message error" id="mendeley-error" hidden></p>
     </section>
 
     <section class="settings-panel hidden" data-settings-panel="users">
@@ -2317,6 +2334,217 @@
         migrationDialog.close();
         form.submit();
     });
+
+    const mendeleyStatusText = document.getElementById("mendeley-connection-status");
+    const mendeleyConnectionActions = document.getElementById("mendeley-connection-actions");
+    const mendeleyFeedSettings = document.getElementById("mendeley-feed-settings");
+    const mendeleyError = document.getElementById("mendeley-error");
+
+    const mendeleyRequest = async (url, options = {}) => {
+        const response = await fetch(url, { headers: { Accept: "application/json", ...(options.headers || {}) }, ...options });
+        const text = await response.text();
+        if (!response.ok) throw new Error(text || "Mendeley request failed.");
+        return text ? JSON.parse(text) : {};
+    };
+
+    const showMendeleyError = (message = "") => {
+        if (!mendeleyError) return;
+        mendeleyError.textContent = message;
+        mendeleyError.hidden = !message;
+    };
+
+    const renderMendeleyPreview = (container, feed, preview) => {
+        container.replaceChildren();
+        const heading = document.createElement("strong");
+        heading.textContent = "Synchronization preview";
+        container.appendChild(heading);
+        const counts = document.createElement("p");
+        counts.className = "meta";
+        counts.textContent = Object.entries(preview.counts || {}).map(([key, value]) => key + ": " + value).join(" · ") || "No changes";
+        container.appendChild(counts);
+        (preview.actions || []).forEach((action) => {
+            const row = document.createElement("div");
+            row.className = "management-meta-box";
+            const title = document.createElement("strong");
+            title.textContent = action.type + " · " + (action.title || "Untitled");
+            const detail = document.createElement("span");
+            detail.className = "meta";
+            detail.textContent = action.reason || "";
+            row.append(title, detail);
+            if (action.local || action.mendeley) {
+                const comparison = document.createElement("details");
+                const summary = document.createElement("summary");
+                summary.textContent = "Compare Paper Monitor and Mendeley";
+                const values = document.createElement("div");
+                values.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.75rem;margin-top:.5rem";
+                [["Paper Monitor", action.local], ["Mendeley", action.mendeley]].forEach(([name, snapshot]) => {
+                    const column = document.createElement("div");
+                    const label = document.createElement("strong");
+                    label.textContent = name;
+                    const content = document.createElement("pre");
+                    content.style.cssText = "white-space:pre-wrap;overflow-wrap:anywhere;font-size:.78rem";
+                    content.textContent = snapshot ? JSON.stringify(snapshot, null, 2) : "Not present";
+                    column.append(label, content);
+                    values.appendChild(column);
+                });
+                comparison.append(summary, values);
+                row.appendChild(comparison);
+            }
+            container.appendChild(row);
+        });
+        const apply = document.createElement("button");
+        apply.type = "button";
+        apply.textContent = "Apply this preview";
+        apply.disabled = !(preview.actions || []).length;
+        apply.addEventListener("click", async () => {
+            apply.disabled = true;
+            try {
+                const result = await mendeleyRequest("/api/mendeley/feeds/" + feed.logicalFeedId + "/apply", { method: "POST" });
+                counts.textContent = "Applied " + result.applied + " change(s); " + result.conflicts + " conflict(s) require review.";
+                await loadMendeleySettings();
+            } catch (error) { showMendeleyError(error.message); apply.disabled = false; }
+        });
+        container.appendChild(apply);
+    };
+
+    const renderMendeleyConflicts = (container, feed) => {
+        (feed.conflicts || []).forEach((conflict) => {
+            const row = document.createElement("div");
+            row.className = "management-meta-box";
+            const label = document.createElement("strong");
+            label.textContent = conflict.status + " · " + conflict.title;
+            if (conflict.details?.local || conflict.details?.mendeley) {
+                const comparison = document.createElement("details");
+                const summary = document.createElement("summary");
+                summary.textContent = "Compare values";
+                const values = document.createElement("div");
+                values.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.75rem;margin-top:.5rem";
+                [["Paper Monitor", conflict.details.local], ["Mendeley", conflict.details.mendeley]].forEach(([name, snapshot]) => {
+                    const column = document.createElement("div");
+                    const heading = document.createElement("strong");
+                    heading.textContent = name;
+                    const content = document.createElement("pre");
+                    content.style.cssText = "white-space:pre-wrap;overflow-wrap:anywhere;font-size:.78rem";
+                    content.textContent = snapshot ? JSON.stringify(snapshot, null, 2) : "Not present";
+                    column.append(heading, content);
+                    values.appendChild(column);
+                });
+                comparison.append(summary, values);
+                row.append(label, comparison);
+            } else {
+                row.appendChild(label);
+            }
+            const actions = document.createElement("div");
+            actions.className = "toolbar";
+            const choices = conflict.status === "REMOTE_DELETED"
+                ? [["KEEP_LOCAL", "Restore Mendeley copy"], ["KEEP_BOTH", "Keep local copy only"]]
+                : [["KEEP_LOCAL", "Keep Paper Monitor"], ["KEEP_MENDELEY", "Keep Mendeley"], ["MERGE", "Merge notes and tags"]];
+            choices.forEach(([value, text]) => {
+                const button = document.createElement("button");
+                button.type = "button";
+                button.className = "secondary";
+                button.textContent = text;
+                button.addEventListener("click", async () => {
+                    button.disabled = true;
+                    try {
+                        await mendeleyRequest("/api/mendeley/feeds/" + feed.logicalFeedId + "/conflicts/" + conflict.id + "/resolve", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+                            body: new URLSearchParams({ resolution: value })
+                        });
+                        await loadMendeleySettings();
+                    } catch (error) { showMendeleyError(error.message); button.disabled = false; }
+                });
+                actions.appendChild(button);
+            });
+            row.appendChild(actions);
+            container.appendChild(row);
+        });
+    };
+
+    const renderMendeleyFeed = (feed, folders) => {
+        const card = document.createElement("section");
+        card.className = "management-card";
+        const body = document.createElement("div");
+        body.className = "management-card-body";
+        const title = document.createElement("strong");
+        title.textContent = feed.logicalFeedName;
+        const select = document.createElement("select");
+        const placeholder = document.createElement("option");
+        placeholder.value = ""; placeholder.textContent = "Choose a Mendeley root folder";
+        select.appendChild(placeholder);
+        folders.forEach((folder) => {
+            const option = document.createElement("option");
+            option.value = folder.id; option.textContent = folder.name;
+            option.selected = folder.id === feed.rootFolderId;
+            select.appendChild(option);
+        });
+        const configure = document.createElement("button");
+        configure.type = "button"; configure.textContent = feed.configured ? "Update folder mapping" : "Configure synchronization";
+        configure.addEventListener("click", async () => {
+            if (!select.value) { showMendeleyError("Choose a Mendeley folder first."); return; }
+            configure.disabled = true;
+            try {
+                const option = select.selectedOptions[0];
+                await mendeleyRequest("/api/mendeley/feeds/" + feed.logicalFeedId + "/configure", {
+                    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+                    body: new URLSearchParams({ folderId: select.value, folderName: option.textContent })
+                });
+                await loadMendeleySettings();
+            } catch (error) { showMendeleyError(error.message); configure.disabled = false; }
+        });
+        body.append(title, select, configure);
+        if (feed.configured) {
+            const mapping = document.createElement("p");
+            mapping.className = "meta";
+            mapping.textContent = "State folders: " + Object.keys(feed.stateFolders || {}).length
+                + (feed.lastSyncedAt ? " · Last synced: " + feed.lastSyncedAt : " · Never synchronized");
+            const preview = document.createElement("button");
+            preview.type = "button"; preview.className = "secondary"; preview.textContent = "Preview synchronization";
+            const previewContainer = document.createElement("div");
+            previewContainer.className = "stack-layout";
+            preview.addEventListener("click", async () => {
+                preview.disabled = true; showMendeleyError();
+                try { renderMendeleyPreview(previewContainer, feed, await mendeleyRequest("/api/mendeley/feeds/" + feed.logicalFeedId + "/preview", { method: "POST" })); }
+                catch (error) { showMendeleyError(error.message); }
+                finally { preview.disabled = false; }
+            });
+            body.append(mapping, preview, previewContainer);
+            renderMendeleyConflicts(body, feed);
+        }
+        card.appendChild(body);
+        return card;
+    };
+
+    async function loadMendeleySettings() {
+        if (!mendeleyStatusText || !mendeleyFeedSettings) return;
+        showMendeleyError();
+        try {
+            const status = await mendeleyRequest("/api/mendeley/status");
+            mendeleyConnectionActions.replaceChildren();
+            mendeleyFeedSettings.replaceChildren();
+            if (!status.serverEnabled) {
+                mendeleyStatusText.textContent = "Mendeley is not configured on this server.";
+                return;
+            }
+            if (!status.connected) {
+                mendeleyStatusText.textContent = "Not connected · requested scopes: " + status.requestedScopes;
+                const connect = document.createElement("a");
+                connect.className = "open-link"; connect.href = "/auth/mendeley/start?returnTo=%2Fadmin%23mendeley"; connect.textContent = "Connect Mendeley";
+                mendeleyConnectionActions.appendChild(connect);
+                return;
+            }
+            mendeleyStatusText.textContent = "Connected as " + (status.displayName || "Mendeley user");
+            const disconnect = document.createElement("button");
+            disconnect.type = "button"; disconnect.className = "secondary"; disconnect.textContent = "Disconnect Mendeley";
+            disconnect.addEventListener("click", async () => { await mendeleyRequest("/api/mendeley/disconnect", { method: "POST" }); await loadMendeleySettings(); });
+            mendeleyConnectionActions.appendChild(disconnect);
+            const folderResult = await mendeleyRequest("/api/mendeley/folders");
+            (status.feeds || []).forEach((feed) => mendeleyFeedSettings.appendChild(renderMendeleyFeed(feed, folderResult.folders || [])));
+        } catch (error) { mendeleyStatusText.textContent = "Mendeley unavailable"; showMendeleyError(error.message); }
+    }
+
+    loadMendeleySettings();
 
     const settingsNavButtons = document.querySelectorAll("[data-settings-target]");
     const settingsGroups = document.querySelectorAll("[data-settings-group]");

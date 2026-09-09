@@ -60,6 +60,28 @@ public class UserSettings extends PanacheEntityBase {
     @Column(length = 2000)
     public String googleDriveLastSyncError;
 
+    @Column(length = 2048)
+    public String mendeleyRefreshToken;
+
+    @Column(length = 2048)
+    public String mendeleyAccessToken;
+
+    public Instant mendeleyAccessTokenExpiresAt;
+
+    @Column(length = 1000)
+    public String mendeleyGrantedScopes;
+
+    public Instant mendeleyConnectedAt;
+
+    @Column(length = 255)
+    public String mendeleyProfileId;
+
+    @Column(length = 255)
+    public String mendeleyDisplayName;
+
+    @Column(length = 2000)
+    public String mendeleyLastError;
+
     @Column(length = 512)
     public String pdeOpenAiApiKey;
 
@@ -99,6 +121,10 @@ public class UserSettings extends PanacheEntityBase {
 
     public boolean hasGoogleDriveConnection() {
         return googleDriveRefreshToken != null && !googleDriveRefreshToken.isBlank();
+    }
+
+    public boolean hasMendeleyConnection() {
+        return mendeleyRefreshToken != null && !mendeleyRefreshToken.isBlank();
     }
 
     public boolean hasGoogleDriveFolder() {

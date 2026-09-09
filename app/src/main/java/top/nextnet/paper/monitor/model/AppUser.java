@@ -98,6 +98,12 @@ public class AppUser extends PanacheEntityBase {
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     public List<AppUserEmail> secondaryEmails = new ArrayList<>();
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    public List<MendeleyLoginRequest> mendeleyLoginRequests = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    public List<MendeleyFeedSync> mendeleyFeedSyncs = new ArrayList<>();
+
     public boolean isAdmin() {
         return admin;
     }

@@ -104,6 +104,9 @@ public class Paper extends PanacheEntityBase {
     @OneToMany(mappedBy = "paper", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
     public List<PaperEvent> events = new ArrayList<>();
 
+    @OneToMany(mappedBy = "paper", cascade = jakarta.persistence.CascadeType.ALL, orphanRemoval = true)
+    public List<MendeleyPaperSync> mendeleySyncLinks = new ArrayList<>();
+
     @Transient
     public boolean viewerCanEdit;
 
