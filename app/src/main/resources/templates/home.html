@@ -730,6 +730,114 @@
             margin: 0;
         }
 
+        .mendeley-sync-progress-shell {
+            display: grid;
+            gap: 0.65rem;
+        }
+
+        .mendeley-sync-progress-shell progress {
+            width: 100%;
+            height: 0.75rem;
+            accent-color: #d6a514;
+        }
+
+        .mendeley-sync-modal[data-sync-state="completed"] progress {
+            accent-color: #2878d0;
+        }
+
+        .mendeley-sync-modal[data-sync-state="failed"] progress {
+            accent-color: #b42318;
+        }
+
+        .mendeley-sync-progress-line {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+
+        .mendeley-sync-progress-line p {
+            margin: 0;
+        }
+
+        .mendeley-sync-watch {
+            --sync-color: #d6a514;
+            --sync-angle: 36deg;
+            position: fixed;
+            right: max(1rem, env(safe-area-inset-right));
+            bottom: max(1rem, env(safe-area-inset-bottom));
+            z-index: 90;
+            width: 4.4rem;
+            height: 4.4rem;
+        }
+
+        .mendeley-sync-watch.completed { --sync-color: #2878d0; }
+        .mendeley-sync-watch.failed { --sync-color: #b42318; }
+
+        .mendeley-sync-watch-button {
+            width: 4.4rem;
+            height: 4.4rem;
+            min-width: 0;
+            padding: 0.35rem;
+            border: 0;
+            border-radius: 50%;
+            color: white;
+            background: conic-gradient(var(--sync-color) var(--sync-angle), color-mix(in srgb, var(--sync-color) 20%, var(--panel)) 0);
+            box-shadow: 0 10px 28px rgba(38, 34, 29, 0.28);
+        }
+
+        .mendeley-sync-watch-button::before {
+            content: "";
+            position: absolute;
+            inset: 0.48rem;
+            border-radius: 50%;
+            background: var(--sync-color);
+        }
+
+        .mendeley-sync-watch-button svg {
+            position: relative;
+            z-index: 1;
+            width: 2rem;
+            height: 2rem;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 1.8;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .mendeley-sync-watch.running .mendeley-sync-watch-button svg {
+            animation: mendeley-watch-tick 1.2s ease-in-out infinite;
+        }
+
+        .mendeley-sync-watch-close {
+            position: absolute;
+            top: -0.38rem;
+            right: -0.38rem;
+            z-index: 2;
+            width: 1.45rem;
+            height: 1.45rem;
+            min-width: 0;
+            padding: 0;
+            display: grid;
+            place-items: center;
+            border: 2px solid var(--panel);
+            border-radius: 50%;
+            background: var(--ink);
+            color: var(--panel);
+            font: 700 0.9rem/1 sans-serif;
+            box-shadow: 0 3px 8px rgba(38, 34, 29, 0.24);
+        }
+
+        @keyframes mendeley-watch-tick {
+            0%, 100% { transform: rotate(-4deg); }
+            50% { transform: rotate(4deg); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .mendeley-sync-watch.running .mendeley-sync-watch-button svg { animation: none; }
+        }
+
         .rq-editor-list {
             display: grid;
             gap: 0.75rem;
@@ -3621,6 +3729,36 @@
             </form>
         </div>
     </dialog>
+
+    <dialog class="review-modal mendeley-sync-modal" id="mendeley-sync-modal" data-sync-state="running">
+        <div class="review-modal-body">
+            <div class="review-modal-header">
+                <div>
+                    <h3>Mendeley synchronization</h3>
+                    <p class="meta" id="mendeley-sync-feed-name"></p>
+                </div>
+                <button class="icon-button secondary" id="mendeley-sync-minimize" type="button" title="Minimize synchronization progress" aria-label="Minimize synchronization progress">—</button>
+            </div>
+            <div class="mendeley-sync-progress-shell">
+                <div class="mendeley-sync-progress-line">
+                    <p id="mendeley-sync-phase" role="status" aria-live="polite">Preparing synchronization…</p>
+                    <p class="meta" id="mendeley-sync-count"></p>
+                </div>
+                <progress id="mendeley-sync-progress" max="1" aria-label="Mendeley synchronization progress"></progress>
+                <p class="message error hidden" id="mendeley-sync-error"></p>
+            </div>
+        </div>
+    </dialog>
+    <div class="mendeley-sync-watch hidden" id="mendeley-sync-watch" role="status" aria-live="polite">
+        <button class="mendeley-sync-watch-button" id="mendeley-sync-watch-button" type="button" title="Open Mendeley synchronization progress" aria-label="Open Mendeley synchronization progress">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r="8"></circle>
+                <path d="M12 7v5l3 2"></path>
+                <path d="M9 2h6M9 22h6"></path>
+            </svg>
+        </button>
+        <button class="mendeley-sync-watch-close hidden" id="mendeley-sync-watch-close" type="button" title="Dismiss completed synchronization" aria-label="Dismiss completed synchronization">×</button>
+    </div>
     {/if}
 
     <section class="panel panel-wide {#if authenticated && !shareMode && !initialLogicalFeedId}hidden{/if}" id="browser-reader-section">
@@ -4144,6 +4282,16 @@
     const readerBatchUpdateButton = document.getElementById("reader-batch-update-button");
     const readerDiagramButton = document.getElementById("reader-diagram-button");
     const readerMendeleySyncButton = document.getElementById("reader-mendeley-sync-button");
+    const mendeleySyncModal = document.getElementById("mendeley-sync-modal");
+    const mendeleySyncFeedName = document.getElementById("mendeley-sync-feed-name");
+    const mendeleySyncMinimize = document.getElementById("mendeley-sync-minimize");
+    const mendeleySyncPhase = document.getElementById("mendeley-sync-phase");
+    const mendeleySyncCount = document.getElementById("mendeley-sync-count");
+    const mendeleySyncProgress = document.getElementById("mendeley-sync-progress");
+    const mendeleySyncError = document.getElementById("mendeley-sync-error");
+    const mendeleySyncWatch = document.getElementById("mendeley-sync-watch");
+    const mendeleySyncWatchButton = document.getElementById("mendeley-sync-watch-button");
+    const mendeleySyncWatchClose = document.getElementById("mendeley-sync-watch-close");
     const readerPublicUrlButton = document.getElementById("reader-public-url-button");
     const exportStateList = document.getElementById("export-state-list");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
@@ -5073,6 +5221,148 @@
     const selectedLogicalFeedIsPublic = () => selectedLogicalFeedOption()?.dataset.publicReadable === "true";
 
     const selectedLogicalFeedPublicUrl = () => selectedLogicalFeedOption()?.dataset.publicUrl || "";
+
+    let mendeleySyncActiveFeedId = "";
+    let mendeleySyncCurrentJob = null;
+    let mendeleySyncPollTimer = null;
+    let mendeleySyncMinimized = true;
+    const mendeleySyncDismissedKey = (feedId) => "miage-review-factory.mendeley-sync.dismissed." + feedId;
+
+    const mendeleySyncJobIdentity = (job) => job?.finishedAt || job?.startedAt || job?.status || "";
+
+    const mendeleySyncWasDismissed = (feedId, job) => {
+        if (!feedId || !job || job.running) return false;
+        try {
+            return window.localStorage.getItem(mendeleySyncDismissedKey(feedId))
+                === mendeleySyncJobIdentity(job);
+        } catch (ignored) {
+            return false;
+        }
+    };
+
+    const selectedMendeleySyncRunning = () => Boolean(
+        mendeleySyncCurrentJob?.running
+        && String(mendeleySyncActiveFeedId) === String(logicalFeedFilter?.value || ""));
+
+    const mendeleySyncFeedLabel = (feedId) => Array.from(logicalFeedFilter?.options || [])
+        .find((option) => String(option.value) === String(feedId))?.dataset?.feedName
+        || Array.from(logicalFeedFilter?.options || [])
+            .find((option) => String(option.value) === String(feedId))?.textContent?.trim()
+        || "Current paper feed";
+
+    const stopMendeleySyncPolling = () => {
+        if (mendeleySyncPollTimer) window.clearTimeout(mendeleySyncPollTimer);
+        mendeleySyncPollTimer = null;
+    };
+
+    const hideMendeleySyncProgress = () => {
+        stopMendeleySyncPolling();
+        mendeleySyncWatch?.classList.add("hidden");
+        if (mendeleySyncModal?.open) mendeleySyncModal.close();
+        mendeleySyncCurrentJob = null;
+        mendeleySyncActiveFeedId = "";
+    };
+
+    const renderMendeleySyncProgress = (job) => {
+        if (!job || !mendeleySyncActiveFeedId || !mendeleySyncModal || !mendeleySyncWatch) return;
+        mendeleySyncCurrentJob = job;
+        const status = String(job.status || "IDLE").toUpperCase();
+        const running = Boolean(job.running);
+        const completed = Math.max(0, Number(job.completed || 0));
+        const total = Math.max(0, Number(job.total || 0));
+        const failed = status === "FAILED";
+        const done = status === "COMPLETED";
+        const terminal = done || failed;
+        const dismissed = terminal && mendeleySyncWasDismissed(mendeleySyncActiveFeedId, job);
+        const ratio = total > 0 ? Math.min(completed / total, 1) : (terminal ? 1 : 0.1);
+
+        mendeleySyncModal.dataset.syncState = failed ? "failed" : done ? "completed" : "running";
+        mendeleySyncFeedName.textContent = mendeleySyncFeedLabel(mendeleySyncActiveFeedId);
+        mendeleySyncPhase.textContent = job.phase || (failed ? "Synchronization failed" : done
+            ? "Synchronization complete" : "Preparing synchronization…");
+        mendeleySyncCount.textContent = total > 0 ? completed + " / " + total : (running ? "Preparing…" : "");
+        if (running && total === 0) {
+            mendeleySyncProgress.removeAttribute("value");
+        } else {
+            mendeleySyncProgress.max = Math.max(total, 1);
+            mendeleySyncProgress.value = total > 0 ? Math.min(completed, total) : (terminal ? 1 : 0);
+        }
+        mendeleySyncError.textContent = job.error || "";
+        mendeleySyncError.classList.toggle("hidden", !job.error);
+
+        mendeleySyncWatch.style.setProperty("--sync-angle", Math.round(ratio * 360) + "deg");
+        mendeleySyncWatch.classList.toggle("running", running);
+        mendeleySyncWatch.classList.toggle("completed", done);
+        mendeleySyncWatch.classList.toggle("failed", failed);
+        mendeleySyncWatchClose.classList.toggle("hidden", !terminal);
+        mendeleySyncWatchButton.setAttribute("aria-label",
+            (job.phase || "Mendeley synchronization")
+            + (total > 0 ? ", " + completed + " of " + total : ""));
+
+        if (dismissed) {
+            mendeleySyncWatch.classList.add("hidden");
+            if (mendeleySyncModal.open) mendeleySyncModal.close();
+        } else if (mendeleySyncMinimized) {
+            mendeleySyncWatch.classList.remove("hidden");
+            if (mendeleySyncModal.open) mendeleySyncModal.close();
+        } else {
+            mendeleySyncWatch.classList.add("hidden");
+            if (!mendeleySyncModal.open) mendeleySyncModal.showModal();
+        }
+        if (readerMendeleySyncButton
+                && String(logicalFeedFilter?.value || "") === String(mendeleySyncActiveFeedId)) {
+            readerMendeleySyncButton.disabled = running;
+        }
+    };
+
+    const pollMendeleySyncProgress = () => {
+        stopMendeleySyncPolling();
+        if (!mendeleySyncCurrentJob?.running || !mendeleySyncActiveFeedId) return;
+        const feedId = mendeleySyncActiveFeedId;
+        mendeleySyncPollTimer = window.setTimeout(async () => {
+            if (String(feedId) !== String(mendeleySyncActiveFeedId)) return;
+            try {
+                const response = await fetch("/api/mendeley/feeds/" + encodeURIComponent(feedId) + "/sync-status", {
+                    headers: { Accept: "application/json" }
+                });
+                const body = await response.text();
+                if (!response.ok) throw new Error(body || "Unable to load Mendeley synchronization progress.");
+                if (String(feedId) !== String(mendeleySyncActiveFeedId)) return;
+                renderMendeleySyncProgress(JSON.parse(body));
+                pollMendeleySyncProgress();
+            } catch (error) {
+                if (String(feedId) !== String(mendeleySyncActiveFeedId)) return;
+                mendeleySyncPhase.textContent = "Waiting for synchronization status…";
+                mendeleySyncPollTimer = window.setTimeout(pollMendeleySyncProgress, 2500);
+            }
+        }, 900);
+    };
+
+    const restoreMendeleySyncProgress = async (feedId) => {
+        hideMendeleySyncProgress();
+        if (!feedId || !selectedLogicalFeedCanAdmin() || !mendeleySyncModal) return;
+        const requestedFeedId = String(feedId);
+        mendeleySyncActiveFeedId = requestedFeedId;
+        try {
+            const response = await fetch("/api/mendeley/feeds/" + encodeURIComponent(requestedFeedId) + "/sync-status", {
+                headers: { Accept: "application/json" }
+            });
+            if (!response.ok || requestedFeedId !== mendeleySyncActiveFeedId) {
+                if (requestedFeedId === mendeleySyncActiveFeedId) hideMendeleySyncProgress();
+                return;
+            }
+            const job = await response.json();
+            if (!job.running && !["COMPLETED", "FAILED"].includes(String(job.status || "").toUpperCase())) {
+                hideMendeleySyncProgress();
+                return;
+            }
+            mendeleySyncMinimized = true;
+            renderMendeleySyncProgress(job);
+            pollMendeleySyncProgress();
+        } catch (ignored) {
+            if (requestedFeedId === mendeleySyncActiveFeedId) hideMendeleySyncProgress();
+        }
+    };
 
     const selectedWorkflowGroups = () => {
         const selectedOption = logicalFeedFilter.selectedOptions?.[0];
@@ -8397,9 +8687,12 @@
                     : "Open the live workflow diagram for this paper feed.";
             }
             if (readerMendeleySyncButton) {
-                const syncDisabled = !selectedLogicalFeedId || !selectedLogicalFeedCanAdmin();
+                const syncDisabled = !selectedLogicalFeedId || !selectedLogicalFeedCanAdmin()
+                    || selectedMendeleySyncRunning();
                 readerMendeleySyncButton.disabled = syncDisabled;
-                readerMendeleySyncButton.title = syncDisabled
+                readerMendeleySyncButton.title = selectedMendeleySyncRunning()
+                    ? "Mendeley synchronization is in progress."
+                    : syncDisabled
                     ? "Select a paper feed you can manage first."
                     : "Queue a Mendeley synchronization for this paper feed.";
             }
@@ -8507,9 +8800,12 @@
                 : "Open the live workflow diagram for this paper feed.";
         }
         if (readerMendeleySyncButton) {
-            const syncDisabled = !selectedLogicalFeedId || !selectedLogicalFeedCanAdmin();
+            const syncDisabled = !selectedLogicalFeedId || !selectedLogicalFeedCanAdmin()
+                || selectedMendeleySyncRunning();
             readerMendeleySyncButton.disabled = syncDisabled;
-            readerMendeleySyncButton.title = syncDisabled
+            readerMendeleySyncButton.title = selectedMendeleySyncRunning()
+                ? "Mendeley synchronization is in progress."
+                : syncDisabled
                 ? "Select a paper feed you can manage first."
                 : "Queue a Mendeley synchronization for this paper feed.";
         }
@@ -10615,14 +10911,56 @@
         exportTabMenu.open = false;
         window.open("/logical-feeds/" + encodeURIComponent(logicalFeedId) + "/diagram", "_blank", "noopener,noreferrer");
     });
+    mendeleySyncMinimize?.addEventListener("click", () => {
+        mendeleySyncMinimized = true;
+        renderMendeleySyncProgress(mendeleySyncCurrentJob);
+    });
+    mendeleySyncModal?.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        mendeleySyncMinimized = true;
+        renderMendeleySyncProgress(mendeleySyncCurrentJob);
+    });
+    mendeleySyncWatchButton?.addEventListener("click", () => {
+        mendeleySyncMinimized = false;
+        renderMendeleySyncProgress(mendeleySyncCurrentJob);
+    });
+    mendeleySyncWatchClose?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (!mendeleySyncCurrentJob || mendeleySyncCurrentJob.running) return;
+        try {
+            window.localStorage.setItem(mendeleySyncDismissedKey(mendeleySyncActiveFeedId),
+                mendeleySyncJobIdentity(mendeleySyncCurrentJob));
+        } catch (ignored) {
+            // The server status remains authoritative when browser storage is unavailable.
+        }
+        hideMendeleySyncProgress();
+        applyLogicalFeedFilter();
+    });
     readerMendeleySyncButton?.addEventListener("click", async () => {
         const logicalFeedId = logicalFeedFilter?.value || "";
         if (!logicalFeedId || !selectedLogicalFeedCanAdmin()) {
-            window.alert("Select a paper feed you can manage first.");
             return;
         }
         exportTabMenu.open = false;
         readerMendeleySyncButton.disabled = true;
+        stopMendeleySyncPolling();
+        mendeleySyncActiveFeedId = String(logicalFeedId);
+        mendeleySyncMinimized = false;
+        try {
+            window.localStorage.removeItem(mendeleySyncDismissedKey(logicalFeedId));
+        } catch (ignored) {
+            // Progress still works without browser storage.
+        }
+        renderMendeleySyncProgress({
+            status: "QUEUED",
+            phase: "Queueing Mendeley synchronization…",
+            completed: 0,
+            total: 0,
+            running: true,
+            startedAt: new Date().toISOString(),
+            finishedAt: "",
+            error: ""
+        });
         try {
             const response = await fetch("/api/mendeley/feeds/" + encodeURIComponent(logicalFeedId) + "/sync", {
                 method: "POST",
@@ -10630,9 +10968,20 @@
             });
             const body = await response.text();
             if (!response.ok) throw new Error(body || "Unable to start Mendeley synchronization.");
-            window.alert("Mendeley synchronization queued. Progress is available in Admin > Mendeley.");
+            renderMendeleySyncProgress(JSON.parse(body));
+            pollMendeleySyncProgress();
         } catch (error) {
-            window.alert(error.message || "Unable to start Mendeley synchronization.");
+            const finishedAt = new Date().toISOString();
+            renderMendeleySyncProgress({
+                status: "FAILED",
+                phase: "Synchronization could not be started",
+                completed: 0,
+                total: 0,
+                running: false,
+                startedAt: finishedAt,
+                finishedAt,
+                error: error.message || "Unable to start Mendeley synchronization."
+            });
         } finally {
             applyLogicalFeedFilter();
         }
@@ -10768,6 +11117,7 @@
     });
     logicalFeedFilter?.addEventListener("change", async () => {
         await openLogicalFeed(logicalFeedFilter.value);
+        await restoreMendeleySyncProgress(logicalFeedFilter.value);
     });
     syncManualImportControls();
 
@@ -11184,6 +11534,7 @@
         maybeLoadMoreVisiblePapers();
     }
     restoreActivePdfCapture();
+    await restoreMendeleySyncProgress(logicalFeedFilter?.value || "");
 
 </script>
 </body>
