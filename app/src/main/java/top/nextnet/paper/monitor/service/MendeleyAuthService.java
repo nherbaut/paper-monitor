@@ -147,6 +147,7 @@ public class MendeleyAuthService {
 
     @Transactional
     public void disconnect(AppUser user) {
+        requests.delete("user", user);
         UserSettings settings = authService.ensureSettings(user);
         settings.mendeleyRefreshToken = null;
         settings.mendeleyAccessToken = null;

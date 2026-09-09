@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 import org.jboss.logging.Logger;
 import org.jboss.resteasy.reactive.RestForm;
@@ -58,7 +59,13 @@ public class MendeleyResource {
     }
 
     @POST @Path("/api/mendeley/disconnect") @Transactional
-    public Response disconnect() { auth.disconnect(requireUser()); return Response.noContent().build(); }
+    public Response disconnect() {
+        AppUser user = requireUser();
+        List<Long> removedConfigurations = sync.removeUserData(user);
+        backgroundSync.cancel(removedConfigurations);
+        auth.disconnect(user);
+        return Response.noContent().build();
+    }
 
     @GET @Path("/api/mendeley/status") @Produces(MediaType.APPLICATION_JSON) @Transactional
     public Map<String, Object> status() {

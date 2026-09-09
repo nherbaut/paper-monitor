@@ -62,6 +62,19 @@ public class MendeleySyncService {
     }
 
     @Transactional
+    public List<Long> removeUserData(AppUser user) {
+        List<MendeleyFeedSync> configurations = feeds.findByUser(user);
+        List<Long> configurationIds = configurations.stream().map(config -> config.id).toList();
+        for (MendeleyFeedSync configuration : configurations) {
+            links.delete("feedSync", configuration);
+            feeds.delete(configuration);
+        }
+        LOG.infof("Removed %d Mendeley synchronization configuration(s) for disconnected user %s",
+                configurationIds.size(), user.id);
+        return configurationIds;
+    }
+
+    @Transactional
     @TransactionConfiguration(timeout = 300)
     public Map<String, Object> configure(AppUser user, LogicalFeed logicalFeed, String folderId, String folderName)
             throws IOException {

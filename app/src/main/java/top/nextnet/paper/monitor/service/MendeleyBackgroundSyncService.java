@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import org.eclipse.microprofile.context.ManagedExecutor;
@@ -34,6 +35,7 @@ public class MendeleyBackgroundSyncService {
     private final ManagedExecutor executor;
     private final Set<Long> active = ConcurrentHashMap.newKeySet();
     private final Set<Long> rerun = ConcurrentHashMap.newKeySet();
+    private final Set<Long> cancelled = ConcurrentHashMap.newKeySet();
     private final Map<Long, Long> automaticGenerations = new ConcurrentHashMap<>();
     private final AtomicLong generation = new AtomicLong();
 
@@ -67,6 +69,11 @@ public class MendeleyBackgroundSyncService {
                 .map(MendeleyBackgroundSyncService::jobView)
                 .orElseThrow(() -> new BadRequestException(
                         "Configure this paper feed's Mendeley folder first")));
+    }
+
+    public void cancel(List<Long> configurationIds) {
+        cancelled.addAll(configurationIds);
+        rerun.removeAll(configurationIds);
     }
 
     void paperChanged(@Observes(during = TransactionPhase.AFTER_SUCCESS) PaperChangedEvent event) {
@@ -110,6 +117,7 @@ public class MendeleyBackgroundSyncService {
     }
 
     private void enqueue(Long configId, boolean refreshPreview, String trigger, boolean requestRerun) {
+        if (cancelled.contains(configId)) return;
         if (!active.add(configId)) {
             if (requestRerun) rerun.add(configId);
             return;
@@ -122,17 +130,21 @@ public class MendeleyBackgroundSyncService {
         try {
             LOG.infof("Starting background Mendeley synchronization %s (trigger=%s, refreshPreview=%s)",
                     configId, trigger, refreshPreview);
+            ensureNotCancelled(configId);
             SyncTarget target = target(configId);
             updateJob(configId, "DISCOVERING", "Comparing Paper Monitor and Mendeley", trigger,
                     0, 0, null, false);
             Map<String, Object> preview = refreshPreview
                     ? sync.preview(target.user(), target.logicalFeed())
                     : null;
+            ensureNotCancelled(configId);
             int total = preview == null ? 0 : actionCount(preview);
             updateJob(configId, "RUNNING", "Synchronizing papers", trigger, 0, total, null, false);
-            sync.apply(target.user(), target.logicalFeed(), (completed, actionTotal) ->
-                    updateJob(configId, "RUNNING", "Synchronizing papers", trigger,
-                            completed, actionTotal, null, false));
+            sync.apply(target.user(), target.logicalFeed(), (completed, actionTotal) -> {
+                ensureNotCancelled(configId);
+                updateJob(configId, "RUNNING", "Synchronizing papers", trigger,
+                        completed, actionTotal, null, false);
+            });
             MendeleyFeedSync completed = QuarkusTransaction.requiringNew().call(() -> {
                 MendeleyFeedSync config = feeds.findById(configId);
                 if (config != null) {
@@ -146,14 +158,23 @@ public class MendeleyBackgroundSyncService {
                 return config;
             });
             if (completed != null) LOG.infof("Background Mendeley synchronization %s completed", configId);
+        } catch (CancellationException cancelledJob) {
+            LOG.infof("Background Mendeley synchronization %s cancelled after user disconnect", configId);
         } catch (Exception error) {
             LOG.errorf(error, "Background Mendeley synchronization %s failed", configId);
             updateJob(configId, "FAILED", "Synchronization failed", trigger, null, null,
                     rootMessage(error), true);
         } finally {
             active.remove(configId);
-            if (rerun.remove(configId)) enqueue(configId, true, "interface-change", false);
+            boolean shouldRerun = rerun.remove(configId);
+            if (!cancelled.remove(configId) && shouldRerun) {
+                enqueue(configId, true, "interface-change", false);
+            }
         }
+    }
+
+    private void ensureNotCancelled(Long configId) {
+        if (cancelled.contains(configId)) throw new CancellationException();
     }
 
     private SyncTarget target(Long configId) {
