@@ -2453,7 +2453,8 @@ public class HomeResource {
             @RestForm("eligibilityExclusionCriterionId") String eligibilityExclusionCriterionId,
             @RestForm("eligibilityExclusionCriterionIds") List<String> eligibilityExclusionCriterionIds,
             @RestForm("eligibilityExclusionNotes") String eligibilityExclusionNotes,
-            @RestForm("eligibilityInclusionCriterionIds") List<String> eligibilityInclusionCriterionIds
+            @RestForm("eligibilityInclusionCriterionIds") List<String> eligibilityInclusionCriterionIds,
+            @RestForm("eligibilityCriteriaNotes") String eligibilityCriteriaNotes
     ) {
         Paper paper = paperRepository.findById(id);
         if (paper == null) {
@@ -2480,6 +2481,8 @@ public class HomeResource {
                     eligibilityExclusionCriterionIds,
                     eligibilityExclusionNotes,
                     eligibilityInclusionCriterionIds);
+            appendCriteriaNotes(paper, workflow, normalizedStatus, eligibilityExclusionCriterionId,
+                    eligibilityExclusionCriterionIds, eligibilityInclusionCriterionIds, eligibilityCriteriaNotes);
             paper.status = normalizedStatus;
             paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
             paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
@@ -3124,6 +3127,49 @@ public class HomeResource {
         } else {
             paper.setEligibilityInclusionCriteriaIds(List.of());
         }
+    }
+
+    private void appendCriteriaNotes(
+            Paper paper,
+            WorkflowStateConfig workflow,
+            String nextStatus,
+            String exclusionCriterionId,
+            List<String> exclusionCriterionIds,
+            List<String> inclusionCriterionIds,
+            String note
+    ) {
+        if (note == null || note.isBlank()) {
+            return;
+        }
+        WorkflowStateConfig.Requirements requirements = workflow.requirementsFor(nextStatus);
+        List<String> exclusions = normalizeWorkflowCriterionList(
+                mergeWorkflowCriteria(exclusionCriterionId, exclusionCriterionIds));
+        List<String> inclusions = normalizeWorkflowCriterionList(inclusionCriterionIds);
+        StringBuilder section = new StringBuilder("## Classification notes — ")
+                .append(stateLabel(workflow, nextStatus)).append("\n");
+        if (!exclusions.isEmpty() && requirements.exclusionCriterion() != null) {
+            section.append("**Exclusion reason:** ")
+                    .append(criteriaLabels(workflow, requirements.exclusionCriterion().taxonomy(), exclusions))
+                    .append("\n");
+        }
+        if (!inclusions.isEmpty() && requirements.inclusionCriteria() != null) {
+            section.append("**Inclusion reason:** ")
+                    .append(criteriaLabels(workflow, requirements.inclusionCriteria().taxonomy(), inclusions))
+                    .append("\n");
+        }
+        section.append("\n").append(note.trim()).append("\n");
+        String existing = paper.notes == null ? "" : paper.notes.trim();
+        String combined = existing.isEmpty() ? section.toString() : existing + "\n\n" + section;
+        if (combined.length() > 20000) {
+            throw new WebApplicationException("Paper notes cannot exceed 20000 characters", Response.Status.BAD_REQUEST);
+        }
+        paper.notes = combined;
+    }
+
+    private String criteriaLabels(WorkflowStateConfig workflow, String taxonomy, List<String> criteria) {
+        return criteria.stream()
+                .map((criterion) -> workflow.taxonomyCriterionLabel(taxonomy, criterion))
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 
     private String normalizeOptionalWorkflowCriterion(String value) {

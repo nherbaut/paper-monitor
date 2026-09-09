@@ -3608,6 +3608,11 @@
             </div>
             <form class="stack" id="criteria-selection-form">
                 <div class="stack" id="criteria-selection-groups"></div>
+                <details class="criteria-selection-notes">
+                    <summary>Add notes (optional)</summary>
+                    <label class="meta" for="criteria-selection-notes-input">Append a note to this paper</label>
+                    <textarea id="criteria-selection-notes-input" rows="4" placeholder="Why does this paper meet the selected criteria?"></textarea>
+                </details>
                 <p class="message error hidden" id="criteria-selection-error"></p>
                 <div class="manual-import-actions">
                     <button class="secondary" id="criteria-selection-cancel" type="button">Cancel</button>
@@ -4110,6 +4115,7 @@
     const criteriaSelectionTitle = document.getElementById("criteria-selection-title");
     const criteriaSelectionStatus = document.getElementById("criteria-selection-status");
     const criteriaSelectionError = document.getElementById("criteria-selection-error");
+    const criteriaSelectionNotesInput = document.getElementById("criteria-selection-notes-input");
     const manualImportForm = document.getElementById("manual-import-form");
     const manualImportDoi = document.getElementById("manual-import-doi");
     const manualImportFetch = document.getElementById("manual-import-fetch");
@@ -8705,6 +8711,7 @@
             return null;
         }
         criteriaSelectionGroups.innerHTML = "";
+        if (criteriaSelectionNotesInput) criteriaSelectionNotesInput.value = "";
         criteriaSelectionModal.dataset.nextStatus = nextStatus;
         criteriaSelectionError.classList.add("hidden");
         criteriaSelectionError.textContent = "";
@@ -10704,6 +10711,10 @@
             criteriaSelectionError.textContent = "Choose at least the required number of criteria in each section.";
             criteriaSelectionError.classList.remove("hidden");
             return;
+        }
+        const note = criteriaSelectionNotesInput?.value.trim() || "";
+        if (note) {
+            params.set("eligibilityCriteriaNotes", note);
         }
         closeCriteriaSelection(params);
     });

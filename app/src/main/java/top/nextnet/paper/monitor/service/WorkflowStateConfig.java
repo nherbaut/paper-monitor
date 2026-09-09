@@ -250,6 +250,19 @@ public final class WorkflowStateConfig {
         return taxonomy.leafIds().contains(normalizeStateSegment(criterionId));
     }
 
+    public String taxonomyCriterionLabel(String taxonomyName, String criterionId) {
+        String normalized = criterionId == null ? "" : normalizeStateSegment(criterionId);
+        Taxonomy taxonomy = taxonomy(taxonomyName);
+        if (taxonomy == null) {
+            return normalized;
+        }
+        return taxonomy.values().stream()
+                .map((criterion) -> criterion.labelFor(normalized))
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(normalized);
+    }
+
     public String toYaml() {
         StringBuilder builder = new StringBuilder();
         appendLine(builder, 0, "version: " + VERSION);
@@ -979,6 +992,19 @@ public final class WorkflowStateConfig {
     }
 
     public record Criterion(String id, String label, String description, List<Criterion> children) {
+        public String labelFor(String criterionId) {
+            if (Objects.equals(id, criterionId) && children.isEmpty()) {
+                return label;
+            }
+            for (Criterion child : children) {
+                String found = child.labelFor(criterionId);
+                if (found != null) {
+                    return found;
+                }
+            }
+            return null;
+        }
+
         public void collectLeafIds(Set<String> sink) {
             if (children.isEmpty()) {
                 sink.add(id);
