@@ -5030,6 +5030,13 @@
     };
 
     const workflowStatesForLogicalFeed = (logicalFeedId) => {
+        const config = workflowConfigForLogicalFeed(logicalFeedId);
+        const configuredStates = Array.isArray(config?.states)
+            ? config.states.map((state) => state?.id).filter(Boolean)
+            : [];
+        if (configuredStates.length) {
+            return configuredStates;
+        }
         const option = Array.from(logicalFeedFilter.options).find((item) => item.value === logicalFeedId);
         return workflowStatesFromToken(option?.dataset.workflowStates || "");
     };
