@@ -30,10 +30,10 @@ class ReviewReportServiceTest {
 
         String markdown = service.renderInstanceMarkdown(instance, schema);
 
-        assertTrue(markdown.contains("| `paper_id` | 7643 |"));
-        assertTrue(markdown.contains("| `paper_class` | evaluation\\_research |"));
-        assertFalse(markdown.contains("| `summary` |"));
-        assertTrue(markdown.contains("#### `summary`\n\nFirst line\nSecond line\n"));
+        assertTrue(markdown.contains("| paper\\_id | 7643 |"));
+        assertTrue(markdown.contains("| paper\\_class | evaluation\\_research |"));
+        assertFalse(markdown.contains("| summary |"));
+        assertTrue(markdown.contains("#### summary\n\nFirst line\nSecond line\n"));
     }
 
     @Test
@@ -64,9 +64,9 @@ class ReviewReportServiceTest {
 
         String markdown = service.renderInstanceMarkdown(instance, schema);
 
-        assertTrue(markdown.contains("| `quality_score` | 2 |"));
-        assertFalse(markdown.contains("| `rq_1` |"));
-        assertTrue(markdown.contains("#### `rq_1`\n\nA long answer\r\ncontinued here\n"));
+        assertTrue(markdown.contains("| Quality score | 2 |"));
+        assertFalse(markdown.contains("| Research question 1 |"));
+        assertTrue(markdown.contains("#### Research question 1\n\nA long answer\r\ncontinued here\n"));
     }
 
     private Map<String, Object> field(String id, String valueType) {
