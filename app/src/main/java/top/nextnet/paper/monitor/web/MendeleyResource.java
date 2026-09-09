@@ -22,6 +22,7 @@ import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.service.CurrentUserContext;
 import top.nextnet.paper.monitor.service.LogicalFeedAccessService;
 import top.nextnet.paper.monitor.service.MendeleyAuthService;
+import top.nextnet.paper.monitor.service.MendeleyBackgroundSyncService;
 import top.nextnet.paper.monitor.service.MendeleySyncService;
 
 @Path("")
@@ -31,10 +32,12 @@ public class MendeleyResource {
     private final LogicalFeedAccessService access;
     private final MendeleyAuthService auth;
     private final MendeleySyncService sync;
+    private final MendeleyBackgroundSyncService backgroundSync;
 
     public MendeleyResource(CurrentUserContext currentUser, LogicalFeedAccessService access,
-            MendeleyAuthService auth, MendeleySyncService sync) {
+            MendeleyAuthService auth, MendeleySyncService sync, MendeleyBackgroundSyncService backgroundSync) {
         this.currentUser = currentUser; this.access = access; this.auth = auth; this.sync = sync;
+        this.backgroundSync = backgroundSync;
     }
 
     @GET @Path("/auth/mendeley/start")
@@ -72,14 +75,17 @@ public class MendeleyResource {
     @GET @Path("/api/mendeley/folders") @Produces(MediaType.APPLICATION_JSON) @Transactional
     public Object folders() { try { return Map.of("folders", sync.folders(requireUser())); } catch (IOException e) { throw apiError("list folders", e); } }
 
-    @POST @Path("/api/mendeley/feeds/{id}/configure") @Produces(MediaType.APPLICATION_JSON) @Transactional
+    @POST @Path("/api/mendeley/feeds/{id}/configure") @Produces(MediaType.APPLICATION_JSON)
     public Object configure(@PathParam("id") Long id, @RestForm("folderId") String folderId,
             @RestForm("folderName") String folderName) {
         AppUser user = requireUser(); LogicalFeed feed = access.requireAdminLogicalFeed(id, user);
-        try { return sync.configure(user, feed, folderId, folderName); } catch (IOException e) { throw apiError("configure feed", e); }
+        try {
+            sync.configure(user, feed, folderId, folderName);
+            return backgroundSync.start(user, feed, true, "configuration");
+        } catch (IOException e) { throw apiError("configure feed", e); }
     }
 
-    @POST @Path("/api/mendeley/feeds/{id}/preview") @Produces(MediaType.APPLICATION_JSON) @Transactional
+    @POST @Path("/api/mendeley/feeds/{id}/preview") @Produces(MediaType.APPLICATION_JSON)
     public Object preview(@PathParam("id") Long id) {
         AppUser user = requireUser(); LogicalFeed feed = access.requireAdminLogicalFeed(id, user);
         try { return sync.preview(user, feed); } catch (IOException e) { throw apiError("preview synchronization", e); }
@@ -88,9 +94,19 @@ public class MendeleyResource {
     @POST @Path("/api/mendeley/feeds/{id}/apply") @Produces(MediaType.APPLICATION_JSON)
     public Object apply(@PathParam("id") Long id) {
         AppUser user = requireUser(); LogicalFeed feed = access.requireAdminLogicalFeed(id, user);
-        try { return sync.apply(user, feed); }
-        catch (WebApplicationException e) { throw e; }
-        catch (Exception e) { throw apiError("apply synchronization", e); }
+        return Response.accepted(backgroundSync.start(user, feed, false, "preview-apply")).build();
+    }
+
+    @POST @Path("/api/mendeley/feeds/{id}/sync") @Produces(MediaType.APPLICATION_JSON)
+    public Response synchronize(@PathParam("id") Long id) {
+        AppUser user = requireUser(); LogicalFeed feed = access.requireAdminLogicalFeed(id, user);
+        return Response.accepted(backgroundSync.start(user, feed, true, "manual")).build();
+    }
+
+    @GET @Path("/api/mendeley/feeds/{id}/sync-status") @Produces(MediaType.APPLICATION_JSON)
+    public Object synchronizationStatus(@PathParam("id") Long id) {
+        AppUser user = requireUser(); LogicalFeed feed = access.requireAdminLogicalFeed(id, user);
+        return backgroundSync.status(user, feed);
     }
 
     @POST @Path("/api/mendeley/feeds/{id}/conflicts/{linkId}/resolve") @Produces(MediaType.APPLICATION_JSON) @Transactional

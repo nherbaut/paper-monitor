@@ -14,4 +14,8 @@ public class MendeleyFeedSyncRepository implements PanacheRepository<MendeleyFee
         return find("user = ?1 and logicalFeed = ?2", user, feed).firstResultOptional();
     }
     public List<MendeleyFeedSync> findByUser(AppUser user) { return list("user", user); }
+    public List<MendeleyFeedSync> findEnabledByLogicalFeedId(Long logicalFeedId) {
+        return list("enabled = true and logicalFeed.id = ?1", logicalFeedId);
+    }
+    public List<MendeleyFeedSync> findEnabled() { return list("enabled", true); }
 }

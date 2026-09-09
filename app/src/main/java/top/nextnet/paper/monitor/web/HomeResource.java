@@ -2420,7 +2420,10 @@ public class HomeResource {
         if (!canAdminLogicalFeed(paper.logicalFeed, currentUserContext.get().user())) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
-        paper.notes = notes;
+        if (!Objects.equals(paper.notes, notes)) {
+            paper.notes = notes;
+            paperEventService.log(paper, "NOTES_CHANGED", "Updated paper notes");
+        }
         return Response.noContent().build();
     }
 
@@ -2439,7 +2442,11 @@ public class HomeResource {
         if (!canAdminLogicalFeed(paper.logicalFeed, currentUserContext.get().user())) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
-        paper.tags = Paper.normalizeTags(tags);
+        String normalizedTags = Paper.normalizeTags(tags);
+        if (!Objects.equals(paper.tags, normalizedTags)) {
+            paper.tags = normalizedTags;
+            paperEventService.log(paper, "TAGS_CHANGED", "Updated paper tags");
+        }
         return Response.noContent().build();
     }
 
@@ -2618,7 +2625,11 @@ public class HomeResource {
         for (Paper paper : papers) {
             LinkedHashMap<String, String> tagsByKey = persistedTagsByKey(paper.tags);
             tagsByKey.putIfAbsent(normalizedTag.toLowerCase(Locale.ROOT), normalizedTag);
-            paper.tags = joinPersistedTags(tagsByKey);
+            String updatedTags = joinPersistedTags(tagsByKey);
+            if (!Objects.equals(paper.tags, updatedTags)) {
+                paper.tags = updatedTags;
+                paperEventService.log(paper, "TAGS_CHANGED", "Added tag " + normalizedTag);
+            }
         }
     }
 
@@ -2628,7 +2639,11 @@ public class HomeResource {
         for (Paper paper : papers) {
             LinkedHashMap<String, String> tagsByKey = persistedTagsByKey(paper.tags);
             tagsByKey.remove(keyToRemove);
-            paper.tags = joinPersistedTags(tagsByKey);
+            String updatedTags = joinPersistedTags(tagsByKey);
+            if (!Objects.equals(paper.tags, updatedTags)) {
+                paper.tags = updatedTags;
+                paperEventService.log(paper, "TAGS_CHANGED", "Removed tag " + normalizedTag);
+            }
         }
     }
 

@@ -6,6 +6,7 @@ import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.NotFoundException;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.narayana.jta.QuarkusTransactionException;
+import io.quarkus.narayana.jta.runtime.TransactionConfiguration;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -61,6 +62,7 @@ public class MendeleySyncService {
     }
 
     @Transactional
+    @TransactionConfiguration(timeout = 300)
     public Map<String, Object> configure(AppUser user, LogicalFeed logicalFeed, String folderId, String folderName)
             throws IOException {
         if (folderId == null || folderId.isBlank()) throw new BadRequestException("Choose a Mendeley folder");
@@ -82,6 +84,7 @@ public class MendeleySyncService {
     }
 
     @Transactional
+    @TransactionConfiguration(timeout = 900)
     public Map<String, Object> preview(AppUser user, LogicalFeed logicalFeed) throws IOException {
         MendeleyFeedSync config = requireConfig(user, logicalFeed);
         UserSettings settings = settings(user);
@@ -159,10 +162,16 @@ public class MendeleySyncService {
     }
 
     public Map<String, Object> apply(AppUser user, LogicalFeed logicalFeed) throws IOException {
+        return apply(user, logicalFeed, (completed, total) -> {});
+    }
+
+    public Map<String, Object> apply(AppUser user, LogicalFeed logicalFeed, ProgressListener progress)
+            throws IOException {
         ApplyPlan plan = inApplyTransaction(() -> prepareApply(user, logicalFeed));
         List<Map<String, Object>> remaining = new ArrayList<>(plan.actions());
         LOG.infof("Applying Mendeley synchronization configuration %s with %d action(s)",
                 plan.configId(), remaining.size());
+        progress.onProgress(0, remaining.size());
         int applied = 0, conflicts = 0;
         while (!remaining.isEmpty()) {
             Map<String, Object> action = remaining.get(0);
@@ -173,6 +182,7 @@ public class MendeleySyncService {
                 applied += outcome.applied();
                 conflicts += outcome.conflicts();
                 remaining.remove(0);
+                progress.onProgress(plan.actions().size() - remaining.size(), plan.actions().size());
             } catch (IOException | RuntimeException error) {
                 String message = "Mendeley synchronization stopped after " + applied + " completed action(s): "
                         + "action " + value(action.get("type")) + " for paper " + value(action.get("paperId"))
@@ -317,6 +327,11 @@ public class MendeleySyncService {
 
     private record ApplyPlan(Long configId, Map<String, Object> preview, List<Map<String, Object>> actions) {}
     private record ApplyOutcome(int applied, int conflicts) {}
+
+    @FunctionalInterface
+    public interface ProgressListener {
+        void onProgress(int completed, int total);
+    }
 
     @Transactional
     public Map<String, Object> resolve(AppUser user, LogicalFeed logicalFeed, Long linkId, String resolution) throws IOException {
@@ -537,7 +552,7 @@ public class MendeleySyncService {
         return row;
     }
     private String requirePaperTitle(Long id) { Paper p = papers.findById(id); return p == null ? "Deleted paper" : p.title; }
-    private Map<String, Object> configView(MendeleyFeedSync config) { Map<String, Object> row = new LinkedHashMap<>(); row.put("configured", true); row.put("configId", config.id); row.put("rootFolderId", config.rootFolderId); row.put("rootFolderName", config.rootFolderName); row.put("enabled", config.enabled); row.put("stateFolders", mappings(config)); row.put("lastSyncedAt", config.lastSyncedAt); row.put("lastError", config.lastError); row.put("conflicts", links.findByFeed(config).stream().filter(l -> MendeleyPaperSync.CONFLICT.equals(l.status) || MendeleyPaperSync.REMOTE_DELETED.equals(l.status) || MendeleyPaperSync.LOCAL_DELETED.equals(l.status)).map(this::linkView).toList()); return row; }
+    private Map<String, Object> configView(MendeleyFeedSync config) { Map<String, Object> row = new LinkedHashMap<>(); row.put("configured", true); row.put("configId", config.id); row.put("rootFolderId", config.rootFolderId); row.put("rootFolderName", config.rootFolderName); row.put("enabled", config.enabled); row.put("stateFolders", mappings(config)); row.put("lastSyncedAt", config.lastSyncedAt); row.put("lastError", config.lastError); row.put("syncJob", MendeleyBackgroundSyncService.jobView(config)); row.put("conflicts", links.findByFeed(config).stream().filter(l -> MendeleyPaperSync.CONFLICT.equals(l.status) || MendeleyPaperSync.REMOTE_DELETED.equals(l.status) || MendeleyPaperSync.LOCAL_DELETED.equals(l.status)).map(this::linkView).toList()); return row; }
     private Map<String, Object> linkView(MendeleyPaperSync link) { Map<String, Object> row = new LinkedHashMap<>(); row.put("id", link.id); row.put("paperId", link.paper == null ? null : link.paper.id); row.put("title", link.paper == null ? "Deleted paper" : link.paper.title); row.put("documentId", link.mendeleyDocumentId); row.put("status", link.status); row.put("details", link.conflictJson == null ? null : JsonCodec.parse(link.conflictJson)); return row; }
 
     private Map<String, Object> localSnapshot(Paper p) { Map<String, Object> m = new LinkedHashMap<>(); m.put("title", p.title); m.put("doi", localDoi(p)); m.put("authors", p.authors); m.put("abstract", p.summary); m.put("year", p.publishedOn == null ? null : p.publishedOn.getYear()); m.put("source", p.publisher); m.put("tags", p.tags); m.put("notes", p.notes); m.put("state", p.status); m.put("pdf", p.uploadedPdfPath); return m; }

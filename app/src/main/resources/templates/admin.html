@@ -505,6 +505,29 @@
             background: #fbf2df;
         }
 
+        .mendeley-progress {
+            display: grid;
+            gap: 0.4rem;
+            padding: 0.75rem;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.58);
+        }
+
+        .mendeley-progress progress {
+            width: 100%;
+            height: 0.8rem;
+            accent-color: #2878d0;
+        }
+
+        .mendeley-progress-line {
+            display: flex;
+            justify-content: space-between;
+            gap: 0.75rem;
+            color: var(--muted);
+            font-size: 0.88rem;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -1236,7 +1259,7 @@
 
     <section class="settings-panel hidden" data-settings-panel="mendeley">
         <h2>Mendeley synchronization</h2>
-        <p class="meta">Connect your Mendeley account, map a folder to each paper feed, then preview and apply a two-way synchronization.</p>
+        <p class="meta">Connect your Mendeley account and map a folder to each paper feed. Synchronization runs in the background after interface changes and periodically checks Mendeley for remote changes.</p>
         <div class="management-card">
             <div class="management-card-body">
                 <div class="management-card-header">
@@ -2399,8 +2422,8 @@
         apply.addEventListener("click", async () => {
             apply.disabled = true;
             try {
-                const result = await mendeleyRequest("/api/mendeley/feeds/" + feed.logicalFeedId + "/apply", { method: "POST" });
-                counts.textContent = "Applied " + result.applied + " change(s); " + result.conflicts + " conflict(s) require review.";
+                await mendeleyRequest("/api/mendeley/feeds/" + feed.logicalFeedId + "/apply", { method: "POST" });
+                counts.textContent = "Synchronization queued in the background.";
                 await loadMendeleySettings();
             } catch (error) { showMendeleyError(error.message); apply.disabled = false; }
         });
@@ -2462,6 +2485,55 @@
         });
     };
 
+    const renderMendeleyJob = (container, feed, controls) => {
+        container.className = "mendeley-progress";
+        const line = document.createElement("div");
+        line.className = "mendeley-progress-line";
+        const phase = document.createElement("span");
+        const count = document.createElement("span");
+        const progress = document.createElement("progress");
+        progress.setAttribute("aria-label", "Mendeley synchronization progress");
+        progress.max = 1;
+        progress.value = 0;
+        line.append(phase, count);
+        container.append(line, progress);
+        let current = feed.syncJob || { status: "IDLE", phase: "Not running", completed: 0, total: 0, running: false };
+        let previouslyRunning = Boolean(current.running);
+
+        const update = (job) => {
+            current = job || current;
+            const total = Number(current.total || 0);
+            const completed = Number(current.completed || 0);
+            phase.textContent = current.phase || current.status || "Not running";
+            count.textContent = total > 0 ? completed + " / " + total : (current.running ? "Preparing…" : "");
+            progress.max = Math.max(total, 1);
+            progress.value = total > 0 ? Math.min(completed, total) : (current.status === "COMPLETED" ? 1 : 0);
+            controls.forEach((control) => { control.disabled = Boolean(current.running); });
+            if (current.error && current.status === "FAILED") showMendeleyError(current.error);
+        };
+        update(current);
+
+        const poll = async () => {
+            if (!container.isConnected) return;
+            try {
+                const job = await mendeleyRequest("/api/mendeley/feeds/" + feed.logicalFeedId + "/sync-status");
+                const finished = (previouslyRunning && !job.running)
+                    || (!job.running && job.finishedAt && job.finishedAt !== current.finishedAt);
+                previouslyRunning = Boolean(job.running);
+                update(job);
+                if (finished) {
+                    await loadMendeleySettings();
+                    return;
+                }
+            } catch (error) {
+                phase.textContent = "Could not load synchronization progress";
+            }
+            window.setTimeout(poll, current.running ? 1000 : 5000);
+        };
+        window.setTimeout(poll, current.running ? 500 : 3000);
+        return update;
+    };
+
     const renderMendeleyFeed = (feed, folders) => {
         const card = document.createElement("section");
         card.className = "management-card";
@@ -2499,8 +2571,24 @@
             mapping.className = "meta";
             mapping.textContent = "State folders: " + Object.keys(feed.stateFolders || {}).length
                 + (feed.lastSyncedAt ? " · Last synced: " + feed.lastSyncedAt : " · Never synchronized");
+            const synchronize = document.createElement("button");
+            synchronize.type = "button";
+            synchronize.textContent = feed.lastSyncedAt ? "Synchronize now" : "Start first synchronization";
             const preview = document.createElement("button");
             preview.type = "button"; preview.className = "secondary"; preview.textContent = "Preview synchronization";
+            const progress = document.createElement("div");
+            const updateJob = renderMendeleyJob(progress, feed, [synchronize, preview, configure]);
+            synchronize.addEventListener("click", async () => {
+                synchronize.disabled = true;
+                showMendeleyError();
+                try {
+                    const job = await mendeleyRequest("/api/mendeley/feeds/" + feed.logicalFeedId + "/sync", { method: "POST" });
+                    updateJob(job);
+                } catch (error) {
+                    showMendeleyError(error.message);
+                    synchronize.disabled = false;
+                }
+            });
             const previewContainer = document.createElement("div");
             previewContainer.className = "stack-layout";
             preview.addEventListener("click", async () => {
@@ -2509,7 +2597,10 @@
                 catch (error) { showMendeleyError(error.message); }
                 finally { preview.disabled = false; }
             });
-            body.append(mapping, preview, previewContainer);
+            const actions = document.createElement("div");
+            actions.className = "toolbar";
+            actions.append(synchronize, preview);
+            body.append(mapping, progress, actions, previewContainer);
             renderMendeleyConflicts(body, feed);
         }
         card.appendChild(body);

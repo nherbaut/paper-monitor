@@ -38,6 +38,16 @@ public class MendeleyFeedSync extends PanacheEntityBase {
     public Instant lastSyncedAt;
     @Column(length = 2000)
     public String lastError;
+    @Column(length = 24)
+    public String syncStatus = "IDLE";
+    @Column(length = 64)
+    public String syncPhase;
+    @Column(length = 24)
+    public String syncTrigger;
+    public int syncCompletedActions;
+    public int syncTotalActions;
+    public Instant syncStartedAt;
+    public Instant syncFinishedAt;
     @Column(nullable = false, columnDefinition = "boolean default false")
     public boolean enabled;
     @OneToMany(mappedBy = "feedSync", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
