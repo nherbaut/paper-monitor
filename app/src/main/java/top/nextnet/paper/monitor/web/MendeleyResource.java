@@ -110,6 +110,7 @@ public class MendeleyResource {
     }
     private Response adminError(String operation, IOException error) {
         LOG.errorf(error, "Mendeley %s failed", operation);
-        return Response.seeOther(URI.create("/admin?error=" + URLEncoder.encode(error.getMessage(), StandardCharsets.UTF_8) + "#mendeley")).build();
+        String path = "/admin?error=" + URLEncoder.encode(error.getMessage(), StandardCharsets.UTF_8) + "#mendeley";
+        return Response.seeOther(URI.create(auth.publicUrl(path))).build();
     }
 }

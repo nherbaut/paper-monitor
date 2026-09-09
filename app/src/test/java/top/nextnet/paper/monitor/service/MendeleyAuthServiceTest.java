@@ -20,6 +20,15 @@ class MendeleyAuthServiceTest {
         assertEquals("application/vnd.mendeley-profiles.1+json", MendeleyAuthService.PROFILE_MEDIA_TYPE);
     }
 
+    @Test
+    void createsAbsolutePublicRedirectsWithoutTrustingAnExternalReturnUrl() {
+        MendeleyAuthService service = service(true, "client", "secret");
+
+        assertEquals("https://papers.example.test/admin#mendeley", service.publicUrl("/admin#mendeley"));
+        assertEquals("https://papers.example.test/admin#mendeley", service.publicUrl("http://attacker.test"));
+        assertEquals("https://papers.example.test/admin#mendeley", service.publicUrl("//attacker.test"));
+    }
+
     private MendeleyAuthService service(boolean enabled, String clientId, String clientSecret) {
         return new MendeleyAuthService(HttpClient.newHttpClient(), null, null,
                 clientId, clientSecret, "all", enabled, "https://papers.example.test");

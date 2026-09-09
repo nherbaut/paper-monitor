@@ -66,6 +66,7 @@ public class MendeleyAuthService {
     public boolean isEnabled() { return configurationIssue() == null; }
     public String requestedScopes() { return scopes; }
     public String callbackUrl() { return baseUrl + "/auth/mendeley/callback"; }
+    public String publicUrl(String path) { return baseUrl + safeReturnTo(path); }
 
     public String configurationIssue() {
         if (!enabled) return "PAPER_MONITOR_MENDELEY_ENABLED is false";
@@ -141,7 +142,7 @@ public class MendeleyAuthService {
                     "Mendeley OAuth token exchange succeeded for user %s, but profile lookup failed; connection retained",
                     user.id);
         }
-        return safeReturnTo(login.returnTo);
+        return publicUrl(login.returnTo);
     }
 
     @Transactional
