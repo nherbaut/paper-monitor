@@ -274,7 +274,7 @@ public class MendeleySyncService {
             configs.add(row);
         }
         return Map.of("serverEnabled", true, "connected", settings.hasMendeleyConnection(),
-                "displayName", first(settings.mendeleyDisplayName, ""), "feeds", configs);
+                "displayName", nonNull(settings.mendeleyDisplayName), "feeds", configs);
     }
 
     private Map<String, String> ensureStateFolders(UserSettings settings, LogicalFeed feed, String root) throws IOException {
@@ -452,6 +452,7 @@ public class MendeleySyncService {
     private static List<String> strings(Object raw) { List<String> out = new ArrayList<>(); if (raw instanceof List<?> list) for (Object o : list) if (o != null && !String.valueOf(o).isBlank()) out.add(String.valueOf(o)); return out; }
     private static String firstString(Object raw) { List<String> values = strings(raw); return values.isEmpty() ? null : values.get(0); }
     private static String value(Object value) { return value == null || String.valueOf(value).isBlank() ? null : String.valueOf(value); }
+    static String nonNull(String value) { return value == null ? "" : value; }
     private static String first(String... values) { for (String v : values) if (v != null && !v.isBlank()) return v; return null; }
     private static Long longValue(Object v) { return v == null ? null : Long.valueOf(String.valueOf(v)); }
     private static Integer intValue(Object v) { return v == null ? null : Integer.valueOf(String.valueOf(v)); }

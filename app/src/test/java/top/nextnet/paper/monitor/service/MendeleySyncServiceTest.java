@@ -38,4 +38,10 @@ class MendeleySyncServiceTest {
         assertEquals(MendeleySyncService.fingerprint(first), MendeleySyncService.fingerprint(same));
         assertNotEquals(MendeleySyncService.fingerprint(first), MendeleySyncService.fingerprint(changed));
     }
+
+    @Test
+    void representsMissingProfileNameAsAnEmptyString() {
+        assertEquals("", MendeleySyncService.nonNull(null));
+        assertEquals("Ada Lovelace", MendeleySyncService.nonNull("Ada Lovelace"));
+    }
 }
