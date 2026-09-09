@@ -211,7 +211,8 @@ public class ReviewService {
             return List.of();
         }
         return paperRepository.findAllForExport(review.logicalFeed).stream()
-                .filter((paper) -> selectedStates.contains(paper.topLevelStatus()))
+                .filter((paper) -> selectedStates.contains(paper.status)
+                        || selectedStates.contains(paper.topLevelStatus()))
                 .toList();
     }
 
@@ -230,7 +231,9 @@ public class ReviewService {
         if (!Objects.equals(paper.logicalFeed.id, review.logicalFeed.id)) {
             throw new NotFoundException();
         }
-        if (!selectedStates(review).contains(paper.topLevelStatus())) {
+        List<String> selectedStates = selectedStates(review);
+        if (!selectedStates.contains(paper.status)
+                && !selectedStates.contains(paper.topLevelStatus())) {
             throw new NotFoundException();
         }
         ReviewSubmission submission = reviewSubmissionRepository.findByReviewAndPaper(review, paper).orElse(null);
@@ -310,7 +313,12 @@ public class ReviewService {
     }
 
     public List<String> normalizeSelectedStates(LogicalFeed logicalFeed, List<String> selectedStates) {
-        List<String> workflow = logicalFeed.topLevelWorkflowStateList();
+        List<String> workflow = new ArrayList<>(logicalFeed.workflowStateList());
+        for (String topLevelState : logicalFeed.topLevelWorkflowStateList()) {
+            if (!workflow.contains(topLevelState)) {
+                workflow.add(topLevelState);
+            }
+        }
         List<String> normalized = new ArrayList<>();
         for (String state : selectedStates == null ? List.<String>of() : selectedStates) {
             String candidate = normalize(state);
