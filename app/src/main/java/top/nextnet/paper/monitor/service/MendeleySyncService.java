@@ -496,13 +496,47 @@ public class MendeleySyncService {
         if (paper.publishedOn != null) result.put("year", paper.publishedOn.getYear());
         String doi = localDoi(paper); if (doi != null) result.put("identifiers", Map.of("doi", doi));
         if (paper.tags != null) result.put("tags", List.of(paper.tags.split("\\s*,\\s*|\\R")));
-        List<Map<String, String>> authors = new ArrayList<>();
-        if (paper.authors != null) for (String name : paper.authors.split("\\s*;\\s*")) {
-            String[] parts = name.trim().split("\\s+");
-            if (parts.length > 0) authors.add(Map.of("first_name", parts.length == 1 ? "" : String.join(" ", java.util.Arrays.copyOf(parts, parts.length - 1)), "last_name", parts[parts.length - 1]));
-        }
+        List<Map<String, String>> authors = mendeleyAuthors(paper.authors);
         if (!authors.isEmpty()) result.put("authors", authors);
         return result;
+    }
+
+    static List<Map<String, String>> mendeleyAuthors(String authorText) {
+        if (authorText == null || authorText.isBlank()) return List.of();
+
+        String cleaned = authorText
+                .replaceFirst("(?i)^\\s*Author links open overlay panel\\s*", "")
+                .trim();
+        List<String> names = java.util.Arrays.stream(
+                        cleaned.split("\\s*(?:[;,]|\\R|…|\\.{3})\\s*"))
+                .map(name -> name.trim().replaceAll("\\s+", " "))
+                .filter(name -> !name.isBlank())
+                .toList();
+        long affiliationMarkedNames = names.stream()
+                .filter(name -> name.matches(".*\\s+[a-z](?:\\s+[a-z])*$"))
+                .count();
+        boolean hasAffiliationMarkers = affiliationMarkedNames >= 2;
+
+        List<Map<String, String>> authors = new ArrayList<>();
+        for (String name : names) {
+            if (hasAffiliationMarkers) name = name.replaceFirst("(?:\\s+[a-z])+$", "").trim();
+            if (name.isBlank()) continue;
+            String[] parts = name.split("\\s+");
+            String firstName = parts.length == 1
+                    ? ""
+                    : String.join(" ", java.util.Arrays.copyOf(parts, parts.length - 1));
+            String lastName = parts[parts.length - 1];
+            authors.add(Map.of(
+                    "first_name", limitMendeleyName(firstName),
+                    "last_name", limitMendeleyName(lastName)));
+        }
+        return authors;
+    }
+
+    private static String limitMendeleyName(String value) {
+        int maximumCodePoints = 255;
+        if (value.codePointCount(0, value.length()) <= maximumCodePoints) return value;
+        return value.substring(0, value.offsetByCodePoints(0, maximumCodePoints)).trim();
     }
 
     private void setRemoteState(UserSettings settings, String documentId, String state, Map<String, String> stateFolders) throws IOException {

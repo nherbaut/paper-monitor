@@ -3,6 +3,7 @@ package top.nextnet.paper.monitor.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -72,5 +73,34 @@ class MendeleySyncServiceTest {
         assertEquals(12L, remaining.get("feedId"));
         assertEquals(Map.of("EXPORT", 1L, "PULL", 1L), remaining.get("counts"));
         assertEquals(List.of(export, pull), remaining.get("actions"));
+    }
+
+    @Test
+    void exportsCommaSeparatedAuthorsAsIndividualMendeleyAuthors() {
+        List<Map<String, String>> authors = MendeleySyncService.mendeleyAuthors(
+                "Elnaz Azmi, Khadijeh Alibabaei, В. Козлов, Tjerk Krijger");
+
+        assertEquals(List.of(
+                Map.of("first_name", "Elnaz", "last_name", "Azmi"),
+                Map.of("first_name", "Khadijeh", "last_name", "Alibabaei"),
+                Map.of("first_name", "В.", "last_name", "Козлов"),
+                Map.of("first_name", "Tjerk", "last_name", "Krijger")), authors);
+    }
+
+    @Test
+    void removesSourceAffiliationsAndBoundsMendeleyAuthorComponents() {
+        String oversizedFirstName = "x".repeat(300);
+
+        List<Map<String, String>> authors = MendeleySyncService.mendeleyAuthors(
+                "Author links open overlay panel " + oversizedFirstName + " Family a, Jane Doe b…Gergely Sipos s");
+
+        assertEquals(3, authors.size());
+        assertEquals("Family", authors.get(0).get("last_name"));
+        assertEquals("Jane", authors.get(1).get("first_name"));
+        assertEquals("Doe", authors.get(1).get("last_name"));
+        assertEquals("Gergely", authors.get(2).get("first_name"));
+        assertEquals("Sipos", authors.get(2).get("last_name"));
+        assertTrue(authors.get(0).get("first_name").codePointCount(0,
+                authors.get(0).get("first_name").length()) <= 255);
     }
 }
