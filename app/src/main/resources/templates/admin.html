@@ -2397,10 +2397,10 @@
             if (action.local || action.mendeley) {
                 const comparison = document.createElement("details");
                 const summary = document.createElement("summary");
-                summary.textContent = "Compare Paper Monitor and Mendeley";
+                summary.textContent = "Compare MIAGE Review Factory and Mendeley";
                 const values = document.createElement("div");
                 values.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.75rem;margin-top:.5rem";
-                [["Paper Monitor", action.local], ["Mendeley", action.mendeley]].forEach(([name, snapshot]) => {
+                [["MIAGE Review Factory", action.local], ["Mendeley", action.mendeley]].forEach(([name, snapshot]) => {
                     const column = document.createElement("div");
                     const label = document.createElement("strong");
                     label.textContent = name;
@@ -2431,7 +2431,62 @@
     };
 
     const renderMendeleyConflicts = (container, feed) => {
-        (feed.conflicts || []).forEach((conflict) => {
+        const conflicts = feed.conflicts || [];
+        const resolveMany = async (button, candidates, resolution, sourceName) => {
+            if (!candidates.length) return;
+            if (!window.confirm("Use " + sourceName + " for " + candidates.length + " conflict(s)?")) return;
+            const buttons = Array.from(button.parentElement.querySelectorAll("button"));
+            const originalText = button.textContent;
+            buttons.forEach((item) => { item.disabled = true; });
+            showMendeleyError();
+            try {
+                for (let index = 0; index < candidates.length; index += 1) {
+                    button.textContent = originalText + " (" + (index + 1) + "/" + candidates.length + ")";
+                    await mendeleyRequest("/api/mendeley/feeds/" + feed.logicalFeedId + "/conflicts/" + candidates[index].id + "/resolve", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+                        body: new URLSearchParams([["resolution", resolution]])
+                    });
+                }
+                await loadMendeleySettings();
+            } catch (error) {
+                showMendeleyError(error.message);
+                button.textContent = originalText;
+                buttons.forEach((item) => { item.disabled = false; });
+            }
+        };
+        const twoCopyConflicts = conflicts.filter((conflict) => conflict.status === "CONFLICT");
+        const localResolvableConflicts = conflicts.filter((conflict) =>
+            conflict.status === "CONFLICT" || conflict.status === "REMOTE_DELETED");
+        if (conflicts.length) {
+            const bulk = document.createElement("div");
+            bulk.className = "management-meta-box";
+            const heading = document.createElement("strong");
+            heading.textContent = "Resolve conflicts in bulk";
+            const help = document.createElement("p");
+            help.className = "meta";
+            help.textContent = "Choose which source wins for every conflict where both copies exist. Remote deletions remain explicit when Mendeley is selected.";
+            const actions = document.createElement("div");
+            actions.className = "toolbar";
+            const mendeleyWins = document.createElement("button");
+            mendeleyWins.type = "button";
+            mendeleyWins.className = "secondary";
+            mendeleyWins.textContent = "All from Mendeley";
+            mendeleyWins.disabled = !twoCopyConflicts.length;
+            mendeleyWins.addEventListener("click", () => resolveMany(
+                mendeleyWins, twoCopyConflicts, "KEEP_MENDELEY", "Mendeley"));
+            const localWins = document.createElement("button");
+            localWins.type = "button";
+            localWins.className = "secondary";
+            localWins.textContent = "All from MIAGE Review Factory";
+            localWins.disabled = !localResolvableConflicts.length;
+            localWins.addEventListener("click", () => resolveMany(
+                localWins, localResolvableConflicts, "KEEP_LOCAL", "MIAGE Review Factory"));
+            actions.append(mendeleyWins, localWins);
+            bulk.append(heading, help, actions);
+            container.appendChild(bulk);
+        }
+        conflicts.forEach((conflict) => {
             const row = document.createElement("div");
             row.className = "management-meta-box";
             const label = document.createElement("strong");
@@ -2442,7 +2497,7 @@
                 summary.textContent = "Compare values";
                 const values = document.createElement("div");
                 values.style.cssText = "display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.75rem;margin-top:.5rem";
-                [["Paper Monitor", conflict.details.local], ["Mendeley", conflict.details.mendeley]].forEach(([name, snapshot]) => {
+                [["MIAGE Review Factory", conflict.details.local], ["Mendeley", conflict.details.mendeley]].forEach(([name, snapshot]) => {
                     const column = document.createElement("div");
                     const heading = document.createElement("strong");
                     heading.textContent = name;
@@ -2461,7 +2516,7 @@
             actions.className = "toolbar";
             const choices = conflict.status === "REMOTE_DELETED"
                 ? [["KEEP_LOCAL", "Restore Mendeley copy"], ["KEEP_BOTH", "Keep local copy only"]]
-                : [["KEEP_LOCAL", "Keep Paper Monitor"], ["KEEP_MENDELEY", "Keep Mendeley"], ["MERGE", "Merge notes and tags"]];
+                : [["KEEP_LOCAL", "Keep MIAGE Review Factory"], ["KEEP_MENDELEY", "Keep Mendeley"], ["MERGE", "Merge notes and tags"]];
             choices.forEach(([value, text]) => {
                 const button = document.createElement("button");
                 button.type = "button";

@@ -3657,6 +3657,13 @@
                             <button class="secondary" id="reader-diagram-button" type="button">View live diagram</button>
                         </div>
                         <div class="export-menu-group">
+                            <div class="export-menu-group-title">Mendeley</div>
+                            <button class="secondary button-with-icon" id="reader-mendeley-sync-button" type="button">
+                                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M13.1 4.4A6 6 0 0 0 2.4 5.8l1 .25A5 5 0 0 1 12 4.9L10.5 6.4l.7.7L14 4.3l-2.8-2.8-.7.7 1.6 1.6ZM2.9 11.6a6 6 0 0 0 10.7-1.4l-1-.25A5 5 0 0 1 4 11.1l1.5-1.5-.7-.7L2 11.7l2.8 2.8.7-.7-1.6-1.6Z"/></svg>
+                                <span>Sync Mendeley</span>
+                            </button>
+                        </div>
+                        <div class="export-menu-group">
                             <div class="export-menu-group-title">Share</div>
                             <button class="secondary" id="reader-public-url-button" type="button">Copy public URL</button>
                         </div>
@@ -4136,6 +4143,7 @@
     const readerImportUrlButton = document.getElementById("reader-import-url-button");
     const readerBatchUpdateButton = document.getElementById("reader-batch-update-button");
     const readerDiagramButton = document.getElementById("reader-diagram-button");
+    const readerMendeleySyncButton = document.getElementById("reader-mendeley-sync-button");
     const readerPublicUrlButton = document.getElementById("reader-public-url-button");
     const exportStateList = document.getElementById("export-state-list");
     const exportFormatButtons = document.querySelectorAll(".export-format-button");
@@ -8388,6 +8396,13 @@
                     ? "Select a paper feed first."
                     : "Open the live workflow diagram for this paper feed.";
             }
+            if (readerMendeleySyncButton) {
+                const syncDisabled = !selectedLogicalFeedId || !selectedLogicalFeedCanAdmin();
+                readerMendeleySyncButton.disabled = syncDisabled;
+                readerMendeleySyncButton.title = syncDisabled
+                    ? "Select a paper feed you can manage first."
+                    : "Queue a Mendeley synchronization for this paper feed.";
+            }
             if (readerPublicUrlButton) {
                 const canAdmin = selectedLogicalFeedCanAdmin();
                 const isPublic = selectedLogicalFeedIsPublic();
@@ -8490,6 +8505,13 @@
             readerDiagramButton.title = diagramDisabled
                 ? "Select a paper feed first."
                 : "Open the live workflow diagram for this paper feed.";
+        }
+        if (readerMendeleySyncButton) {
+            const syncDisabled = !selectedLogicalFeedId || !selectedLogicalFeedCanAdmin();
+            readerMendeleySyncButton.disabled = syncDisabled;
+            readerMendeleySyncButton.title = syncDisabled
+                ? "Select a paper feed you can manage first."
+                : "Queue a Mendeley synchronization for this paper feed.";
         }
         if (readerPublicUrlButton) {
             const canAdmin = selectedLogicalFeedCanAdmin();
@@ -10592,6 +10614,28 @@
         }
         exportTabMenu.open = false;
         window.open("/logical-feeds/" + encodeURIComponent(logicalFeedId) + "/diagram", "_blank", "noopener,noreferrer");
+    });
+    readerMendeleySyncButton?.addEventListener("click", async () => {
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        if (!logicalFeedId || !selectedLogicalFeedCanAdmin()) {
+            window.alert("Select a paper feed you can manage first.");
+            return;
+        }
+        exportTabMenu.open = false;
+        readerMendeleySyncButton.disabled = true;
+        try {
+            const response = await fetch("/api/mendeley/feeds/" + encodeURIComponent(logicalFeedId) + "/sync", {
+                method: "POST",
+                headers: { Accept: "application/json" }
+            });
+            const body = await response.text();
+            if (!response.ok) throw new Error(body || "Unable to start Mendeley synchronization.");
+            window.alert("Mendeley synchronization queued. Progress is available in Admin > Mendeley.");
+        } catch (error) {
+            window.alert(error.message || "Unable to start Mendeley synchronization.");
+        } finally {
+            applyLogicalFeedFilter();
+        }
     });
     readerPublicUrlButton?.addEventListener("click", async () => {
         const logicalFeedId = logicalFeedFilter?.value || "";
