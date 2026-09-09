@@ -1832,7 +1832,7 @@
         .classification-mobile-state-option {
             display: grid;
             place-items: center;
-            min-height: 3.15rem;
+            min-height: var(--classification-mobile-state-option-height, 3.15rem);
             padding: 0.6rem 0.85rem;
             border: 2px solid color-mix(in srgb, var(--classification-drop-zone-color) 76%, var(--panel));
             border-radius: 0.85rem;
@@ -1861,6 +1861,16 @@
         .classification-mobile-state-option.cancel.active {
             background: color-mix(in srgb, var(--muted) 52%, var(--panel));
             box-shadow: 0 0 0 4px color-mix(in srgb, var(--muted) 35%, transparent);
+        }
+
+        .classification-mobile-state-stack.compact {
+            gap: 0.3rem;
+        }
+
+        .classification-mobile-state-stack.compact .classification-mobile-state-option {
+            padding: 0.3rem 0.55rem;
+            font-size: 0.78rem;
+            line-height: 1.1;
         }
 
         body.mobile-state-picker-open {
@@ -2567,7 +2577,7 @@
             }
 
             .classification-mobile-state-option {
-                min-height: 2.8rem;
+                min-height: var(--classification-mobile-state-option-height, 2.8rem);
                 padding: 0.48rem 0.65rem;
                 font-size: 0.88rem;
             }
@@ -5196,7 +5206,10 @@
     const workflowTargetsFromState = (logicalFeedId, stateId) => {
         const config = workflowConfigForLogicalFeed(logicalFeedId);
         const transitions = Array.isArray(config?.transitions) ? config.transitions : [];
-        return transitions.find((item) => item?.from === stateId)?.to || [];
+        return Array.from(new Set(transitions
+            .filter((item) => item?.from === stateId)
+            .flatMap((item) => Array.isArray(item?.to) ? item.to : [])
+            .filter(Boolean)));
     };
 
     const logicalFeedOptionById = (logicalFeedId) => {
@@ -7337,21 +7350,30 @@
         hideClassificationDropZones();
         const targets = classificationRadialTargets(card);
         if (targets.length <= 2 || !classificationDropZones) {
-            return [];
+            return { targets: [], deadZoneRadius: CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS };
         }
-        const cardBounds = card.getBoundingClientRect();
-        const centerX = cardBounds.left + cardBounds.width / 2;
-        const centerY = cardBounds.top + cardBounds.height / 2;
         const viewportWidth = window.innerWidth;
         const viewportHeight = window.innerHeight;
+        // The card can be vertically offset by the queue header. Keep the visual wheel in the
+        // actual viewport centre so every label remains reachable and visible.
+        const centerX = viewportWidth / 2;
+        const centerY = viewportHeight / 2;
+        const smallestViewportSide = Math.min(viewportWidth, viewportHeight);
+        const deadZoneRadius = Math.max(72, Math.min(
+            CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS,
+            Math.floor(smallestViewportSide / 2) - 118
+        ));
         const mapRadius = Math.max(
             Math.hypot(centerX, centerY),
             Math.hypot(viewportWidth - centerX, centerY),
             Math.hypot(centerX, viewportHeight - centerY),
             Math.hypot(viewportWidth - centerX, viewportHeight - centerY)
         ) + 2;
-        const deadZoneRadius = CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS;
-        const labelRadius = Math.max(deadZoneRadius + 70, Math.min(Math.min(viewportWidth, viewportHeight) * 0.36, 330));
+        const labelClearance = 98;
+        const maximumLabelRadius = Math.max(deadZoneRadius + 24,
+            Math.min(viewportWidth / 2 - labelClearance, viewportHeight / 2 - labelClearance));
+        const labelRadius = Math.min(maximumLabelRadius,
+            Math.max(deadZoneRadius + 40, Math.min(smallestViewportSide * 0.36, 330)));
         const sectorAngle = FULL_TURN / targets.length;
         const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
         svg.classList.add("classification-drop-zone-map");
@@ -7399,7 +7421,7 @@
         });
         classificationDropZones.classList.add("visible");
         classificationDropZones.setAttribute("aria-hidden", "false");
-        return radialTargets;
+        return { targets: radialTargets, deadZoneRadius };
     };
 
     const classificationDropTargetForDrag = (dragState, deltaX, deltaY) => {
@@ -7414,7 +7436,8 @@
                 ? candidate
                 : closest;
         }, null);
-        if (radius < CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS) {
+        const deadZoneRadius = dragState.radialDeadZoneRadius || CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS;
+        if (radius < deadZoneRadius) {
             classificationDragTarget?.classList.remove("visible");
             classificationDropZones?.querySelectorAll(".classification-drop-zone, .classification-drop-zone-sector")
                 .forEach((element) => element.classList.remove("active"));
@@ -7466,6 +7489,12 @@
         classificationMobileStatePicker.innerHTML = "";
         const stack = document.createElement("div");
         stack.className = "classification-mobile-state-stack";
+        const viewportHeight = window.visualViewport?.height || window.innerHeight;
+        const optionCount = longPress.transitions.length + 1; // Include the cancel option.
+        const availableOptionHeight = Math.floor((viewportHeight - 82 - optionCount * 8) / optionCount);
+        const optionHeight = Math.max(34, Math.min(50, availableOptionHeight));
+        stack.style.setProperty("--classification-mobile-state-option-height", optionHeight + "px");
+        stack.classList.toggle("compact", optionHeight < 44);
         const instruction = document.createElement("p");
         instruction.className = "classification-mobile-state-instruction";
         instruction.textContent = "Move to a state, then lift your finger";
@@ -10086,7 +10115,8 @@
             captured: false,
             card,
             multiTarget: classificationTargetCount(classificationDirectionalTargets(card)) > 2,
-            radialTargets: []
+            radialTargets: [],
+            radialDeadZoneRadius: CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS
         };
     });
 
@@ -10109,7 +10139,9 @@
             classificationDragState.captured = true;
             classificationCard.setPointerCapture?.(event.pointerId);
             if (classificationDragState.multiTarget) {
-                classificationDragState.radialTargets = showClassificationDropZones(classificationDragState.card);
+                const radialLayout = showClassificationDropZones(classificationDragState.card);
+                classificationDragState.radialTargets = radialLayout.targets;
+                classificationDragState.radialDeadZoneRadius = radialLayout.deadZoneRadius;
                 showMadProfessorFeedback("questions");
             }
         }
@@ -10161,7 +10193,9 @@
             return;
         }
         if (cancelled || !dragState.captured
-                || (dragState.multiTarget ? dragDistance < CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS : Math.abs(deltaX) < CLASSIFICATION_DRAG_TRIGGER_X)) {
+                || (dragState.multiTarget
+                    ? dragDistance < (dragState.radialDeadZoneRadius || CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS)
+                    : Math.abs(deltaX) < CLASSIFICATION_DRAG_TRIGGER_X)) {
             resetClassificationDragVisual();
             return;
         }
