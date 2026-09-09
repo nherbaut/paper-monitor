@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import top.nextnet.paper.monitor.model.UserSettings;
 
@@ -77,8 +78,18 @@ public class MendeleyApiClient {
     }
 
     public void addToFolder(UserSettings settings, String folderId, String documentId) throws IOException {
-        send(settings, "POST", API + "/folders/" + path(folderId) + "/documents", DOCUMENT, DOCUMENT,
-                JsonCodec.stringify(Map.of("id", documentId)).getBytes(StandardCharsets.UTF_8), Map.of());
+        try {
+            send(settings, "POST", API + "/folders/" + path(folderId) + "/documents", DOCUMENT, DOCUMENT,
+                    JsonCodec.stringify(Map.of("id", documentId)).getBytes(StandardCharsets.UTF_8), Map.of());
+        } catch (MendeleyApiException error) {
+            if (!isExistingFolderMembership(error)) throw error;
+        }
+    }
+
+    static boolean isExistingFolderMembership(MendeleyApiException error) {
+        return error.status == 409
+                && error.body.toLowerCase(Locale.ROOT).contains("already exists")
+                && error.body.toLowerCase(Locale.ROOT).contains("folder");
     }
 
     public void removeFromFolder(UserSettings settings, String folderId, String documentId) throws IOException {
@@ -188,6 +199,11 @@ public class MendeleyApiClient {
 
     public static class MendeleyApiException extends IOException {
         public final int status;
-        public MendeleyApiException(int status, String body) { super("Mendeley API HTTP " + status + (body.isBlank() ? "" : ": " + body)); this.status = status; }
+        public final String body;
+        public MendeleyApiException(int status, String body) {
+            super("Mendeley API HTTP " + status + (body.isBlank() ? "" : ": " + body));
+            this.status = status;
+            this.body = body;
+        }
     }
 }
