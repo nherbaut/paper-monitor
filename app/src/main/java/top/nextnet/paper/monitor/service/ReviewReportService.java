@@ -166,6 +166,14 @@ public class ReviewReportService {
 
     String renderInstanceMarkdown(Map<String, Object> instance, Map<String, Object> formSchema) {
         Set<String> freeTextFieldIds = freeTextFieldIds(formSchema);
+        Map<String, String> fieldLabels = new LinkedHashMap<>();
+        for (Map<String, Object> field : flattenFieldDefinitions(formSchema)) {
+            String id = stringValue(field.get("id"));
+            String label = stringValue(field.get("label"));
+            if (id != null && label != null && !label.isBlank()) {
+                fieldLabels.put(id, label);
+            }
+        }
         StringBuilder markdown = new StringBuilder();
         markdown.append("| Field | Value |\n");
         markdown.append("| --- | --- |\n");
@@ -173,9 +181,10 @@ public class ReviewReportService {
             if (freeTextFieldIds.contains(entry.getKey())) {
                 continue;
             }
-            markdown.append("| `")
-                    .append(escapeCode(entry.getKey()))
-                    .append("` | ")
+            String fieldLabel = fieldLabels.getOrDefault(entry.getKey(), entry.getKey());
+            markdown.append("| ")
+                    .append(escapeMarkdown(fieldLabel))
+                    .append(" | ")
                     .append(escapeMarkdown(renderValue(entry.getValue())))
                     .append(" |\n");
         }
@@ -183,9 +192,10 @@ public class ReviewReportService {
             if (!freeTextFieldIds.contains(entry.getKey())) {
                 continue;
             }
-            markdown.append("\n#### `")
-                    .append(escapeCode(entry.getKey()))
-                    .append("`\n\n")
+            String fieldLabel = fieldLabels.getOrDefault(entry.getKey(), entry.getKey());
+            markdown.append("\n#### ")
+                    .append(escapeMarkdown(fieldLabel))
+                    .append("\n\n")
                     .append(escapeMarkdown(renderValue(entry.getValue())))
                     .append("\n");
         }
