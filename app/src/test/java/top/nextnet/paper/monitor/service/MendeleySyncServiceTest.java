@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -141,6 +142,30 @@ class MendeleySyncServiceTest {
         assertEquals("DELETE_LOCAL", MendeleySyncService.remoteDeletionAction("same", "same"));
         assertEquals("RESTORE_REMOTE", MendeleySyncService.remoteDeletionAction("old", "new"));
         assertEquals("RESTORE_REMOTE", MendeleySyncService.remoteDeletionAction(null, "legacy"));
+    }
+
+    @Test
+    void recognizesAPreviouslyCreatedDocumentWhenRetryingAnExport() {
+        Paper withDoi = new Paper();
+        withDoi.title = "Paper";
+        withDoi.sourceLink = "https://doi.org/10.1000/RETRY";
+        assertTrue(MendeleySyncService.sameExportIdentity(withDoi, Map.of(
+                "title", "A normalized title from Mendeley",
+                "identifiers", Map.of("doi", "10.1000/retry"))));
+
+        Paper withoutDoi = new Paper();
+        withoutDoi.title = "Paper without DOI";
+        withoutDoi.publishedOn = LocalDate.of(2026, 1, 1);
+        withoutDoi.authors = "Ada Lovelace, Alan Turing";
+        assertTrue(MendeleySyncService.sameExportIdentity(withoutDoi, Map.of(
+                "title", "Paper without DOI",
+                "year", 2026,
+                "authors", List.of(
+                        Map.of("first_name", "Ada", "last_name", "Lovelace"),
+                        Map.of("first_name", "Alan", "last_name", "Turing")))));
+
+        assertFalse(MendeleySyncService.sameExportIdentity(withoutDoi, Map.of(
+                "title", "Another paper", "year", 2026)));
     }
 
     @Test

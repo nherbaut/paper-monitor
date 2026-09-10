@@ -20,6 +20,7 @@ import java.time.Instant;
 })
 public class MendeleyPaperSync extends PanacheEntityBase {
     public static final String SYNCED = "SYNCED";
+    public static final String PDF_PENDING = "PDF_PENDING";
     public static final String CONFLICT = "CONFLICT";
     public static final String REMOTE_DELETED = "REMOTE_DELETED";
     public static final String LOCAL_DELETED = "LOCAL_DELETED";

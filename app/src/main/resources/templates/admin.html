@@ -2698,6 +2698,10 @@
             mapping.className = "meta";
             mapping.textContent = "State subcollections: " + Object.keys(feed.stateFolders || {}).length
                 + (feed.lastSyncedAt ? " · Last synced: " + feed.lastSyncedAt : " · Never synchronized");
+            const pdfPending = document.createElement("p");
+            pdfPending.className = "meta";
+            pdfPending.hidden = !Number(feed.pdfPending || 0);
+            pdfPending.textContent = Number(feed.pdfPending || 0) + " PDF attachment(s) pending; they will be retried automatically.";
             const synchronize = document.createElement("button");
             synchronize.type = "button";
             synchronize.textContent = feed.lastSyncedAt ? "Synchronize now" : "Start first synchronization";
@@ -2727,7 +2731,7 @@
             const actions = document.createElement("div");
             actions.className = "toolbar";
             actions.append(synchronize, preview);
-            body.append(mapping, progress, actions, previewContainer);
+            body.append(mapping, pdfPending, progress, actions, previewContainer);
             renderMendeleyConflicts(body, feed);
         }
         card.appendChild(body);
