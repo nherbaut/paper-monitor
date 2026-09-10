@@ -141,7 +141,7 @@ public class MendeleySyncService {
         for (Map<String, Object> document : api.documents(settings)) {
             String id = value(document.get("id"));
             if (id != null && memberships.containsKey(id)) {
-                document.put("paper_monitor_notes", api.documentNote(settings, id));
+                attachRemoteNotes(settings, document, id);
                 remoteById.put(id, document);
             }
         }
@@ -365,7 +365,8 @@ public class MendeleySyncService {
             api.addToFolder(settings, config.rootFolderId, documentId);
             setRemoteState(settings, documentId, paper.status, stateFolders);
             boolean pdfSynced = syncPdfToMendeley(settings, paper, documentId);
-            api.updateDocumentNote(settings, documentId, settings.mendeleyProfileId, paper.notes);
+            api.updateDocumentNote(settings, documentId, settings.mendeleyProfileId,
+                    withoutMendeleyAnnotations(paper.notes));
             remote = remoteDocument(settings, documentId);
             markPdfStatus(syncLink(config, paper, remote, documentId), pdfSynced);
             applied++;
@@ -450,7 +451,8 @@ public class MendeleySyncService {
         api.addToFolder(settings, config.rootFolderId, documentId);
         setRemoteState(settings, documentId, paper.status, stateFolders);
         boolean pdfSynced = syncPdfToMendeley(settings, paper, documentId);
-        api.updateDocumentNote(settings, documentId, settings.mendeleyProfileId, paper.notes);
+        api.updateDocumentNote(settings, documentId, settings.mendeleyProfileId,
+                withoutMendeleyAnnotations(paper.notes));
         remote = remoteDocument(settings, documentId);
         markPdfStatus(syncLink(config, paper, remote, documentId), pdfSynced);
     }
@@ -537,7 +539,8 @@ public class MendeleySyncService {
             }
             api.addToFolder(settings, config.rootFolderId, link.mendeleyDocumentId);
             setRemoteState(settings, link.mendeleyDocumentId, link.paper.status, stateFolders);
-            api.updateDocumentNote(settings, link.mendeleyDocumentId, settings.mendeleyProfileId, link.paper.notes);
+            api.updateDocumentNote(settings, link.mendeleyDocumentId, settings.mendeleyProfileId,
+                    withoutMendeleyAnnotations(link.paper.notes));
             remote = remoteDocument(settings, link.mendeleyDocumentId);
             syncLink(config, link.paper, remote, link.mendeleyDocumentId);
         } else if ("KEEP_MENDELEY".equals(resolution)) {
@@ -549,12 +552,11 @@ public class MendeleySyncService {
             Map<String, Object> remote = remoteDocument(settings, link.mendeleyDocumentId);
             link.paper.tags = mergeTags(link.paper.tags, strings(remote.get("tags")));
             String remoteNotes = value(remote.get("paper_monitor_notes"));
-            if (remoteNotes != null && (link.paper.notes == null || !link.paper.notes.contains(remoteNotes))) {
-                link.paper.notes = first(link.paper.notes, "") + (link.paper.notes == null || link.paper.notes.isBlank() ? "" : "\n\n") + remoteNotes;
-            }
+            link.paper.notes = mergeNotes(link.paper.notes, remoteNotes);
             events.log(link.paper, "MENDELEY_MERGE", "Merged local and Mendeley metadata");
             Map<String, Object> updated = api.updateDocument(settings, link.mendeleyDocumentId, documentPayload(link.paper), null);
-            api.updateDocumentNote(settings, link.mendeleyDocumentId, settings.mendeleyProfileId, link.paper.notes);
+            api.updateDocumentNote(settings, link.mendeleyDocumentId, settings.mendeleyProfileId,
+                    withoutMendeleyAnnotations(link.paper.notes));
             setRemoteState(settings, link.mendeleyDocumentId, link.paper.status, stateFolders);
             updated = remoteDocument(settings, link.mendeleyDocumentId);
             syncLink(config, link.paper, updated, link.mendeleyDocumentId);
@@ -764,8 +766,15 @@ public class MendeleySyncService {
 
     private Map<String, Object> remoteDocument(UserSettings settings, String documentId) throws IOException {
         Map<String, Object> document = new LinkedHashMap<>(api.document(settings, documentId));
-        document.put("paper_monitor_notes", api.documentNote(settings, documentId));
+        attachRemoteNotes(settings, document, documentId);
         return document;
+    }
+
+    private void attachRemoteNotes(UserSettings settings, Map<String, Object> document, String documentId)
+            throws IOException {
+        MendeleyApiClient.DocumentNotes notes = api.documentNotes(settings, documentId);
+        document.put("paper_monitor_notes", composeMendeleyNotes(
+                notes.documentNote(), notes.annotationMarkdown()));
     }
 
     private MendeleyPaperSync syncLink(MendeleyFeedSync config, Paper paper, Map<String, Object> remote,
@@ -914,6 +923,41 @@ public class MendeleySyncService {
     }
     private static String remoteDoi(Map<String, Object> r) { Object ids = r.get("identifiers"); if (ids instanceof Map<?, ?> map) { String doi = value(map.get("doi")); return doi == null ? null : doi.toLowerCase(Locale.ROOT); } return null; }
     private static String authorText(Object raw) { List<String> names = new ArrayList<>(); for (Map<String, Object> p : objects(raw)) names.add((first(value(p.get("first_name")), "") + " " + first(value(p.get("last_name")), "")).trim()); return names.isEmpty() ? null : String.join("; ", names); }
+    static String composeMendeleyNotes(String documentNote, String annotationMarkdown) {
+        String base = withoutMendeleyAnnotations(documentNote);
+        String annotations = value(annotationMarkdown);
+        if (base == null) return annotations;
+        if (annotations == null) return base;
+        return base + "\n\n" + annotations;
+    }
+    static String withoutMendeleyAnnotations(String notes) {
+        String normalized = value(notes);
+        if (normalized == null) return null;
+        int start = normalized.indexOf(MendeleyApiClient.ANNOTATIONS_START);
+        if (start < 0) return normalized;
+        int end = normalized.indexOf(MendeleyApiClient.ANNOTATIONS_END, start);
+        if (end < 0) return normalized.substring(0, start).strip();
+        String remaining = (normalized.substring(0, start)
+                + normalized.substring(end + MendeleyApiClient.ANNOTATIONS_END.length())).strip();
+        return remaining.isBlank() ? null : remaining;
+    }
+    private static String annotationSection(String notes) {
+        String normalized = value(notes);
+        if (normalized == null) return null;
+        int start = normalized.indexOf(MendeleyApiClient.ANNOTATIONS_START);
+        int end = start < 0 ? -1 : normalized.indexOf(MendeleyApiClient.ANNOTATIONS_END, start);
+        return end < 0 ? null : normalized.substring(start,
+                end + MendeleyApiClient.ANNOTATIONS_END.length());
+    }
+    static String mergeNotes(String local, String remote) {
+        String localBase = withoutMendeleyAnnotations(local);
+        String remoteBase = withoutMendeleyAnnotations(remote);
+        String mergedBase = localBase;
+        if (remoteBase != null && (localBase == null || !localBase.contains(remoteBase))) {
+            mergedBase = localBase == null ? remoteBase : localBase + "\n\n" + remoteBase;
+        }
+        return composeMendeleyNotes(mergedBase, annotationSection(remote));
+    }
     static String mergeTags(String local, List<String> remote) { LinkedHashSet<String> tags = new LinkedHashSet<>(); if (local != null) for (String tag : local.split("\\s*,\\s*|\\R")) if (!tag.isBlank()) tags.add(tag.trim()); tags.addAll(remote); return tags.isEmpty() ? null : String.join(", ", tags); }
     private static String remoteState(Set<String> memberships, Map<String, String> mappings) { if (memberships == null) return null; List<String> states = mappings.entrySet().stream().filter(e -> memberships.contains(e.getValue())).map(Map.Entry::getKey).toList(); return states.size() == 1 ? states.get(0) : null; }
     static List<String> remoteStates(Set<String> memberships, Map<String, String> mappings) { if (memberships == null) return List.of(); return mappings.entrySet().stream().filter(e -> memberships.contains(e.getValue())).map(Map.Entry::getKey).toList(); }

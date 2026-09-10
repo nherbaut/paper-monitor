@@ -181,4 +181,17 @@ class MendeleySyncServiceTest {
         assertEquals(List.of(rootWithoutParent, rootWithNullParent),
                 MendeleySyncService.rootFolders(List.of(rootWithoutParent, child, rootWithNullParent)));
     }
+
+    @Test
+    void keepsMendeleyAnnotationsOutOfTheWritableDocumentNote() {
+        String annotations = MendeleyApiClient.ANNOTATIONS_START
+                + "\n## Mendeley annotations\n\n### Page 3\n\nA sticky note\n"
+                + MendeleyApiClient.ANNOTATIONS_END;
+        String combined = MendeleySyncService.composeMendeleyNotes("Local notes", annotations);
+
+        assertEquals("Local notes\n\n" + annotations, combined);
+        assertEquals("Local notes", MendeleySyncService.withoutMendeleyAnnotations(combined));
+        assertEquals("Local notes\n\nRemote document note\n\n" + annotations,
+                MendeleySyncService.mergeNotes("Local notes", "Remote document note\n\n" + annotations));
+    }
 }

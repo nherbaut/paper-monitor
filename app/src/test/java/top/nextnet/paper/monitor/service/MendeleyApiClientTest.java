@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class MendeleyApiClientTest {
@@ -55,5 +58,26 @@ class MendeleyApiClientTest {
 
         assertFalse(MendeleyApiClient.isCloudflareBlock(error));
         assertEquals("Mendeley API HTTP 403: {\"message\":\"Forbidden\"}", error.getMessage());
+    }
+
+    @Test
+    void rendersFileAnnotationsSeparatelyFromTheDocumentNote() {
+        Map<String, Object> documentNote = new LinkedHashMap<>();
+        documentNote.put("text", "General note");
+        documentNote.put("positions", List.of());
+        Map<String, Object> pageTwo = Map.of(
+                "id", "annotation-b", "text", "Second page comment", "filehash", "hash",
+                "positions", List.of(Map.of("page", 2)));
+        Map<String, Object> pageOne = Map.of(
+                "id", "annotation-a", "text", "First page comment", "filehash", "hash",
+                "positions", List.of(Map.of("page", 1)));
+
+        String markdown = MendeleyApiClient.annotationMarkdown(List.of(pageTwo, documentNote, pageOne));
+
+        assertTrue(MendeleyApiClient.isDocumentNote(documentNote));
+        assertFalse(MendeleyApiClient.isDocumentNote(pageOne));
+        assertTrue(markdown.contains("## Mendeley annotations"));
+        assertTrue(markdown.indexOf("First page comment") < markdown.indexOf("Second page comment"));
+        assertFalse(markdown.contains("General note"));
     }
 }

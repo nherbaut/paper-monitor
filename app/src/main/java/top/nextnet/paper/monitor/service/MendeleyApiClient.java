@@ -16,6 +16,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,6 +39,8 @@ public class MendeleyApiClient {
     static final String USER_AGENT = "MIAGE-Review-Factory/1.0";
     private static final Pattern CLOUDFLARE_RAY_ID = Pattern.compile(
             "Cloudflare Ray ID:\\s*(?:<[^>]+>\\s*)*([a-zA-Z0-9]+)", Pattern.CASE_INSENSITIVE);
+    static final String ANNOTATIONS_START = "<!-- mendeley-annotations:start -->";
+    static final String ANNOTATIONS_END = "<!-- mendeley-annotations:end -->";
     private final HttpClient client;
     private final MendeleyAuthService auth;
 
@@ -130,6 +133,13 @@ public class MendeleyApiClient {
     public String documentNote(UserSettings settings, String documentId) throws IOException {
         return annotations(settings, documentId).stream().filter(MendeleyApiClient::isDocumentNote)
                 .map(row -> value(row.get("text"))).filter(java.util.Objects::nonNull).findFirst().orElse(null);
+    }
+
+    public DocumentNotes documentNotes(UserSettings settings, String documentId) throws IOException {
+        List<Map<String, Object>> annotations = annotations(settings, documentId);
+        String note = annotations.stream().filter(MendeleyApiClient::isDocumentNote)
+                .map(row -> value(row.get("text"))).filter(java.util.Objects::nonNull).findFirst().orElse(null);
+        return new DocumentNotes(note, annotationMarkdown(annotations));
     }
 
     public void updateDocumentNote(UserSettings settings, String documentId, String profileId, String text) throws IOException {
@@ -246,9 +256,51 @@ public class MendeleyApiClient {
         }
     }
     private static String value(Object value) { return value == null || String.valueOf(value).isBlank() ? null : String.valueOf(value); }
-    private static boolean isDocumentNote(Map<String, Object> row) {
+    static boolean isDocumentNote(Map<String, Object> row) {
         Object positions = row.get("positions");
         return value(row.get("filehash")) == null && (!(positions instanceof List<?> list) || list.isEmpty());
+    }
+
+    static String annotationMarkdown(List<Map<String, Object>> annotations) {
+        if (annotations == null) return null;
+        List<Map<String, Object>> fileNotes = annotations.stream()
+                .filter(annotation -> !isDocumentNote(annotation))
+                .filter(annotation -> value(annotation.get("text")) != null)
+                .sorted(Comparator
+                        .comparingInt(MendeleyApiClient::annotationPage)
+                        .thenComparing(annotation -> value(annotation.get("created")),
+                                Comparator.nullsLast(String::compareTo))
+                        .thenComparing(annotation -> value(annotation.get("id")),
+                                Comparator.nullsLast(String::compareTo)))
+                .toList();
+        if (fileNotes.isEmpty()) return null;
+        StringBuilder markdown = new StringBuilder(ANNOTATIONS_START)
+                .append("\n## Mendeley annotations\n");
+        for (Map<String, Object> annotation : fileNotes) {
+            int page = annotationPage(annotation);
+            markdown.append("\n### ").append(page > 0 ? "Page " + page : "PDF annotation").append("\n\n")
+                    .append(safeAnnotationText(value(annotation.get("text")))).append("\n");
+        }
+        return markdown.append("\n").append(ANNOTATIONS_END).toString();
+    }
+
+    private static int annotationPage(Map<String, Object> annotation) {
+        Object positions = annotation.get("positions");
+        if (positions instanceof List<?> list && !list.isEmpty() && list.get(0) instanceof Map<?, ?> position) {
+            Object page = position.get("page");
+            if (page instanceof Number number) return number.intValue();
+            try {
+                return page == null ? 0 : Integer.parseInt(String.valueOf(page));
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private static String safeAnnotationText(String text) {
+        return text.replace(ANNOTATIONS_START, "&lt;!-- mendeley-annotations:start --&gt;")
+                .replace(ANNOTATIONS_END, "&lt;!-- mendeley-annotations:end --&gt;");
     }
     private static String safeFileName(String value) { return (value == null ? "paper.pdf" : value).replace("\"", "").replace("\r", "").replace("\n", ""); }
 
@@ -275,4 +327,6 @@ public class MendeleyApiClient {
             this.body = body == null ? "" : body;
         }
     }
+
+    public record DocumentNotes(String documentNote, String annotationMarkdown) {}
 }
