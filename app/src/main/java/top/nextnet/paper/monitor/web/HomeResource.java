@@ -1164,7 +1164,7 @@ public class HomeResource {
 
     @POST
     @Path("/admin/google-drive/backfill")
-    @Transactional
+    @Transactional(Transactional.TxType.NOT_SUPPORTED)
     public Response backfillGoogleDrive() {
         AppUser currentUser = requireCurrentUser();
         List<LogicalFeed> adminLogicalFeeds = logicalFeedAccessService.readableLogicalFeeds(currentUser).stream()

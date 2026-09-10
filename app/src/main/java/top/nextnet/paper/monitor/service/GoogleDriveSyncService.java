@@ -1,5 +1,6 @@
 package top.nextnet.paper.monitor.service;
 
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -21,6 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.jboss.logging.Logger;
 import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.GoogleDrivePdfSync;
 import top.nextnet.paper.monitor.model.LogicalFeed;
@@ -32,6 +34,7 @@ import top.nextnet.paper.monitor.repo.PaperRepository;
 @ApplicationScoped
 public class GoogleDriveSyncService {
 
+    private static final Logger LOG = Logger.getLogger(GoogleDriveSyncService.class);
     private static final String DRIVE_API_BASE_URL = "https://www.googleapis.com/drive/v3";
     private static final String DRIVE_UPLOAD_BASE_URL = "https://www.googleapis.com/upload/drive/v3";
     private static final String FOLDER_MIME_TYPE = "application/vnd.google-apps.folder";
@@ -102,11 +105,11 @@ public class GoogleDriveSyncService {
         return settings;
     }
 
-    @Transactional
+    @Transactional(Transactional.TxType.NOT_SUPPORTED)
     public BackfillResult backfill(AppUser user, List<LogicalFeed> logicalFeeds) {
-        UserSettings settings = authService.ensureSettings(user);
-        if (!settings.googleDriveReady()) {
-            throw new IllegalArgumentException("Google Drive sync is not ready. Connect Google Drive, save a destination folder, and enable sync first.");
+        Long userId = user == null ? null : user.id;
+        if (userId == null) {
+            throw new IllegalArgumentException("A signed-in user is required");
         }
         if (logicalFeeds == null || logicalFeeds.isEmpty()) {
             return new BackfillResult(0, 0, 0);
@@ -115,15 +118,37 @@ public class GoogleDriveSyncService {
                 .filter(logicalFeed -> logicalFeed != null && logicalFeed.id != null)
                 .map(logicalFeed -> logicalFeed.id)
                 .toList();
+        List<Long> paperIds = QuarkusTransaction.requiringNew().call(() -> {
+            AppUser managedUser = AppUser.findById(userId);
+            if (managedUser == null) {
+                throw new IllegalArgumentException("The signed-in user no longer exists");
+            }
+            UserSettings settings = authService.ensureSettings(managedUser);
+            if (!settings.googleDriveReady()) {
+                throw new IllegalArgumentException("Google Drive sync is not ready. Connect Google Drive, save a destination folder, and enable sync first.");
+            }
+            return paperRepository.findAllForLogicalFeedIds(logicalFeedIds).stream()
+                    .filter(paper -> paper.uploadedPdfPath != null && !paper.uploadedPdfPath.isBlank())
+                    .map(paper -> paper.id)
+                    .toList();
+        });
         int eligible = 0;
         int synced = 0;
         int failed = 0;
-        for (Paper paper : paperRepository.findAllForLogicalFeedIds(logicalFeedIds)) {
-            if (paper.uploadedPdfPath == null || paper.uploadedPdfPath.isBlank()) {
-                continue;
-            }
+        for (Long paperId : paperIds) {
             eligible += 1;
-            if (syncPaperForUser(user, paper)) {
+            boolean successful;
+            try {
+                successful = QuarkusTransaction.requiringNew().call(() -> {
+                    AppUser managedUser = AppUser.findById(userId);
+                    Paper managedPaper = paperRepository.findById(paperId);
+                    return managedUser != null && managedPaper != null && syncPaperForUser(managedUser, managedPaper);
+                });
+            } catch (RuntimeException error) {
+                LOG.errorf(error, "Google Drive backfill failed for paper %d and user %d", paperId, userId);
+                successful = false;
+            }
+            if (successful) {
                 synced += 1;
             } else {
                 failed += 1;

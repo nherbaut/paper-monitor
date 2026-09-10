@@ -4,7 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import jakarta.transaction.Transactional;
+import java.util.List;
 import org.junit.jupiter.api.Test;
+import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.LogicalFeed;
 
 class GoogleDriveSyncServiceTest {
@@ -49,5 +52,14 @@ class GoogleDriveSyncServiceTest {
     @Test
     void escapesDriveQueryStrings() {
         assertEquals("Bob\\'s \\\\ Feed", GoogleDriveSyncService.driveQueryEscape("Bob's \\ Feed"));
+    }
+
+    @Test
+    void backfillDoesNotKeepAnOuterTransactionOpen() throws NoSuchMethodException {
+        Transactional transactional = GoogleDriveSyncService.class
+                .getMethod("backfill", AppUser.class, List.class)
+                .getAnnotation(Transactional.class);
+
+        assertEquals(Transactional.TxType.NOT_SUPPORTED, transactional.value());
     }
 }
