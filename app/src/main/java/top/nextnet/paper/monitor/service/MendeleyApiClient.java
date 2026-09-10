@@ -19,16 +19,25 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.jboss.logging.Logger;
 import top.nextnet.paper.monitor.model.UserSettings;
 
 @ApplicationScoped
 public class MendeleyApiClient {
+    private static final Logger LOG = Logger.getLogger(MendeleyApiClient.class);
     static final int PAGE_SIZE = 100;
     static final String API = "https://api.mendeley.com";
     static final String DOCUMENT = "application/vnd.mendeley-document.1+json";
     static final String FOLDER = "application/vnd.mendeley-folder.1+json";
     static final String FILE = "application/vnd.mendeley-file.1+json";
+    static final String FILE_LINK = "application/vnd.mendeley-file-link.1+json";
+    static final String CONTENT_TICKET = "application/vnd.mendeley-content-ticket.1+json";
     static final String ANNOTATION = "application/vnd.mendeley-annotation.1+json";
+    static final String USER_AGENT = "MIAGE-Review-Factory/1.0";
+    private static final Pattern CLOUDFLARE_RAY_ID = Pattern.compile(
+            "Cloudflare Ray ID:\\s*(?:<[^>]+>\\s*)*([a-zA-Z0-9]+)", Pattern.CASE_INSENSITIVE);
     private final HttpClient client;
     private final MendeleyAuthService auth;
 
@@ -98,6 +107,13 @@ public class MendeleyApiClient {
                 && error.body.toLowerCase(Locale.ROOT).contains("folder");
     }
 
+    static boolean isCloudflareBlock(MendeleyApiException error) {
+        if (error == null || error.status != 403) return false;
+        String body = error.body.toLowerCase(Locale.ROOT);
+        return body.contains("cloudflare")
+                && (body.contains("sorry, you have been blocked") || body.contains("cf-error-details"));
+    }
+
     public void removeFromFolder(UserSettings settings, String folderId, String documentId) throws IOException {
         send(settings, "DELETE", API + "/folders/" + path(folderId) + "/documents/" + path(documentId),
                 null, DOCUMENT, null, Map.of());
@@ -139,9 +155,26 @@ public class MendeleyApiClient {
 
     public void uploadPdf(UserSettings settings, String documentId, Path pdf, String fileName) throws IOException {
         byte[] bytes = Files.readAllBytes(pdf);
-        send(settings, "POST", API + "/files", "application/pdf", FILE, bytes, Map.of(
-                "Content-Disposition", "attachment; filename=\"" + safeFileName(fileName) + "\"",
-                "Link", "<" + API + "/documents/" + documentId + ">; rel=\"document\""));
+        Map<String, String> fileHeaders = fileHeaders(documentId, fileName);
+        try {
+            send(settings, "POST", API + "/files", "application/pdf", FILE, bytes, fileHeaders);
+        } catch (MendeleyApiException error) {
+            if (!isCloudflareBlock(error)) throw error;
+            LOG.warnf("Mendeley direct PDF upload for document %s was blocked by Cloudflare; retrying with a content ticket",
+                    documentId);
+            uploadPdfWithContentTicket(settings, bytes, fileHeaders);
+        }
+    }
+
+    private void uploadPdfWithContentTicket(UserSettings settings, byte[] bytes,
+            Map<String, String> fileHeaders) throws IOException {
+        Map<String, Object> ticket = object(send(settings, "POST", API + "/file_contents",
+                "application/pdf", CONTENT_TICKET, bytes, Map.of()));
+        String ticketId = value(ticket.get("id"));
+        if (ticketId == null) throw new IOException("Mendeley returned an invalid file content ticket");
+        send(settings, "POST", API + "/files", FILE_LINK, FILE,
+                JsonCodec.stringify(Map.of("file_content_ticket", ticketId)).getBytes(StandardCharsets.UTF_8),
+                fileHeaders);
     }
 
     private List<Map<String, Object>> getPages(UserSettings settings, String firstUrl, String accept) throws IOException {
@@ -160,7 +193,9 @@ public class MendeleyApiClient {
     private HttpResponse<byte[]> send(UserSettings settings, String method, String url, String contentType,
             String accept, byte[] body, Map<String, String> extraHeaders) throws IOException {
         String accessToken = auth.accessToken(settings);
-        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url)).header("Authorization", "Bearer " + accessToken);
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
+                .header("Authorization", "Bearer " + accessToken)
+                .header("User-Agent", USER_AGENT);
         if (accept != null) builder.header("Accept", accept);
         if (contentType != null) builder.header("Content-Type", contentType);
         extraHeaders.forEach(builder::header);
@@ -195,6 +230,11 @@ public class MendeleyApiClient {
     }
     private static String path(String value) { return query(value).replace("+", "%20"); }
     private static String query(String value) { return URLEncoder.encode(value, StandardCharsets.UTF_8); }
+    private static Map<String, String> fileHeaders(String documentId, String fileName) {
+        return Map.of(
+                "Content-Disposition", "attachment; filename=\"" + safeFileName(fileName) + "\"",
+                "Link", "<" + API + "/documents/" + path(documentId) + ">; rel=\"document\"");
+    }
     static String paginated(String url) { return url + (url.contains("?") ? "&" : "?") + "limit=" + PAGE_SIZE; }
     /** HTTP conditional headers require an RFC 1123 date, whereas Mendeley documents expose ISO-8601 timestamps. */
     static String ifUnmodifiedSince(String remoteModifiedAt) {
@@ -212,13 +252,27 @@ public class MendeleyApiClient {
     }
     private static String safeFileName(String value) { return (value == null ? "paper.pdf" : value).replace("\"", "").replace("\r", "").replace("\n", ""); }
 
+    static String apiErrorMessage(int status, String body) {
+        String normalized = body == null ? "" : body.trim();
+        if (status == 403 && normalized.toLowerCase(Locale.ROOT).contains("cloudflare")) {
+            Matcher ray = CLOUDFLARE_RAY_ID.matcher(normalized);
+            return "Mendeley API HTTP 403: request blocked by Cloudflare"
+                    + (ray.find() ? " (Ray ID " + ray.group(1) + ")" : "");
+        }
+        if (normalized.startsWith("<") && normalized.toLowerCase(Locale.ROOT).contains("<html")) {
+            return "Mendeley API HTTP " + status + ": HTML error response";
+        }
+        if (normalized.length() > 1000) normalized = normalized.substring(0, 1000) + "…";
+        return "Mendeley API HTTP " + status + (normalized.isBlank() ? "" : ": " + normalized);
+    }
+
     public static class MendeleyApiException extends IOException {
         public final int status;
         public final String body;
         public MendeleyApiException(int status, String body) {
-            super("Mendeley API HTTP " + status + (body.isBlank() ? "" : ": " + body));
+            super(apiErrorMessage(status, body));
             this.status = status;
-            this.body = body;
+            this.body = body == null ? "" : body;
         }
     }
 }

@@ -35,4 +35,25 @@ class MendeleyApiClientTest {
                 MendeleyApiClient.ifUnmodifiedSince("2026-09-09T14:58:27.748789646Z"));
         assertNull(MendeleyApiClient.ifUnmodifiedSince("not-a-timestamp"));
     }
+
+    @Test
+    void recognizesAndSummarizesCloudflareBlockPages() {
+        MendeleyApiClient.MendeleyApiException error = new MendeleyApiClient.MendeleyApiException(403,
+                "<!DOCTYPE html><html><div id=\"cf-error-details\">Sorry, you have been blocked"
+                        + "</div>Cloudflare Ray ID: <strong>a38f904d682813d3</strong></html>");
+
+        assertTrue(MendeleyApiClient.isCloudflareBlock(error));
+        assertEquals("Mendeley API HTTP 403: request blocked by Cloudflare (Ray ID a38f904d682813d3)",
+                error.getMessage());
+        assertFalse(error.getMessage().contains("DOCTYPE"));
+    }
+
+    @Test
+    void doesNotTreatOrdinaryForbiddenResponsesAsCloudflareBlocks() {
+        MendeleyApiClient.MendeleyApiException error = new MendeleyApiClient.MendeleyApiException(403,
+                "{\"message\":\"Forbidden\"}");
+
+        assertFalse(MendeleyApiClient.isCloudflareBlock(error));
+        assertEquals("Mendeley API HTTP 403: {\"message\":\"Forbidden\"}", error.getMessage());
+    }
 }
