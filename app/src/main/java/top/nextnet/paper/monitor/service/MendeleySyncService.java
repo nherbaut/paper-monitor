@@ -24,6 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
 import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.Feed;
@@ -44,6 +45,8 @@ import top.nextnet.paper.monitor.repo.ReviewSubmissionRepository;
 public class MendeleySyncService {
     private static final Logger LOG = Logger.getLogger(MendeleySyncService.class);
     private static final int APPLY_ACTION_TRANSACTION_TIMEOUT_SECONDS = 300;
+    private static final Pattern ARXIV_ID = Pattern.compile(
+            "(?i)(?:[a-z][a-z0-9.-]*/\\d{7}|\\d{4}\\.\\d{4,5})(?:v\\d+)?");
     private final MendeleyApiClient api;
     private final AuthService auth;
     private final MendeleyFeedSyncRepository feeds;
@@ -154,7 +157,13 @@ public class MendeleySyncService {
         });
         List<Paper> localPapers = papers.findAllForReader(logicalFeed);
         Map<String, Paper> localByDoi = new LinkedHashMap<>();
-        localPapers.forEach(paper -> { String doi = localDoi(paper); if (doi != null) localByDoi.putIfAbsent(doi, paper); });
+        Map<String, Paper> localByArxiv = new LinkedHashMap<>();
+        localPapers.forEach(paper -> {
+            String doi = localDoi(paper);
+            String arxiv = localArxivId(paper);
+            if (doi != null) localByDoi.putIfAbsent(doi, paper);
+            if (arxiv != null) localByArxiv.putIfAbsent(arxiv, paper);
+        });
         Set<Long> matchedLocal = new LinkedHashSet<>();
         List<Map<String, Object>> actions = new ArrayList<>();
 
@@ -162,7 +171,9 @@ public class MendeleySyncService {
             String documentId = entry.getKey();
             Map<String, Object> remote = entry.getValue();
             MendeleyPaperSync link = linkByRemote.get(documentId);
-            Paper local = link == null ? localByDoi.get(remoteDoi(remote)) : link.paper;
+            Paper local = link == null
+                    ? firstPaper(localByDoi.get(remoteDoi(remote)), localByArxiv.get(remoteArxivId(remote)))
+                    : link.paper;
             List<String> assignedRemoteStates = remoteStates(memberships.get(documentId), stateFolders);
             String assignedRemoteState = assignedRemoteStates.size() == 1 ? assignedRemoteStates.get(0) : null;
             if (assignedRemoteStates.size() > 1) {
@@ -630,8 +641,12 @@ public class MendeleySyncService {
 
     private void applyMetadata(Paper paper, Map<String, Object> remote) {
         paper.title = first(value(remote.get("title")), "Untitled Mendeley document");
-        paper.sourceLink = first(remoteDoi(remote) == null ? null : "https://doi.org/" + remoteDoi(remote),
+        String doi = remoteDoi(remote);
+        String arxiv = remoteArxivId(remote);
+        paper.sourceLink = first(doi == null ? null : "https://doi.org/" + doi,
+                arxiv == null ? null : "https://arxiv.org/abs/" + arxiv,
                 firstString(remote.get("websites")), "mendeley:" + value(remote.get("id")));
+        if (arxiv != null) paper.openAccessLink = "https://arxiv.org/pdf/" + arxiv + ".pdf";
         paper.summary = value(remote.get("abstract"));
         paper.publisher = first(value(remote.get("source")), value(remote.get("publisher")));
         Integer year = intValue(remote.get("year"));
@@ -648,7 +663,8 @@ public class MendeleySyncService {
         if (paper.summary != null) result.put("abstract", paper.summary);
         if (paper.publisher != null) result.put("source", paper.publisher);
         if (paper.publishedOn != null) result.put("year", paper.publishedOn.getYear());
-        String doi = localDoi(paper); if (doi != null) result.put("identifiers", Map.of("doi", doi));
+        Map<String, String> identifiers = mendeleyIdentifiers(paper);
+        if (!identifiers.isEmpty()) result.put("identifiers", identifiers);
         if (paper.tags != null) result.put("tags", List.of(paper.tags.split("\\s*,\\s*|\\R")));
         List<Map<String, String>> authors = mendeleyAuthors(paper.authors);
         if (!authors.isEmpty()) result.put("authors", authors);
@@ -712,6 +728,8 @@ public class MendeleySyncService {
         if (paper == null || remote == null) return false;
         String doi = localDoi(paper);
         if (doi != null) return doi.equals(remoteDoi(remote));
+        String arxiv = localArxivId(paper);
+        if (arxiv != null) return arxiv.equals(remoteArxivId(remote));
         if (!Objects.equals(comparableValue(paper.title), comparableValue(remote.get("title")))) return false;
         Integer localYear = paper.publishedOn == null ? null : paper.publishedOn.getYear();
         if (!Objects.equals(localYear, intValue(remote.get("year")))) return false;
@@ -860,10 +878,33 @@ public class MendeleySyncService {
     }
     private Map<String, Object> linkView(MendeleyPaperSync link) { Map<String, Object> row = new LinkedHashMap<>(); row.put("id", link.id); row.put("paperId", link.paper == null ? null : link.paper.id); row.put("title", link.paper == null ? "Deleted paper" : link.paper.title); row.put("documentId", link.mendeleyDocumentId); row.put("status", link.status); row.put("details", link.conflictJson == null ? null : JsonCodec.parse(link.conflictJson)); return row; }
 
-    private Map<String, Object> localSnapshot(Paper p) { Map<String, Object> m = new LinkedHashMap<>(); m.put("title", p.title); m.put("doi", localDoi(p)); m.put("authors", p.authors); m.put("abstract", p.summary); m.put("year", p.publishedOn == null ? null : p.publishedOn.getYear()); m.put("source", p.publisher); m.put("tags", p.tags); m.put("notes", p.notes); m.put("state", p.status); m.put("pdf", p.uploadedPdfPath); return m; }
-    private Map<String, Object> remoteSnapshot(Map<String, Object> r, String state) { Map<String, Object> m = new LinkedHashMap<>(); m.put("title", r.get("title")); m.put("doi", remoteDoi(r)); m.put("authors", authorText(r.get("authors"))); m.put("abstract", r.get("abstract")); m.put("year", r.get("year")); m.put("source", first(value(r.get("source")), value(r.get("publisher")))); m.put("tags", strings(r.get("tags"))); m.put("notes", r.get("paper_monitor_notes")); m.put("state", state); m.put("pdf", r.get("file_attached")); return m; }
+    private Map<String, Object> localSnapshot(Paper paper) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("title", paper.title); snapshot.put("doi", localDoi(paper));
+        String arxiv = localArxivId(paper);
+        if (arxiv != null) snapshot.put("arxiv", arxiv);
+        snapshot.put("authors", paper.authors); snapshot.put("abstract", paper.summary);
+        snapshot.put("year", paper.publishedOn == null ? null : paper.publishedOn.getYear());
+        snapshot.put("source", paper.publisher); snapshot.put("tags", paper.tags);
+        snapshot.put("notes", paper.notes); snapshot.put("state", paper.status);
+        snapshot.put("pdf", paper.uploadedPdfPath);
+        return snapshot;
+    }
+    private Map<String, Object> remoteSnapshot(Map<String, Object> remote, String state) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("title", remote.get("title")); snapshot.put("doi", remoteDoi(remote));
+        String arxiv = remoteArxivId(remote);
+        if (arxiv != null) snapshot.put("arxiv", arxiv);
+        snapshot.put("authors", authorText(remote.get("authors")));
+        snapshot.put("abstract", remote.get("abstract")); snapshot.put("year", remote.get("year"));
+        snapshot.put("source", first(value(remote.get("source")), value(remote.get("publisher"))));
+        snapshot.put("tags", strings(remote.get("tags")));
+        snapshot.put("notes", remote.get("paper_monitor_notes")); snapshot.put("state", state);
+        snapshot.put("pdf", remote.get("file_attached"));
+        return snapshot;
+    }
     static boolean equivalentDocumentValues(Map<String, Object> local, Map<String, Object> remote) {
-        for (String field : List.of("title", "doi", "authors", "abstract", "year", "source", "notes")) {
+        for (String field : List.of("title", "doi", "arxiv", "authors", "abstract", "year", "source", "notes")) {
             if (!Objects.equals(comparableValue(local.get(field)), comparableValue(remote.get(field)))) return false;
         }
         if (!comparableTags(local.get("tags")).equals(comparableTags(remote.get("tags")))) return false;
@@ -921,7 +962,54 @@ public class MendeleySyncService {
         }
         return null;
     }
+    static String localArxivId(Paper paper) {
+        if (paper == null) return null;
+        for (String link : new String[] {paper.sourceLink, paper.openAccessLink}) {
+            String identifier = normalizeArxivId(link);
+            if (identifier != null) return identifier;
+        }
+        return null;
+    }
+    static Map<String, String> mendeleyIdentifiers(Paper paper) {
+        Map<String, String> identifiers = new LinkedHashMap<>();
+        String doi = localDoi(paper);
+        String arxiv = localArxivId(paper);
+        if (doi != null) identifiers.put("doi", doi);
+        if (arxiv != null) identifiers.put("arxiv", arxiv);
+        return identifiers;
+    }
+    static String normalizeArxivId(String raw) {
+        String candidate = value(raw);
+        if (candidate == null) return null;
+        String lower = candidate.toLowerCase(Locale.ROOT);
+        int host = lower.indexOf("arxiv.org/");
+        if (host >= 0) {
+            candidate = candidate.substring(host + "arxiv.org/".length());
+            lower = candidate.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("abs/") || lower.startsWith("pdf/")) candidate = candidate.substring(4);
+        } else if (lower.startsWith("arxiv:")) {
+            candidate = candidate.substring("arxiv:".length());
+        } else {
+            return null;
+        }
+        int query = candidate.indexOf('?');
+        if (query >= 0) candidate = candidate.substring(0, query);
+        int fragment = candidate.indexOf('#');
+        if (fragment >= 0) candidate = candidate.substring(0, fragment);
+        candidate = candidate.strip().replaceFirst("(?i)\\.pdf$", "").replaceFirst("/+$", "");
+        return ARXIV_ID.matcher(candidate).matches() ? candidate.toLowerCase(Locale.ROOT) : null;
+    }
     private static String remoteDoi(Map<String, Object> r) { Object ids = r.get("identifiers"); if (ids instanceof Map<?, ?> map) { String doi = value(map.get("doi")); return doi == null ? null : doi.toLowerCase(Locale.ROOT); } return null; }
+    private static String remoteArxivId(Map<String, Object> remote) {
+        Object identifiers = remote.get("identifiers");
+        if (!(identifiers instanceof Map<?, ?> map)) return null;
+        String identifier = value(map.get("arxiv"));
+        if (identifier == null) return null;
+        String lower = identifier.toLowerCase(Locale.ROOT);
+        return normalizeArxivId(lower.startsWith("arxiv:") || lower.contains("arxiv.org/")
+                ? identifier
+                : "arXiv:" + identifier);
+    }
     private static String authorText(Object raw) { List<String> names = new ArrayList<>(); for (Map<String, Object> p : objects(raw)) names.add((first(value(p.get("first_name")), "") + " " + first(value(p.get("last_name")), "")).trim()); return names.isEmpty() ? null : String.join("; ", names); }
     static String composeMendeleyNotes(String documentNote, String annotationMarkdown) {
         String base = withoutMendeleyAnnotations(documentNote);
@@ -969,6 +1057,7 @@ public class MendeleySyncService {
     private static String value(Object value) { return value == null || String.valueOf(value).isBlank() ? null : String.valueOf(value); }
     static String nonNull(String value) { return value == null ? "" : value; }
     private static String first(String... values) { for (String v : values) if (v != null && !v.isBlank()) return v; return null; }
+    private static Paper firstPaper(Paper... papers) { for (Paper paper : papers) if (paper != null) return paper; return null; }
     private static Long longValue(Object v) { return v == null ? null : Long.valueOf(String.valueOf(v)); }
     private static Integer intValue(Object v) { return v == null ? null : Integer.valueOf(String.valueOf(v)); }
     private static Instant instant(Object v) { try { return v == null ? null : Instant.parse(String.valueOf(v)); } catch (Exception e) { return null; } }

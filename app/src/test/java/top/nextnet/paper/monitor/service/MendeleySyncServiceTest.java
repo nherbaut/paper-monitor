@@ -63,6 +63,22 @@ class MendeleySyncServiceTest {
     }
 
     @Test
+    void extractsAndExportsModernAndLegacyArxivIdentifiers() {
+        Paper modern = new Paper();
+        modern.sourceLink = "https://arxiv.org/abs/2401.12345v2";
+        modern.openAccessLink = "https://arxiv.org/pdf/2401.12345v2.pdf";
+        assertEquals("2401.12345v2", MendeleySyncService.localArxivId(modern));
+        assertEquals(Map.of("arxiv", "2401.12345v2"),
+                MendeleySyncService.mendeleyIdentifiers(modern));
+
+        Paper legacy = new Paper();
+        legacy.sourceLink = "arXiv:hep-th/9901001v3";
+        assertEquals("hep-th/9901001v3", MendeleySyncService.localArxivId(legacy));
+
+        assertNull(MendeleySyncService.normalizeArxivId("https://example.test/2401.12345"));
+    }
+
+    @Test
     void keepsOnlyUnfinishedActionsInAResumablePreview() {
         Map<String, Object> preview = new LinkedHashMap<>();
         preview.put("feedId", 12L);
@@ -166,6 +182,11 @@ class MendeleySyncServiceTest {
 
         assertFalse(MendeleySyncService.sameExportIdentity(withoutDoi, Map.of(
                 "title", "Another paper", "year", 2026)));
+
+        Paper arxiv = new Paper();
+        arxiv.sourceLink = "https://arxiv.org/abs/2509.01234";
+        assertTrue(MendeleySyncService.sameExportIdentity(arxiv,
+                Map.of("identifiers", Map.of("arxiv", "2509.01234"))));
     }
 
     @Test
