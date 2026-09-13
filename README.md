@@ -400,10 +400,11 @@ The sidecar exposes:
 
 Compose assumes you provide:
 
-- a host `piper` binary at `/usr/local/bin/piper`
 - voice models under `data/tts-models/`
 
-That keeps the sidecar isolated without coupling Piper installation details into the Quarkus app.
+The Piper executable is installed in the sidecar image by the `piper-tts` Python
+package. This keeps the sidecar isolated without coupling Piper installation
+details into the Quarkus app.
 
 ## Build and push container images
 

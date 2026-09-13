@@ -20,7 +20,8 @@ Example request:
 ## Environment
 
 - `PIPER_BIN`
-  Default: `piper`
+  Default in the application: `piper`. The container sets it to the
+  `piper-tts` package location, `/usr/local/bin/piper`.
 - `PIPER_MODELS_DIR`
   Default: `/models`
 - `PIPER_DEFAULT_VOICE`

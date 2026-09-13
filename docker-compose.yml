@@ -40,7 +40,7 @@ services:
         ports:
             - 8090:8090
         environment:
-            - PIPER_BIN=/usr/bin/piper
+            - PIPER_BIN=/usr/local/bin/piper
         volumes:
             - /home/nherbaut/.local/piper/models/:/models:ro
         image: docker.io/nherbaut/paper-monitor-piper-api:latest

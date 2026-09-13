@@ -133,6 +133,9 @@ public class TtsService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IOException("TTS request interrupted", e);
+        } catch (IOException e) {
+            Log.errorf(e, "TTS request could not reach %s", speakUrl);
+            throw new IOException("TTS service is unavailable", e);
         }
 
         Log.infof("TTS response <- %s status=%d content-type=%s",
