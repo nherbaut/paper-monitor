@@ -5076,7 +5076,17 @@
         for (const candidate of candidates) {
             try {
                 const url = new URL(candidate);
-                if (!url.hostname.toLowerCase().endsWith("arxiv.org")) {
+                const hostname = url.hostname.toLowerCase();
+                if (hostname.endsWith("doi.org")) {
+                    const doi = decodeURIComponent(url.pathname.replace(/^\//, ""));
+                    const match = doi.match(/^10\.48550\/arxiv\.(.+)$/i);
+                    const identifier = match?.[1] || "";
+                    if (/^(?:[0-9]{4}\.[0-9]{4,5}|[a-z0-9.-]+\/[0-9]{7})(?:v[0-9]+)?$/i.test(identifier)) {
+                        return "https://arxiv.org/pdf/" + identifier + ".pdf";
+                    }
+                    continue;
+                }
+                if (!hostname.endsWith("arxiv.org")) {
                     continue;
                 }
                 if (url.pathname.startsWith("/abs/")) {

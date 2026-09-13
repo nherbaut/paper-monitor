@@ -1821,14 +1821,20 @@ public class HomeResource {
         requireCurrentUser();
         String normalizedDoi = normalizeDoiInput(doi);
         DoiMetadataService.DoiMetadata metadata = fetchDoiMetadata(normalizedDoi);
+        String sourceLink = stringOrDefault(metadata.doiUrl(), normalizedDoiSourceLink(normalizedDoi));
+        String openAccessUrl = normalize(metadata.openAccessUrl());
+        if (openAccessUrl == null) {
+            openAccessUrl = paperPdfImportService.supportedPdfUrl(sourceLink, normalizedDoi)
+                    .orElse(null);
+        }
         String responseJson = JsonCodec.stringify(Map.of(
                 "doi", normalizedDoi,
-                "sourceLink", stringOrDefault(metadata.doiUrl(), normalizedDoiSourceLink(normalizedDoi)),
+                "sourceLink", sourceLink,
                 "title", stringOrDefault(metadata.title(), ""),
                 "authors", stringOrDefault(metadata.authors(), ""),
                 "publisher", stringOrDefault(metadata.publisher(), ""),
                 "summary", stringOrDefault(metadata.summary(), ""),
-                "openAccessUrl", stringOrDefault(metadata.openAccessUrl(), ""),
+                "openAccessUrl", stringOrDefault(openAccessUrl, ""),
                 "publishedOn", metadata.publishedOn() == null ? "" : metadata.publishedOn().toString()
         ));
         return Response.ok(responseJson, MediaType.APPLICATION_JSON).build();
@@ -3610,6 +3616,10 @@ public class HomeResource {
         }
         paper.sourceLink = metadata.doiUrl() == null ? sourceLink : metadata.doiUrl();
         paper.openAccessLink = normalize(metadata.openAccessUrl());
+        if (paper.openAccessLink == null) {
+            paper.openAccessLink = paperPdfImportService.supportedPdfUrl(paper.sourceLink, normalizedDoi)
+                    .orElse(null);
+        }
         paper.summary = normalize(metadata.summary());
         paper.authors = normalize(metadata.authors());
         paper.publisher = normalize(metadata.publisher());

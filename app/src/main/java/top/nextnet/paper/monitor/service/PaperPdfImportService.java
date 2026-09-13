@@ -10,13 +10,20 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.List;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import top.nextnet.paper.monitor.model.Paper;
 
 @ApplicationScoped
 public class PaperPdfImportService {
+
+    private static final Pattern ARXIV_DOI_PATTERN = Pattern.compile(
+            "(?i)^10\\.48550/arxiv\\.(.+)$");
+    private static final Pattern ARXIV_ID_PATTERN = Pattern.compile(
+            "(?i)^(?:[0-9]{4}\\.[0-9]{4,5}|[a-z0-9.-]+/[0-9]{7})(?:v[0-9]+)?$");
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -33,7 +40,14 @@ public class PaperPdfImportService {
         if (paper == null) {
             return Optional.empty();
         }
-        return List.of(paper.openAccessLink, paper.sourceLink).stream()
+        return supportedPdfUrl(paper.openAccessLink, paper.sourceLink);
+    }
+
+    public Optional<String> supportedPdfUrl(String... candidates) {
+        if (candidates == null) {
+            return Optional.empty();
+        }
+        return Arrays.stream(candidates)
                 .map(this::normalizeArxivPdfUrl)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -84,9 +98,14 @@ public class PaperPdfImportService {
         if (candidate == null || candidate.isBlank()) {
             return Optional.empty();
         }
+        String normalizedCandidate = candidate.trim();
+        Optional<String> doiPdfUrl = normalizeArxivDoiPdfUrl(normalizedCandidate);
+        if (doiPdfUrl.isPresent()) {
+            return doiPdfUrl;
+        }
         URI uri;
         try {
-            uri = URI.create(candidate.trim());
+            uri = URI.create(normalizedCandidate);
         } catch (IllegalArgumentException e) {
             return Optional.empty();
         }
@@ -106,6 +125,37 @@ public class PaperPdfImportService {
             return Optional.of(path.endsWith(".pdf") ? candidate.trim() : "https://arxiv.org" + path + ".pdf");
         }
         return Optional.empty();
+    }
+
+    private Optional<String> normalizeArxivDoiPdfUrl(String candidate) {
+        String doi = candidate;
+        try {
+            URI uri = URI.create(candidate);
+            String host = uri.getHost();
+            if (host != null && host.toLowerCase(Locale.ROOT).endsWith("doi.org")) {
+                doi = uri.getPath();
+                if (doi != null && doi.startsWith("/")) {
+                    doi = doi.substring(1);
+                }
+            } else if (host != null) {
+                return Optional.empty();
+            }
+        } catch (IllegalArgumentException ignored) {
+            // The candidate may be a bare DOI rather than a URL.
+        }
+        if (doi == null) {
+            return Optional.empty();
+        }
+        doi = doi.replaceFirst("(?i)^doi:\\s*", "");
+        Matcher matcher = ARXIV_DOI_PATTERN.matcher(doi);
+        if (!matcher.matches()) {
+            return Optional.empty();
+        }
+        String identifier = matcher.group(1);
+        if (!ARXIV_ID_PATTERN.matcher(identifier).matches()) {
+            return Optional.empty();
+        }
+        return Optional.of("https://arxiv.org/pdf/" + identifier + ".pdf");
     }
 
     private boolean startsWithPdfMagic(byte[] bytes) {
