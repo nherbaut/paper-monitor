@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -284,14 +285,7 @@ public class ReviewService {
     }
 
     public Map<String, Object> sanitizeDraftValues(Review review, Map<String, Object> proposedValues) {
-        Map<String, Object> candidate = new LinkedHashMap<>();
-        if (proposedValues != null) {
-            proposedValues.forEach((key, value) -> {
-                if (key != null && !isMissing(value)) {
-                    candidate.put(key, value);
-                }
-            });
-        }
+        Map<String, Object> candidate = normalizeDraftValues(review, proposedValues);
         while (!candidate.isEmpty()) {
             try {
                 validateSubmission(review, candidate);
@@ -310,6 +304,292 @@ public class ReviewService {
             }
         }
         return candidate;
+    }
+
+    private Map<String, Object> normalizeDraftValues(Review review, Map<String, Object> proposedValues) {
+        if (proposedValues == null || proposedValues.isEmpty()) {
+            return new LinkedHashMap<>();
+        }
+        Map<String, Object> schema = formSchema(review);
+        Map<String, Object> scales = asObjectMap(schema.get("scales"));
+        Map<String, Map<String, Object>> fieldsById = new LinkedHashMap<>();
+        for (Map<String, Object> field : objectMapList(schema.get("fields"))) {
+            collectFieldsById(field, fieldsById, scales);
+        }
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        collectProposedFieldValues(proposedValues, fieldsById, normalized);
+        return normalized;
+    }
+
+    private void collectFieldsById(
+            Map<String, Object> field,
+            Map<String, Map<String, Object>> fieldsById,
+            Map<String, Object> scales
+    ) {
+        String fieldId = stringValue(field.get("id"));
+        if (fieldId != null) {
+            fieldsById.put(fieldId, field);
+        }
+        collectCriterionFieldsById(objectMapList(field.get("values")), fieldsById, scales);
+        for (Map<String, Object> subfield : objectMapList(field.get("subdimensions"))) {
+            collectFieldsById(subfield, fieldsById, scales);
+        }
+    }
+
+    private void collectCriterionFieldsById(
+            List<Map<String, Object>> options,
+            Map<String, Map<String, Object>> fieldsById,
+            Map<String, Object> scales
+    ) {
+        for (Map<String, Object> option : options) {
+            for (Map<String, Object> criterion : objectMapList(option.get("criteria"))) {
+                String criterionId = stringValue(criterion.get("id"));
+                if (criterionId != null) {
+                    fieldsById.put(criterionId, criterionField(criterion, scales));
+                }
+            }
+            collectCriterionFieldsById(objectMapList(option.get("children")), fieldsById, scales);
+        }
+    }
+
+    private Map<String, Object> criterionField(Map<String, Object> criterion, Map<String, Object> scales) {
+        Map<String, Object> field = new LinkedHashMap<>(criterion);
+        field.put("cardinality", "single");
+        Map<String, Object> scale = asObjectMap(scales.get(stringValue(criterion.get("scale"))));
+        List<Map<String, Object>> scaleValues = objectMapList(scale.get("scale_values"));
+        if (!scaleValues.isEmpty()) {
+            List<Map<String, Object>> options = new ArrayList<>();
+            for (Map<String, Object> scaleValue : scaleValues) {
+                String value = stringValue(scaleValue.get("value"));
+                if (value != null) {
+                    options.add(Map.of(
+                            "id", value,
+                            "label", Objects.requireNonNullElse(stringValue(scaleValue.get("label")), value),
+                            "children", List.of()));
+                }
+            }
+            field.put("values", options);
+        } else {
+            field.put("value_type", "numeric".equals(stringValue(scale.get("scale_type")))
+                    ? "numeric" : "free_text");
+            field.put("values", List.of());
+        }
+        field.put("subdimensions", List.of());
+        return field;
+    }
+
+    private void collectProposedFieldValues(
+            Object value,
+            Map<String, Map<String, Object>> fieldsById,
+            Map<String, Object> normalized
+    ) {
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = String.valueOf(entry.getKey());
+                Map<String, Object> field = fieldsById.get(key);
+                if (field != null) {
+                    mergeNormalizedFieldValue(normalized, field, normalizeFieldValue(field, entry.getValue()));
+                }
+                collectProposedFieldValues(entry.getValue(), fieldsById, normalized);
+            }
+        } else if (value instanceof List<?> list) {
+            for (Object item : list) {
+                collectProposedFieldValues(item, fieldsById, normalized);
+            }
+        }
+    }
+
+    private Object normalizeFieldValue(Map<String, Object> field, Object value) {
+        boolean multiple = "multiple".equals(stringValue(field.get("cardinality")));
+        List<Map<String, Object>> options = objectMapList(field.get("values"));
+        if (!options.isEmpty()) {
+            List<String> values = normalizedCategoryValues(value, options, multiple);
+            return multiple ? values : values.stream().findFirst().orElse(null);
+        }
+        if (!objectMapList(field.get("subdimensions")).isEmpty() && containsStructuredObject(value)) {
+            return null;
+        }
+        if ("numeric".equals(stringValue(field.get("value_type")))) {
+            List<Number> values = normalizedNumericValues(value);
+            return multiple ? values : values.stream().findFirst().orElse(null);
+        }
+        List<String> values = normalizedTextValues(value);
+        if (multiple) {
+            return values;
+        }
+        return values.isEmpty() ? null : String.join("\n", values);
+    }
+
+    private List<String> normalizedCategoryValues(
+            Object value,
+            List<Map<String, Object>> options,
+            boolean multiple
+    ) {
+        Map<String, String> accepted = new LinkedHashMap<>();
+        collectAcceptedCategoryValues(options, accepted);
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        collectCategoryValues(value, accepted, values, multiple);
+        return new ArrayList<>(values);
+    }
+
+    private void collectAcceptedCategoryValues(List<Map<String, Object>> options, Map<String, String> accepted) {
+        for (Map<String, Object> option : options) {
+            String id = stringValue(option.get("id"));
+            String label = stringValue(option.get("label"));
+            if (id != null) {
+                accepted.put(id.toLowerCase(java.util.Locale.ROOT), id);
+            }
+            if (id != null && label != null) {
+                accepted.putIfAbsent(label.trim().toLowerCase(java.util.Locale.ROOT), id);
+            }
+            collectAcceptedCategoryValues(objectMapList(option.get("children")), accepted);
+        }
+    }
+
+    private void collectCategoryValues(
+            Object value,
+            Map<String, String> accepted,
+            Set<String> result,
+            boolean splitMultiple
+    ) {
+        if (value instanceof List<?> list) {
+            list.forEach(item -> collectCategoryValues(item, accepted, result, splitMultiple));
+            return;
+        }
+        if (value instanceof Map<?, ?> map) {
+            for (String key : List.of("id", "value", "option_id", "optionId", "selected")) {
+                if (map.containsKey(key)) {
+                    collectCategoryValues(map.get(key), accepted, result, splitMultiple);
+                }
+            }
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String acceptedId = accepted.get(String.valueOf(entry.getKey()).trim().toLowerCase(java.util.Locale.ROOT));
+                if (acceptedId != null && isTruthy(entry.getValue())) {
+                    result.add(acceptedId);
+                }
+            }
+            return;
+        }
+        if (value == null) {
+            return;
+        }
+        String candidate = String.valueOf(value).trim();
+        String acceptedId = accepted.get(candidate.toLowerCase(java.util.Locale.ROOT));
+        if (acceptedId != null) {
+            result.add(acceptedId);
+            return;
+        }
+        if (splitMultiple && (candidate.contains(",") || candidate.contains(";"))) {
+            for (String item : candidate.split("[,;]")) {
+                collectCategoryValues(item, accepted, result, false);
+            }
+        }
+    }
+
+    private List<Number> normalizedNumericValues(Object value) {
+        List<Number> result = new ArrayList<>();
+        collectNumericValues(value, result);
+        return result;
+    }
+
+    private void collectNumericValues(Object value, List<Number> result) {
+        if (value instanceof List<?> list) {
+            list.forEach(item -> collectNumericValues(item, result));
+        } else if (value instanceof Number number) {
+            result.add(number);
+        } else if (value instanceof String string) {
+            try {
+                result.add(Double.valueOf(string.trim()));
+            } catch (NumberFormatException ignored) {
+                // Unsupported AI values are omitted from the draft.
+            }
+        } else if (value instanceof Map<?, ?> map) {
+            for (String key : List.of("value", "answer", "number")) {
+                if (map.containsKey(key)) {
+                    collectNumericValues(map.get(key), result);
+                    return;
+                }
+            }
+        }
+    }
+
+    private List<String> normalizedTextValues(Object value) {
+        List<String> result = new ArrayList<>();
+        collectTextValues(value, result);
+        return result.stream().filter(item -> !item.isBlank()).distinct().toList();
+    }
+
+    private void collectTextValues(Object value, List<String> result) {
+        if (value instanceof List<?> list) {
+            list.forEach(item -> collectTextValues(item, result));
+        } else if (value instanceof String string) {
+            if (!string.isBlank()) {
+                result.add(string.trim());
+            }
+        } else if (value instanceof Number || value instanceof Boolean) {
+            result.add(String.valueOf(value));
+        } else if (value instanceof Map<?, ?> map) {
+            for (String key : List.of("text", "value", "answer", "summary", "finding", "evidence", "quote", "description")) {
+                if (map.containsKey(key)) {
+                    collectTextValues(map.get(key), result);
+                    return;
+                }
+            }
+            result.add(JsonCodec.stringify(map));
+        }
+    }
+
+    private void mergeNormalizedFieldValue(
+            Map<String, Object> normalized,
+            Map<String, Object> field,
+            Object value
+    ) {
+        if (isMissing(value)) {
+            return;
+        }
+        String fieldId = stringValue(field.get("id"));
+        if (!"multiple".equals(stringValue(field.get("cardinality")))) {
+            normalized.putIfAbsent(fieldId, value);
+            return;
+        }
+        List<Object> merged = new ArrayList<>();
+        Object existing = normalized.get(fieldId);
+        if (existing instanceof List<?> list) {
+            merged.addAll(list);
+        }
+        if (value instanceof List<?> list) {
+            for (Object item : list) {
+                if (!merged.contains(item)) {
+                    merged.add(item);
+                }
+            }
+        } else if (!merged.contains(value)) {
+            merged.add(value);
+        }
+        if (!merged.isEmpty()) {
+            normalized.put(fieldId, merged);
+        }
+    }
+
+    private boolean containsStructuredObject(Object value) {
+        if (value instanceof Map<?, ?>) {
+            return true;
+        }
+        if (value instanceof List<?> list) {
+            return list.stream().anyMatch(this::containsStructuredObject);
+        }
+        return false;
+    }
+
+    private boolean isTruthy(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof Number number) {
+            return number.doubleValue() != 0D;
+        }
+        return value != null && !String.valueOf(value).isBlank()
+                && !"false".equalsIgnoreCase(String.valueOf(value));
     }
 
     public void validateSubmission(Review review, Map<String, Object> values) {
@@ -499,16 +779,22 @@ public class ReviewService {
         if (!missing) {
             validateCardinality(fieldId, stringValue(field.get("cardinality")), value, context.errors);
             if (!options.isEmpty()) {
-                List<String> submittedValues = stringList(value);
-                Set<String> allowed = collectOptionIds(options);
-                for (String submittedValue : submittedValues) {
-                    if (!allowed.contains(submittedValue)) {
-                        context.errors.add(new ValidationError(fieldId, "Unknown value: " + submittedValue));
+                if (!hasScalarShape(value)) {
+                    context.errors.add(new ValidationError(fieldId, "Field expects option identifiers"));
+                } else {
+                    List<String> submittedValues = stringList(value);
+                    Set<String> allowed = collectOptionIds(options);
+                    for (String submittedValue : submittedValues) {
+                        if (!allowed.contains(submittedValue)) {
+                            context.errors.add(new ValidationError(fieldId, "Unknown value: " + submittedValue));
+                        }
                     }
+                    validateSelectedCriteria(options, submittedValues, values, scales, context);
                 }
-                validateSelectedCriteria(options, submittedValues, values, scales, context);
             } else if ("numeric".equals(stringValue(field.get("value_type")))) {
                 validateNumericValue(fieldId, value, context.errors);
+            } else if (!hasTextShape(value)) {
+                context.errors.add(new ValidationError(fieldId, "Field expects text values"));
             }
         }
 
@@ -539,6 +825,20 @@ public class ReviewService {
         if (!(value instanceof Number)) {
             errors.add(new ValidationError(fieldId, "Field expects a numeric value"));
         }
+    }
+
+    private boolean hasScalarShape(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream().allMatch(item -> item instanceof String || item instanceof Number);
+        }
+        return value instanceof String || value instanceof Number;
+    }
+
+    private boolean hasTextShape(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream().allMatch(String.class::isInstance);
+        }
+        return value instanceof String;
     }
 
     private void validateSelectedCriteria(

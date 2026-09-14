@@ -284,6 +284,8 @@ def paper_analysis_prompt(
         review_instruction = f"""
 Extract proposed answers for the review form below. Use field IDs as keys. For enumerated fields, use only the option IDs supplied by the form. For multiple fields, return arrays. For numeric fields, return JSON numbers. Omit any answer that is not supported by the PDF. Do not add unknown keys.
 
+The review_values object MUST be flat: never return nested objects or evidence-record objects. Every single-cardinality value must be one string or number. Every multiple-cardinality value must be an array containing only strings or numbers. Treat parent fields and their subdimensions as independent fields. For category fields, return exact option IDs rather than labels or objects. For multiple free-text evidence, return an array of concise standalone strings.
+
 Review design:
 {json.dumps(review_design, ensure_ascii=False)}
 

@@ -4,6 +4,7 @@ import pytest
 from fastapi import HTTPException
 
 from paper_data_extractor import openai_taxonomy_extractor
+from paper_data_extractor.main import paper_analysis_prompt
 from paper_data_extractor.openai_taxonomy_extractor import OpenAITaxonomyExtractor
 
 
@@ -60,3 +61,15 @@ def test_paper_analysis_deletes_uploaded_file_after_invalid_output(monkeypatch):
 
     assert error.value.status_code == 502
     assert deleted == ["file-456"]
+
+
+def test_paper_analysis_prompt_requires_flat_scalar_review_values():
+    prompt = paper_analysis_prompt(
+        {"title": "Paper"},
+        {"title": "Review"},
+        {"fields": [{"id": "rq_1", "cardinality": "multiple"}]},
+    )
+
+    assert "review_values object MUST be flat" in prompt
+    assert "never return nested objects or evidence-record objects" in prompt
+    assert "array containing only strings or numbers" in prompt
