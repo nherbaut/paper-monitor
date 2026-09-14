@@ -69,6 +69,16 @@ class AnonymousSetupResourceTest {
     }
 
     @Test
+    void paperAnalysisBrowserModuleIsServedAsAStaticAsset() {
+        given()
+                .when().get("/assets/vendor/paper-analysis-progress.js")
+                .then()
+                .statusCode(200)
+                .contentType(containsString("javascript"))
+                .body(containsString("export function createPaperAnalysisProgress"));
+    }
+
+    @Test
     void setupWizardAndDraftApiDoNotRedirectAnonymousUsersToLogin() {
         given()
                 .redirects().follow(false)
