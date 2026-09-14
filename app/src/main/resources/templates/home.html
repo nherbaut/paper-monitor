@@ -1109,6 +1109,76 @@
             cursor: not-allowed;
         }
 
+        .paper-actions-panel {
+            min-width: 17rem;
+            gap: 0;
+        }
+
+        .paper-action-group {
+            display: grid;
+            gap: 0.15rem;
+            padding: 0.35rem 0;
+        }
+
+        .paper-action-group + .paper-action-group {
+            border-top: 1px solid var(--line);
+        }
+
+        .paper-action-group-label {
+            padding: 0.2rem 0.6rem;
+            color: var(--muted);
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .paper-zoom-controls {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.25rem;
+            padding: 0 0.35rem;
+        }
+
+        .paper-zoom-controls .tool-menu-action {
+            grid-template-columns: 1rem minmax(0, 1fr);
+            min-height: 2.2rem;
+            padding: 0.35rem 0.45rem;
+        }
+
+        .paper-action-submenu summary {
+            list-style: none;
+        }
+
+        .paper-action-submenu summary.tool-menu-action {
+            grid-template-columns: 1.25rem minmax(0, 1fr) 1rem;
+        }
+
+        .paper-action-submenu summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .paper-action-submenu summary .submenu-chevron {
+            margin-left: auto;
+            transition: transform 140ms ease;
+        }
+
+        .paper-action-submenu[open] summary .submenu-chevron {
+            transform: rotate(90deg);
+        }
+
+        .paper-action-submenu-panel {
+            display: grid;
+            gap: 0.15rem;
+            margin-left: 1rem;
+            padding-left: 0.35rem;
+            border-left: 2px solid var(--line);
+        }
+
+        .paper-action-danger {
+            color: var(--danger, #a33);
+        }
+
         .status-field {
             display: grid;
             gap: 0.3rem;
@@ -3971,6 +4041,10 @@
                 <details class="export-menu" id="reader-export-menu">
                     <summary class="secondary" id="reader-export-button">Tools</summary>
                     <div class="export-menu-panel">
+                        <button class="tool-menu-action" id="reader-open-review-button" type="button" disabled>
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z"></path><path d="M8 8h8M8 12h8M8 16h5"></path></svg>
+                            <span>Go to review</span>
+                        </button>
                         <button class="tool-menu-action" id="reader-import-paper-button" type="button">
                             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path><path d="M4 3h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"></path></svg>
                             <span>Import paper…</span>
@@ -4126,16 +4200,63 @@
                     <div class="toolbar-actions">
                         <details class="inline-menu" id="paper-actions-menu">
                             <summary class="icon-button secondary" title="Paper actions">⋯</summary>
-                            <div class="inline-menu-panel">
-                                <button class="secondary" id="paper-zoom-out" type="button">Zoom out</button>
-                                <button class="secondary" id="paper-zoom-in" type="button">Zoom in</button>
-                                <button class="secondary" id="paper-speak" type="button">Speak</button>
-                                <button class="secondary" id="paper-analyze" type="button">Analyze with OpenAI</button>
-                                <button class="secondary" id="paper-download" type="button">Download paper</button>
-                                <button class="secondary" id="paper-import-pdf" type="button">Fetch source PDF</button>
-                                <button class="secondary" id="paper-capture-pdf" type="button">Capture provider PDF</button>
-                                <button class="secondary" id="paper-remove-pdf" type="button">Remove PDF</button>
-                                <button class="secondary" id="paper-share" type="button">Share URL</button>
+                            <div class="inline-menu-panel paper-actions-panel">
+                                <div class="paper-action-group">
+                                    <span class="paper-action-group-label">Read and review</span>
+                                    <button class="tool-menu-action" id="paper-speak" type="button">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H2v6h4l5 4V5Z"></path><path d="M15 9a5 5 0 0 1 0 6M18 6a9 9 0 0 1 0 12"></path></svg>
+                                        <span id="paper-speak-label">Speak</span>
+                                    </button>
+                                    <button class="tool-menu-action" id="paper-analyze" type="button">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.4 4.1L17.5 8.5l-4.1 1.4L12 14l-1.4-4.1-4.1-1.4 4.1-1.4L12 3Z"></path><path d="m19 14 .8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z"></path></svg>
+                                        <span>Analyze with OpenAI</span>
+                                    </button>
+                                </div>
+                                <div class="paper-action-group">
+                                    <span class="paper-action-group-label">Document</span>
+                                    <div class="paper-zoom-controls hidden" id="paper-zoom-controls" aria-label="PDF zoom controls">
+                                        <button class="tool-menu-action" id="paper-zoom-out" type="button" title="Zoom out">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4M8 11h6"></path></svg>
+                                            <span>Zoom out</span>
+                                        </button>
+                                        <button class="tool-menu-action" id="paper-zoom-in" type="button" title="Zoom in">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4M8 11h6M11 8v6"></path></svg>
+                                            <span>Zoom in</span>
+                                        </button>
+                                    </div>
+                                    <button class="tool-menu-action" id="paper-download" type="button">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>
+                                        <span>Open or download paper</span>
+                                    </button>
+                                    <details class="paper-action-submenu hidden" id="paper-pdf-actions-menu">
+                                        <summary class="tool-menu-action">
+                                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h10l4 4v14H5V3Z"></path><path d="M15 3v5h5M9 13h6M12 10v6"></path></svg>
+                                            <span>Manage PDF</span>
+                                            <svg class="submenu-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6"></path></svg>
+                                        </summary>
+                                        <div class="paper-action-submenu-panel">
+                                            <button class="tool-menu-action" id="paper-import-pdf" type="button">
+                                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path></svg>
+                                                <span>Fetch source PDF</span>
+                                            </button>
+                                            <button class="tool-menu-action" id="paper-capture-pdf" type="button">
+                                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7V4h3M17 4h3v3M20 17v3h-3M7 20H4v-3"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
+                                                <span id="paper-capture-pdf-label">Capture provider PDF</span>
+                                            </button>
+                                            <button class="tool-menu-action paper-action-danger" id="paper-remove-pdf" type="button">
+                                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"></path></svg>
+                                                <span>Remove PDF</span>
+                                            </button>
+                                        </div>
+                                    </details>
+                                </div>
+                                <div class="paper-action-group">
+                                    <span class="paper-action-group-label">Share</span>
+                                    <button class="tool-menu-action" id="paper-share" type="button">
+                                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.1.1l2-2A5 5 0 0 0 12 4l-1.1 1.1"></path><path d="M14 11a5 5 0 0 0-7.1-.1l-2 2A5 5 0 0 0 12 20l1.1-1.1"></path></svg>
+                                        <span>Share paper URL</span>
+                                    </button>
+                                </div>
                             </div>
                         </details>
                     </div>
@@ -4467,6 +4588,7 @@
     const exportTabButton = document.getElementById("reader-export-button");
     const exportTabMenu = document.getElementById("reader-export-menu");
     const readerImportPaperButton = document.getElementById("reader-import-paper-button");
+    const readerOpenReviewButton = document.getElementById("reader-open-review-button");
     const readerOpenExportButton = document.getElementById("reader-open-export-button");
     const readerBatchUpdateButton = document.getElementById("reader-batch-update-button");
     const readerDiagramButton = document.getElementById("reader-diagram-button");
@@ -4572,13 +4694,17 @@
     const stateFeedbackPop = document.getElementById("state-feedback-pop");
     const stateFeedbackImage = document.getElementById("state-feedback-image");
     const paperActionsMenu = document.getElementById("paper-actions-menu");
+    const paperPdfActionsMenu = document.getElementById("paper-pdf-actions-menu");
+    const paperZoomControls = document.getElementById("paper-zoom-controls");
     const paperZoomOutButton = document.getElementById("paper-zoom-out");
     const paperZoomInButton = document.getElementById("paper-zoom-in");
     const paperSpeakButton = document.getElementById("paper-speak");
+    const paperSpeakLabel = document.getElementById("paper-speak-label");
     const paperAnalyzeButton = document.getElementById("paper-analyze");
     const paperDownloadButton = document.getElementById("paper-download");
     const paperImportPdfButton = document.getElementById("paper-import-pdf");
     const paperCapturePdfButton = document.getElementById("paper-capture-pdf");
+    const paperCapturePdfLabel = document.getElementById("paper-capture-pdf-label");
     const paperRemovePdfButton = document.getElementById("paper-remove-pdf");
     const paperShareButton = document.getElementById("paper-share");
     const paperTagEditor = document.getElementById("paper-tag-editor");
@@ -5060,7 +5186,7 @@
         notesPanel.classList.toggle("visible", hasReaderContent);
         readerSearch.classList.toggle("hidden", activePrimaryTab !== "state" || hasReaderContent);
         applyNotesCollapsedState();
-        paperSpeakButton.textContent = hasPdf ? "Speak selection" : "Speak abstract";
+        paperSpeakLabel.textContent = hasPdf ? "Speak selection" : "Speak abstract";
         setActionAvailability(paperSpeakButton, hasSelectedPaper, "Select a paper first.");
         setActionAvailability(
             paperAnalyzeButton,
@@ -5076,6 +5202,7 @@
         );
         setActionAvailability(paperZoomOutButton, hasPdf, "Zoom is available only when a PDF is open.");
         setActionAvailability(paperZoomInButton, hasPdf, "Zoom is available only when a PDF is open.");
+        paperZoomControls?.classList.toggle("hidden", !hasPdf);
         setActionAvailability(paperDownloadButton, Boolean(downloadUrl), "No downloadable source is available for this paper.");
         setActionAvailability(
             paperImportPdfButton,
@@ -5104,6 +5231,11 @@
                     ? "You need admin access on this paper feed to remove the attached PDF."
                     : "This paper has no attached PDF."
         );
+        const canManagePdf = Boolean(canEditPaper && (hasPdf || importUrl || providerUrl));
+        paperPdfActionsMenu?.classList.toggle("hidden", !canManagePdf);
+        if (!canManagePdf && paperPdfActionsMenu) {
+            paperPdfActionsMenu.open = false;
+        }
         setActionAvailability(paperShareButton, hasSelectedPaper, "Select a paper first.");
         if (noteViewUploadCue) {
             noteViewUploadCue.title = hasSelectedPaper
@@ -6280,6 +6412,20 @@
         return reviewSummaries.find((review) => String(review.logicalFeedId) === String(logicalFeedId)) || null;
     };
 
+    const updateReaderReviewAction = () => {
+        if (!readerOpenReviewButton) {
+            return;
+        }
+        const logicalFeedId = logicalFeedFilter?.value || "";
+        const review = reviewForLogicalFeed(logicalFeedId);
+        readerOpenReviewButton.disabled = !review;
+        readerOpenReviewButton.title = review
+            ? "Open " + (review.title || "the review") + "."
+            : logicalFeedId
+                ? "No review is configured for this paper feed."
+                : "Select a paper feed first.";
+    };
+
     const openReviewCreateModal = (logicalFeedId) => {
         if (!reviewCreateModal || !logicalFeedFilter) {
             return;
@@ -7059,6 +7205,7 @@
         }
         renderReviewTemplateOptions(reviewTemplateSelect?.value || "");
         renderFeedDashboardReviewActions();
+        updateReaderReviewAction();
     };
 
     const renderReviewLauncher = () => {};
@@ -9062,6 +9209,7 @@
             exportTabButton.title = toolsDisabled ? "Select a paper feed before using tools." : "Tools";
             if (readerImportPaperButton) readerImportPaperButton.disabled = toolsDisabled;
             if (readerOpenExportButton) readerOpenExportButton.disabled = toolsDisabled;
+            updateReaderReviewAction();
             updatePaperExportControls();
             if (readerBatchUpdateButton) {
                 const batchDisabled = !selectedLogicalFeedId || filtered.length === 0;
@@ -9184,6 +9332,7 @@
         exportTabButton.title = toolsDisabled ? "Select a paper feed before using tools." : "Tools";
         if (readerImportPaperButton) readerImportPaperButton.disabled = toolsDisabled;
         if (readerOpenExportButton) readerOpenExportButton.disabled = toolsDisabled;
+        updateReaderReviewAction();
         updatePaperExportControls();
         if (readerDiagramButton) {
             const diagramDisabled = !selectedLogicalFeedId;
@@ -9891,11 +10040,16 @@
         if (!button) {
             return;
         }
+        const label = button.querySelector("span");
         if (!button.dataset.defaultLabel) {
-            button.dataset.defaultLabel = button.textContent;
+            button.dataset.defaultLabel = (label?.textContent || button.textContent).trim();
         }
         button.disabled = busy;
-        button.textContent = busy ? "Generating audio..." : button.dataset.defaultLabel;
+        if (label) {
+            label.textContent = busy ? "Generating audio..." : button.dataset.defaultLabel;
+        } else {
+            button.textContent = busy ? "Generating audio..." : button.dataset.defaultLabel;
+        }
     };
 
     const speakText = async (text, triggerButton = paperSpeakButton) => {
@@ -10007,6 +10161,9 @@
     const closePaperActionsMenu = () => {
         if (paperActionsMenu) {
             paperActionsMenu.open = false;
+        }
+        if (paperPdfActionsMenu) {
+            paperPdfActionsMenu.open = false;
         }
     };
 
@@ -10144,7 +10301,7 @@
             stopPdfCapturePolling();
             markCapturedPdfAvailable(activePdfCapture.paperId, status.pdfUrl);
             notesStatus.textContent = "Provider PDF captured";
-            paperCapturePdfButton.textContent = "Capture provider PDF";
+            paperCapturePdfLabel.textContent = "Capture provider PDF";
             activePdfCapture = null;
             rememberActivePdfCapture();
             return;
@@ -10154,7 +10311,7 @@
             notesStatus.textContent = status.error || (status.status === "EXPIRED"
                 ? "PDF capture expired"
                 : "PDF capture failed");
-            paperCapturePdfButton.textContent = "Capture provider PDF";
+            paperCapturePdfLabel.textContent = "Capture provider PDF";
             activePdfCapture = null;
             rememberActivePdfCapture();
             return;
@@ -10210,7 +10367,7 @@
         capture.uploadUrl = new URL(capture.uploadUrl, window.location.origin).href;
         activePdfCapture = capture;
         rememberActivePdfCapture();
-        paperCapturePdfButton.textContent = "Capture armed";
+        paperCapturePdfLabel.textContent = "Capture armed";
         notesStatus.textContent = pdfCaptureExtensionReady
             ? "Opening provider page..."
             : "Waiting for the MIAGE Review Factory Firefox extension...";
@@ -10806,7 +10963,7 @@
             await startProviderPdfCapture();
         } catch (error) {
             notesStatus.textContent = error.message || "Failed to arm PDF capture";
-            paperCapturePdfButton.textContent = "Capture provider PDF";
+            paperCapturePdfLabel.textContent = "Capture provider PDF";
         }
     });
 
@@ -11304,6 +11461,14 @@
     });
     feedDeleteExpectedName?.addEventListener("input", () => {
         if (feedDeleteSubmit) feedDeleteSubmit.disabled = feedDeleteExpectedName.value !== deletingLogicalFeedName;
+    });
+    readerOpenReviewButton?.addEventListener("click", () => {
+        const review = reviewForLogicalFeed(logicalFeedFilter?.value || "");
+        if (!review) {
+            return;
+        }
+        exportTabMenu.open = false;
+        window.location.href = "/reviews/" + encodeURIComponent(review.id);
     });
     readerImportPaperButton?.addEventListener("click", () => {
         exportTabMenu.open = false;

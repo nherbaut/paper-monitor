@@ -7,6 +7,9 @@ import static org.hamcrest.Matchers.equalTo;
 import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Map;
@@ -66,6 +69,20 @@ class AnonymousSetupResourceTest {
                 .body(containsString("href=\"#create-account\""))
                 .body(containsString("name=\"avatarFileName\""))
                 .body(containsString("/assets/student-avatar/miage-student-01.png"));
+    }
+
+    @Test
+    void paperFeedAndPaperMenusExposeGroupedReviewActions() throws IOException {
+        try (InputStream stream = Thread.currentThread().getContextClassLoader()
+                .getResourceAsStream("templates/home.html")) {
+            Assertions.assertNotNull(stream);
+            String template = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            Assertions.assertTrue(template.contains("id=\"reader-open-review-button\""));
+            Assertions.assertTrue(template.contains("<span>Go to review</span>"));
+            Assertions.assertTrue(template.contains("class=\"paper-action-group-label\">Read and review"));
+            Assertions.assertTrue(template.contains("id=\"paper-pdf-actions-menu\""));
+            Assertions.assertTrue(template.contains("<span>Manage PDF</span>"));
+        }
     }
 
     @Test
