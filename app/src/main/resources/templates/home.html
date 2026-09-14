@@ -824,6 +824,45 @@
             margin: 0;
         }
 
+        .review-creation-modes {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.75rem;
+        }
+
+        .review-creation-mode {
+            display: grid;
+            align-content: start;
+            gap: 0.45rem;
+            min-height: 9rem;
+            padding: 1rem;
+            text-align: left;
+            white-space: normal;
+            border: 1px solid var(--line);
+            background: var(--panel-quiet);
+            color: var(--ink);
+        }
+
+        .review-creation-mode:hover,
+        .review-creation-mode:focus-visible {
+            border-color: var(--accent);
+            background: color-mix(in srgb, var(--accent) 8%, var(--panel));
+        }
+
+        .review-creation-mode strong {
+            font-size: 1rem;
+        }
+
+        .review-creation-mode span {
+            color: var(--muted);
+            font-weight: 400;
+            line-height: 1.4;
+        }
+
+        @media (max-width: 560px) {
+            .review-creation-modes { grid-template-columns: minmax(0, 1fr); }
+        }
+
         .mendeley-sync-progress-shell {
             display: grid;
             gap: 0.65rem;
@@ -3595,16 +3634,44 @@
                 <button class="icon-button secondary" id="review-modal-close" type="button" title="Close">×</button>
             </div>
             <form class="stack" id="review-create-form">
-                <section data-review-wizard-step="questions">
-                    <p class="meta">Step 1 of 3 · Start with the built-in five-question review scheme and tailor the research questions for this paper feed.</p>
+                <section data-review-wizard-step="mode">
+                    <p class="meta">Choose how to create the review.</p>
+                    <div class="review-creation-modes">
+                        <button class="review-creation-mode" id="review-mode-wizard" type="button">
+                            <strong>Guided research-question wizard</strong>
+                            <span>Start from the built-in five-question scheme and tailor its research questions.</span>
+                        </button>
+                        <button class="review-creation-mode" id="review-mode-pde" type="button">
+                            <strong>Use a PDE review model</strong>
+                            <span>Create the review from any existing model available in the PDE workbench.</span>
+                        </button>
+                    </div>
+                </section>
+                <section data-review-wizard-step="questions" hidden>
+                    <p class="meta">Guided setup · Tailor the built-in research questions for this paper feed.</p>
                     <div class="rq-editor-list" id="rq-editor-list"></div>
                     <div class="manual-import-actions">
                         <button class="secondary" id="rq-add-button" type="button">Add question</button>
+                        <button class="secondary" id="review-wizard-questions-back" type="button">Back</button>
                         <button class="secondary" id="review-wizard-questions-next" type="button">Next: choose states</button>
                     </div>
                 </section>
+                <section data-review-wizard-step="model" hidden>
+                    <p class="meta">PDE model setup · Choose an existing review model.</p>
+                    <label class="meta" for="review-template-select">PDE review model</label>
+                    <select id="review-template-select">
+                        <option value="">Loading review models...</option>
+                    </select>
+                    <p class="meta">Need another model? Create it in PDE, then refresh this list.</p>
+                    <div class="manual-import-actions">
+                        <button class="secondary" id="review-pde-back" type="button">Back</button>
+                        <a class="secondary" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Open PDE</a>
+                        <button class="secondary" id="review-pde-refresh" type="button">Refresh models</button>
+                        <button class="secondary" id="review-pde-next" type="button">Next: choose states</button>
+                    </div>
+                </section>
                 <section data-review-wizard-step="states" hidden>
-                    <p class="meta">Step 2 of 3 · States included in the live review scope.</p>
+                    <p class="meta">Choose the workflow states included in the live review scope.</p>
                     <div class="review-state-list" id="review-state-list"></div>
                     <div class="manual-import-actions">
                         <button class="secondary" id="review-wizard-states-back" type="button">Back</button>
@@ -3612,7 +3679,7 @@
                     </div>
                 </section>
                 <section data-review-wizard-step="confirm" hidden>
-                    <p class="meta">Step 3 of 3 · Review the scope and create the review.</p>
+                    <p class="meta">Review the selected model and scope, then create the review.</p>
                     <p class="meta" id="review-wizard-summary"></p>
                     <div class="manual-import-actions">
                         <button class="secondary" id="review-wizard-confirm-back" type="button">Back</button>
@@ -4311,16 +4378,26 @@
     const reviewMenuStatus = document.getElementById("review-menu-status");
     const reviewCreateForm = document.getElementById("review-create-form");
     const reviewStateList = document.getElementById("review-state-list");
+    const reviewModeWizard = document.getElementById("review-mode-wizard");
+    const reviewModePde = document.getElementById("review-mode-pde");
+    const reviewTemplateSelect = document.getElementById("review-template-select");
+    const reviewPdeBack = document.getElementById("review-pde-back");
+    const reviewPdeRefresh = document.getElementById("review-pde-refresh");
+    const reviewPdeNext = document.getElementById("review-pde-next");
     const rqEditorList = document.getElementById("rq-editor-list");
     const rqAddButton = document.getElementById("rq-add-button");
     const reviewWizardSteps = document.querySelectorAll("[data-review-wizard-step]");
+    const reviewWizardQuestionsBack = document.getElementById("review-wizard-questions-back");
     const reviewWizardQuestionsNext = document.getElementById("review-wizard-questions-next");
     const reviewWizardStatesBack = document.getElementById("review-wizard-states-back");
     const reviewWizardStatesNext = document.getElementById("review-wizard-states-next");
     const reviewWizardConfirmBack = document.getElementById("review-wizard-confirm-back");
     const reviewWizardSummary = document.getElementById("review-wizard-summary");
     const builtInReviewTemplateId = "five-research-questions";
+    let reviewCreationMode = null;
+    let reviewTemplates = [];
     let reviewBaseQuestions = [];
+    let reviewWizardLoadSequence = 0;
     let draggedRqRow = null;
     const feedCreateModal = document.getElementById("feed-create-modal");
     const feedCreateModalTitle = document.getElementById("feed-create-modal-title");
@@ -6208,12 +6285,12 @@
             return;
         }
         logicalFeedFilter.value = String(logicalFeedId || "");
+        prepareReviewWizard();
         if (typeof reviewCreateModal.showModal === "function") {
             reviewCreateModal.showModal();
         } else {
             reviewCreateModal.setAttribute("open", "open");
         }
-        prepareReviewWizard();
     };
 
     const closeReviewCreateModal = () => {
@@ -6369,10 +6446,57 @@
         });
     };
 
-    const prepareReviewWizard = async () => {
+    const renderReviewTemplateOptions = (selectedTemplateId = "") => {
+        if (!reviewTemplateSelect) return;
+        reviewTemplateSelect.innerHTML = "";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = reviewTemplates.length
+            ? "Select a PDE review model"
+            : "No PDE review models available";
+        reviewTemplateSelect.appendChild(placeholder);
+        reviewTemplates.forEach((template) => {
+            const option = document.createElement("option");
+            option.value = template.id;
+            option.textContent = template.title + (template.revision ? " · revision " + template.revision : "");
+            reviewTemplateSelect.appendChild(option);
+        });
+        if (selectedTemplateId && reviewTemplates.some((template) => template.id === selectedTemplateId)) {
+            reviewTemplateSelect.value = selectedTemplateId;
+        }
+    };
+
+    const refreshReviewTemplates = async () => {
+        const selectedTemplateId = reviewTemplateSelect?.value || "";
+        const response = await fetch("/api/review-templates", { headers: { Accept: "application/json" } });
+        const body = await response.text();
+        if (!response.ok) throw new Error(body || "Could not load PDE review models.");
+        reviewTemplates = JSON.parse(body);
+        renderReviewTemplateOptions(selectedTemplateId);
+    };
+
+    const prepareReviewWizard = () => {
         if (!logicalFeedFilter?.value) return;
+        reviewWizardLoadSequence += 1;
         if (reviewModalTitle) reviewModalTitle.textContent = "Create review for " + reviewFeedName();
+        reviewCreationMode = null;
+        reviewBaseQuestions = [];
+        renderRqEditor([]);
+        renderReviewTemplateOptions();
+        renderReviewScope();
+        reviewWizardQuestionsNext.disabled = true;
+        setReviewWizardStep("mode");
+        const existing = reviewForLogicalFeed(logicalFeedFilter.value);
+        reviewMenuStatus.textContent = existing
+            ? "A live review already exists and will be replaced. Choose how to build the new review."
+            : "Choose a guided setup or an existing PDE review model.";
+    };
+
+    const startGuidedReviewWizard = async () => {
+        const loadSequence = ++reviewWizardLoadSequence;
+        reviewCreationMode = "wizard";
         setReviewWizardStep("questions");
+        reviewWizardQuestionsNext.disabled = true;
         reviewMenuStatus.textContent = "Loading the five-question review scheme...";
         try {
             const response = await fetch("/api/review-templates/" + builtInReviewTemplateId, {
@@ -6381,17 +6505,34 @@
             const body = await response.text();
             if (!response.ok) throw new Error(body || "Could not load the built-in review scheme.");
             const detail = JSON.parse(body);
+            if (loadSequence !== reviewWizardLoadSequence || reviewCreationMode !== "wizard") return;
             reviewBaseQuestions = detail.researchQuestions || [];
             renderRqEditor(reviewBaseQuestions);
-            renderReviewScope();
-            const existing = reviewForLogicalFeed(logicalFeedFilter.value);
-            reviewMenuStatus.textContent = existing
-                ? "A live review already exists and will be replaced when you finish."
-                : "Tailor the research questions, then choose the review scope.";
+            reviewWizardQuestionsNext.disabled = false;
+            reviewMenuStatus.textContent = "Tailor the research questions, then choose the review scope.";
         } catch (error) {
+            if (loadSequence !== reviewWizardLoadSequence || reviewCreationMode !== "wizard") return;
             reviewBaseQuestions = [];
             renderRqEditor([]);
             reviewMenuStatus.textContent = error.message || "Could not load the built-in review scheme.";
+        }
+    };
+
+    const startPdeReviewFlow = async () => {
+        reviewCreationMode = "pde";
+        setReviewWizardStep("model");
+        renderReviewTemplateOptions(reviewTemplateSelect?.value || "");
+        reviewMenuStatus.textContent = reviewTemplates.length
+            ? "Choose a PDE review model."
+            : "Loading PDE review models...";
+        if (reviewTemplates.length) return;
+        try {
+            await refreshReviewTemplates();
+            reviewMenuStatus.textContent = reviewTemplates.length
+                ? "Choose a PDE review model."
+                : "No PDE review models are available. Create one in PDE, then refresh the list.";
+        } catch (error) {
+            reviewMenuStatus.textContent = error.message || "Could not load PDE review models.";
         }
     };
 
@@ -6903,14 +7044,20 @@
             return;
         }
         try {
-            const reviewsResponse = await fetch("/api/reviews", { headers: { Accept: "application/json" } });
+            const [templatesResponse, reviewsResponse] = await Promise.all([
+                fetch("/api/review-templates", { headers: { Accept: "application/json" } }),
+                fetch("/api/reviews", { headers: { Accept: "application/json" } })
+            ]);
+            reviewTemplates = templatesResponse.ok ? await templatesResponse.json() : [];
             reviewSummaries = reviewsResponse.ok ? await reviewsResponse.json() : [];
         } catch (error) {
+            reviewTemplates = [];
             reviewSummaries = [];
             if (reviewMenuStatus) {
                 reviewMenuStatus.textContent = error.message || "Failed to load review workspace.";
             }
         }
+        renderReviewTemplateOptions(reviewTemplateSelect?.value || "");
         renderFeedDashboardReviewActions();
     };
 
@@ -11622,26 +11769,74 @@
         });
     }
 
+    reviewModeWizard?.addEventListener("click", startGuidedReviewWizard);
+    reviewModePde?.addEventListener("click", startPdeReviewFlow);
+    reviewWizardQuestionsBack?.addEventListener("click", prepareReviewWizard);
+
     reviewWizardQuestionsNext?.addEventListener("click", () => {
         if (!validateReviewQuestions()) return;
         setReviewWizardStep("states");
         reviewMenuStatus.textContent = "Choose the workflow states included in this review.";
     });
-    reviewWizardStatesBack?.addEventListener("click", () => setReviewWizardStep("questions"));
+    reviewPdeBack?.addEventListener("click", prepareReviewWizard);
+    reviewPdeRefresh?.addEventListener("click", async () => {
+        reviewPdeRefresh.disabled = true;
+        reviewMenuStatus.textContent = "Refreshing PDE review models...";
+        try {
+            await refreshReviewTemplates();
+            reviewMenuStatus.textContent = reviewTemplates.length
+                ? "PDE review models refreshed."
+                : "No PDE review models are available. Create one in PDE, then refresh the list.";
+        } catch (error) {
+            reviewMenuStatus.textContent = error.message || "Could not load PDE review models.";
+        } finally {
+            reviewPdeRefresh.disabled = false;
+        }
+    });
+    reviewPdeNext?.addEventListener("click", () => {
+        if (!reviewTemplateSelect?.value) {
+            reviewMenuStatus.textContent = "Select a PDE review model.";
+            reviewTemplateSelect?.focus();
+            return;
+        }
+        setReviewWizardStep("states");
+        reviewMenuStatus.textContent = "Choose the workflow states included in this review.";
+    });
+    reviewWizardStatesBack?.addEventListener("click", () => {
+        setReviewWizardStep(reviewCreationMode === "pde" ? "model" : "questions");
+        reviewMenuStatus.textContent = reviewCreationMode === "pde"
+            ? "Choose a PDE review model."
+            : "Tailor the research questions, then choose the review scope.";
+    });
     reviewWizardStatesNext?.addEventListener("click", () => {
-        const questions = validateReviewQuestions();
+        const questions = reviewCreationMode === "wizard" ? validateReviewQuestions() : [];
         const selectedStates = selectedReviewStates();
-        if (!questions || !selectedStates.length) {
+        if (!reviewCreationMode) {
+            prepareReviewWizard();
+            return;
+        }
+        if (reviewCreationMode === "pde" && !reviewTemplateSelect?.value) {
+            setReviewWizardStep("model");
+            reviewMenuStatus.textContent = "Select a PDE review model.";
+            return;
+        }
+        if ((reviewCreationMode === "wizard" && !questions) || !selectedStates.length) {
             reviewMenuStatus.textContent = selectedStates.length
                 ? reviewMenuStatus.textContent : "Select at least one state.";
             return;
         }
-        const changes = reviewQuestionsChanged(questions);
-        reviewWizardSummary.textContent = reviewSchemeTitle() + " will cover "
-            + selectedStates.map(statusLabel).join(", ") + ". "
-            + (changes
-                ? "Your edited questions will be saved as a private version 1 review scheme."
-                : "The built-in five-question scheme will be used unchanged.");
+        if (reviewCreationMode === "pde") {
+            const selectedModel = reviewTemplateSelect.selectedOptions?.[0]?.textContent || "the selected PDE model";
+            reviewWizardSummary.textContent = reviewSchemeTitle() + " will use " + selectedModel
+                + " and cover " + selectedStates.map(statusLabel).join(", ") + ".";
+        } else {
+            const changes = reviewQuestionsChanged(questions);
+            reviewWizardSummary.textContent = reviewSchemeTitle() + " will cover "
+                + selectedStates.map(statusLabel).join(", ") + ". "
+                + (changes
+                    ? "Your edited questions will be saved as a private version 1 review scheme."
+                    : "The built-in five-question scheme will be used unchanged.");
+        }
         setReviewWizardStep("confirm");
         reviewMenuStatus.textContent = "Check the review details, then create it.";
     });
@@ -11651,20 +11846,31 @@
         reviewCreateForm.addEventListener("submit", async (event) => {
             event.preventDefault();
             const logicalFeedId = logicalFeedFilter.value;
-            const questions = validateReviewQuestions();
+            const questions = reviewCreationMode === "wizard" ? validateReviewQuestions() : [];
             const selectedStates = selectedReviewStates();
             if (!logicalFeedId) {
                 reviewMenuStatus.textContent = "Select a paper feed first.";
                 return;
             }
-            if (!questions || !selectedStates.length) {
+            if (!reviewCreationMode) {
+                prepareReviewWizard();
+                return;
+            }
+            if ((reviewCreationMode === "wizard" && !questions) || !selectedStates.length) {
                 reviewMenuStatus.textContent = "Select at least one state.";
                 return;
             }
             reviewMenuStatus.textContent = "Creating review...";
             try {
-                let templateId = builtInReviewTemplateId;
-                if (reviewQuestionsChanged(questions)) {
+                let templateId = reviewCreationMode === "pde"
+                    ? reviewTemplateSelect?.value
+                    : builtInReviewTemplateId;
+                if (!templateId) {
+                    setReviewWizardStep("model");
+                    reviewMenuStatus.textContent = "Select a PDE review model.";
+                    return;
+                }
+                if (reviewCreationMode === "wizard" && reviewQuestionsChanged(questions)) {
                     reviewMenuStatus.textContent = "Saving your private review scheme...";
                     const designResponse = await fetch("/api/review-templates/" + builtInReviewTemplateId + "/derivations", {
                         method: "POST",
