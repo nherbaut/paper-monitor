@@ -75,7 +75,8 @@ class AnonymousSetupResourceTest {
                 .then()
                 .statusCode(200)
                 .contentType(containsString("javascript"))
-                .body(containsString("export function createPaperAnalysisProgress"));
+                .body(containsString("export function createPaperAnalysisProgress"))
+                .body(containsString("completedCallbackJobId = String(job.jobId)"));
     }
 
     @Test

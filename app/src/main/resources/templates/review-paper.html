@@ -510,7 +510,7 @@
 <script type="module">
     import { marked } from "https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.esm.js";
     import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.min.mjs";
-    import { createPaperAnalysisProgress } from "/assets/vendor/paper-analysis-progress.js";
+    import { createPaperAnalysisProgress } from "/assets/vendor/paper-analysis-progress.js?v=2";
 
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.worker.min.mjs";
 
@@ -546,6 +546,9 @@
 
     const paperAnalysisProgress = createPaperAnalysisProgress({
         onCompleted(job) {
+            if (String(job.paperId || "") !== "{paper.id}") {
+                return;
+            }
             if (typeof job.notes === "string" && notesEditor) {
                 window.clearTimeout(notesSaveTimer);
                 notesEditor.value = job.notes;

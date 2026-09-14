@@ -212,6 +212,11 @@ export function createPaperAnalysisProgress(options = {}) {
                 const job = await response.json();
                 const running = RUNNING.has(String(job.status || "").toUpperCase());
                 if (!job.jobId || (!storedJobId && !running)) return;
+                if (!running) {
+                    // A completed job has already persisted its notes and review draft. Restoring
+                    // its progress indicator must not replay page-specific completion side effects.
+                    completedCallbackJobId = String(job.jobId);
+                }
                 window.localStorage.setItem(STORAGE_KEY, String(job.jobId));
                 minimized = true;
                 render(job);
