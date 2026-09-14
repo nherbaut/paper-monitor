@@ -100,6 +100,8 @@ Example Traefik configuration is provided in [traefik-forward-auth-example.yml](
   - the UI-oriented form schema
   - a generated review LinkML schema
   - a generated JSON Schema
+- `POST /api/papers/analyze`: analyze a PDF in one OpenAI call, returning an
+  NLM-style structured abstract and optional review-form draft values.
 - `POST /api/classifications`: store a paper classification.
 - `GET /api/classifications/{classification_id}`: read a stored classification.
 

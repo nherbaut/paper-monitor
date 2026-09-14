@@ -9,12 +9,18 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class PaperDataExtractorServiceTest {
+
+    @TempDir
+    Path temporaryDirectory;
 
     @Test
     void extractsFastApiErrorDetail() {
@@ -117,6 +123,55 @@ class PaperDataExtractorServiceTest {
 
             assertTrue(recovered.isPresent());
             assertEquals("derived-r1", recovered.orElseThrow().id());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void postsPaperAnalysisAsAuthenticatedMultipartRequest() throws Exception {
+        AtomicReference<String> contentType = new AtomicReference<>();
+        AtomicReference<String> forwardedUser = new AtomicReference<>();
+        AtomicReference<String> forwardedKey = new AtomicReference<>();
+        AtomicReference<byte[]> requestBody = new AtomicReference<>();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/api/papers/analyze", exchange -> {
+            contentType.set(exchange.getRequestHeaders().getFirst("Content-Type"));
+            forwardedUser.set(exchange.getRequestHeaders().getFirst("X-Forwarded-User-Id"));
+            forwardedKey.set(exchange.getRequestHeaders().getFirst("X-Forwarded-PDE-OpenAI-Api-Key"));
+            requestBody.set(exchange.getRequestBody().readAllBytes());
+            respondJson(exchange, """
+                    {"structured_abstract_markdown":"METHODS: Tested.",
+                     "review_values":{"rq_1":"Result"}}
+                    """);
+        });
+        server.start();
+
+        try {
+            Path pdf = temporaryDirectory.resolve("sample.pdf");
+            Files.write(pdf, "%PDF-test".getBytes(StandardCharsets.UTF_8));
+            PaperDataExtractorService service = new PaperDataExtractorService(
+                    "http://127.0.0.1:" + server.getAddress().getPort(), "", "internal-token");
+
+            var result = service.analyzePaper(
+                    pdf,
+                    "sample.pdf",
+                    Map.of("title", "A paper"),
+                    Map.of("title", "A review"),
+                    Map.of("fields", List.of(Map.of("id", "rq_1"))),
+                    new PaperDataExtractorService.OpenAiRequestContext(
+                            42L, "alice", "Alice", "alice@example.test", false,
+                            "personal-key", 2, 0));
+
+            assertEquals("METHODS: Tested.", result.structuredAbstractMarkdown());
+            assertEquals(Map.of("rq_1", "Result"), result.reviewValues());
+            assertTrue(contentType.get().startsWith("multipart/form-data; boundary="));
+            assertEquals("42", forwardedUser.get());
+            assertEquals("personal-key", forwardedKey.get());
+            String body = new String(requestBody.get(), StandardCharsets.ISO_8859_1);
+            assertTrue(body.contains("name=\"paper_json\""));
+            assertTrue(body.contains("A paper"));
+            assertTrue(body.contains("%PDF-test"));
         } finally {
             server.stop(0);
         }

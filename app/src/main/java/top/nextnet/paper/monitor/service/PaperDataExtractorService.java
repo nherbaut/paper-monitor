@@ -5,6 +5,7 @@ import io.quarkus.logging.Log;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -12,6 +13,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -19,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import top.nextnet.paper.monitor.model.AppUser;
 
 @ApplicationScoped
@@ -122,6 +126,40 @@ public class PaperDataExtractorService {
         return Optional.empty();
     }
 
+    public PaperAnalysisResult analyzePaper(
+            Path pdfPath,
+            String fileName,
+            Map<String, Object> paper,
+            Map<String, Object> reviewDesign,
+            Map<String, Object> formSchema,
+            OpenAiRequestContext user
+    ) {
+        try {
+            String boundary = "----PaperMonitor" + UUID.randomUUID().toString().replace("-", "");
+            byte[] body = multipartBody(boundary, fileName, Files.readAllBytes(pdfPath), Map.of(
+                    "paper_json", JsonCodec.stringify(paper),
+                    "review_design_json", JsonCodec.stringify(reviewDesign == null ? Map.of() : reviewDesign),
+                    "form_schema_json", JsonCodec.stringify(formSchema == null ? Map.of() : formSchema)));
+            HttpRequest request = requestBuilder("/api/papers/analyze", user)
+                    .timeout(Duration.ofMinutes(22))
+                    .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                    .POST(HttpRequest.BodyPublishers.ofByteArray(body))
+                    .build();
+            Object payload = sendJson(request);
+            if (!(payload instanceof Map<?, ?> map)) {
+                throw new IllegalStateException("Unexpected paper analysis payload");
+            }
+            String structuredAbstract = stringValue(map.get("structured_abstract_markdown"));
+            if (structuredAbstract == null || structuredAbstract.isBlank()) {
+                throw new IllegalStateException("Paper Data Extractor returned no structured abstract");
+            }
+            return new PaperAnalysisResult(structuredAbstract.trim(), copyObjectMap(map.get("review_values")));
+        } catch (IOException e) {
+            throw new WebApplicationException("Could not read the paper PDF: " + e.getMessage(),
+                    Response.Status.BAD_REQUEST);
+        }
+    }
+
     private ReviewTemplateDetail detail(Object payload) {
         if (!(payload instanceof Map<?, ?> map)) {
             throw new IllegalStateException("Unexpected review template payload");
@@ -183,6 +221,47 @@ public class PaperDataExtractorService {
             builder.header("X-Forwarded-Admin", String.valueOf(user.isAdmin()));
         }
         return builder;
+    }
+
+    private HttpRequest.Builder requestBuilder(String path, OpenAiRequestContext user) {
+        return HttpRequest.newBuilder(URI.create(baseUrl + path))
+                .header("Accept", "application/json")
+                .header("X-PDE-Internal-Token", internalApiToken)
+                .header("X-Forwarded-User-Id", String.valueOf(user.id()))
+                .header("X-Forwarded-Username", safeHeader(user.username()))
+                .header("X-Forwarded-Display-Name", safeHeader(user.displayName()))
+                .header("X-Forwarded-Email", safeHeader(user.email()))
+                .header("X-Forwarded-Admin", Boolean.toString(user.admin()))
+                .header("X-Forwarded-PDE-OpenAI-Api-Key", safeHeader(user.openAiApiKey()))
+                .header("X-Forwarded-PDE-OpenAI-Quota-Limit", Integer.toString(user.quotaLimit()))
+                .header("X-Forwarded-PDE-OpenAI-Quota-Used", Integer.toString(user.quotaUsed()));
+    }
+
+    private byte[] multipartBody(
+            String boundary,
+            String fileName,
+            byte[] pdfBytes,
+            Map<String, String> fields
+    ) throws IOException {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        for (Map.Entry<String, String> field : fields.entrySet()) {
+            writeUtf8(output, "--" + boundary + "\r\n");
+            writeUtf8(output, "Content-Disposition: form-data; name=\"" + field.getKey() + "\"\r\n\r\n");
+            writeUtf8(output, field.getValue() + "\r\n");
+        }
+        String safeFileName = fileName == null ? "paper.pdf"
+                : fileName.replace("\r", "_").replace("\n", "_").replace("\"", "_");
+        writeUtf8(output, "--" + boundary + "\r\n");
+        writeUtf8(output, "Content-Disposition: form-data; name=\"file\"; filename=\""
+                + safeFileName + "\"\r\n");
+        writeUtf8(output, "Content-Type: application/pdf\r\n\r\n");
+        output.write(pdfBytes);
+        writeUtf8(output, "\r\n--" + boundary + "--\r\n");
+        return output.toByteArray();
+    }
+
+    private void writeUtf8(ByteArrayOutputStream output, String value) throws IOException {
+        output.write(value.getBytes(StandardCharsets.UTF_8));
     }
 
     private Object sendJson(HttpRequest request) {
@@ -331,6 +410,21 @@ public class PaperDataExtractorService {
             Map<String, Object> formSchema,
             Map<String, Object> reviewJsonSchema,
             Map<String, Object> reviewLinkmlSchema
+    ) {
+    }
+
+    public record PaperAnalysisResult(String structuredAbstractMarkdown, Map<String, Object> reviewValues) {
+    }
+
+    public record OpenAiRequestContext(
+            Long id,
+            String username,
+            String displayName,
+            String email,
+            boolean admin,
+            String openAiApiKey,
+            int quotaLimit,
+            int quotaUsed
     ) {
     }
 }

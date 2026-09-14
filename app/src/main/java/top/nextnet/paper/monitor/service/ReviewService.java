@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.LogicalFeed;
@@ -48,6 +49,17 @@ public class ReviewService {
 
     public List<Review> reviewsForOwner(AppUser owner) {
         return reviewRepository.findByOwner(owner);
+    }
+
+    public Optional<Review> reviewForPaper(AppUser owner, Paper paper) {
+        if (owner == null || paper == null || paper.logicalFeed == null) {
+            return Optional.empty();
+        }
+        return reviewRepository.findByOwnerAndLogicalFeed(owner, paper.logicalFeed)
+                .filter(review -> {
+                    List<String> states = selectedStates(review);
+                    return states.contains(paper.status) || states.contains(paper.topLevelStatus());
+                });
     }
 
     public Review requireReview(Long reviewId, AppUser owner) {
@@ -255,6 +267,51 @@ public class ReviewService {
         return submission;
     }
 
+    @Transactional
+    public ReviewSubmission replaceWithDraft(Review review, Paper paper, Map<String, Object> proposedValues) {
+        Map<String, Object> values = sanitizeDraftValues(review, proposedValues);
+        ReviewSubmission submission = reviewSubmissionRepository.findByReviewAndPaper(review, paper)
+                .orElseGet(ReviewSubmission::new);
+        submission.review = review;
+        submission.paper = paper;
+        submission.payloadJson = JsonCodec.stringify(submissionInstance(review, paper, values));
+        submission.updatedAt = Instant.now();
+        submission.complete = false;
+        if (submission.id == null) {
+            reviewSubmissionRepository.persist(submission);
+        }
+        return submission;
+    }
+
+    public Map<String, Object> sanitizeDraftValues(Review review, Map<String, Object> proposedValues) {
+        Map<String, Object> candidate = new LinkedHashMap<>();
+        if (proposedValues != null) {
+            proposedValues.forEach((key, value) -> {
+                if (key != null && !isMissing(value)) {
+                    candidate.put(key, value);
+                }
+            });
+        }
+        while (!candidate.isEmpty()) {
+            try {
+                validateSubmission(review, candidate);
+                break;
+            } catch (ReviewValidationException exception) {
+                Set<String> invalidFields = new HashSet<>();
+                for (ValidationError error : exception.errors()) {
+                    if (!error.message().startsWith("Missing required")) {
+                        invalidFields.add(error.fieldId());
+                    }
+                }
+                if (invalidFields.isEmpty()) {
+                    break;
+                }
+                invalidFields.forEach(candidate::remove);
+            }
+        }
+        return candidate;
+    }
+
     public void validateSubmission(Review review, Map<String, Object> values) {
         Map<String, Object> safeValues = values == null ? Map.of() : values;
         Map<String, Object> schema = formSchema(review);
@@ -291,6 +348,12 @@ public class ReviewService {
         values.remove("paper_id");
         values.remove("taxonomy_id");
         return values;
+    }
+
+    public Map<String, Object> submissionValues(Review review, Paper paper) {
+        return reviewSubmissionRepository.findByReviewAndPaper(review, paper)
+                .map(this::submissionValues)
+                .orElse(Map.of());
     }
 
     public Map<String, Object> submissionInstance(ReviewSubmission submission) {

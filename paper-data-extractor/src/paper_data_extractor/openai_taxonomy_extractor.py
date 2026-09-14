@@ -4,7 +4,7 @@ import json
 import logging
 import uuid
 from typing import Any
-from urllib import error, request
+from urllib import error, parse, request
 
 import yaml
 from fastapi import HTTPException
@@ -105,6 +105,111 @@ class OpenAITaxonomyExtractor:
         )
         return strip_code_fences(raw_text)
 
+    def analyze_paper(self, pdf_bytes: bytes, filename: str, prompt: str) -> dict[str, Any]:
+        if not self.is_configured():
+            raise HTTPException(status_code=503, detail="OpenAI extraction is not configured on this server")
+        if not pdf_bytes:
+            raise HTTPException(status_code=400, detail="Upload a non-empty PDF file")
+        logger.info(
+            "OpenAI paper analysis starting: filename=%s bytes=%d prompt_chars=%d model=%s",
+            filename,
+            len(pdf_bytes),
+            len(prompt or ""),
+            self.model,
+        )
+        file_id = self.upload_pdf(filename, pdf_bytes)
+        payload = {
+            "model": self.model,
+            "input": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_file", "file_id": file_id},
+                        {"type": "input_text", "text": prompt.strip()},
+                    ],
+                }
+            ],
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "paper_analysis",
+                    "strict": False,
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "structured_abstract_markdown": {"type": "string"},
+                            "review_values": {"type": "object", "additionalProperties": True},
+                        },
+                        "required": ["structured_abstract_markdown", "review_values"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+        }
+        body = json.dumps(payload).encode("utf-8")
+        http_request = request.Request(
+            self.base_url,
+            data=body,
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with request.urlopen(http_request, timeout=self.timeout_seconds) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            raw_text = strip_code_fences(extract_output_text(data)).strip()
+            if not raw_text:
+                raise HTTPException(status_code=502, detail="OpenAI API returned an empty response")
+            try:
+                result = json.loads(raw_text)
+            except json.JSONDecodeError as exc:
+                logger.error("OpenAI paper analysis returned invalid JSON: filename=%s", filename)
+                raise HTTPException(status_code=502, detail="OpenAI API returned invalid paper analysis JSON") from exc
+            if not isinstance(result, dict):
+                raise HTTPException(status_code=502, detail="OpenAI API returned an invalid paper analysis")
+            structured_abstract = result.get("structured_abstract_markdown")
+            review_values = result.get("review_values")
+            if not isinstance(structured_abstract, str) or not structured_abstract.strip():
+                raise HTTPException(status_code=502, detail="OpenAI API returned no structured abstract")
+            if not isinstance(review_values, dict):
+                review_values = {}
+            logger.info(
+                "OpenAI paper analysis completed: filename=%s abstract_chars=%d review_fields=%d",
+                filename,
+                len(structured_abstract),
+                len(review_values),
+            )
+            return {
+                "structured_abstract_markdown": structured_abstract.strip(),
+                "review_values": review_values,
+            }
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            logger.error("OpenAI paper analysis HTTP error: filename=%s status=%s detail=%s", filename, exc.code, detail)
+            raise HTTPException(status_code=502, detail=f"OpenAI API error: {detail}") from exc
+        except error.URLError as exc:
+            logger.error("OpenAI paper analysis URL error: filename=%s reason=%s", filename, exc.reason)
+            raise HTTPException(status_code=502, detail=f"Could not reach OpenAI API: {exc.reason}") from exc
+        except TimeoutError as exc:
+            logger.error("OpenAI paper analysis timed out: filename=%s", filename)
+            raise HTTPException(status_code=504, detail="Timed out while waiting for the OpenAI API") from exc
+        finally:
+            self.delete_file(file_id)
+
+    def delete_file(self, file_id: str) -> None:
+        delete_request = request.Request(
+            f"{self.files_url.rstrip('/')}/{parse.quote(file_id, safe='')}",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            method="DELETE",
+        )
+        try:
+            with request.urlopen(delete_request, timeout=min(self.timeout_seconds, 30)):
+                pass
+        except Exception as exc:
+            logger.warning("Could not delete temporary OpenAI file %s: %s", file_id, exc)
+
     def upload_pdf(self, filename: str, pdf_bytes: bytes) -> str:
         boundary = f"----PaperDataExtractor{uuid.uuid4().hex}"
         body = multipart_body(
@@ -123,7 +228,7 @@ class OpenAITaxonomyExtractor:
             },
             method="POST",
         )
-        logger.info("OpenAI taxonomy extraction uploading PDF: filename=%s bytes=%d", filename, len(pdf_bytes))
+        logger.info("OpenAI file upload starting: filename=%s bytes=%d", filename, len(pdf_bytes))
         try:
             with request.urlopen(http_request, timeout=self.timeout_seconds) as response:
                 logger.info(
@@ -151,7 +256,7 @@ class OpenAITaxonomyExtractor:
         if not isinstance(file_id, str) or not file_id.strip():
             logger.error("OpenAI file upload returned no file id: filename=%s payload_keys=%s", filename, sorted(data.keys()))
             raise HTTPException(status_code=502, detail="OpenAI file upload did not return a file id")
-        logger.info("OpenAI taxonomy extraction uploaded PDF successfully: filename=%s file_id=%s", filename, file_id)
+        logger.info("OpenAI file upload completed: filename=%s file_id=%s", filename, file_id)
         return file_id
 
 

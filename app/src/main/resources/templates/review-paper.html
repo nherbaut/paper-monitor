@@ -429,6 +429,9 @@
             <button class="secondary" id="save-next-button" type="button">Save and Next</button>
             {/if}
             <button class="danger" id="reset-button" type="button">Reset form</button>
+            {#if paper.viewerCanEdit}
+            <button class="secondary" id="analyze-button" type="button" {#if !paper.uploadedPdfPath}disabled title="Attach a PDF before running OpenAI analysis"{/if}>Analyze with OpenAI</button>
+            {/if}
             <a class="link-button secondary" href="/reviews/{review.id}" target="_self">Back to review</a>
             {#if paper.uploadedPdfPath}
             <a class="link-button secondary" href="/papers/{paper.id}/pdf?disposition=attachment" target="_blank" rel="noreferrer">Download PDF</a>
@@ -507,6 +510,7 @@
 <script type="module">
     import { marked } from "https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.esm.js";
     import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.min.mjs";
+    import { createPaperAnalysisProgress } from "/assets/paper-analysis-progress.js";
 
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.worker.min.mjs";
 
@@ -535,9 +539,33 @@
     const pdfFullscreenHint = document.getElementById("pdf-fullscreen-hint");
     const saveButton = document.getElementById("save-button");
     const saveNextButton = document.getElementById("save-next-button");
+    const analyzeButton = document.getElementById("analyze-button");
     let notesSaveTimer = null;
     let currentValues = JSON.parse(JSON.stringify(initialValues));
     let validationErrors = {};
+
+    const paperAnalysisProgress = createPaperAnalysisProgress({
+        onCompleted(job) {
+            if (typeof job.notes === "string" && notesEditor) {
+                window.clearTimeout(notesSaveTimer);
+                notesEditor.value = job.notes;
+                updateNotesEditorView();
+                renderNotesPreview();
+                notesStatus.textContent = "Structured abstract ready";
+            }
+            if (job.reviewDraftUpdated && job.reviewValues && typeof job.reviewValues === "object") {
+                currentValues = JSON.parse(JSON.stringify(job.reviewValues));
+                validationErrors = {};
+                renderForm();
+                statusLine.textContent = "OpenAI suggestions saved as a draft. Review them before saving.";
+            }
+        },
+        onStateChange() {
+            if (analyzeButton) {
+                analyzeButton.disabled = paperAnalysisProgress.isRunningFor("{paper.id}") || !{#if paper.uploadedPdfPath}true{#else}false{/if};
+            }
+        }
+    });
 
     function errorFor(id) {
         return validationErrors[id] || "";
@@ -1119,6 +1147,20 @@
         saveNextButton.addEventListener("click", () => saveForm(true));
     }
     document.getElementById("reset-button").addEventListener("click", resetForm);
+    if (analyzeButton) {
+        analyzeButton.addEventListener("click", async () => {
+            if (notesStatus?.textContent === "Saving..." || notesStatus?.textContent === "Editing...") {
+                window.clearTimeout(notesSaveTimer);
+                await saveNotes();
+            }
+            await paperAnalysisProgress.start({
+                paperId: "{paper.id}",
+                reviewId: "{review.id}",
+                trigger: "review-form",
+                paperTitle: paperSnapshot.title || "Selected paper"
+            });
+        });
+    }
     if (notesEditor) {
         notesEditor.value = initialNotes;
         updateNotesEditorView();
@@ -1197,6 +1239,7 @@
     syncHeroCollapsedState();
     renderPdf();
     renderForm();
+    await paperAnalysisProgress.restore("{paper.id}");
 </script>
 </body>
 </html>

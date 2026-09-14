@@ -59,7 +59,7 @@ public class Paper extends PanacheEntityBase {
     @Column(length = 4000)
     public String summary;
 
-    @Column(length = 20000)
+    @Column(columnDefinition = "TEXT")
     public String notes;
 
     @Column(length = 2000)

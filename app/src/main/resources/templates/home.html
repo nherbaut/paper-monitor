@@ -4063,6 +4063,7 @@
                                 <button class="secondary" id="paper-zoom-out" type="button">Zoom out</button>
                                 <button class="secondary" id="paper-zoom-in" type="button">Zoom in</button>
                                 <button class="secondary" id="paper-speak" type="button">Speak</button>
+                                <button class="secondary" id="paper-analyze" type="button">Analyze with OpenAI</button>
                                 <button class="secondary" id="paper-download" type="button">Download paper</button>
                                 <button class="secondary" id="paper-import-pdf" type="button">Fetch source PDF</button>
                                 <button class="secondary" id="paper-capture-pdf" type="button">Capture provider PDF</button>
@@ -4287,6 +4288,7 @@
 <script type="module">
     import { marked } from "https://cdn.jsdelivr.net/npm/marked@15.0.12/lib/marked.esm.js";
     import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.min.mjs";
+    import { createPaperAnalysisProgress } from "/assets/paper-analysis-progress.js";
 
     pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.624/build/pdf.worker.min.mjs";
 
@@ -4496,6 +4498,7 @@
     const paperZoomOutButton = document.getElementById("paper-zoom-out");
     const paperZoomInButton = document.getElementById("paper-zoom-in");
     const paperSpeakButton = document.getElementById("paper-speak");
+    const paperAnalyzeButton = document.getElementById("paper-analyze");
     const paperDownloadButton = document.getElementById("paper-download");
     const paperImportPdfButton = document.getElementById("paper-import-pdf");
     const paperCapturePdfButton = document.getElementById("paper-capture-pdf");
@@ -4528,6 +4531,29 @@
     let selectedPaperId = null;
     let notesSaveTimer = null;
     let currentZoom = 1;
+
+    const paperAnalysisProgress = createPaperAnalysisProgress({
+        onCompleted(job) {
+            if (typeof job.notes !== "string") return;
+            const paperId = String(job.paperId || "");
+            const card = allPaperCards().find((item) => item.dataset.paperId === paperId);
+            if (card) card.dataset.paperNotes = job.notes;
+            const record = paperRecordById(paperId);
+            if (record) record.paperNotes = job.notes;
+            if (String(selectedPaperId || "") === paperId) {
+                window.clearTimeout(notesSaveTimer);
+                notesEditor.value = job.notes;
+                updateNotesEditorView();
+                renderNotesPreview();
+                notesStatus.textContent = job.reviewDraftUpdated
+                    ? "Structured abstract and review draft ready"
+                    : "Structured abstract ready";
+            }
+        },
+        onStateChange() {
+            if (typeof applyLayoutState === "function") applyLayoutState();
+        }
+    });
     let selectedPdfUrl = null;
     let selectedDownloadUrl = null;
     let selectedContentKind = null;
@@ -4959,6 +4985,18 @@
         applyNotesCollapsedState();
         paperSpeakButton.textContent = hasPdf ? "Speak selection" : "Speak abstract";
         setActionAvailability(paperSpeakButton, hasSelectedPaper, "Select a paper first.");
+        setActionAvailability(
+            paperAnalyzeButton,
+            Boolean(canEditPaper && activeCard?.dataset.pdfUrl
+                && !paperAnalysisProgress.isRunningFor(activeCard?.dataset.paperId)),
+            !hasSelectedPaper
+                ? "Select a paper first."
+                : !canEditPaper
+                    ? "You need administrator access on this paper feed to run OpenAI analysis."
+                    : !activeCard?.dataset.pdfUrl
+                        ? "Attach a PDF before running OpenAI analysis."
+                        : "OpenAI analysis is already running for this paper."
+        );
         setActionAvailability(paperZoomOutButton, hasPdf, "Zoom is available only when a PDF is open.");
         setActionAvailability(paperZoomInButton, hasPdf, "Zoom is available only when a PDF is open.");
         setActionAvailability(paperDownloadButton, Boolean(downloadUrl), "No downloadable source is available for this paper.");
@@ -10559,6 +10597,21 @@
         }
     });
 
+    paperAnalyzeButton.addEventListener("click", async () => {
+        if (!selectedPaperId) return;
+        closePaperActionsMenu();
+        if (notesStatus.textContent === "Editing...") {
+            window.clearTimeout(notesSaveTimer);
+            await saveNotes();
+        }
+        const activeCard = findCardByPaperId(selectedPaperId);
+        await paperAnalysisProgress.start({
+            paperId: selectedPaperId,
+            trigger: "paper-menu",
+            paperTitle: activeCard?.dataset.paperTitle || "Selected paper"
+        });
+    });
+
     paperZoomOutButton.addEventListener("click", () => {
         if (!selectedPdfUrl) {
             return;
@@ -11786,6 +11839,7 @@
     }
     restoreActivePdfCapture();
     await restoreMendeleySyncProgress(logicalFeedFilter?.value || "");
+    await paperAnalysisProgress.restore(selectedPaperId);
 
 </script>
 </body>

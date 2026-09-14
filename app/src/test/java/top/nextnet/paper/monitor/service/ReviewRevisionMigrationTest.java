@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import top.nextnet.paper.monitor.model.Review;
 
 class ReviewRevisionMigrationTest {
 
@@ -66,6 +67,26 @@ class ReviewRevisionMigrationTest {
         assertEquals("Existing answer A", migrated.get("rq_1"));
         assertEquals("Existing answer B", migrated.get("rq_2"));
         assertFalse(migrated.containsKey("rq_3"));
+    }
+
+    @Test
+    void sanitizesAiDraftValuesWithoutRequiringACompleteForm() {
+        Review review = new Review();
+        review.formSchemaJson = JsonCodec.stringify(Map.of("fields", List.of(
+                Map.of(
+                        "id", "paper_class",
+                        "required", true,
+                        "cardinality", "single",
+                        "values", List.of(Map.of("id", "research", "children", List.of())),
+                        "subdimensions", List.of()),
+                field("rq_1"))));
+
+        Map<String, Object> sanitized = service.sanitizeDraftValues(review, Map.of(
+                "paper_class", "invented",
+                "rq_1", "Supported answer",
+                "unknown", "Discard me"));
+
+        assertEquals(Map.of("rq_1", "Supported answer"), sanitized);
     }
 
     private Map<String, Object> question(String key, String slotId) {

@@ -36,6 +36,14 @@ class TaxonomyExtractionResponse(BaseModel):
     shared_quota_remaining: int | None = None
 
 
+class PaperAnalysisResponse(BaseModel):
+    structured_abstract_markdown: str
+    review_values: dict[str, Any] = Field(default_factory=dict)
+    using_personal_key: bool = False
+    shared_quota_used: int | None = None
+    shared_quota_remaining: int | None = None
+
+
 class YamlValidationRequest(BaseModel):
     raw_yaml: str
 

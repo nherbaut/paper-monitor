@@ -2,6 +2,7 @@ package top.nextnet.paper.monitor.repo;
 
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.persistence.LockModeType;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -83,6 +84,16 @@ public class PaperRepository implements PanacheRepository<Paper> {
                         + "join fetch p.feed "
                         + "where p.id = ?1",
                 id)
+                .firstResultOptional();
+    }
+
+    public Optional<Paper> findForReaderForUpdate(Long id) {
+        return find("select p from Paper p "
+                        + "join fetch p.logicalFeed "
+                        + "join fetch p.feed "
+                        + "where p.id = ?1",
+                id)
+                .withLock(LockModeType.PESSIMISTIC_WRITE)
                 .firstResultOptional();
     }
 
