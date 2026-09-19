@@ -745,7 +745,7 @@ public class HomeResource {
     ) {
         AppUser currentUser = currentUserContext.get().user();
         if (logicalFeedId == null) {
-            return Map.of("items", List.of(), "nextCursor", "", "total", 0, "facets", List.of());
+            return Map.of("items", List.of(), "nextCursor", "", "total", 0);
         }
         LogicalFeed logicalFeed = logicalFeedRepository.findById(logicalFeedId);
         if (logicalFeed == null || !canReadLogicalFeed(logicalFeed, currentUser)) {
@@ -755,7 +755,7 @@ public class HomeResource {
         if (classificationQueue && !canAdmin) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
-        return browserPage(logicalFeed, canAdmin, classificationQueue, states, status, mode, tags, search, cursor, limit);
+        return browserPage(logicalFeed, canAdmin, classificationQueue, states, status, tags, search, cursor, limit);
     }
 
     @GET
@@ -773,7 +773,62 @@ public class HomeResource {
     ) {
         LogicalFeed logicalFeed = logicalFeedRepository.findByPublicShareToken(token).orElseThrow(NotFoundException::new);
         if (!logicalFeed.publicReadable) throw new NotFoundException();
-        return browserPage(logicalFeed, false, false, List.of(), status, mode, tags, search, cursor, limit);
+        return browserPage(logicalFeed, false, false, List.of(), status, tags, search, cursor, limit);
+    }
+
+    @GET
+    @Path("/api/papers/browser/facets")
+    @Transactional
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<PaperBrowserService.Facet> browserFacets(
+            @QueryParam("logicalFeedId") Long logicalFeedId,
+            @QueryParam("classificationQueue") @DefaultValue("false") boolean classificationQueue,
+            @QueryParam("state") List<String> states,
+            @QueryParam("status") String status,
+            @QueryParam("mode") @DefaultValue("state") String mode,
+            @QueryParam("tag") List<String> tags,
+            @QueryParam("search") String search
+    ) {
+        AppUser currentUser = currentUserContext.get().user();
+        if (logicalFeedId == null) return List.of();
+        LogicalFeed logicalFeed = logicalFeedRepository.findById(logicalFeedId);
+        if (logicalFeed == null || !canReadLogicalFeed(logicalFeed, currentUser)) throw new NotFoundException();
+        if (classificationQueue && !canAdminLogicalFeed(logicalFeed, currentUser)) {
+            throw new WebApplicationException(Response.Status.FORBIDDEN);
+        }
+        return browserFacets(logicalFeed, classificationQueue, states, status, mode, tags, search);
+    }
+
+    @GET
+    @Path("/api/share/feed/{token}/papers/facets")
+    @Transactional
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<PaperBrowserService.Facet> sharedBrowserFacets(
+            @jakarta.ws.rs.PathParam("token") String token,
+            @QueryParam("status") String status,
+            @QueryParam("mode") @DefaultValue("state") String mode,
+            @QueryParam("tag") List<String> tags,
+            @QueryParam("search") String search
+    ) {
+        LogicalFeed logicalFeed = logicalFeedRepository.findByPublicShareToken(token).orElseThrow(NotFoundException::new);
+        if (!logicalFeed.publicReadable) throw new NotFoundException();
+        return browserFacets(logicalFeed, false, List.of(), status, mode, tags, search);
+    }
+
+    private List<PaperBrowserService.Facet> browserFacets(
+            LogicalFeed logicalFeed,
+            boolean classificationQueue,
+            List<String> states,
+            String status,
+            String mode,
+            List<String> tags,
+            String search
+    ) {
+        if (!"tags".equalsIgnoreCase(mode)) return paperBrowserService.stateFacets(logicalFeed);
+        List<String> classificationStates = classificationQueue
+                ? normalizedClassificationStates(logicalFeed, states) : List.of();
+        return paperBrowserService.facets(logicalFeed, new PaperBrowserService.Query(
+                status, tags, search, classificationQueue, classificationStates));
     }
 
     private Map<String, Object> browserPage(
@@ -782,7 +837,6 @@ public class HomeResource {
             boolean classificationQueue,
             List<String> states,
             String status,
-            String mode,
             List<String> tags,
             String search,
             String cursor,
@@ -793,20 +847,15 @@ public class HomeResource {
         PaperBrowserService.Query browserQuery = new PaperBrowserService.Query(
                 status, tags, search, classificationQueue, classificationStates);
         PaperBrowserService.Page page = paperBrowserService.page(logicalFeed, browserQuery, cursor, limit);
-        List<Paper> papers = new ArrayList<>(page.items());
-        populatePaperBadges(papers);
-        for (Paper paper : papers) {
-            paper.viewerCanEdit = canAdmin;
-        }
+        Set<Long> viewedPaperIds = paperEventRepository.paperIdsWithEventType(
+                page.items().stream().map(PaperBrowserService.BrowserPaper::id).toList(), "NOTE_VIEWED");
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("items", papers.stream().map(this::paperBrowserItem).toList());
+        response.put("items", page.items().stream()
+                .map((paper) -> paperBrowserItem(paper, canAdmin, viewedPaperIds.contains(paper.id()), logicalFeed))
+                .toList());
         response.put("nextCursor", page.nextCursor());
         if (page.total() >= 0) {
             response.put("total", page.total());
-            response.put("facets", "tags".equalsIgnoreCase(mode)
-                    ? paperBrowserService.facets(logicalFeed, browserQuery)
-                    : paperBrowserService.stateFacets(logicalFeed,
-                            new PaperBrowserService.Query(null, List.of(), null, false, List.of())));
         }
         return response;
     }
@@ -4228,6 +4277,40 @@ public class HomeResource {
         item.put("paperCanEditTags", paper.viewerCanEdit);
         item.put("paperIsNew", paper.newBadge);
         item.put("paperIsFresh", paper.freshBadge);
+        return item;
+    }
+
+    private Map<String, Object> paperBrowserItem(
+            PaperBrowserService.BrowserPaper paper,
+            boolean canAdmin,
+            boolean noteViewed,
+            LogicalFeed logicalFeed
+    ) {
+        boolean isNew = paper.status() != null
+                && WorkflowStateConfig.normalizeStateId(paper.status()).equals(
+                        WorkflowStateConfig.normalizeStateId(logicalFeed.initialPaperStatus()))
+                && paper.feedUrl() != null
+                && (paper.feedUrl().startsWith("http://") || paper.feedUrl().startsWith("https://"));
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", paper.id());
+        item.put("logicalFeedName", paper.logicalFeedName());
+        item.put("logicalFeedId", paper.logicalFeedId());
+        item.put("paperStatus", paper.status() != null ? paper.status() : "NEW");
+        item.put("paperRecordType", paper.recordTypeValue());
+        item.put("paperTopStatus", paper.topLevelStatus());
+        item.put("pdfUrl", paper.uploadedPdfPath() != null ? "/papers/" + paper.id() + "/pdf" : "");
+        item.put("paperTitle", paper.title());
+        item.put("paperAuthors", paper.authors() != null ? paper.authors() : "Unknown authors");
+        item.put("paperPublishedOn", paper.publishedOn() != null ? paper.publishedOn() : "unknown");
+        item.put("paperVenue", paper.publisher() != null ? paper.publisher() : "Unknown venue");
+        item.put("paperFeedName", paper.feedName() != null ? paper.feedName() : "");
+        item.put("paperSummary", paper.summary() != null ? paper.summary() : "");
+        item.put("paperSourceLink", paper.sourceLink() != null ? paper.sourceLink() : "");
+        item.put("paperOpenAccessLink", paper.openAccessLink() != null ? paper.openAccessLink() : "");
+        item.put("paperTags", paper.tagsToken());
+        item.put("paperCanEditTags", canAdmin);
+        item.put("paperIsNew", isNew);
+        item.put("paperIsFresh", isNew && !noteViewed);
         return item;
     }
 

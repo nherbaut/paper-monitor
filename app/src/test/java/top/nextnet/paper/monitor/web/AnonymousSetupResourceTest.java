@@ -137,6 +137,9 @@ class AnonymousSetupResourceTest {
                 .statusCode(200)
                 .body("items[0].paperTitle", equalTo("Public lazy paper " + suffix))
                 .body("total", equalTo(1));
+        given().when().get("/api/share/feed/" + token + "/papers/facets?mode=state").then()
+                .statusCode(200)
+                .body("find { it.key == 'state:NEW' }.count", equalTo(1));
     }
 
     @Test

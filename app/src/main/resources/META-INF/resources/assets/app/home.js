@@ -24,6 +24,8 @@
     let browserNextCursor = null;
     let browserTotal = 0;
     let browserFacets = [];
+    const browserFacetCache = new Map();
+    let browserFacetRequestGeneration = 0;
     let browserRequestGeneration = 0;
     let browserRequestInFlight = false;
     let loadedBrowserFilterSignature = "";
@@ -335,6 +337,8 @@
     let stateSearchVisibleLimit = 10;
     let selectedTagFilters = [];
     let reviewSummaries = [];
+    let reviewWorkspaceLoaded = false;
+    let reviewWorkspacePromise = null;
     let draggedFeedDashboardCard = null;
     let feedDashboardOrderSaving = false;
     const themeStorageKey = "paper-monitor.theme";
@@ -343,6 +347,13 @@
     const KEYBOARD_STATUS_TOAST_MS = 2200;
     const STATE_FEEDBACK_POP_MS = 1200;
     const MIAGE_STATE_FEEDBACK_FRAME_COUNT = 15;
+    const scheduleIdleTask = (callback, timeout = 1500) => {
+        if ("requestIdleCallback" in window) {
+            window.requestIdleCallback(() => callback(), { timeout });
+        } else {
+            window.setTimeout(callback, Math.min(timeout, 250));
+        }
+    };
     const STATE_FEEDBACK_DIRECTION_IMAGES = {
         up: [
             "up-01-elevator.png",
@@ -1267,12 +1278,14 @@
         hideMendeleySyncProgress();
         if (!feedId || !selectedLogicalFeedCanAdmin() || !mendeleySyncModal) return;
         const requestedFeedId = String(feedId);
+        if (requestedFeedId !== String(logicalFeedFilter?.value || "")) return;
         mendeleySyncActiveFeedId = requestedFeedId;
         try {
             const response = await fetch("/api/mendeley/feeds/" + encodeURIComponent(requestedFeedId) + "/sync-status", {
                 headers: { Accept: "application/json" }
             });
-            if (!response.ok || requestedFeedId !== mendeleySyncActiveFeedId) {
+            if (!response.ok || requestedFeedId !== mendeleySyncActiveFeedId
+                    || requestedFeedId !== String(logicalFeedFilter?.value || "")) {
                 if (requestedFeedId === mendeleySyncActiveFeedId) hideMendeleySyncProgress();
                 return;
             }
@@ -2744,22 +2757,36 @@
             .map((input) => input.value);
     };
 
-    const loadReviewWorkspace = async () => {
+    const loadReviewWorkspace = ({ force = false } = {}) => {
         if (!authenticated) {
-            return;
+            return Promise.resolve();
         }
-        try {
-            const reviewsResponse = await fetch("/api/reviews", { headers: { Accept: "application/json" } });
-            reviewSummaries = reviewsResponse.ok ? await reviewsResponse.json() : [];
-        } catch (error) {
-            reviewSummaries = [];
-            if (reviewMenuStatus) {
-                reviewMenuStatus.textContent = error.message || "Failed to load review workspace.";
+        if (reviewWorkspacePromise) {
+            return force
+                ? reviewWorkspacePromise.then(() => loadReviewWorkspace({ force: true }))
+                : reviewWorkspacePromise;
+        }
+        if (!force && reviewWorkspaceLoaded) return Promise.resolve();
+        reviewWorkspaceLoaded = false;
+        reviewWorkspacePromise = (async () => {
+            try {
+                const reviewsResponse = await fetch("/api/reviews", { headers: { Accept: "application/json" } });
+                if (!reviewsResponse.ok) throw new Error("Failed to load review workspace.");
+                reviewSummaries = await reviewsResponse.json();
+                reviewWorkspaceLoaded = true;
+            } catch (error) {
+                reviewSummaries = [];
+                if (reviewMenuStatus) {
+                    reviewMenuStatus.textContent = error.message || "Failed to load review workspace.";
+                }
+            } finally {
+                reviewWorkspacePromise = null;
             }
-        }
-        renderReviewTemplateOptions(reviewTemplateSelect?.value || "");
-        renderFeedDashboardReviewActions();
-        updateReaderReviewAction();
+            renderReviewTemplateOptions(reviewTemplateSelect?.value || "");
+            renderFeedDashboardReviewActions();
+            updateReaderReviewAction();
+        })();
+        return reviewWorkspacePromise;
     };
 
     const renderReviewLauncher = () => {};
@@ -4511,7 +4538,7 @@
 
     const renderPaperCardElement = (record) => {
         const article = document.createElement("article");
-        article.className = "card drop-target selectable";
+        article.className = "card drop-target selectable browser-paper-card";
         article.dataset.logicalFeedName = record.logicalFeedName || "";
         article.dataset.logicalFeedId = record.logicalFeedId == null ? "" : String(record.logicalFeedId);
         article.dataset.paperStatus = record.paperStatus || "NEW";
@@ -4700,7 +4727,7 @@
         paperList.innerHTML = "";
         if (!visible.length) {
             const message = document.createElement("p");
-            message.className = "meta";
+            message.className = "meta paper-list-message";
             message.textContent = papersLoaded ? "No papers match the current filters." : "Loading papers...";
             paperList.appendChild(message);
         } else {
@@ -4718,6 +4745,28 @@
             activeCard.classList.add("active");
         }
         return { filtered, visible, hasMore };
+    };
+
+    const appendPaginatedPaperList = (records) => {
+        if (!Array.isArray(records) || !records.length) {
+            searchLoadMoreRow.classList.toggle("hidden", !browserNextCursor);
+            return;
+        }
+        const matchingIds = new Set(filteredPaperRecords().map((record) => String(record.id)));
+        const renderedIds = new Set(allPaperCards().map((card) => card.dataset.paperId));
+        paperList.querySelectorAll(":scope > .paper-list-message").forEach((message) => message.remove());
+        records.forEach((record) => {
+            const paperId = String(record.id);
+            if (!matchingIds.has(paperId) || renderedIds.has(paperId)) return;
+            const card = renderPaperCardElement(record);
+            paperList.insertBefore(card, searchLoadMoreRow);
+            bindPaperCard(card);
+            renderedIds.add(paperId);
+        });
+        searchLoadMoreRow.classList.toggle("hidden", !browserNextCursor);
+        const activeCard = selectedPaperCard();
+        if (activeCard) activeCard.classList.add("active");
+        if (classificationModeActive) updateClassificationQueueProgress();
     };
 
     const maybeLoadMoreVisiblePapers = () => {
@@ -4748,8 +4797,10 @@
                     && filterSignature !== requestedBrowserFilterSignature) {
                 requestedBrowserFilterSignature = filterSignature;
                 browserRequestGeneration += 1;
+                browserFacetRequestGeneration += 1;
                 paperRecords = [];
                 browserNextCursor = null;
+                browserFacets = browserFacetCache.get(String(selectedLogicalFeedId) + "?" + filterSignature) || [];
                 papersLoaded = false;
                 scheduleBrowserReload(activePrimaryTab === "state" && stateSearchQuery ? 250 : 0);
             }
@@ -7103,6 +7154,9 @@
         exportTabMenu.open = false;
         window.location.href = "/reviews/" + encodeURIComponent(review.id);
     });
+    exportTabMenu?.addEventListener("toggle", () => {
+        if (exportTabMenu.open) void loadReviewWorkspace();
+    });
     readerImportPaperButton?.addEventListener("click", () => {
         exportTabMenu.open = false;
         openPaperImportModal();
@@ -7154,6 +7208,8 @@
         if (!logicalFeedId || !selectedLogicalFeedCanAdmin()) {
             return;
         }
+        await restoreMendeleySyncProgress(logicalFeedId);
+        if (selectedMendeleySyncRunning()) return;
         exportTabMenu.open = false;
         readerMendeleySyncButton.disabled = true;
         stopMendeleySyncPolling();
@@ -7365,7 +7421,8 @@
     });
     logicalFeedFilter?.addEventListener("change", async () => {
         await openLogicalFeed(logicalFeedFilter.value);
-        await restoreMendeleySyncProgress(logicalFeedFilter.value);
+        const selectedFeedId = logicalFeedFilter.value;
+        scheduleIdleTask(() => restoreMendeleySyncProgress(selectedFeedId));
     });
     syncManualImportControls();
 
@@ -7701,7 +7758,7 @@
                     throw new Error(body || "Failed to create review.");
                 }
                 const createdReview = JSON.parse(body);
-                await loadReviewWorkspace();
+                await loadReviewWorkspace({ force: true });
                 closeReviewCreateModal();
                 window.location.href = "/reviews/" + createdReview.id;
             } catch (error) {
@@ -7755,6 +7812,45 @@
         return params.toString();
     };
 
+    const refreshBrowserFacetControls = () => {
+        renderStateTabs(selectedWorkflowCounts());
+        renderTagBrowser();
+    };
+
+    const loadBrowserFacets = async (logicalFeedId, expectedSignature) => {
+        if (!logicalFeedId || serverRenderedShareMode) return;
+        const cacheKey = String(logicalFeedId) + "?" + expectedSignature;
+        if (browserFacetCache.has(cacheKey)) {
+            browserFacets = browserFacetCache.get(cacheKey);
+            refreshBrowserFacetControls();
+        }
+        const requestGeneration = ++browserFacetRequestGeneration;
+        const params = currentBrowserParameters(logicalFeedId);
+        params.delete("limit");
+        params.delete("cursor");
+        const facetUrl = sharedFeedToken
+            ? "/api/share/feed/" + encodeURIComponent(sharedFeedToken) + "/papers/facets"
+            : "/api/papers/browser/facets";
+        try {
+            const response = await fetch(facetUrl + "?" + params.toString(), {
+                headers: { Accept: "application/json" }
+            });
+            const body = await response.text();
+            if (!response.ok) throw new Error(body || "Failed to load paper facets.");
+            if (requestGeneration !== browserFacetRequestGeneration
+                    || expectedSignature !== currentBrowserFilterSignature(logicalFeedId)) return;
+            const facets = JSON.parse(body);
+            browserFacets = Array.isArray(facets) ? facets : [];
+            browserFacetCache.set(cacheKey, browserFacets);
+            refreshBrowserFacetControls();
+        } catch (error) {
+            if (!browserFacetCache.has(cacheKey) && requestGeneration === browserFacetRequestGeneration) {
+                browserFacets = [];
+                refreshBrowserFacetControls();
+            }
+        }
+    };
+
     const loadBrowserPapers = async (logicalFeedId, { append = false } = {}) => {
         if (serverRenderedShareMode || (!canEdit && !sharedFeedToken)) {
             return;
@@ -7773,6 +7869,7 @@
         const generation = append ? browserRequestGeneration : ++browserRequestGeneration;
         const signature = currentBrowserFilterSignature(logicalFeedId);
         browserRequestInFlight = true;
+        let appendedRecords = [];
         try {
             const browserUrl = sharedFeedToken
                 ? "/api/share/feed/" + encodeURIComponent(sharedFeedToken) + "/papers/browser"
@@ -7787,13 +7884,16 @@
             const incoming = Array.isArray(page.items) ? page.items : [];
             if (append) {
                 const known = new Set(paperRecords.map((record) => String(record.id)));
-                paperRecords.push(...incoming.filter((record) => !known.has(String(record.id))));
+                appendedRecords = incoming.filter((record) => !known.has(String(record.id)));
+                paperRecords.push(...appendedRecords);
             } else {
                 paperRecords = incoming;
                 browserTotal = Number(page.total || 0);
-                browserFacets = Array.isArray(page.facets) ? page.facets : [];
+                const cacheKey = String(logicalFeedId) + "?" + signature;
+                browserFacets = browserFacetCache.get(cacheKey) || [];
                 loadedBrowserFilterSignature = signature;
                 requestedBrowserFilterSignature = signature;
+                void loadBrowserFacets(logicalFeedId, signature);
             }
             browserNextCursor = page.nextCursor || null;
             papersLoaded = true;
@@ -7808,6 +7908,7 @@
                 window.localStorage.setItem(storageKey, feedName);
                 renderLastSeenLogicalFeed(feedName);
             }
+            return appendedRecords;
         } finally {
             if (generation === browserRequestGeneration) browserRequestInFlight = false;
         }
@@ -7838,8 +7939,8 @@
     const loadNextBrowserPage = async () => {
         const logicalFeedId = logicalFeedFilter?.value || "";
         if (!logicalFeedId || !browserNextCursor || browserRequestInFlight) return;
-        await loadBrowserPapers(logicalFeedId, { append: true });
-        applyLogicalFeedFilter();
+        const appendedRecords = await loadBrowserPapers(logicalFeedId, { append: true });
+        appendPaginatedPaperList(appendedRecords || []);
         window.requestAnimationFrame(maybeLoadMoreVisiblePapers);
     };
 
@@ -7887,7 +7988,7 @@
             }
         }, { rootMargin: "600px 0px" }).observe(searchLoadMoreRow);
     }
-    loadReviewWorkspace();
+    scheduleIdleTask(() => loadReviewWorkspace());
     renderFrontPagePanels();
     let browserPapersReady = serverRenderedShareMode;
     if (!serverRenderedShareMode) {
@@ -7928,5 +8029,11 @@
         maybeLoadMoreVisiblePapers();
     }
     restoreActivePdfCapture();
-    await restoreMendeleySyncProgress(logicalFeedFilter?.value || "");
-    await paperAnalysisProgress.restore(selectedPaperId);
+    const initialIdleFeedId = logicalFeedFilter?.value || "";
+    const initialIdlePaperId = selectedPaperId;
+    scheduleIdleTask(async () => {
+        await restoreMendeleySyncProgress(initialIdleFeedId);
+        if (initialIdlePaperId === selectedPaperId) {
+            await paperAnalysisProgress.restore(initialIdlePaperId);
+        }
+    });

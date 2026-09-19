@@ -1435,6 +1435,11 @@
             box-shadow: 0 0 0 2px rgba(179, 79, 46, 0.14);
         }
 
+        .browser-paper-card {
+            content-visibility: auto;
+            contain-intrinsic-block-size: auto 230px;
+        }
+
         .card-header {
             display: flex;
             align-items: start;

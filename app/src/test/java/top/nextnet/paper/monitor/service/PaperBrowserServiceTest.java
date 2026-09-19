@@ -42,6 +42,8 @@ class PaperBrowserServiceTest {
             paper.sourceLink = "https://example.invalid/paper/" + suffix + "/" + index;
             paper.status = index % 2 == 0 ? "NEW" : "TODO";
             paper.tags = index % 3 == 0 ? "Alpha\nShared" : "Shared";
+            if (index == 5) paper.uploadedPdfPath = "/tmp/browser-test.pdf";
+            if (index == 7) paper.sourceLink = "https://arxiv.org/abs/" + suffix + index;
             paper.publishedOn = index >= 22 ? null : LocalDate.of(2026, 1, 1).plusDays(index);
             paper.discoveredAt = Instant.parse("2026-01-01T00:00:00Z").plusSeconds(index);
             paper.feed = feed;
@@ -59,16 +61,33 @@ class PaperBrowserServiceTest {
         Assertions.assertEquals(25, first.total());
         Assertions.assertEquals(-1, second.total());
         Assertions.assertNull(third.nextCursor());
-        Set<Long> ids = new HashSet<>(first.items().stream().map((paper) -> paper.id).toList());
-        Assertions.assertTrue(second.items().stream().map((paper) -> paper.id).noneMatch(ids::contains));
-        ids.addAll(second.items().stream().map((paper) -> paper.id).toList());
-        Assertions.assertTrue(third.items().stream().map((paper) -> paper.id).noneMatch(ids::contains));
-        Assertions.assertTrue(third.items().stream().anyMatch((paper) -> paper.publishedOn == null));
+        Set<Long> ids = new HashSet<>(first.items().stream().map(PaperBrowserService.BrowserPaper::id).toList());
+        Assertions.assertTrue(second.items().stream().map(PaperBrowserService.BrowserPaper::id).noneMatch(ids::contains));
+        ids.addAll(second.items().stream().map(PaperBrowserService.BrowserPaper::id).toList());
+        Assertions.assertTrue(third.items().stream().map(PaperBrowserService.BrowserPaper::id).noneMatch(ids::contains));
+        Assertions.assertTrue(third.items().stream().anyMatch((paper) -> paper.publishedOn() == null));
 
         PaperBrowserService.Query filtered = new PaperBrowserService.Query(
                 "TODO", List.of("Shared"), "needle date:>=2026-01 date:<2027", false, List.of());
         PaperBrowserService.Page match = browser.page(logicalFeed, filtered, null, 30);
         Assertions.assertEquals(1, match.total());
-        Assertions.assertEquals("Needle 17", match.items().getFirst().title);
+        Assertions.assertEquals("Needle 17", match.items().getFirst().title());
+
+        List<PaperBrowserService.Facet> states = browser.stateFacets(logicalFeed);
+        Assertions.assertEquals(13L, facetCount(states, "state:NEW"));
+        Assertions.assertEquals(12L, facetCount(states, "state:TODO"));
+
+        List<PaperBrowserService.Facet> facets = browser.facets(logicalFeed,
+                new PaperBrowserService.Query(null, List.of("state:TODO"), null, false, List.of()));
+        Assertions.assertEquals(12L, facetCount(facets, "Shared"));
+        Assertions.assertEquals(4L, facetCount(facets, "Alpha"));
+        Assertions.assertEquals(1L, facetCount(facets, "has-pdf"));
+        Assertions.assertEquals(1L, facetCount(facets, "arxiv"));
+        Assertions.assertEquals(13L, facetCount(facets, "state:NEW"));
+        Assertions.assertEquals(12L, facetCount(facets, "state:TODO"));
+    }
+
+    private long facetCount(List<PaperBrowserService.Facet> facets, String key) {
+        return facets.stream().filter((facet) -> facet.key().equals(key)).findFirst().orElseThrow().count();
     }
 }

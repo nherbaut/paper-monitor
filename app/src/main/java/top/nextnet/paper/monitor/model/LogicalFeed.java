@@ -89,7 +89,7 @@ public class LogicalFeed extends PanacheEntityBase {
     @JoinColumn
     public AppUser githubSyncUser;
 
-    @OneToMany(mappedBy = "logicalFeed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "logicalFeed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     public List<Feed> feeds = new ArrayList<>();
 
     @OneToMany(mappedBy = "logicalFeed", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
