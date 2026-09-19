@@ -3,6 +3,7 @@ package top.nextnet.paper.monitor.repo;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.TypedQuery;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -159,12 +160,24 @@ public class PaperRepository implements PanacheRepository<Paper> {
     }
 
     public Map<Long, Map<String, Long>> countByLogicalFeedAndStatus() {
-        List<Object[]> rows = getEntityManager().createQuery(
+        return countByLogicalFeedAndStatus(null);
+    }
+
+    public Map<Long, Map<String, Long>> countByLogicalFeedAndStatus(List<Long> logicalFeedIds) {
+        if (logicalFeedIds != null && logicalFeedIds.isEmpty()) {
+            return Map.of();
+        }
+        String where = logicalFeedIds == null ? "" : " where p.logicalFeed.id in :logicalFeedIds ";
+        TypedQuery<Object[]> query = getEntityManager().createQuery(
                         "select p.logicalFeed.id, p.status, count(p) "
                                 + "from Paper p "
+                                + where
                                 + "group by p.logicalFeed.id, p.status",
-                        Object[].class)
-                .getResultList();
+                        Object[].class);
+        if (logicalFeedIds != null) {
+            query.setParameter("logicalFeedIds", logicalFeedIds);
+        }
+        List<Object[]> rows = query.getResultList();
 
         Map<Long, Map<String, Long>> counts = new LinkedHashMap<>();
         for (Object[] row : rows) {
@@ -173,6 +186,27 @@ public class PaperRepository implements PanacheRepository<Paper> {
             Long count = (Long) row[2];
             counts.computeIfAbsent(logicalFeedId, (ignored) -> new LinkedHashMap<>())
                     .put(status, count);
+        }
+        return counts;
+    }
+
+    public Map<Long, Map<String, Long>> countRssByLogicalFeedAndStatus(List<Long> logicalFeedIds) {
+        if (logicalFeedIds == null || logicalFeedIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Object[]> rows = getEntityManager().createQuery(
+                        "select p.logicalFeed.id, p.status, count(p) "
+                                + "from Paper p join p.feed f "
+                                + "where p.logicalFeed.id in :logicalFeedIds "
+                                + "and (f.url like 'http://%' or f.url like 'https://%') "
+                                + "group by p.logicalFeed.id, p.status",
+                        Object[].class)
+                .setParameter("logicalFeedIds", logicalFeedIds)
+                .getResultList();
+        Map<Long, Map<String, Long>> counts = new LinkedHashMap<>();
+        for (Object[] row : rows) {
+            counts.computeIfAbsent((Long) row[0], ignored -> new LinkedHashMap<>())
+                    .put((String) row[1], (Long) row[2]);
         }
         return counts;
     }

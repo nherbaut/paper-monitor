@@ -97,6 +97,49 @@ class AnonymousSetupResourceTest {
     }
 
     @Test
+    void homeAssetsAreExternalAndServed() {
+        given().when().get("/app-assets/home.css").then()
+                .statusCode(200).contentType(containsString("css"))
+                .header("Cache-Control", containsString("max-age=31536000"));
+        given().header("Accept-Encoding", "gzip").when().get("/app-assets/home.js").then()
+                .statusCode(200).contentType(containsString("javascript"))
+                .header("Content-Encoding", containsString("gzip"))
+                .body(containsString("loadNextBrowserPage"));
+    }
+
+    @Test
+    void publicSharedFeedLoadsPapersThroughTheLazyBrowserApi() {
+        String suffix = UUID.randomUUID().toString();
+        String token = UUID.randomUUID().toString();
+        QuarkusTransaction.requiringNew().run(() -> {
+            LogicalFeed logicalFeed = temporaryLogicalFeed(suffix);
+            logicalFeed.publicReadable = true;
+            logicalFeed.publicShareToken = token;
+            Feed feed = new Feed();
+            feed.name = "Public RSS " + suffix;
+            feed.url = "https://example.invalid/public-" + suffix + ".rss";
+            feed.logicalFeed = logicalFeed;
+            feed.persist();
+            Paper paper = new Paper();
+            paper.title = "Public lazy paper " + suffix;
+            paper.sourceLink = "https://example.invalid/public-paper/" + suffix;
+            paper.status = logicalFeed.initialPaperStatus();
+            paper.discoveredAt = Instant.now();
+            paper.feed = feed;
+            paper.logicalFeed = logicalFeed;
+            paper.persist();
+        });
+
+        given().when().get("/share/feed/" + token).then()
+                .statusCode(200)
+                .body(containsString("/app-assets/home.js"));
+        given().when().get("/api/share/feed/" + token + "/papers/browser").then()
+                .statusCode(200)
+                .body("items[0].paperTitle", equalTo("Public lazy paper " + suffix))
+                .body("total", equalTo(1));
+    }
+
+    @Test
     void setupWizardAndDraftApiDoNotRedirectAnonymousUsersToLogin() {
         given()
                 .redirects().follow(false)
@@ -193,8 +236,9 @@ class AnonymousSetupResourceTest {
                 .when().get("/api/papers/browser?logicalFeedId=" + ids[0] + "&classificationQueue=true")
                 .then()
                 .statusCode(200)
-                .body("[0].paperTitle", equalTo("Anonymous paper " + suffix))
-                .body("[0].paperCanEditTags", equalTo(true));
+                .body("items[0].paperTitle", equalTo("Anonymous paper " + suffix))
+                .body("items[0].paperCanEditTags", equalTo(true))
+                .body("total", equalTo(1));
 
         given()
                 .header("X-Paper-Monitor-Setup-Token", draftId)

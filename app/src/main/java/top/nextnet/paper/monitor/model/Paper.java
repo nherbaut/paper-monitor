@@ -8,6 +8,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -28,7 +29,12 @@ import java.util.stream.Collectors;
 import top.nextnet.paper.monitor.service.JsonCodec;
 
 @Entity
-@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"logicalFeed_id", "sourceLink"}))
+@Table(
+        uniqueConstraints = @UniqueConstraint(columnNames = {"logicalFeed_id", "sourceLink"}),
+        indexes = {
+                @Index(name = "idx_paper_feed_status_order", columnList = "logicalFeed_id,status,publishedOn,discoveredAt,id"),
+                @Index(name = "idx_paper_feed_order", columnList = "logicalFeed_id,publishedOn,discoveredAt,id")
+        })
 public class Paper extends PanacheEntityBase {
 
     public static final String TYPE_PAPER = "PAPER";

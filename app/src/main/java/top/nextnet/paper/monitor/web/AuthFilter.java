@@ -36,6 +36,8 @@ public class AuthFilter implements ContainerRequestFilter {
             "signup",
             "setup",
             "api/setup",
+            "api/share/feed",
+            "app-assets",
             "anonymous/feed",
             "auth/forward",
             "api/pde/openai-extractions/consume",

@@ -5,6 +5,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import top.nextnet.paper.monitor.model.PaperEvent;
 
 @ApplicationScoped
@@ -38,5 +40,18 @@ public class PaperEventRepository implements PanacheRepository<PaperEvent> {
 
     public boolean existsByPaperIdAndType(Long paperId, String type) {
         return count("paper.id = ?1 and type = ?2", paperId, type) > 0;
+    }
+
+    public Set<Long> paperIdsWithEventType(List<Long> paperIds, String type) {
+        if (paperIds == null || paperIds.isEmpty()) {
+            return Set.of();
+        }
+        return getEntityManager().createQuery(
+                        "select distinct e.paper.id from PaperEvent e where e.paper.id in :paperIds and e.type = :type",
+                        Long.class)
+                .setParameter("paperIds", paperIds)
+                .setParameter("type", type)
+                .getResultStream()
+                .collect(Collectors.toSet());
     }
 }

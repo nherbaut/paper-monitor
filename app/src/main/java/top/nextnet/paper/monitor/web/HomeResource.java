@@ -85,6 +85,7 @@ import top.nextnet.paper.monitor.service.MarkdownConversionService;
 import top.nextnet.paper.monitor.service.NotificationService;
 import top.nextnet.paper.monitor.service.OidcService;
 import top.nextnet.paper.monitor.service.PaperEventService;
+import top.nextnet.paper.monitor.service.PaperBrowserService;
 import top.nextnet.paper.monitor.service.PaperGitSyncService;
 import top.nextnet.paper.monitor.service.PaperPdfImportService;
 import top.nextnet.paper.monitor.service.PaperStateRepairService;
@@ -121,6 +122,7 @@ public class HomeResource {
     private final DefaultSignupPolicyService defaultSignupPolicyService;
     private final EmailDomainPolicyService emailDomainPolicyService;
     private final PaperEventService paperEventService;
+    private final PaperBrowserService paperBrowserService;
     private final PaperGitSyncService paperGitSyncService;
     private final PaperPdfImportService paperPdfImportService;
     private final PaperStateRepairService paperStateRepairService;
@@ -171,6 +173,7 @@ public class HomeResource {
             DefaultSignupPolicyService defaultSignupPolicyService,
             EmailDomainPolicyService emailDomainPolicyService,
             PaperEventService paperEventService,
+            PaperBrowserService paperBrowserService,
             PaperGitSyncService paperGitSyncService,
             PaperPdfImportService paperPdfImportService,
             PaperStateRepairService paperStateRepairService,
@@ -217,6 +220,7 @@ public class HomeResource {
         this.defaultSignupPolicyService = defaultSignupPolicyService;
         this.emailDomainPolicyService = emailDomainPolicyService;
         this.paperEventService = paperEventService;
+        this.paperBrowserService = paperBrowserService;
         this.paperGitSyncService = paperGitSyncService;
         this.paperPdfImportService = paperPdfImportService;
         this.paperStateRepairService = paperStateRepairService;
@@ -728,14 +732,20 @@ public class HomeResource {
     @Path("/api/papers/browser")
     @Transactional
     @Produces(MediaType.APPLICATION_JSON)
-    public List<Map<String, Object>> browserPapers(
+    public Map<String, Object> browserPapers(
             @QueryParam("logicalFeedId") Long logicalFeedId,
             @QueryParam("classificationQueue") @DefaultValue("false") boolean classificationQueue,
-            @QueryParam("state") List<String> states
+            @QueryParam("state") List<String> states,
+            @QueryParam("status") String status,
+            @QueryParam("mode") @DefaultValue("state") String mode,
+            @QueryParam("tag") List<String> tags,
+            @QueryParam("search") String search,
+            @QueryParam("cursor") String cursor,
+            @QueryParam("limit") Integer limit
     ) {
         AppUser currentUser = currentUserContext.get().user();
         if (logicalFeedId == null) {
-            return List.of();
+            return Map.of("items", List.of(), "nextCursor", "", "total", 0, "facets", List.of());
         }
         LogicalFeed logicalFeed = logicalFeedRepository.findById(logicalFeedId);
         if (logicalFeed == null || !canReadLogicalFeed(logicalFeed, currentUser)) {
@@ -745,14 +755,96 @@ public class HomeResource {
         if (classificationQueue && !canAdmin) {
             throw new WebApplicationException(Response.Status.FORBIDDEN);
         }
-        List<Paper> papers = classificationQueue
-                ? new ArrayList<>(classificationQueuePapers(List.of(logicalFeed.id), normalizedClassificationStates(logicalFeed, states)))
-                : new ArrayList<>(paperRepository.findAllForReader(logicalFeed));
+        return browserPage(logicalFeed, canAdmin, classificationQueue, states, status, mode, tags, search, cursor, limit);
+    }
+
+    @GET
+    @Path("/api/share/feed/{token}/papers/browser")
+    @Transactional
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> sharedBrowserPapers(
+            @jakarta.ws.rs.PathParam("token") String token,
+            @QueryParam("status") String status,
+            @QueryParam("mode") @DefaultValue("state") String mode,
+            @QueryParam("tag") List<String> tags,
+            @QueryParam("search") String search,
+            @QueryParam("cursor") String cursor,
+            @QueryParam("limit") Integer limit
+    ) {
+        LogicalFeed logicalFeed = logicalFeedRepository.findByPublicShareToken(token).orElseThrow(NotFoundException::new);
+        if (!logicalFeed.publicReadable) throw new NotFoundException();
+        return browserPage(logicalFeed, false, false, List.of(), status, mode, tags, search, cursor, limit);
+    }
+
+    private Map<String, Object> browserPage(
+            LogicalFeed logicalFeed,
+            boolean canAdmin,
+            boolean classificationQueue,
+            List<String> states,
+            String status,
+            String mode,
+            List<String> tags,
+            String search,
+            String cursor,
+            Integer limit
+    ) {
+        List<String> classificationStates = classificationQueue
+                ? normalizedClassificationStates(logicalFeed, states) : List.of();
+        PaperBrowserService.Query browserQuery = new PaperBrowserService.Query(
+                status, tags, search, classificationQueue, classificationStates);
+        PaperBrowserService.Page page = paperBrowserService.page(logicalFeed, browserQuery, cursor, limit);
+        List<Paper> papers = new ArrayList<>(page.items());
         populatePaperBadges(papers);
         for (Paper paper : papers) {
             paper.viewerCanEdit = canAdmin;
         }
-        return papers.stream().map(this::paperBrowserItem).toList();
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("items", papers.stream().map(this::paperBrowserItem).toList());
+        response.put("nextCursor", page.nextCursor());
+        if (page.total() >= 0) {
+            response.put("total", page.total());
+            response.put("facets", "tags".equalsIgnoreCase(mode)
+                    ? paperBrowserService.facets(logicalFeed, browserQuery)
+                    : paperBrowserService.stateFacets(logicalFeed,
+                            new PaperBrowserService.Query(null, List.of(), null, false, List.of())));
+        }
+        return response;
+    }
+
+    @GET
+    @Path("/api/share/feed/{token}/papers/{id}/browser-detail")
+    @Transactional
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> sharedBrowserPaperDetail(
+            @jakarta.ws.rs.PathParam("token") String token,
+            @jakarta.ws.rs.PathParam("id") Long id
+    ) {
+        LogicalFeed logicalFeed = logicalFeedRepository.findByPublicShareToken(token).orElseThrow(NotFoundException::new);
+        if (!logicalFeed.publicReadable) throw new NotFoundException();
+        Paper paper = paperRepository.findForReader(id).orElseThrow(NotFoundException::new);
+        if (paper.logicalFeed == null || !Objects.equals(paper.logicalFeed.id, logicalFeed.id)) throw new NotFoundException();
+        paper.viewerCanEdit = false;
+        populatePaperBadges(List.of(paper));
+        Map<String, Object> detail = new LinkedHashMap<>(paperBrowserItem(paper));
+        detail.put("paperNotes", paper.notes != null ? paper.notes : "");
+        return detail;
+    }
+
+    @GET
+    @Path("/api/papers/{id}/browser-detail")
+    @Transactional
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> browserPaperDetail(@jakarta.ws.rs.PathParam("id") Long id) {
+        Paper paper = paperRepository.findForReader(id).orElseThrow(NotFoundException::new);
+        AppUser currentUser = currentUserContext.get().user();
+        if (!canReadLogicalFeed(paper.logicalFeed, currentUser)) {
+            throw new NotFoundException();
+        }
+        paper.viewerCanEdit = canAdminLogicalFeed(paper.logicalFeed, currentUser);
+        populatePaperBadges(List.of(paper));
+        Map<String, Object> detail = new LinkedHashMap<>(paperBrowserItem(paper));
+        detail.put("paperNotes", paper.notes != null ? paper.notes : "");
+        return detail;
     }
 
     @GET
@@ -823,12 +915,7 @@ public class HomeResource {
         populateLogicalFeedAccessFlags(List.of(logicalFeed), currentUser);
         populatePaperCounts(List.of(logicalFeed));
         populateLogicalFeedDashboardStats(List.of(logicalFeed));
-        List<Paper> papers = new ArrayList<>(paperRepository.findAllForExport(logicalFeed));
-        populatePaperBadges(papers);
-        for (Paper paper : papers) {
-            paper.viewerCanEdit = false;
-        }
-        TemplateInstance page = home.data("recentPapers", papers)
+        TemplateInstance page = home.data("recentPapers", List.of())
                 .data("initialPaperId", null)
                 .data("initialLogicalFeedId", logicalFeed.id)
                 .data("logicalFeeds", List.of(logicalFeed))
@@ -2565,6 +2652,10 @@ public class HomeResource {
     public Response batchUpdatePapers(
             @RestForm("logicalFeedId") Long logicalFeedId,
             @RestForm("paperIds") List<Long> paperIds,
+            @RestForm("selection") String selection,
+            @RestForm("filterStatus") String filterStatus,
+            @RestForm("filterTag") List<String> filterTags,
+            @RestForm("filterSearch") String filterSearch,
             @RestForm("operation") String operation,
             @RestForm("status") String status,
             @RestForm("tag") String tag,
@@ -2574,12 +2665,18 @@ public class HomeResource {
             @RestForm("eligibilityInclusionCriterionIds") List<String> eligibilityInclusionCriterionIds
     ) {
         LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, requireCurrentUser());
-        List<Long> distinctPaperIds = paperIds == null ? List.of() : paperIds.stream().filter(Objects::nonNull).distinct().toList();
-        if (distinctPaperIds.isEmpty()) {
+        boolean filteredSelection = "filter".equalsIgnoreCase(normalize(selection));
+        List<Long> distinctPaperIds = paperIds == null ? List.of()
+                : paperIds.stream().filter(Objects::nonNull).distinct().toList();
+        List<Paper> papers = filteredSelection
+                ? paperBrowserService.allMatching(logicalFeed,
+                        new PaperBrowserService.Query(filterStatus, filterTags, filterSearch, false, List.of()))
+                : (distinctPaperIds.isEmpty() ? List.of()
+                        : paperRepository.list("logicalFeed = ?1 and id in ?2", logicalFeed, distinctPaperIds));
+        if (papers.isEmpty()) {
             throw new WebApplicationException("At least one paper is required", Response.Status.BAD_REQUEST);
         }
-        List<Paper> papers = paperRepository.list("logicalFeed = ?1 and id in ?2", logicalFeed, distinctPaperIds);
-        if (papers.size() != distinctPaperIds.size()) {
+        if (!filteredSelection && papers.size() != distinctPaperIds.size()) {
             throw new WebApplicationException("Some selected papers could not be found in this paper feed", Response.Status.BAD_REQUEST);
         }
 
@@ -2592,7 +2689,9 @@ public class HomeResource {
             case "remove_tag" -> applyBatchTagRemoval(papers, tag);
             default -> throw new WebApplicationException("Unsupported batch operation", Response.Status.BAD_REQUEST);
         }
-        return Response.noContent().build();
+        return filteredSelection
+                ? Response.ok(Map.of("updatedCount", papers.size())).build()
+                : Response.noContent().build();
     }
 
     private void applyBatchStateChange(
@@ -2676,17 +2775,10 @@ public class HomeResource {
 
     private void populatePaperBadges(List<Paper> papers) {
         List<Long> paperIds = papers.stream().map((paper) -> paper.id).toList();
-        Map<Long, List<top.nextnet.paper.monitor.model.PaperEvent>> eventsByPaperId = paperEventRepository.findByPaperIds(paperIds);
+        Set<Long> viewedPaperIds = paperEventRepository.paperIdsWithEventType(paperIds, "NOTE_VIEWED");
         for (Paper paper : papers) {
             paper.newBadge = isPaperInRssIntakeState(paper);
-            boolean noteViewed = false;
-            for (top.nextnet.paper.monitor.model.PaperEvent event : eventsByPaperId.getOrDefault(paper.id, List.of())) {
-                if ("NOTE_VIEWED".equals(event.type)) {
-                    noteViewed = true;
-                }
-            }
-            paper.freshBadge = paper.newBadge
-                    && !noteViewed;
+            paper.freshBadge = paper.newBadge && !viewedPaperIds.contains(paper.id);
         }
     }
 
@@ -3819,7 +3911,8 @@ public class HomeResource {
     }
 
     private void populatePaperCounts(List<LogicalFeed> logicalFeeds) {
-        Map<Long, Map<String, Long>> countsByLogicalFeed = paperRepository.countByLogicalFeedAndStatus();
+        List<Long> logicalFeedIds = logicalFeeds.stream().map((logicalFeed) -> logicalFeed.id).toList();
+        Map<Long, Map<String, Long>> countsByLogicalFeed = paperRepository.countByLogicalFeedAndStatus(logicalFeedIds);
         for (LogicalFeed logicalFeed : logicalFeeds) {
             logicalFeed.paperCountsByState = new LinkedHashMap<>();
             Map<String, Long> exactCounts = countsByLogicalFeed.getOrDefault(logicalFeed.id, Map.of());
@@ -3837,26 +3930,19 @@ public class HomeResource {
     }
 
     private void populateLogicalFeedDashboardStats(List<LogicalFeed> logicalFeeds) {
-        Map<Long, LogicalFeed> logicalFeedById = logicalFeeds.stream()
-                .collect(java.util.stream.Collectors.toMap((logicalFeed) -> logicalFeed.id, (logicalFeed) -> logicalFeed));
-        List<Paper> papers = paperRepository.findAllForLogicalFeedIds(new ArrayList<>(logicalFeedById.keySet()));
+        List<Long> logicalFeedIds = logicalFeeds.stream().map((logicalFeed) -> logicalFeed.id).toList();
+        Map<Long, Map<String, Long>> rssCounts = paperRepository.countRssByLogicalFeedAndStatus(logicalFeedIds);
         for (LogicalFeed logicalFeed : logicalFeeds) {
-            logicalFeed.recentNewPaperCount = 0L;
-        }
-        for (Paper paper : papers) {
-            if (paper.logicalFeed == null || !isPaperInRssIntakeState(paper)) {
-                continue;
-            }
-            LogicalFeed logicalFeed = logicalFeedById.get(paper.logicalFeed.id);
-            if (logicalFeed != null) {
-                logicalFeed.recentNewPaperCount += 1L;
-            }
+            logicalFeed.recentNewPaperCount = rssCounts.getOrDefault(logicalFeed.id, Map.of())
+                    .getOrDefault(logicalFeed.initialPaperStatus(), 0L);
         }
     }
 
     private void populateLogicalFeedAccessFlags(List<LogicalFeed> logicalFeeds, AppUser currentUser) {
         for (LogicalFeed logicalFeed : logicalFeeds) {
-            logicalFeed.viewerCanAdmin = logicalFeedAccessService.canAdmin(logicalFeed, currentUser);
+            logicalFeed.viewerCanAdmin = currentUser != null && (currentUser.admin || logicalFeed.isOwnedBy(currentUser)
+                    || logicalFeed.accessGrants.stream().anyMatch((grant) -> grant.user != null
+                    && Objects.equals(grant.user.id, currentUser.id) && grant.canAdmin()));
             String publicShareUrl = logicalFeed.publicReadable
                     ? normalizeBaseUrl() + "/share/feed/" + ensurePublicShareToken(logicalFeed)
                     : null;
@@ -4140,7 +4226,6 @@ public class HomeResource {
         item.put("paperOpenAccessLink", paper.openAccessLink != null ? paper.openAccessLink : "");
         item.put("paperTags", paper.tagsToken());
         item.put("paperCanEditTags", paper.viewerCanEdit);
-        item.put("paperNotes", paper.notes != null ? paper.notes : "");
         item.put("paperIsNew", paper.newBadge);
         item.put("paperIsFresh", paper.freshBadge);
         return item;
