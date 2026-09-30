@@ -884,6 +884,43 @@
         .mendeley-sync-watch.completed { --sync-color: #2878d0; }
         .mendeley-sync-watch.failed { --sync-color: #b42318; }
 
+        .arxiv-pdf-watch {
+            bottom: max(6.2rem, calc(env(safe-area-inset-bottom) + 6.2rem));
+        }
+
+        .arxiv-pdf-preview {
+            padding: 0.85rem;
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            background: var(--panel-quiet);
+        }
+
+        .arxiv-pdf-preview p {
+            margin: 0;
+        }
+
+        .arxiv-pdf-preview p + p {
+            margin-top: 0.4rem;
+        }
+
+        .arxiv-pdf-failures {
+            max-height: min(15rem, 35vh);
+            overflow-y: auto;
+            padding: 0.75rem;
+            border: 1px solid color-mix(in srgb, #b42318 35%, var(--line));
+            border-radius: 12px;
+            background: color-mix(in srgb, #b42318 5%, var(--panel));
+        }
+
+        .arxiv-pdf-failures p {
+            margin: 0 0 0.4rem;
+        }
+
+        .arxiv-pdf-failures ul {
+            margin: 0 0 0.75rem;
+            padding-left: 1.25rem;
+        }
+
         .mendeley-sync-watch-button {
             width: 4.4rem;
             height: 4.4rem;

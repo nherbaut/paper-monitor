@@ -81,8 +81,17 @@
     const paperImportModalClose = document.getElementById("paper-import-modal-close");
     const paperImportDoiTab = document.getElementById("paper-import-doi-tab");
     const paperImportWebTab = document.getElementById("paper-import-web-tab");
+    const paperImportArxivTab = document.getElementById("paper-import-arxiv-tab");
     const paperImportDoiPanel = document.getElementById("paper-import-doi-panel");
     const paperImportWebPanel = document.getElementById("paper-import-web-panel");
+    const paperImportArxivPanel = document.getElementById("paper-import-arxiv-panel");
+    const arxivPdfPreviewStatus = document.getElementById("arxiv-pdf-preview-status");
+    const arxivPdfPreview = document.getElementById("arxiv-pdf-preview");
+    const arxivPdfPreviewTitle = document.getElementById("arxiv-pdf-preview-title");
+    const arxivPdfPreviewCounts = document.getElementById("arxiv-pdf-preview-counts");
+    const arxivPdfPreviewError = document.getElementById("arxiv-pdf-preview-error");
+    const arxivPdfPreviewButton = document.getElementById("arxiv-pdf-preview-button");
+    const arxivPdfStartButton = document.getElementById("arxiv-pdf-start-button");
     const doiImportModalStatus = document.getElementById("manual-import-modal-status");
     const urlImportModalStatus = document.getElementById("url-import-modal-status");
     const urlImportForm = document.getElementById("url-import-form");
@@ -143,6 +152,20 @@
     const mendeleySyncWatch = document.getElementById("mendeley-sync-watch");
     const mendeleySyncWatchButton = document.getElementById("mendeley-sync-watch-button");
     const mendeleySyncWatchClose = document.getElementById("mendeley-sync-watch-close");
+    const arxivPdfProgressModal = document.getElementById("arxiv-pdf-progress-modal");
+    const arxivPdfProgressScope = document.getElementById("arxiv-pdf-progress-scope");
+    const arxivPdfProgressMinimize = document.getElementById("arxiv-pdf-progress-minimize");
+    const arxivPdfProgressPhase = document.getElementById("arxiv-pdf-progress-phase");
+    const arxivPdfProgressCount = document.getElementById("arxiv-pdf-progress-count");
+    const arxivPdfProgressBar = document.getElementById("arxiv-pdf-progress-bar");
+    const arxivPdfProgressSummary = document.getElementById("arxiv-pdf-progress-summary");
+    const arxivPdfProgressError = document.getElementById("arxiv-pdf-progress-error");
+    const arxivPdfFailures = document.getElementById("arxiv-pdf-failures");
+    const arxivPdfFailureList = document.getElementById("arxiv-pdf-failure-list");
+    const arxivPdfRetryButton = document.getElementById("arxiv-pdf-retry-button");
+    const arxivPdfWatch = document.getElementById("arxiv-pdf-watch");
+    const arxivPdfWatchButton = document.getElementById("arxiv-pdf-watch-button");
+    const arxivPdfWatchClose = document.getElementById("arxiv-pdf-watch-close");
     const readerPublicUrlButton = document.getElementById("reader-public-url-button");
     const readerPublicUrlLabel = document.getElementById("reader-public-url-label");
     const paperExportModal = document.getElementById("paper-export-modal");
@@ -1299,6 +1322,171 @@
             pollMendeleySyncProgress();
         } catch (ignored) {
             if (requestedFeedId === mendeleySyncActiveFeedId) hideMendeleySyncProgress();
+        }
+    };
+
+    let arxivPdfActiveFeedId = "";
+    let arxivPdfCurrentJob = null;
+    let arxivPdfPollTimer = null;
+    let arxivPdfMinimized = true;
+    let arxivPdfPreviewState = "";
+    let arxivPdfLastRefreshedJob = "";
+    const arxivPdfDismissedKey = (feedId) => "miage-review-factory.arxiv-pdf.dismissed." + feedId;
+
+    const selectedArxivState = () => activePrimaryTab === "state"
+        ? (activeChildStatus || activeStatusTab || "") : "";
+
+    const arxivPdfJobIdentity = (job) => String(job?.jobId || "") + ":" + (job?.finishedAt || job?.startedAt || "");
+
+    const arxivPdfWasDismissed = (feedId, job) => {
+        if (!feedId || !job || job.running) return false;
+        try {
+            return window.localStorage.getItem(arxivPdfDismissedKey(feedId)) === arxivPdfJobIdentity(job);
+        } catch (ignored) {
+            return false;
+        }
+    };
+
+    const stopArxivPdfPolling = () => {
+        if (arxivPdfPollTimer) window.clearTimeout(arxivPdfPollTimer);
+        arxivPdfPollTimer = null;
+    };
+
+    const hideArxivPdfProgress = () => {
+        stopArxivPdfPolling();
+        arxivPdfWatch?.classList.add("hidden");
+        if (arxivPdfProgressModal?.open) arxivPdfProgressModal.close();
+        arxivPdfCurrentJob = null;
+        arxivPdfActiveFeedId = "";
+    };
+
+    const refreshAfterArxivPdfJob = async (job) => {
+        const identity = arxivPdfJobIdentity(job);
+        if (!job || job.running || identity === arxivPdfLastRefreshedJob
+                || String(logicalFeedFilter?.value || "") !== String(job.logicalFeedId || "")) return;
+        arxivPdfLastRefreshedJob = identity;
+        browserFacetCache.clear();
+        requestedBrowserFilterSignature = "";
+        try {
+            await reloadBrowserPapers();
+        } catch (ignored) {
+            // The next reader interaction will retry the lazy reload.
+        }
+    };
+
+    const renderArxivPdfProgress = (job) => {
+        if (!job || !arxivPdfActiveFeedId || !arxivPdfProgressModal || !arxivPdfWatch) return;
+        arxivPdfCurrentJob = job;
+        const status = String(job.status || "IDLE").toUpperCase();
+        const running = Boolean(job.running);
+        const completed = Math.max(0, Number(job.completed || 0));
+        const total = Math.max(0, Number(job.total || 0));
+        const imported = Math.max(0, Number(job.imported || 0));
+        const skipped = Math.max(0, Number(job.skipped || 0));
+        const failedCount = Math.max(0, Number(job.failed || 0));
+        const failed = status === "FAILED";
+        const done = ["COMPLETED", "COMPLETED_WITH_ERRORS"].includes(status);
+        const terminal = done || failed;
+        const hasErrors = failed || status === "COMPLETED_WITH_ERRORS";
+        const dismissed = terminal && arxivPdfWasDismissed(arxivPdfActiveFeedId, job);
+        const ratio = total > 0 ? Math.min(completed / total, 1) : (terminal ? 1 : 0.1);
+
+        arxivPdfProgressModal.dataset.syncState = hasErrors ? "failed" : done ? "completed" : "running";
+        arxivPdfProgressScope.textContent = (job.feedName || "Current paper feed")
+            + (job.stateLabel ? " · " + job.stateLabel : "");
+        arxivPdfProgressPhase.textContent = job.phase || (failed ? "PDF retrieval failed" : done
+            ? "PDF retrieval complete" : "Preparing retrieval…");
+        arxivPdfProgressCount.textContent = total > 0 ? completed + " / " + total : (running ? "Preparing…" : "");
+        if (running && total === 0) {
+            arxivPdfProgressBar.removeAttribute("value");
+        } else {
+            arxivPdfProgressBar.max = Math.max(total, 1);
+            arxivPdfProgressBar.value = total > 0 ? Math.min(completed, total) : (terminal ? 1 : 0);
+        }
+        arxivPdfProgressSummary.textContent = terminal
+            ? imported + " imported · " + skipped + " skipped · " + failedCount + " failed"
+            : (job.currentPaperTitle || "");
+        arxivPdfProgressError.textContent = job.error || "";
+        arxivPdfProgressError.classList.toggle("hidden", !job.error);
+
+        const failures = Array.isArray(job.failures) ? job.failures : [];
+        arxivPdfFailureList.replaceChildren(...failures.map((failure) => {
+            const item = document.createElement("li");
+            item.textContent = (failure.title || "Paper") + ": " + (failure.error || "Retrieval failed");
+            return item;
+        }));
+        arxivPdfFailures.classList.toggle("hidden", failures.length === 0);
+        arxivPdfRetryButton.disabled = running || failures.length === 0;
+
+        arxivPdfWatch.style.setProperty("--sync-angle", Math.round(ratio * 360) + "deg");
+        arxivPdfWatch.classList.toggle("running", running);
+        arxivPdfWatch.classList.toggle("completed", done && !hasErrors);
+        arxivPdfWatch.classList.toggle("failed", hasErrors);
+        arxivPdfWatchClose.classList.toggle("hidden", !terminal);
+        arxivPdfWatchButton.setAttribute("aria-label", (job.phase || "arXiv PDF retrieval")
+            + (total > 0 ? ", " + completed + " of " + total : ""));
+
+        if (dismissed) {
+            arxivPdfWatch.classList.add("hidden");
+            if (arxivPdfProgressModal.open) arxivPdfProgressModal.close();
+        } else if (arxivPdfMinimized) {
+            arxivPdfWatch.classList.remove("hidden");
+            if (arxivPdfProgressModal.open) arxivPdfProgressModal.close();
+        } else {
+            arxivPdfWatch.classList.add("hidden");
+            if (!arxivPdfProgressModal.open) arxivPdfProgressModal.showModal();
+        }
+        if (terminal) void refreshAfterArxivPdfJob(job);
+    };
+
+    const pollArxivPdfProgress = () => {
+        stopArxivPdfPolling();
+        if (!arxivPdfCurrentJob?.running || !arxivPdfCurrentJob?.jobId) return;
+        const jobId = arxivPdfCurrentJob.jobId;
+        arxivPdfPollTimer = window.setTimeout(async () => {
+            if (jobId !== arxivPdfCurrentJob?.jobId) return;
+            try {
+                const response = await fetch("/api/arxiv-pdf-retrievals/" + encodeURIComponent(jobId), {
+                    headers: { Accept: "application/json" }
+                });
+                const body = await response.text();
+                if (!response.ok) throw new Error(body || "Unable to load arXiv PDF retrieval progress.");
+                if (jobId !== arxivPdfCurrentJob?.jobId) return;
+                renderArxivPdfProgress(JSON.parse(body));
+                pollArxivPdfProgress();
+            } catch (error) {
+                if (jobId !== arxivPdfCurrentJob?.jobId) return;
+                arxivPdfProgressPhase.textContent = "Waiting for retrieval status…";
+                arxivPdfPollTimer = window.setTimeout(pollArxivPdfProgress, 2500);
+            }
+        }, 900);
+    };
+
+    const restoreArxivPdfProgress = async (feedId) => {
+        hideArxivPdfProgress();
+        if (!feedId || !selectedLogicalFeedCanAdmin() || !arxivPdfProgressModal) return;
+        const requestedFeedId = String(feedId);
+        if (requestedFeedId !== String(logicalFeedFilter?.value || "")) return;
+        arxivPdfActiveFeedId = requestedFeedId;
+        try {
+            const response = await fetch("/api/logical-feeds/" + encodeURIComponent(requestedFeedId)
+                + "/arxiv-pdf-retrievals/latest", { headers: { Accept: "application/json" } });
+            if (!response.ok || requestedFeedId !== arxivPdfActiveFeedId
+                    || requestedFeedId !== String(logicalFeedFilter?.value || "")) {
+                if (requestedFeedId === arxivPdfActiveFeedId) hideArxivPdfProgress();
+                return;
+            }
+            const job = await response.json();
+            if (!job.running && !["COMPLETED", "COMPLETED_WITH_ERRORS", "FAILED"]
+                    .includes(String(job.status || "").toUpperCase())) {
+                hideArxivPdfProgress();
+                return;
+            }
+            arxivPdfMinimized = true;
+            renderArxivPdfProgress(job);
+            pollArxivPdfProgress();
+        } catch (ignored) {
+            if (requestedFeedId === arxivPdfActiveFeedId) hideArxivPdfProgress();
         }
     };
 
@@ -2473,19 +2661,47 @@
     };
 
     const showPaperImportTab = (mode, focus = true) => {
-        const showDoi = mode !== "web";
+        const showDoi = mode === "doi";
+        const showWeb = mode === "web";
+        const showArxiv = mode === "arxiv";
         paperImportDoiTab?.classList.toggle("active", showDoi);
         paperImportDoiTab?.setAttribute("aria-selected", String(showDoi));
         paperImportDoiTab?.setAttribute("tabindex", showDoi ? "0" : "-1");
-        paperImportWebTab?.classList.toggle("active", !showDoi);
-        paperImportWebTab?.setAttribute("aria-selected", String(!showDoi));
-        paperImportWebTab?.setAttribute("tabindex", showDoi ? "-1" : "0");
+        paperImportWebTab?.classList.toggle("active", showWeb);
+        paperImportWebTab?.setAttribute("aria-selected", String(showWeb));
+        paperImportWebTab?.setAttribute("tabindex", showWeb ? "0" : "-1");
+        paperImportArxivTab?.classList.toggle("active", showArxiv);
+        paperImportArxivTab?.setAttribute("aria-selected", String(showArxiv));
+        paperImportArxivTab?.setAttribute("tabindex", showArxiv ? "0" : "-1");
         paperImportDoiPanel?.classList.toggle("hidden", !showDoi);
-        paperImportWebPanel?.classList.toggle("hidden", showDoi);
+        paperImportWebPanel?.classList.toggle("hidden", !showWeb);
+        paperImportArxivPanel?.classList.toggle("hidden", !showArxiv);
         if (paperImportDoiPanel) paperImportDoiPanel.hidden = !showDoi;
-        if (paperImportWebPanel) paperImportWebPanel.hidden = showDoi;
+        if (paperImportWebPanel) paperImportWebPanel.hidden = !showWeb;
+        if (paperImportArxivPanel) paperImportArxivPanel.hidden = !showArxiv;
+        if (showArxiv) prepareArxivPdfPreview();
         if (focus) {
-            window.setTimeout(() => (showDoi ? manualImportDoi : urlImportUrl)?.focus(), 0);
+            window.setTimeout(() => (showDoi ? manualImportDoi : showWeb ? urlImportUrl : arxivPdfPreviewButton)?.focus(), 0);
+        }
+    };
+
+    const prepareArxivPdfPreview = () => {
+        arxivPdfPreviewState = "";
+        arxivPdfPreview?.classList.add("hidden");
+        arxivPdfStartButton?.classList.add("hidden");
+        arxivPdfPreviewError?.classList.add("hidden");
+        if (arxivPdfPreviewError) arxivPdfPreviewError.textContent = "";
+        const state = selectedArxivState();
+        const canStart = Boolean(logicalFeedFilter?.value && selectedLogicalFeedCanAdmin() && state);
+        if (arxivPdfPreviewButton) arxivPdfPreviewButton.disabled = !canStart;
+        if (!selectedLogicalFeedCanAdmin()) {
+            arxivPdfPreviewStatus.textContent = "You need admin access to retrieve PDFs for this paper feed.";
+        } else if (activePrimaryTab !== "state") {
+            arxivPdfPreviewStatus.textContent = "Select a workflow state in the States view first.";
+        } else if (!state) {
+            arxivPdfPreviewStatus.textContent = "Select a workflow state first.";
+        } else {
+            arxivPdfPreviewStatus.textContent = "Preview missing arXiv PDFs in " + statusLabel(state) + ".";
         }
     };
 
@@ -7203,6 +7419,54 @@
         hideMendeleySyncProgress();
         applyLogicalFeedFilter();
     });
+    arxivPdfProgressMinimize?.addEventListener("click", () => {
+        arxivPdfMinimized = true;
+        renderArxivPdfProgress(arxivPdfCurrentJob);
+    });
+    arxivPdfProgressModal?.addEventListener("cancel", (event) => {
+        event.preventDefault();
+        arxivPdfMinimized = true;
+        renderArxivPdfProgress(arxivPdfCurrentJob);
+    });
+    arxivPdfWatchButton?.addEventListener("click", () => {
+        arxivPdfMinimized = false;
+        renderArxivPdfProgress(arxivPdfCurrentJob);
+    });
+    arxivPdfWatchClose?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (!arxivPdfCurrentJob || arxivPdfCurrentJob.running) return;
+        try {
+            window.localStorage.setItem(arxivPdfDismissedKey(arxivPdfActiveFeedId),
+                arxivPdfJobIdentity(arxivPdfCurrentJob));
+        } catch (ignored) {
+            // The server remains authoritative when browser storage is unavailable.
+        }
+        hideArxivPdfProgress();
+    });
+    arxivPdfRetryButton?.addEventListener("click", async () => {
+        const jobId = arxivPdfCurrentJob?.jobId;
+        if (!jobId || arxivPdfCurrentJob.running) return;
+        arxivPdfRetryButton.disabled = true;
+        try {
+            const response = await fetch("/api/arxiv-pdf-retrievals/" + encodeURIComponent(jobId) + "/retry", {
+                method: "POST",
+                headers: { Accept: "application/json" }
+            });
+            const body = await response.text();
+            if (!response.ok) throw new Error(body || "Unable to retry failed PDF retrievals.");
+            try {
+                window.localStorage.removeItem(arxivPdfDismissedKey(arxivPdfActiveFeedId));
+            } catch (ignored) {
+                // Progress works without browser storage.
+            }
+            renderArxivPdfProgress(JSON.parse(body));
+            pollArxivPdfProgress();
+        } catch (error) {
+            arxivPdfProgressError.textContent = error.message || "Unable to retry failed PDF retrievals.";
+            arxivPdfProgressError.classList.remove("hidden");
+            arxivPdfRetryButton.disabled = false;
+        }
+    });
     readerMendeleySyncButton?.addEventListener("click", async () => {
         const logicalFeedId = logicalFeedFilter?.value || "";
         if (!logicalFeedId || !selectedLogicalFeedCanAdmin()) {
@@ -7302,7 +7566,8 @@
     });
     paperImportDoiTab?.addEventListener("click", () => showPaperImportTab("doi"));
     paperImportWebTab?.addEventListener("click", () => showPaperImportTab("web"));
-    [paperImportDoiTab, paperImportWebTab].forEach((tab, index, tabs) => {
+    paperImportArxivTab?.addEventListener("click", () => showPaperImportTab("arxiv"));
+    [paperImportDoiTab, paperImportWebTab, paperImportArxivTab].forEach((tab, index, tabs) => {
         tab?.addEventListener("keydown", (event) => {
             let nextIndex = null;
             if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (index + tabs.length - 1) % tabs.length;
@@ -7312,9 +7577,119 @@
             if (nextIndex == null) return;
             event.preventDefault();
             const nextTab = tabs[nextIndex];
-            showPaperImportTab(nextTab === paperImportWebTab ? "web" : "doi", false);
+            showPaperImportTab(nextTab === paperImportWebTab ? "web"
+                : nextTab === paperImportArxivTab ? "arxiv" : "doi", false);
             nextTab?.focus();
         });
+    });
+    arxivPdfPreviewButton?.addEventListener("click", async () => {
+        const feedId = logicalFeedFilter?.value || "";
+        const state = selectedArxivState();
+        prepareArxivPdfPreview();
+        if (!feedId || !state || activePrimaryTab !== "state" || !selectedLogicalFeedCanAdmin()) return;
+        arxivPdfPreviewButton.disabled = true;
+        arxivPdfPreviewStatus.textContent = "Scanning " + statusLabel(state) + "…";
+        try {
+            const params = new URLSearchParams({ state });
+            const response = await fetch("/api/logical-feeds/" + encodeURIComponent(feedId)
+                + "/arxiv-pdf-retrievals/preview?" + params.toString(), {
+                headers: { Accept: "application/json" }
+            });
+            const body = await response.text();
+            if (!response.ok) throw new Error(body || "Unable to preview arXiv PDF retrieval.");
+            if (feedId !== String(logicalFeedFilter?.value || "") || state !== selectedArxivState()) return;
+            const preview = JSON.parse(body);
+            arxivPdfPreviewState = state;
+            arxivPdfPreviewTitle.textContent = (preview.feedName || "Current paper feed")
+                + " · " + (preview.stateLabel || statusLabel(state));
+            arxivPdfPreviewCounts.textContent = Number(preview.eligible || 0) + " ready to retrieve · "
+                + Number(preview.attached || 0) + " already attached · "
+                + Number(preview.unsupported || 0) + " without an arXiv PDF source";
+            arxivPdfPreview.classList.remove("hidden");
+            arxivPdfStartButton.classList.toggle("hidden", Number(preview.eligible || 0) === 0);
+            arxivPdfStartButton.disabled = Number(preview.eligible || 0) === 0;
+            arxivPdfPreviewStatus.textContent = Number(preview.eligible || 0) === 0
+                ? "No missing arXiv PDFs are available in this state."
+                : "Confirm to start the background retrieval.";
+        } catch (error) {
+            arxivPdfPreviewError.textContent = error.message || "Unable to preview arXiv PDF retrieval.";
+            arxivPdfPreviewError.classList.remove("hidden");
+        } finally {
+            arxivPdfPreviewButton.disabled = !selectedArxivState() || activePrimaryTab !== "state";
+        }
+    });
+    arxivPdfStartButton?.addEventListener("click", async () => {
+        const feedId = logicalFeedFilter?.value || "";
+        const state = selectedArxivState();
+        if (!feedId || !state || state !== arxivPdfPreviewState || activePrimaryTab !== "state") {
+            prepareArxivPdfPreview();
+            return;
+        }
+        arxivPdfStartButton.disabled = true;
+        closePaperImportModal();
+        stopArxivPdfPolling();
+        arxivPdfActiveFeedId = String(feedId);
+        arxivPdfMinimized = false;
+        try {
+            window.localStorage.removeItem(arxivPdfDismissedKey(feedId));
+        } catch (ignored) {
+            // Progress works without browser storage.
+        }
+        renderArxivPdfProgress({
+            jobId: null,
+            logicalFeedId: feedId,
+            feedName: logicalFeedFilter?.selectedOptions?.[0]?.dataset?.feedName || "Current paper feed",
+            state,
+            stateLabel: statusLabel(state),
+            status: "QUEUED",
+            phase: "Queueing arXiv PDF retrieval…",
+            completed: 0,
+            total: 0,
+            imported: 0,
+            skipped: 0,
+            failed: 0,
+            failures: [],
+            running: true,
+            startedAt: new Date().toISOString(),
+            finishedAt: "",
+            error: ""
+        });
+        try {
+            const response = await fetch("/api/logical-feeds/" + encodeURIComponent(feedId)
+                + "/arxiv-pdf-retrievals", {
+                method: "POST",
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+                },
+                body: new URLSearchParams({ state }).toString()
+            });
+            const body = await response.text();
+            if (!response.ok) throw new Error(body || "Unable to start arXiv PDF retrieval.");
+            renderArxivPdfProgress(JSON.parse(body));
+            pollArxivPdfProgress();
+        } catch (error) {
+            const finishedAt = new Date().toISOString();
+            renderArxivPdfProgress({
+                logicalFeedId: feedId,
+                state,
+                stateLabel: statusLabel(state),
+                status: "FAILED",
+                phase: "PDF retrieval could not be started",
+                completed: 0,
+                total: 0,
+                imported: 0,
+                skipped: 0,
+                failed: 0,
+                failures: [],
+                running: false,
+                startedAt: finishedAt,
+                finishedAt,
+                error: error.message || "Unable to start arXiv PDF retrieval."
+            });
+        } finally {
+            arxivPdfStartButton.disabled = false;
+        }
     });
     paperExportModalClose?.addEventListener("click", closePaperExportModal);
     paperExportModal?.addEventListener("click", (event) => {
@@ -7423,6 +7798,7 @@
         await openLogicalFeed(logicalFeedFilter.value);
         const selectedFeedId = logicalFeedFilter.value;
         scheduleIdleTask(() => restoreMendeleySyncProgress(selectedFeedId));
+        scheduleIdleTask(() => restoreArxivPdfProgress(selectedFeedId));
     });
     syncManualImportControls();
 
@@ -8033,6 +8409,7 @@
     const initialIdlePaperId = selectedPaperId;
     scheduleIdleTask(async () => {
         await restoreMendeleySyncProgress(initialIdleFeedId);
+        await restoreArxivPdfProgress(initialIdleFeedId);
         if (initialIdlePaperId === selectedPaperId) {
             await paperAnalysisProgress.restore(initialIdlePaperId);
         }

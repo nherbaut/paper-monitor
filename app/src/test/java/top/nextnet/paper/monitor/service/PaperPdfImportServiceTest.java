@@ -34,5 +34,7 @@ class PaperPdfImportServiceTest {
 
         assertTrue(service.supportedPdfUrl(paper).isEmpty());
         assertTrue(service.supportedPdfUrl((Paper) null).isEmpty());
+        assertTrue(service.supportedPdfUrl("https://notarxiv.org/pdf/2603.26487.pdf").isEmpty());
+        assertTrue(service.supportedPdfUrl("https://notdoi.org/10.48550/arXiv.2603.26487").isEmpty());
     }
 }

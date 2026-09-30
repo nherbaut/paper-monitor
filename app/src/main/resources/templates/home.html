@@ -335,6 +335,7 @@
             <div class="dialog-tabs" role="tablist" aria-label="Paper import method">
                 <button class="active" id="paper-import-doi-tab" type="button" role="tab" aria-selected="true" aria-controls="paper-import-doi-panel" tabindex="0">DOI</button>
                 <button id="paper-import-web-tab" type="button" role="tab" aria-selected="false" aria-controls="paper-import-web-panel" tabindex="-1">Web resource</button>
+                <button id="paper-import-arxiv-tab" type="button" role="tab" aria-selected="false" aria-controls="paper-import-arxiv-panel" tabindex="-1">arXiv PDFs</button>
             </div>
             <section class="import-mode-panel" id="paper-import-doi-panel" role="tabpanel" aria-labelledby="paper-import-doi-tab">
                 <p class="meta" id="manual-import-modal-status">Paste one DOI or several DOIs separated by spaces or commas. The papers will be added to the current paper feed.</p>
@@ -393,6 +394,21 @@
                         <button class="secondary" id="url-import-submit" type="submit">Import resource</button>
                     </div>
                 </form>
+            </section>
+            <section class="import-mode-panel hidden" id="paper-import-arxiv-panel" role="tabpanel" aria-labelledby="paper-import-arxiv-tab" hidden>
+                <div class="stack">
+                    <p class="meta" id="arxiv-pdf-preview-status">Select a workflow state to retrieve its missing arXiv PDFs.</p>
+                    <div class="arxiv-pdf-preview hidden" id="arxiv-pdf-preview" aria-live="polite">
+                        <p><strong id="arxiv-pdf-preview-title"></strong></p>
+                        <p class="meta" id="arxiv-pdf-preview-counts"></p>
+                        <p class="meta">Downloads run one at a time and are spaced to respect arXiv access limits.</p>
+                    </div>
+                    <p class="message error hidden" id="arxiv-pdf-preview-error"></p>
+                    <div class="manual-import-actions">
+                        <button class="secondary" id="arxiv-pdf-preview-button" type="button">Preview retrieval</button>
+                        <button class="hidden" id="arxiv-pdf-start-button" type="button">Retrieve missing PDFs</button>
+                    </div>
+                </div>
             </section>
         </div>
     </dialog>
@@ -523,6 +539,40 @@
             </svg>
         </button>
         <button class="mendeley-sync-watch-close hidden" id="mendeley-sync-watch-close" type="button" title="Dismiss completed synchronization" aria-label="Dismiss completed synchronization">×</button>
+    </div>
+    <dialog class="review-modal mendeley-sync-modal arxiv-pdf-progress-modal" id="arxiv-pdf-progress-modal" data-sync-state="running">
+        <div class="review-modal-body">
+            <div class="review-modal-header">
+                <div>
+                    <h3>arXiv PDF retrieval</h3>
+                    <p class="meta" id="arxiv-pdf-progress-scope"></p>
+                </div>
+                <button class="icon-button secondary" id="arxiv-pdf-progress-minimize" type="button" title="Minimize retrieval progress" aria-label="Minimize retrieval progress">—</button>
+            </div>
+            <div class="mendeley-sync-progress-shell">
+                <div class="mendeley-sync-progress-line">
+                    <p id="arxiv-pdf-progress-phase" role="status" aria-live="polite">Preparing retrieval…</p>
+                    <p class="meta" id="arxiv-pdf-progress-count"></p>
+                </div>
+                <progress id="arxiv-pdf-progress-bar" max="1" aria-label="arXiv PDF retrieval progress"></progress>
+                <p class="meta" id="arxiv-pdf-progress-summary"></p>
+                <p class="message error hidden" id="arxiv-pdf-progress-error"></p>
+                <div class="arxiv-pdf-failures hidden" id="arxiv-pdf-failures">
+                    <p class="meta"><strong>Failed papers</strong></p>
+                    <ul id="arxiv-pdf-failure-list"></ul>
+                    <button class="secondary" id="arxiv-pdf-retry-button" type="button">Retry failed</button>
+                </div>
+            </div>
+        </div>
+    </dialog>
+    <div class="mendeley-sync-watch arxiv-pdf-watch hidden" id="arxiv-pdf-watch" role="status" aria-live="polite">
+        <button class="mendeley-sync-watch-button" id="arxiv-pdf-watch-button" type="button" title="Open arXiv PDF retrieval progress" aria-label="Open arXiv PDF retrieval progress">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 3v12M7 10l5 5 5-5"></path>
+                <path d="M5 21h14"></path>
+            </svg>
+        </button>
+        <button class="mendeley-sync-watch-close hidden" id="arxiv-pdf-watch-close" type="button" title="Dismiss completed retrieval" aria-label="Dismiss completed retrieval">×</button>
     </div>
     {/if}
 
