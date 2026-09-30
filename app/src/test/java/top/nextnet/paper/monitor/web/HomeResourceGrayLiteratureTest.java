@@ -1,6 +1,7 @@
 package top.nextnet.paper.monitor.web;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import jakarta.ws.rs.WebApplicationException;
@@ -58,5 +59,16 @@ class HomeResourceGrayLiteratureTest {
 
         paper.status = "TRIAGE";
         assertEquals(false, HomeResource.isPaperInRssIntakeState(paper));
+    }
+
+    @Test
+    void usesShortFeedBasedExportFileNames() {
+        assertEquals("impact-of-genai-on-oss-projects",
+                HomeResource.exportBaseFileName("Impact of GenAI on OSS projects", "report"));
+        assertEquals("impact-of-genai-on-oss-projects-notes",
+                HomeResource.exportBaseFileName("Impact of GenAI on OSS projects", "notes"));
+        assertEquals("impact-of-genai-on-oss-projects-archive",
+                HomeResource.exportBaseFileName("Impact of GenAI on OSS projects", "all"));
+        assertTrue(HomeResource.exportBaseFileName("A".repeat(300), "all").length() <= 80);
     }
 }

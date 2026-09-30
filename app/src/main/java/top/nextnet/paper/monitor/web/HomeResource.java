@@ -2023,7 +2023,7 @@ public class HomeResource {
         List<String> normalizedStatuses = normalizeNullableExportStatuses(logicalFeed, statuses, status);
         List<Paper> papers = selectPapersForExport(logicalFeed, normalizedStatuses, normalizedTags);
         String filterLabel = exportFilterLabel(normalizedStatuses, normalizedTags);
-        String baseFileName = slug(logicalFeed.name) + "-" + slug(filterLabel) + "-" + normalizedKind;
+        String baseFileName = exportBaseFileName(logicalFeed.name, normalizedKind);
 
         try {
             if ("all".equals(normalizedKind)) {
@@ -3662,7 +3662,19 @@ public class HomeResource {
                 .replace("#", "\\#");
     }
 
-    private String slug(String value) {
+    static String exportBaseFileName(String logicalFeedName, String kind) {
+        String feedName = slug(logicalFeedName);
+        if (feedName.length() > 72) {
+            feedName = feedName.substring(0, 72).replaceFirst("-+$", "");
+        }
+        return switch (kind) {
+            case "notes" -> feedName + "-notes";
+            case "all" -> feedName + "-archive";
+            default -> feedName;
+        };
+    }
+
+    private static String slug(String value) {
         String normalized = value == null ? "export" : value.toLowerCase();
         normalized = normalized.replaceAll("[^a-z0-9]+", "-").replaceAll("^-+|-+$", "");
         return normalized.isBlank() ? "export" : normalized;
