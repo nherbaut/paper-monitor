@@ -8165,7 +8165,15 @@
         if (!classificationQueueMode || !paperRecords.length) {
             return;
         }
-        const firstRecord = paperRecords[0];
+        // Appended pages arrive after earlier records have already moved to their destination
+        // states. Keep the queue filter anchored to the first paper that is still pending rather
+        // than resetting it from the first (already classified) record in the backing array.
+        const firstRecord = paperRecords.find((record) =>
+            !classificationQueueCompletedPaperIds.has(String(record.id))
+        );
+        if (!firstRecord) {
+            return;
+        }
         const firstStatus = normalizeStatus(firstRecord.paperStatus);
         activeStatusTab = firstRecord.paperTopStatus || (firstStatus.includes("/") ? firstStatus.split("/")[0] : firstStatus);
         activeChildStatus = classificationQueueStates.length === 1 && firstStatus !== activeStatusTab

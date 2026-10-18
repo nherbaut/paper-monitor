@@ -104,7 +104,8 @@ class AnonymousSetupResourceTest {
         given().header("Accept-Encoding", "gzip").when().get("/app-assets/home.js").then()
                 .statusCode(200).contentType(containsString("javascript"))
                 .header("Content-Encoding", containsString("gzip"))
-                .body(containsString("loadNextBrowserPage"));
+                .body(containsString("loadNextBrowserPage"))
+                .body(containsString("!classificationQueueCompletedPaperIds.has(String(record.id))"));
     }
 
     @Test
