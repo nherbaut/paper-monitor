@@ -481,15 +481,19 @@
     };
 
     const applyNotesCollapsedState = () => {
-        const collapsed = notesCollapsed && window.innerWidth > 720;
+        const collapsed = notesCollapsed;
+        const mobile = isMobileViewport();
         readerLayout.classList.toggle("notes-collapsed", collapsed);
         notesPanel.dataset.collapsedLabel = collapsed ? "Notes" : "";
         if (notesCollapseButton) {
             notesCollapseButton.title = collapsed ? "Show notes" : "Fold notes";
             notesCollapseButton.textContent = collapsed ? "‹" : "›";
+            notesCollapseButton.setAttribute("aria-expanded", collapsed ? "false" : "true");
         }
         if (notesExpandButton) {
             notesExpandButton.title = "Show notes";
+            notesExpandButton.textContent = mobile ? "Show notes" : "‹";
+            notesExpandButton.setAttribute("aria-expanded", collapsed ? "false" : "true");
         }
     };
 
@@ -5253,7 +5257,9 @@
         clearKeyboardStatePicker();
         if (card.dataset.pdfUrl) {
             showPdfForCard(card);
-            card.scrollIntoView({ behavior: "smooth", block: "center" });
+            if (!isMobileViewport()) {
+                card.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
             return;
         }
         focusPaperCard(card);
@@ -5302,7 +5308,13 @@
         leaveNotesEditMode();
         renderPaperCardPreview(card);
         applyLayoutState();
-        card.scrollIntoView({ behavior: "smooth", block: "center" });
+        if (isMobileViewport()) {
+            window.requestAnimationFrame(() => {
+                pdfPanel.scrollIntoView({ block: "start" });
+            });
+        } else {
+            card.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
     };
 
     const ensurePaperDetail = async (card) => {

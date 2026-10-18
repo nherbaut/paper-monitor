@@ -838,13 +838,13 @@
             </aside>
 
             <aside class="panel notes-panel" id="notes-panel">
-                <button class="icon-button secondary notes-panel-collapsed-toggle" id="notes-expand" type="button" title="Show notes">‹</button>
-                <div class="notes-panel-inner">
+                <button class="icon-button secondary notes-panel-collapsed-toggle" id="notes-expand" type="button" title="Show notes" aria-controls="notes-panel-inner" aria-expanded="false">‹</button>
+                <div class="notes-panel-inner" id="notes-panel-inner">
                     <div class="notes-panel-header">
                         {#if authenticated}
                         <span class="meta upload-cue" id="note-view-upload-cue" title="Drop a PDF on the paper or notes area to attach it to the selected paper.">↥</span>
                         {/if}
-                        <button class="icon-button secondary notes-collapse-button" id="notes-collapse" type="button" title="Fold notes">›</button>
+                        <button class="icon-button secondary notes-collapse-button" id="notes-collapse" type="button" title="Fold notes" aria-controls="notes-panel-inner" aria-expanded="true">›</button>
                     </div>
                     <div class="notes-preview" id="notes-preview"></div>
                     <div class="notes-editor notes-editor-shell hidden" id="notes-editor-shell">

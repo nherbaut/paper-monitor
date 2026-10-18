@@ -3111,6 +3111,7 @@
             .reader-layout.with-notes .pdf-panel {
                 order: 1;
                 width: 100%;
+                position: static;
             }
 
             .reader-layout.with-notes .notes-panel {
@@ -3119,19 +3120,32 @@
             }
 
             .notes-collapsed .notes-panel {
-                padding: 1.35rem;
+                min-height: 3.25rem;
+                padding: 0.7rem 0.85rem;
+                align-items: center;
+                justify-content: space-between;
             }
 
             .notes-collapsed .notes-panel::before {
-                display: none;
+                display: block;
+                writing-mode: initial;
+                transform: none;
+                align-self: auto;
+                font-weight: 700;
             }
 
             .notes-collapsed .notes-panel-inner {
-                display: grid;
+                display: none;
             }
 
             .notes-collapsed .notes-panel-collapsed-toggle {
-                display: none;
+                display: inline-flex;
+                position: static;
+                width: auto;
+                min-width: 0;
+                height: auto;
+                padding: 0.5rem 0.7rem;
+                transform: none;
             }
 
             .notes-collapse-button {
