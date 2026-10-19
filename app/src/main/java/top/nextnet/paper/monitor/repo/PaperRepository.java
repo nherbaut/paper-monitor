@@ -134,12 +134,11 @@ public class PaperRepository implements PanacheRepository<Paper> {
                 .list();
     }
 
-    public List<Paper> findRssImportsForDigest(LogicalFeed logicalFeed, Instant after, Instant through) {
+    public List<Paper> findNewPapersForDigest(LogicalFeed logicalFeed, Instant after, Instant through) {
         return find("select p from Paper p "
                         + "join fetch p.feed f "
                         + "where p.logicalFeed = ?1 "
                         + "and p.discoveredAt > ?2 and p.discoveredAt <= ?3 "
-                        + "and (f.url like 'http://%' or f.url like 'https://%') "
                         + "order by f.name asc, p.publishedOn desc nulls last, p.discoveredAt asc",
                 logicalFeed, after, through)
                 .list();

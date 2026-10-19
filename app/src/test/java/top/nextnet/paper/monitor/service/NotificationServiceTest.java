@@ -96,11 +96,47 @@ class NotificationServiceTest {
         NotificationService.RenderedDigest digest = NotificationService.renderRssDigest(
                 logicalFeed, List.of(paper), LocalDate.of(2026, 7, 4), "https://papers.example.test/");
 
-        assertTrue(digest.text().contains("Classify these papers:\nhttps://papers.example.test/classify?logicalFeedId=7"));
-        assertTrue(digest.html().contains("href=\"https://papers.example.test/classify?logicalFeedId=7\""));
+        assertTrue(digest.text().contains("Classify these papers:\nhttps://papers.example.test/classify?logicalFeedId=7&state=NEW"));
+        assertTrue(digest.html().contains("href=\"https://papers.example.test/classify?logicalFeedId=7&amp;state=NEW\""));
         assertTrue(digest.text().contains("To review: https://papers.example.test/papers/42/transition?status=TODO"));
         assertTrue(digest.html().contains("href=\"https://papers.example.test/papers/42/transition?status=TODO\""));
         assertFalse(digest.html().contains("status=DONE"));
+    }
+
+    @Test
+    void rendersOneCombinedDigestWithAClassificationButtonPerPaperFeed() {
+        LogicalFeed firstFeed = new LogicalFeed();
+        firstFeed.id = 7L;
+        firstFeed.name = "Trust & safety";
+        Paper firstPaper = paper(feed("RSS source"), "Trust paper", "A. Author", "Venue", "2026-01-01",
+                "https://example.org/trust");
+
+        LogicalFeed secondFeed = new LogicalFeed();
+        secondFeed.id = 8L;
+        secondFeed.name = "Software studies";
+        Paper secondPaper = paper(feed("Manual upload: Software studies"), "Software paper", "B. Author", "Venue",
+                "2026-01-02", "upload:software-paper");
+        secondPaper.status = "TODO";
+
+        NotificationService.RenderedDigest digest = NotificationService.renderCombinedPaperDigest(
+                List.of(
+                        new NotificationService.FeedDigest(firstFeed, List.of(firstPaper)),
+                        new NotificationService.FeedDigest(secondFeed, List.of(secondPaper))),
+                LocalDate.of(2026, 7, 4),
+                "https://papers.example.test/");
+
+        assertEquals("2 new papers across 2 paper feeds", digest.subject());
+        assertTrue(digest.text().contains("Trust & safety — 1 new paper"));
+        assertTrue(digest.text().contains("Software studies — 1 new paper"));
+        assertTrue(digest.text().contains("logicalFeedId=7&state=NEW"));
+        assertTrue(digest.text().contains("logicalFeedId=8&state=TODO"));
+        assertTrue(digest.html().contains("Trust &amp; safety"));
+        assertEquals(2, occurrences(digest.html(), ">Classify this paper feed</a>"));
+        assertFalse(digest.html().contains("Change state"));
+    }
+
+    private int occurrences(String value, String search) {
+        return (value.length() - value.replace(search, "").length()) / search.length();
     }
 
     private Feed feed(String name) {

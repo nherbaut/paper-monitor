@@ -1252,6 +1252,21 @@ public class HomeResource {
     }
 
     @POST
+    @Path("/admin/notifications")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    public Response updateNotificationSettings(@RestForm("paperDigestMode") String paperDigestMode) {
+        String normalizedMode = normalize(paperDigestMode);
+        if (!UserSettings.PAPER_DIGEST_DAILY.equals(normalizedMode)
+                && !UserSettings.PAPER_DIGEST_PER_FEED.equals(normalizedMode)) {
+            throw new WebApplicationException("Invalid paper digest delivery mode", Response.Status.BAD_REQUEST);
+        }
+        UserSettings settings = getOrCreateUserSettings();
+        settings.paperDigestMode = normalizedMode;
+        return seeOther("/admin?info=" + urlEncode("Email notification settings updated") + "#notifications");
+    }
+
+    @POST
     @Path("/admin/pde-settings")
     @Transactional
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)

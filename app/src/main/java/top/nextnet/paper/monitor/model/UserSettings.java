@@ -14,6 +14,9 @@ import java.time.Instant;
 @Entity
 public class UserSettings extends PanacheEntityBase {
 
+    public static final String PAPER_DIGEST_DAILY = "DAILY_DIGEST";
+    public static final String PAPER_DIGEST_PER_FEED = "PER_FEED";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     public Long id;
@@ -92,6 +95,9 @@ public class UserSettings extends PanacheEntityBase {
     @Column(length = 4000)
     public String feedDashboardOrder;
 
+    @Column(length = 32)
+    public String paperDigestMode = PAPER_DIGEST_DAILY;
+
     public double effectiveSpeedMultiplier() {
         if (speedMultiplier == null || speedMultiplier <= 0) {
             return 1.1d;
@@ -155,5 +161,19 @@ public class UserSettings extends PanacheEntityBase {
 
     public int remainingPdeOpenAiExtractions() {
         return Math.max(0, effectivePdeOpenAiExtractionQuota() - effectivePdeOpenAiExtractionCallsUsed());
+    }
+
+    public String effectivePaperDigestMode() {
+        return PAPER_DIGEST_PER_FEED.equals(paperDigestMode)
+                ? PAPER_DIGEST_PER_FEED
+                : PAPER_DIGEST_DAILY;
+    }
+
+    public boolean dailyPaperDigestSelected() {
+        return PAPER_DIGEST_DAILY.equals(effectivePaperDigestMode());
+    }
+
+    public boolean perFeedPaperDigestSelected() {
+        return PAPER_DIGEST_PER_FEED.equals(effectivePaperDigestMode());
     }
 }

@@ -246,6 +246,7 @@ public class BackupService {
             row.put("pdeOpenAiExtractionQuota", item.pdeOpenAiExtractionQuota);
             row.put("pdeOpenAiExtractionCallsUsed", item.pdeOpenAiExtractionCallsUsed);
             row.put("feedDashboardOrder", item.feedDashboardOrder);
+            row.put("paperDigestMode", item.effectivePaperDigestMode());
             settings.add(row);
         }
         return settings;
@@ -435,6 +436,9 @@ public class BackupService {
             settings.pdeOpenAiExtractionQuota = intValue(item.get("pdeOpenAiExtractionQuota"));
             settings.pdeOpenAiExtractionCallsUsed = intValue(item.get("pdeOpenAiExtractionCallsUsed"));
             settings.feedDashboardOrder = stringValue(item.get("feedDashboardOrder"));
+            settings.paperDigestMode = UserSettings.PAPER_DIGEST_PER_FEED.equals(stringValue(item.get("paperDigestMode")))
+                    ? UserSettings.PAPER_DIGEST_PER_FEED
+                    : UserSettings.PAPER_DIGEST_DAILY;
             if (settings.user != null) {
                 userSettingsRepository.persist(settings);
             }

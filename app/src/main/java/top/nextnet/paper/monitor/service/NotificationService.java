@@ -86,28 +86,20 @@ public class NotificationService {
                 "Your MIAGE Review Factory account is now approved.\n\nYou can sign in here:\n" + loginUrl);
     }
 
-    public void sendRssPaperDigest(LogicalFeed logicalFeed, List<Paper> papers, LocalDate digestDate) {
-        if (logicalFeed == null || papers == null || papers.isEmpty()) {
+    public void sendPaperFeedDigest(String recipient, LogicalFeed logicalFeed, List<Paper> papers, LocalDate digestDate) {
+        if (recipient == null || recipient.isBlank() || logicalFeed == null || papers == null || papers.isEmpty()) {
             return;
         }
-        Set<String> recipients = new LinkedHashSet<>();
-        if (logicalFeed.owner != null && logicalFeed.owner.email != null && !logicalFeed.owner.email.isBlank()) {
-            recipients.add(logicalFeed.owner.email);
-        }
-        for (var grant : logicalFeed.accessGrants) {
-            if (grant == null || !grant.canAdmin() || grant.user == null || grant.user.email == null || grant.user.email.isBlank()) {
-                continue;
-            }
-            recipients.add(grant.user.email);
-        }
-        if (recipients.isEmpty()) {
-            return;
-        }
-
         RenderedDigest digest = renderRssDigest(logicalFeed, papers, digestDate, baseUrl);
-        for (String recipient : recipients) {
-            sendMultipart(recipient, digest.subject(), digest.text(), digest.html());
+        sendMultipart(recipient, digest.subject(), digest.text(), digest.html());
+    }
+
+    public void sendCombinedPaperDigest(String recipient, List<FeedDigest> feeds, LocalDate digestDate) {
+        if (recipient == null || recipient.isBlank() || feeds == null || feeds.isEmpty()) {
+            return;
         }
+        RenderedDigest digest = renderCombinedPaperDigest(feeds, digestDate, baseUrl);
+        sendMultipart(recipient, digest.subject(), digest.text(), digest.html());
     }
 
     static RenderedDigest renderRssDigest(LogicalFeed logicalFeed, List<Paper> papers, LocalDate digestDate) {
@@ -121,7 +113,7 @@ public class NotificationService {
         String subject = count + " new " + paperWord + " in " + feedName;
         LocalDate effectiveDate = digestDate == null ? LocalDate.now() : digestDate;
         String displayDate = effectiveDate.format(DateTimeFormatter.ofPattern("d MMMM uuuu", Locale.ENGLISH));
-        String classificationUrl = classificationUrl(logicalFeed, baseUrl);
+        String classificationUrl = classificationUrl(logicalFeed, papers, baseUrl);
 
         Map<String, List<Paper>> papersByFeed = new LinkedHashMap<>();
         for (Paper paper : papers) {
@@ -161,6 +153,75 @@ public class NotificationService {
                 + "</div><div style=\"background:#e8eee9;padding:16px 28px;border-radius:0 0 14px 14px;"
                 + "font-size:12px;line-height:1.5;color:#64716c\">You received this email because you administer the "
                 + "&ldquo;" + escapeHtml(feedName) + "&rdquo; paper feed.</div></div></body></html>";
+        return new RenderedDigest(subject, text.toString(), html);
+    }
+
+    static RenderedDigest renderCombinedPaperDigest(List<FeedDigest> feeds, LocalDate digestDate, String baseUrl) {
+        List<FeedDigest> populatedFeeds = feeds == null ? List.of() : feeds.stream()
+                .filter(feed -> feed != null && feed.logicalFeed() != null && !feed.papers().isEmpty())
+                .toList();
+        int paperCount = populatedFeeds.stream().mapToInt(feed -> feed.papers().size()).sum();
+        int feedCount = populatedFeeds.size();
+        String paperWord = paperCount == 1 ? "paper" : "papers";
+        String feedWord = feedCount == 1 ? "paper feed" : "paper feeds";
+        String subject = paperCount + " new " + paperWord + " across " + feedCount + " " + feedWord;
+        LocalDate effectiveDate = digestDate == null ? LocalDate.now() : digestDate;
+        String displayDate = effectiveDate.format(DateTimeFormatter.ofPattern("d MMMM uuuu", Locale.ENGLISH));
+
+        StringBuilder text = new StringBuilder();
+        text.append(paperCount).append(" new ").append(paperWord).append(" across ")
+                .append(feedCount).append(" ").append(feedWord)
+                .append("\nDaily update for ").append(displayDate).append("\n");
+        StringBuilder sections = new StringBuilder();
+        for (FeedDigest feedDigest : populatedFeeds) {
+            LogicalFeed logicalFeed = feedDigest.logicalFeed();
+            List<Paper> papers = feedDigest.papers();
+            String feedName = safe(logicalFeed.name);
+            String classificationUrl = classificationUrl(logicalFeed, papers, baseUrl);
+            text.append("\n").append(feedName).append(" — ").append(papers.size()).append(" new ")
+                    .append(papers.size() == 1 ? "paper" : "papers").append("\n");
+            if (classificationUrl != null) {
+                text.append("Classify this paper feed: ").append(classificationUrl).append("\n");
+            }
+
+            sections.append("<section style=\"margin:26px 0 32px\">")
+                    .append("<div style=\"border-bottom:2px solid #d7e3dc;padding:0 0 12px;margin:0 0 18px\">")
+                    .append("<h2 style=\"margin:0 0 5px;font-size:20px;color:#173f35\">")
+                    .append(escapeHtml(feedName)).append("</h2>")
+                    .append("<p style=\"margin:0;color:#78847f;font-size:13px\">")
+                    .append(papers.size()).append(papers.size() == 1 ? " new paper" : " new papers").append("</p>")
+                    .append(classificationCallToActionHtml(classificationUrl, "Classify this paper feed"))
+                    .append("</div>");
+
+            Map<String, List<Paper>> papersBySource = new LinkedHashMap<>();
+            for (Paper paper : papers) {
+                String sourceFeed = paper.feed == null ? "Imported papers" : safe(paper.feed.name);
+                papersBySource.computeIfAbsent(sourceFeed, ignored -> new ArrayList<>()).add(paper);
+            }
+            for (Map.Entry<String, List<Paper>> source : papersBySource.entrySet()) {
+                text.append("\n").append(source.getKey()).append("\n");
+                sections.append("<h3 style=\"margin:20px 0 14px;font-size:14px;letter-spacing:.04em;color:#39705f\">")
+                        .append(escapeHtml(source.getKey())).append("</h3>");
+                for (Paper paper : source.getValue()) {
+                    appendTextPaper(text, paper, List.of());
+                    appendHtmlPaper(sections, paper, List.of());
+                }
+            }
+            sections.append("</section>");
+        }
+
+        String html = "<!doctype html><html><body style=\"margin:0;background:#f4f1e8;color:#1f2925;"
+                + "font-family:Arial,Helvetica,sans-serif\"><div style=\"max-width:680px;margin:0 auto;padding:24px 12px\">"
+                + "<div style=\"background:#173f35;padding:24px 28px;border-radius:14px 14px 0 0;color:#fff\">"
+                + "<div style=\"font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#b9d8ca\">MIAGE Review Factory</div>"
+                + "<h1 style=\"margin:8px 0 4px;font-size:24px\">" + paperCount + " new " + paperWord + "</h1>"
+                + "<p style=\"margin:0;color:#dbe9e2\">Across " + feedCount + " " + feedWord + "</p></div>"
+                + "<div style=\"background:#fff;padding:18px 28px 30px\">"
+                + "<p style=\"margin:0;color:#78847f;font-size:13px\">Daily update for " + escapeHtml(displayDate) + "</p>"
+                + sections
+                + "</div><div style=\"background:#e8eee9;padding:16px 28px;border-radius:0 0 14px 14px;"
+                + "font-size:12px;line-height:1.5;color:#64716c\">You received this email because you administer "
+                + "one or more paper feeds with new papers.</div></div></body></html>";
         return new RenderedDigest(subject, text.toString(), html);
     }
 
@@ -241,23 +302,47 @@ public class NotificationService {
         return actions;
     }
 
-    private static String classificationUrl(LogicalFeed logicalFeed, String baseUrl) {
+    private static String classificationUrl(LogicalFeed logicalFeed, List<Paper> papers, String baseUrl) {
         if (logicalFeed == null || logicalFeed.id == null || baseUrl == null || baseUrl.isBlank()) {
             return null;
         }
-        return normalizeBaseUrl(baseUrl) + "/classify?logicalFeedId=" + logicalFeed.id;
+        LinkedHashSet<String> states = new LinkedHashSet<>();
+        if (papers != null) {
+            papers.stream()
+                    .map(paper -> paper == null ? null : paper.status)
+                    .filter(status -> status != null && !status.isBlank())
+                    .map(WorkflowStateConfig::normalizeStateId)
+                    .forEach(states::add);
+        }
+        if (states.isEmpty()) {
+            try {
+                states.add(logicalFeed.initialPaperStatus());
+            } catch (IllegalArgumentException ignored) {
+                // A malformed workflow should not prevent delivery of the digest itself.
+            }
+        }
+        StringBuilder url = new StringBuilder(normalizeBaseUrl(baseUrl))
+                .append("/classify?logicalFeedId=").append(logicalFeed.id);
+        for (String state : states) {
+            url.append("&state=").append(URLEncoder.encode(state, StandardCharsets.UTF_8));
+        }
+        return url.toString();
     }
 
     private static String classificationCallToActionHtml(String classificationUrl) {
+        return classificationCallToActionHtml(classificationUrl, "Classify papers");
+    }
+
+    private static String classificationCallToActionHtml(String classificationUrl, String label) {
         if (classificationUrl == null || classificationUrl.isBlank()) {
             return "";
         }
         return "<div style=\"margin:18px 0 24px;padding:16px;border:1px solid #d7e3dc;border-radius:12px;background:#f2f8f5\">"
                 + "<p style=\"margin:0 0 12px;color:#31463d;font-size:14px;line-height:1.45\">"
-                + "Review and classify the new RSS papers from the dedicated queue.</p>"
+                + "Review and classify the new papers from the dedicated queue.</p>"
                 + "<a href=\"" + escapeHtml(classificationUrl) + "\" style=\"display:inline-block;padding:10px 14px;"
                 + "border-radius:8px;background:#173f35;color:#ffffff;text-decoration:none;font-size:13px;font-weight:bold\">"
-                + "Classify RSS papers</a></div>";
+                + escapeHtml(label) + "</a></div>";
     }
 
     private void sendText(String to, String subject, String body) {
@@ -321,6 +406,12 @@ public class NotificationService {
     }
 
     record RenderedDigest(String subject, String text, String html) {
+    }
+
+    record FeedDigest(LogicalFeed logicalFeed, List<Paper> papers) {
+        FeedDigest {
+            papers = papers == null ? List.of() : List.copyOf(papers);
+        }
     }
 
     record TransitionAction(String status, String label, String url) {

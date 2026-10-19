@@ -14,12 +14,16 @@ import org.junit.jupiter.api.Test;
 import top.nextnet.paper.monitor.model.Feed;
 import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.model.Paper;
+import top.nextnet.paper.monitor.repo.PaperRepository;
 
 @QuarkusTest
 class PaperBrowserServiceTest {
 
     @Inject
     PaperBrowserService browser;
+
+    @Inject
+    PaperRepository paperRepository;
 
     @Test
     @Transactional
@@ -85,6 +89,46 @@ class PaperBrowserServiceTest {
         Assertions.assertEquals(1L, facetCount(facets, "arxiv"));
         Assertions.assertEquals(13L, facetCount(facets, "state:NEW"));
         Assertions.assertEquals(12L, facetCount(facets, "state:TODO"));
+    }
+
+    @Test
+    @Transactional
+    void dailyDigestIncludesEveryPaperSourceWithinCheckpointWindow() {
+        String suffix = UUID.randomUUID().toString();
+        LogicalFeed logicalFeed = new LogicalFeed();
+        logicalFeed.name = "Digest " + suffix;
+        logicalFeed.workflowStates = QuickSetupWorkflows.KANBAN;
+        logicalFeed.persist();
+
+        Feed manualFeed = new Feed();
+        manualFeed.name = "Manual upload";
+        manualFeed.url = "upload://logical-feed/" + suffix;
+        manualFeed.logicalFeed = logicalFeed;
+        manualFeed.persist();
+
+        Instant checkpoint = Instant.parse("2026-10-18T06:00:00Z");
+        Instant cutoff = checkpoint.plusSeconds(3600);
+        Paper atCheckpoint = digestPaper(logicalFeed, manualFeed, suffix + "-old", checkpoint);
+        Paper manualImport = digestPaper(logicalFeed, manualFeed, suffix + "-manual", checkpoint.plusSeconds(1));
+        Paper atCutoff = digestPaper(logicalFeed, manualFeed, suffix + "-cutoff", cutoff);
+        digestPaper(logicalFeed, manualFeed, suffix + "-future", cutoff.plusSeconds(1));
+
+        List<Paper> papers = paperRepository.findNewPapersForDigest(logicalFeed, checkpoint, cutoff);
+
+        Assertions.assertEquals(List.of(manualImport.id, atCutoff.id), papers.stream().map(paper -> paper.id).toList());
+        Assertions.assertFalse(papers.stream().anyMatch(paper -> paper.id.equals(atCheckpoint.id)));
+    }
+
+    private Paper digestPaper(LogicalFeed logicalFeed, Feed feed, String suffix, Instant discoveredAt) {
+        Paper paper = new Paper();
+        paper.title = "Digest paper " + suffix;
+        paper.sourceLink = "upload:" + suffix;
+        paper.status = logicalFeed.initialPaperStatus();
+        paper.discoveredAt = discoveredAt;
+        paper.feed = feed;
+        paper.logicalFeed = logicalFeed;
+        paper.persist();
+        return paper;
     }
 
     private long facetCount(List<PaperBrowserService.Facet> facets, String key) {

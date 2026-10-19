@@ -886,6 +886,7 @@
                     {/for}
                 </div>
             </div>
+            <button class="settings-nav-button" data-settings-target="notifications" type="button">Email Notifications</button>
             <button class="settings-nav-button" data-settings-target="tts" type="button">TTS Management</button>
             <div class="settings-nav-group" data-settings-group="pde">
                 <button class="settings-nav-button settings-nav-group-title" data-settings-group-toggle="pde" type="button" aria-expanded="false">PDE</button>
@@ -965,7 +966,7 @@
                                 <textarea name="eligibilityExclusionTaxonomy" placeholder="Optional eligibility exclusion taxonomy YAML">{logicalFeed.eligibilityExclusionTaxonomy}</textarea>
                                 <textarea name="eligibilityInclusionTaxonomy" placeholder="Optional eligibility inclusion taxonomy YAML">{logicalFeed.eligibilityInclusionTaxonomy}</textarea>
                                 <label><input type="checkbox" name="publicReadable" {#if logicalFeed.publicReadable}checked{/if}> Public read-only feed</label>
-                                <label><input type="checkbox" name="notifyOnNewRssPapers" {#if logicalFeed.notifyOnNewRssPapers}checked{/if}> Send owner and feed admins a daily RSS paper digest</label>
+                                <label><input type="checkbox" name="notifyOnNewRssPapers" {#if logicalFeed.notifyOnNewRssPapers}checked{/if}> Include new papers from this feed in daily email updates</label>
                                 <button type="submit">Save paper feed</button>
                             </form>
                             <form action="/logical-feeds/{logicalFeed.id}/share" method="post">
@@ -1176,6 +1177,20 @@
             {/if}
             {/for}
         </div>
+    </section>
+
+    <section class="settings-panel hidden" data-settings-panel="notifications">
+        <h2 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v10H2V3Zm1 1v1l5 3.5L13 5V4H3Zm10 8V6.2L8 9.7 3 6.2V12h10Z"/></svg></span><span>Email Notifications</span></h2>
+        <p class="meta">Choose how new-paper updates from all paper feeds you administer are delivered to your email address.</p>
+        <form action="/admin/notifications" method="post">
+            <label for="paper-digest-mode">Daily paper update delivery</label>
+            <select id="paper-digest-mode" name="paperDigestMode" required>
+                <option value="DAILY_DIGEST" {#if ttsSettings.dailyPaperDigestSelected}selected{/if}>One combined daily digest</option>
+                <option value="PER_FEED" {#if ttsSettings.perFeedPaperDigestSelected}selected{/if}>One email per updated paper feed</option>
+            </select>
+            <p class="meta">Only feeds with email updates enabled are included. Digests contain papers added since the previous scheduled update.</p>
+            <button type="submit">Save email settings</button>
+        </form>
     </section>
 
     <section class="settings-panel hidden" data-settings-panel="tts">
