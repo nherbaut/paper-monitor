@@ -2694,6 +2694,10 @@
                 padding: 0.9rem;
             }
 
+            .classification-card.multi-target-drag {
+                touch-action: pan-y;
+            }
+
             .classification-drop-zones {
                 gap: 0.3rem;
                 padding: 0.3rem;

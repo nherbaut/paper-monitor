@@ -289,6 +289,7 @@
     const STATE_DRAG_TRIGGER_X = 150;
     const STATE_WHEEL_ROW_HEIGHT = 56;
     const CLASSIFICATION_DRAG_TRIGGER_X = 96;
+    const CLASSIFICATION_MOBILE_SWIPE_TRIGGER_X = 72;
     const CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS = 170;
     const CLASSIFICATION_HANDOFF_MS = 380;
     const MOBILE_STATE_LONG_PRESS_MS = 400;
@@ -3695,6 +3696,7 @@
                 return;
             }
             longPress.activated = true;
+            classificationDragState = null;
             classificationCard?.setPointerCapture?.(longPress.pointerId);
         }, MOBILE_STATE_LONG_PRESS_MS);
         classificationMobileLongPress = longPress;
@@ -3712,6 +3714,7 @@
             if (moved > MOBILE_STATE_LONG_PRESS_MOVE_TOLERANCE) {
                 window.clearTimeout(longPress.timer);
                 classificationMobileLongPress = null;
+                return false;
             }
             return true;
         }
@@ -3732,8 +3735,9 @@
         classificationMobileLongPress = null;
         window.clearTimeout(longPress.timer);
         if (!longPress.activated) {
-            return true;
+            return false;
         }
+        classificationDragState = null;
         event.preventDefault?.();
         if (classificationCard?.hasPointerCapture?.(event.pointerId)) {
             classificationCard.releasePointerCapture(event.pointerId);
@@ -4049,7 +4053,9 @@
         classificationActions.classList.toggle("branching", explicitTargets.length > 0);
         classificationFooter.textContent = targetCount
             ? isMobileViewport()
-                ? "Press and hold the card, move to a state, then lift your finger."
+                ? explicitTargets.length
+                    ? "Swipe toward an available state, or press and hold to choose from every state."
+                    : "Swipe left or right, or use the labeled controls."
                 : explicitTargets.length
                 ? "Choose a labeled state, or swipe where one destination is available."
                 : swipeChoices.neutral
@@ -6360,10 +6366,7 @@
         if (!card) {
             return;
         }
-        if (isMobileViewport()) {
-            beginClassificationMobileLongPress(event, card);
-            return;
-        }
+        const mobile = isMobileViewport();
         classificationDragState = {
             pointerId: event.pointerId,
             startX: event.clientX,
@@ -6371,10 +6374,14 @@
             lastX: event.clientX,
             captured: false,
             card,
-            multiTarget: classificationTargetCount(classificationDirectionalTargets(card)) > 2,
+            multiTarget: !mobile && classificationTargetCount(classificationDirectionalTargets(card)) > 2,
             radialTargets: [],
-            radialDeadZoneRadius: CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS
+            radialDeadZoneRadius: CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS,
+            triggerX: mobile ? CLASSIFICATION_MOBILE_SWIPE_TRIGGER_X : CLASSIFICATION_DRAG_TRIGGER_X
         };
+        if (mobile) {
+            beginClassificationMobileLongPress(event, card);
+        }
     });
 
     window.addEventListener("pointermove", (event) => {
@@ -6404,7 +6411,7 @@
         }
         event.preventDefault();
         classificationDragState.lastX = event.clientX;
-        const progress = Math.min(1, Math.abs(deltaX) / CLASSIFICATION_DRAG_TRIGGER_X);
+        const progress = Math.min(1, Math.abs(deltaX) / classificationDragState.triggerX);
         const rotation = Math.max(-9, Math.min(9, deltaX / 22));
         const verticalOffset = classificationDragState.multiTarget
             ? deltaY
@@ -6452,7 +6459,7 @@
         if (cancelled || !dragState.captured
                 || (dragState.multiTarget
                     ? dragDistance < (dragState.radialDeadZoneRadius || CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS)
-                    : Math.abs(deltaX) < CLASSIFICATION_DRAG_TRIGGER_X)) {
+                    : Math.abs(deltaX) < dragState.triggerX)) {
             resetClassificationDragVisual();
             return;
         }

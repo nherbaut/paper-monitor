@@ -120,11 +120,15 @@ class AnonymousSetupResourceTest {
     void homeAssetsAreExternalAndServed() {
         given().when().get("/app-assets/home.css").then()
                 .statusCode(200).contentType(containsString("css"))
-                .header("Cache-Control", containsString("max-age=31536000"));
+                .header("Cache-Control", containsString("max-age=31536000"))
+                .body(containsString(".classification-card.multi-target-drag"))
+                .body(containsString("touch-action: pan-y"));
         given().header("Accept-Encoding", "gzip").when().get("/app-assets/home.js").then()
                 .statusCode(200).contentType(containsString("javascript"))
                 .header("Content-Encoding", containsString("gzip"))
                 .body(containsString("loadNextBrowserPage"))
+                .body(containsString("CLASSIFICATION_MOBILE_SWIPE_TRIGGER_X"))
+                .body(containsString("triggerX: mobile ? CLASSIFICATION_MOBILE_SWIPE_TRIGGER_X"))
                 .body(containsString("!classificationQueueCompletedPaperIds.has(String(record.id))"));
     }
 
