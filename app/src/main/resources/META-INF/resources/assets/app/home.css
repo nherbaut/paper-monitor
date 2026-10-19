@@ -3539,9 +3539,8 @@
                 min-height: 40vh;
             }
 
-            .pdf-panel,
-            .pdf-panel.visible {
-                display: none;
+            .reader-layout.with-notes .pdf-panel.visible {
+                display: block;
             }
 
             #note-view-upload-cue {

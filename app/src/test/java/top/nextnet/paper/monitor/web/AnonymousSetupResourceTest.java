@@ -86,6 +86,26 @@ class AnonymousSetupResourceTest {
     }
 
     @Test
+    void mobilePaperDetailsShowPaperContentBeforeNotes() throws IOException {
+        String template = classpathResource("templates/home.html");
+        String stylesheet = classpathResource("META-INF/resources/assets/app/home.css");
+        int paperPanelPosition = template.indexOf("id=\"pdf-panel\"");
+        int notesPanelPosition = template.indexOf("id=\"notes-panel\"");
+
+        Assertions.assertTrue(paperPanelPosition >= 0);
+        Assertions.assertTrue(notesPanelPosition > paperPanelPosition);
+        Assertions.assertTrue(stylesheet.contains(".reader-layout.with-notes .pdf-panel.visible {\n"
+                + "                display: block;"));
+    }
+
+    private String classpathResource(String path) throws IOException {
+        try (InputStream stream = Thread.currentThread().getContextClassLoader().getResourceAsStream(path)) {
+            Assertions.assertNotNull(stream);
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    @Test
     void paperAnalysisBrowserModuleIsServedAsAStaticAsset() {
         given()
                 .when().get("/assets/vendor/paper-analysis-progress.js")
