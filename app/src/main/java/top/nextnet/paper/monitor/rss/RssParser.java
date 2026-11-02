@@ -8,6 +8,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Element;
@@ -17,6 +18,9 @@ import org.w3c.dom.Node;
 
 @ApplicationScoped
 public class RssParser {
+
+    private static final String DC_NAMESPACE = "http://purl.org/dc/elements/1.1/";
+    private static final String CONTENT_NAMESPACE = "http://purl.org/rss/1.0/modules/content/";
 
     public List<RssPaperItem> parse(byte[] xmlBytes) {
         try {
@@ -31,6 +35,7 @@ public class RssParser {
                 parsedItems.add(switch (provider) {
                     case ARXIV -> parseArxivItem(item);
                     case MIAGE_SCHOLAR -> parseMiageScholarItem(item);
+                    case GENERIC -> parseGenericItem(item);
                 });
             }
             return parsedItems;
@@ -44,12 +49,34 @@ public class RssParser {
     private Document parseDocument(byte[] xmlBytes) throws Exception {
         var factory = DocumentBuilderFactory.newInstance();
         factory.setNamespaceAware(true);
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+        factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+        factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_DTD, "");
+        factory.setAttribute(XMLConstants.ACCESS_EXTERNAL_SCHEMA, "");
+        factory.setXIncludeAware(false);
+        factory.setExpandEntityReferences(false);
         var builder = factory.newDocumentBuilder();
         return builder.parse(new ByteArrayInputStream(xmlBytes));
     }
 
     private RssProvider detectProvider(Document document) {
-        Node channel = firstNode(document, "channel");
+        Node root = document.getDocumentElement();
+        Node channel = null;
+        if (root != null && "rss".equals(root.getNodeName())) {
+            var children = root.getChildNodes();
+            for (int i = 0; i < children.getLength(); i++) {
+                if ("channel".equals(children.item(i).getNodeName())) {
+                    channel = children.item(i);
+                    break;
+                }
+            }
+        }
+        if (channel == null && !isAtomFeed(document)) {
+            throw new IllegalArgumentException("Unsupported feed format. Expected RSS with a channel or an arXiv Atom feed.");
+        }
         String title = normalize(childText(channel, "title"));
         String link = normalize(childText(channel, "link"));
         String description = normalize(childText(channel, "description"));
@@ -67,20 +94,17 @@ public class RssParser {
             return RssProvider.ARXIV;
         }
 
-        if ((title != null && title.toLowerCase().contains("scholar"))
+        if (channel != null && ((title != null && title.toLowerCase().contains("scholar"))
                 || (link != null && link.toLowerCase().contains("scholar.miage.dev"))
                 || (description != null && description.contains("OA link"))
-                || hasTag(document, "content:encoded")
-                || looksLikeMiageScholarItem(document)) {
+                || looksLikeMiageScholarItem(document))) {
             return RssProvider.MIAGE_SCHOLAR;
         }
 
-        throw new IllegalArgumentException("Unsupported RSS provider. Supported providers are arXiv and MIAGE Scholar.");
-    }
-
-    private boolean hasTag(Document document, String tagName) {
-        return document.getElementsByTagName(tagName).getLength() > 0
-                || document.getElementsByTagNameNS("*", tagName).getLength() > 0;
+        if (channel != null) {
+            return RssProvider.GENERIC;
+        }
+        throw new IllegalArgumentException("Unsupported Atom provider. Only arXiv Atom feeds are supported.");
     }
 
     private boolean isAtomFeed(Document document) {
@@ -92,7 +116,7 @@ public class RssParser {
         var items = document.getElementsByTagName("item");
         for (int i = 0; i < items.getLength(); i++) {
             Node item = items.item(i);
-            String description = firstNonBlank(childText(item, "content:encoded"), childText(item, "description"));
+            String description = firstNonBlank(namespacedChildText(item, CONTENT_NAMESPACE, "encoded"), childText(item, "description"));
             if (description == null || description.isBlank()) {
                 continue;
             }
@@ -110,7 +134,7 @@ public class RssParser {
     private RssPaperItem parseMiageScholarItem(Node item) {
         String title = childText(item, "title");
         String link = childText(item, "link");
-        String description = firstNonBlank(childText(item, "content:encoded"), childText(item, "description"));
+        String description = firstNonBlank(namespacedChildText(item, CONTENT_NAMESPACE, "encoded"), childText(item, "description"));
         String author = childText(item, "author");
         String pubDate = childText(item, "pubDate");
         return new RssPaperItem(
@@ -130,7 +154,7 @@ public class RssParser {
         String openAccessLink = normalize(firstNonBlank(atomPdfLink(item), childText(item, "link")));
         String description = normalize(firstNonBlank(childText(item, "summary"), childText(item, "description")));
         String pubDate = firstNonBlank(childText(item, "published"), childText(item, "pubDate"), childText(item, "updated"));
-        String authors = normalize(firstNonBlank(joinAuthorNames(item), childText(item, "dc:creator"), childText(item, "author")));
+        String authors = normalize(firstNonBlank(joinAuthorNames(item), namespacedChildText(item, DC_NAMESPACE, "creator"), childText(item, "author")));
         String summary = extractArxivSummary(description);
         return new RssPaperItem(
                 title,
@@ -164,13 +188,32 @@ public class RssParser {
         return tagName.equals(node.getNodeName()) || tagName.equals(node.getLocalName());
     }
 
-    private Node firstNode(Document document, String tagName) {
-        NodeList direct = document.getElementsByTagName(tagName);
-        if (direct.getLength() > 0) {
-            return direct.item(0);
+    private String namespacedChildText(Node node, String namespace, String localName) {
+        List<String> values = new ArrayList<>();
+        var children = node.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (namespace.equals(child.getNamespaceURI()) && localName.equals(child.getLocalName())) {
+                String value = normalize(child.getTextContent());
+                if (value != null) {
+                    values.add(value);
+                }
+            }
         }
-        NodeList namespaced = document.getElementsByTagNameNS("*", tagName);
-        return namespaced.getLength() > 0 ? namespaced.item(0) : null;
+        return values.isEmpty() ? null : String.join(", ", values);
+    }
+
+    private RssPaperItem parseGenericItem(Node item) {
+        String description = firstNonBlank(
+                namespacedChildText(item, CONTENT_NAMESPACE, "encoded"), childText(item, "description"));
+        return new RssPaperItem(
+                normalize(childText(item, "title")),
+                normalize(childText(item, "link")),
+                null,
+                description == null ? null : normalize(Jsoup.parse(description).text()),
+                normalize(firstNonBlank(namespacedChildText(item, DC_NAMESPACE, "creator"), childText(item, "author"))),
+                namespacedChildText(item, DC_NAMESPACE, "publisher"),
+                parsePublishedOn(childText(item, "pubDate")));
     }
 
     private String joinAuthorNames(Node item) {
@@ -345,9 +388,13 @@ public class RssParser {
             return null;
         }
         try {
-            return OffsetDateTime.parse(pubDate, DateTimeFormatter.RFC_1123_DATE_TIME).toLocalDate();
+            return OffsetDateTime.parse(pubDate.trim(), DateTimeFormatter.RFC_1123_DATE_TIME).toLocalDate();
         } catch (Exception ignored) {
-            return ZonedDateTime.parse(pubDate).toLocalDate();
+            try {
+                return ZonedDateTime.parse(pubDate.trim()).toLocalDate();
+            } catch (Exception ignoredIsoDate) {
+                return null;
+            }
         }
     }
 
@@ -373,6 +420,7 @@ public class RssParser {
 
     private enum RssProvider {
         ARXIV,
-        MIAGE_SCHOLAR
+        MIAGE_SCHOLAR,
+        GENERIC
     }
 }
