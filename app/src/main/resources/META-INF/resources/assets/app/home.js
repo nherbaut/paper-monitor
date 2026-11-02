@@ -294,6 +294,7 @@
     const CLASSIFICATION_HANDOFF_MS = 380;
     const MOBILE_STATE_LONG_PRESS_MS = 400;
     const MOBILE_STATE_LONG_PRESS_MOVE_TOLERANCE = 12;
+    const CLASSIFICATION_TOUCH_POINTER_ID = "classification-touch";
     let currentRenderToken = 0;
     let selectedPaperId = null;
     let notesSaveTimer = null;
@@ -3697,7 +3698,9 @@
             }
             longPress.activated = true;
             classificationDragState = null;
-            classificationCard?.setPointerCapture?.(longPress.pointerId);
+            if (typeof longPress.pointerId === "number") {
+                classificationCard?.setPointerCapture?.(longPress.pointerId);
+            }
         }, MOBILE_STATE_LONG_PRESS_MS);
         classificationMobileLongPress = longPress;
     };
@@ -3739,7 +3742,7 @@
         }
         classificationDragState = null;
         event.preventDefault?.();
-        if (classificationCard?.hasPointerCapture?.(event.pointerId)) {
+        if (typeof event.pointerId === "number" && classificationCard?.hasPointerCapture?.(event.pointerId)) {
             classificationCard.releasePointerCapture(event.pointerId);
         }
         const transition = !cancelled && longPress.movedAfterActivation ? longPress.activeTransition : null;
@@ -6355,18 +6358,7 @@
         }, 1200);
     });
 
-    classificationCard?.addEventListener("pointerdown", (event) => {
-        if (event.button !== 0 || classificationBusy || !selectedPaperId) {
-            return;
-        }
-        if (event.target.closest("a, button, textarea, input, select")) {
-            return;
-        }
-        const card = selectedPaperCard();
-        if (!card) {
-            return;
-        }
-        const mobile = isMobileViewport();
+    const beginClassificationPointerDrag = (event, card, mobile) => {
         classificationDragState = {
             pointerId: event.pointerId,
             startX: event.clientX,
@@ -6382,26 +6374,28 @@
         if (mobile) {
             beginClassificationMobileLongPress(event, card);
         }
-    });
+    };
 
-    window.addEventListener("pointermove", (event) => {
+    const updateClassificationPointerDrag = (event) => {
         if (updateClassificationMobileLongPress(event)) {
-            return;
+            return true;
         }
         if (!classificationDragState || event.pointerId !== classificationDragState.pointerId) {
-            return;
+            return false;
         }
         const deltaX = event.clientX - classificationDragState.startX;
         const deltaY = event.clientY - classificationDragState.startY;
         if (!classificationDragState.captured) {
             if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 8) {
-                return;
+                return true;
             }
             if (!classificationDragState.multiTarget && Math.abs(deltaY) > Math.abs(deltaX)) {
-                return;
+                return false;
             }
             classificationDragState.captured = true;
-            classificationCard.setPointerCapture?.(event.pointerId);
+            if (typeof event.pointerId === "number") {
+                classificationCard.setPointerCapture?.(event.pointerId);
+            }
             if (classificationDragState.multiTarget) {
                 const radialLayout = showClassificationDropZones(classificationDragState.card);
                 classificationDragState.radialTargets = radialLayout.targets;
@@ -6426,6 +6420,58 @@
         classificationDragState.dropTarget = classificationDragState.multiTarget
             ? classificationDropTargetForDrag(classificationDragState, deltaX, deltaY)
             : null;
+        return true;
+    };
+
+    classificationCard?.addEventListener("pointerdown", (event) => {
+        if ((isMobileViewport() && event.pointerType === "touch")
+                || event.button !== 0 || classificationBusy || !selectedPaperId) {
+            return;
+        }
+        if (event.target.closest("a, button, textarea, input, select")) {
+            return;
+        }
+        const card = selectedPaperCard();
+        if (!card) {
+            return;
+        }
+        beginClassificationPointerDrag(event, card, isMobileViewport());
+    });
+
+    window.addEventListener("pointermove", (event) => {
+        updateClassificationPointerDrag(event);
+    }, { passive: false });
+
+    classificationCard?.addEventListener("touchstart", (event) => {
+        if (!isMobileViewport() || event.touches.length !== 1 || classificationBusy || !selectedPaperId) {
+            return;
+        }
+        if (event.target.closest("a, button, textarea, input, select")) {
+            return;
+        }
+        const card = selectedPaperCard();
+        if (!card) {
+            return;
+        }
+        const touch = event.touches[0];
+        beginClassificationPointerDrag({
+            pointerId: CLASSIFICATION_TOUCH_POINTER_ID,
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        }, card, true);
+    }, { passive: true });
+
+    window.addEventListener("touchmove", (event) => {
+        if (!isMobileViewport() || event.touches.length !== 1) {
+            return;
+        }
+        const touch = event.touches[0];
+        updateClassificationPointerDrag({
+            pointerId: CLASSIFICATION_TOUCH_POINTER_ID,
+            clientX: touch.clientX,
+            clientY: touch.clientY,
+            preventDefault: () => event.preventDefault()
+        });
     }, { passive: false });
 
     const finishClassificationPointerDrag = async (event, cancelled = false) => {
@@ -6444,7 +6490,7 @@
             : dragState.multiTarget
                 ? classificationDropTargetForDrag(dragState, deltaX, deltaY) || dragState.dropTarget
                 : null;
-        if (classificationCard.hasPointerCapture?.(event.pointerId)) {
+        if (typeof event.pointerId === "number" && classificationCard.hasPointerCapture?.(event.pointerId)) {
             classificationCard.releasePointerCapture(event.pointerId);
         }
         if (dropTarget?.target) {
@@ -6483,6 +6529,31 @@
         }
         await finishClassificationPointerDrag(event, true);
     });
+
+    window.addEventListener("touchend", async (event) => {
+        const touch = event.changedTouches?.[0];
+        const point = {
+            pointerId: CLASSIFICATION_TOUCH_POINTER_ID,
+            clientX: touch?.clientX,
+            clientY: touch?.clientY,
+            preventDefault: () => event.preventDefault()
+        };
+        if (await finishClassificationMobileLongPress(point)) {
+            return;
+        }
+        await finishClassificationPointerDrag(point);
+    }, { passive: false });
+
+    window.addEventListener("touchcancel", async (event) => {
+        const point = {
+            pointerId: CLASSIFICATION_TOUCH_POINTER_ID,
+            preventDefault: () => event.preventDefault()
+        };
+        if (await finishClassificationMobileLongPress(point, true)) {
+            return;
+        }
+        await finishClassificationPointerDrag(point, true);
+    }, { passive: false });
 
     window.addEventListener("wheel", (event) => {
         if (isMobileViewport() || !classificationModeActive || !classificationQueueMode

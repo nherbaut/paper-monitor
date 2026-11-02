@@ -128,6 +128,8 @@ class AnonymousSetupResourceTest {
                 .header("Content-Encoding", containsString("gzip"))
                 .body(containsString("loadNextBrowserPage"))
                 .body(containsString("CLASSIFICATION_MOBILE_SWIPE_TRIGGER_X"))
+                .body(containsString("CLASSIFICATION_TOUCH_POINTER_ID"))
+                .body(containsString("classificationCard?.addEventListener(\"touchstart\""))
                 .body(containsString("triggerX: mobile ? CLASSIFICATION_MOBILE_SWIPE_TRIGGER_X"))
                 .body(containsString("!classificationQueueCompletedPaperIds.has(String(record.id))"));
     }
