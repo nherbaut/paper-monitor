@@ -259,6 +259,8 @@ public class BackupService {
             item.put("id", logicalFeed.id);
             item.put("name", logicalFeed.name);
             item.put("description", logicalFeed.description);
+            item.put("scholarQueryId", logicalFeed.sourceScholarQueryId());
+            item.put("scholarQuery", logicalFeed.scholarQuery);
             item.put("workflowStates", logicalFeed.workflowStates);
             item.put("eligibilityExclusionTaxonomy", logicalFeed.eligibilityExclusionTaxonomy);
             item.put("eligibilityInclusionTaxonomy", logicalFeed.eligibilityInclusionTaxonomy);
@@ -450,6 +452,8 @@ public class BackupService {
             LogicalFeed logicalFeed = new LogicalFeed();
             logicalFeed.name = stringValue(item.get("name"));
             logicalFeed.description = stringValue(item.get("description"));
+            logicalFeed.scholarQueryId = longValue(item.get("scholarQueryId"));
+            logicalFeed.scholarQuery = stringValue(item.get("scholarQuery"));
             logicalFeed.workflowStates = stringValue(item.get("workflowStates"));
             logicalFeed.eligibilityExclusionTaxonomy = stringValue(item.get("eligibilityExclusionTaxonomy"));
             logicalFeed.eligibilityInclusionTaxonomy = stringValue(item.get("eligibilityInclusionTaxonomy"));

@@ -54,6 +54,21 @@ public class ScholarService {
         return normalizeRssUrls(parseHistory(fetchJson(historyUrl)));
     }
 
+    public String queryPermalink(long queryId) {
+        return baseUrl + "/permalink/" + queryId;
+    }
+
+    public String queryText(long queryId) {
+        return history().stream()
+                .filter(row -> String.valueOf(queryId).equals(String.valueOf(row.get("queryId"))))
+                .map(row -> stringValue(row.get("query")))
+                .filter(query -> query != null)
+                .findFirst()
+                .orElseThrow(() -> new WebApplicationException(
+                        "Query text is no longer available in MIAGE Scholar history. Use the query link to open it in Scholar.",
+                        Response.Status.NOT_FOUND));
+    }
+
     public Map<String, Object> createFeedFromHistory(long queryId) {
         String url = baseUrl + "/history/" + URLEncoder.encode(String.valueOf(queryId), StandardCharsets.UTF_8)
                 + "/feed?format=json";

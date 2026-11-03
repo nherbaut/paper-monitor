@@ -612,6 +612,7 @@
 
         pre {
             white-space: pre-wrap;
+            overflow-wrap: anywhere;
             background: rgba(255, 255, 255, 0.75);
             border: 1px solid var(--line);
             border-radius: 10px;
@@ -958,6 +959,20 @@
                                 {/if}
                             </div>
                         </div>
+                        {#if logicalFeed.scholarQueryUrl}
+                        <section class="management-meta-box" aria-label="Source MIAGE Scholar query">
+                            <strong>Source MIAGE Scholar query</strong>
+                            <p class="meta"><a href="{logicalFeed.scholarQueryUrl}" target="_blank" rel="noreferrer">Open query {logicalFeed.sourceScholarQueryId} in MIAGE Scholar</a></p>
+                            {#if logicalFeed.scholarQuery}
+                            <pre>{logicalFeed.scholarQuery}</pre>
+                            {#else}
+                            <p class="meta">The query text was not saved when this paper feed was created.</p>
+                            <form action="/logical-feeds/{logicalFeed.id}/scholar-query/retrieve" method="post">
+                                <button class="secondary" type="submit">Retrieve query text from MIAGE Scholar</button>
+                            </form>
+                            {/if}
+                        </section>
+                        {/if}
                         <div class="management-actions">
                             <form action="/logical-feeds/{logicalFeed.id}/update" method="post">
                                 <input type="text" name="name" value="{logicalFeed.name}" required>

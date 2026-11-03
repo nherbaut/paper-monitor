@@ -34,6 +34,11 @@ public class LogicalFeed extends PanacheEntityBase {
     @Column(length = 500)
     public String description;
 
+    public Long scholarQueryId;
+
+    @Column(length = 20000)
+    public String scholarQuery;
+
     @Column(length = 20000)
     public String workflowStates;
 
@@ -106,6 +111,9 @@ public class LogicalFeed extends PanacheEntityBase {
 
     @Transient
     public String publicUrl;
+
+    @Transient
+    public String scholarQueryUrl;
 
     @Transient
     public String diagramUrl;
@@ -198,5 +206,21 @@ public class LogicalFeed extends PanacheEntityBase {
     public boolean hasGithubRepo() {
         return githubRepoOwner != null && !githubRepoOwner.isBlank()
                 && githubRepoName != null && !githubRepoName.isBlank();
+    }
+
+    public Long sourceScholarQueryId() {
+        if (scholarQueryId != null) {
+            return scholarQueryId;
+        }
+        // Older setup versions stored only this description, then deleted the draft.
+        String prefix = "Created from MIAGE Scholar query ";
+        if (description == null || !description.startsWith(prefix)) {
+            return null;
+        }
+        try {
+            return Long.valueOf(description.substring(prefix.length()).trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }

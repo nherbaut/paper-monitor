@@ -305,6 +305,10 @@ public class SetupWizardService {
         LogicalFeed logicalFeed = new LogicalFeed();
         logicalFeed.name = draft.title;
         logicalFeed.description = draft.freshSetup ? "Created without an RSS source" : "Created from MIAGE Scholar query " + draft.scholarQueryId;
+        if (!draft.freshSetup) {
+            logicalFeed.scholarQueryId = draft.scholarQueryId;
+            logicalFeed.scholarQuery = draft.scholarQuery;
+        }
         logicalFeed.workflowStates = workflowYaml;
         logicalFeed.owner = user;
         logicalFeed.publicReadable = false;

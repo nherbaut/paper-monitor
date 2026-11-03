@@ -1052,6 +1052,10 @@ public class HomeResource {
         List<LogicalFeed> adminLogicalFeeds = logicalFeeds.stream()
                 .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
                 .toList();
+        for (LogicalFeed logicalFeed : adminLogicalFeeds) {
+            Long queryId = logicalFeed.sourceScholarQueryId();
+            logicalFeed.scholarQueryUrl = queryId == null ? null : scholarService.queryPermalink(queryId);
+        }
         List<Feed> feeds = globalAdmin ? feedRepository.findAllForAdminView() : logicalFeedAccessService.readableFeeds(currentUser);
         List<AppUser> userManagementUsers = globalAdmin ? authService.allUsers() : List.of(currentUser);
         userManagementUsers.forEach(authService::ensureSettings);
@@ -2169,6 +2173,28 @@ public class HomeResource {
         } catch (WebApplicationException e) {
             return rethrowOrPlainText(e);
         }
+    }
+
+    @POST
+    @Path("/logical-feeds/{id}/scholar-query/retrieve")
+    @Transactional
+    public Response retrieveScholarQuery(@jakarta.ws.rs.PathParam("id") Long id) {
+        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
+        Long queryId = logicalFeed.sourceScholarQueryId();
+        String location = "/admin";
+        if (queryId == null) {
+            location = appendQueryParam(location, "error", "This paper feed has no source Scholar query.");
+        } else if (logicalFeed.scholarQuery == null || logicalFeed.scholarQuery.isBlank()) {
+            try {
+                String query = scholarService.queryText(queryId);
+                logicalFeed.scholarQueryId = queryId;
+                logicalFeed.scholarQuery = query;
+                location = appendQueryParam(location, "info", "Scholar query text saved.");
+            } catch (WebApplicationException e) {
+                location = appendQueryParam(location, "error", e.getMessage());
+            }
+        }
+        return seeOther(location + "#feeds/" + id + "/configuration");
     }
 
     @POST
