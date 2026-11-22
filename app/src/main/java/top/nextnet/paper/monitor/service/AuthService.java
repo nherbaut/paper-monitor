@@ -35,6 +35,7 @@ public class AuthService {
     private final UserSettingsRepository userSettingsRepository;
     private final NotificationService notificationService;
     private final EmailDomainPolicyService emailDomainPolicyService;
+    private final FeedSharingService feedSharingService;
     private final SecureRandom secureRandom = new SecureRandom();
     private final String sessionCookieName;
     private final long sessionTtlDays;
@@ -48,6 +49,7 @@ public class AuthService {
             UserSettingsRepository userSettingsRepository,
             NotificationService notificationService,
             EmailDomainPolicyService emailDomainPolicyService,
+            FeedSharingService feedSharingService,
             @ConfigProperty(name = "paper-monitor.auth.session.cookie-name", defaultValue = "paper_monitor_session") String sessionCookieName,
             @ConfigProperty(name = "paper-monitor.auth.session.ttl-days", defaultValue = "30") long sessionTtlDays,
             @ConfigProperty(name = "paper-monitor.base-url", defaultValue = "http://localhost:8080") String baseUrl
@@ -59,6 +61,7 @@ public class AuthService {
         this.userSettingsRepository = userSettingsRepository;
         this.notificationService = notificationService;
         this.emailDomainPolicyService = emailDomainPolicyService;
+        this.feedSharingService = feedSharingService;
         this.sessionCookieName = sessionCookieName;
         this.sessionTtlDays = sessionTtlDays;
         this.baseUrl = baseUrl == null ? "http://localhost:8080" : baseUrl.trim();
@@ -385,6 +388,7 @@ public class AuthService {
 
     @Transactional
     public UserSession createSession(AppUser user) {
+        feedSharingService.acceptPending(user);
         userSessionRepository.deleteExpired();
         UserSession session = new UserSession();
         session.user = user;

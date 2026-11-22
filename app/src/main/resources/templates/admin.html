@@ -943,7 +943,7 @@
                         <div class="management-meta-grid">
                             <div class="management-meta-box">
                                 <strong>Ownership</strong>
-                                <p class="meta">Owner: {logicalFeed.owner.displayLabel}</p>
+                                <p class="meta">Owner: {#if logicalFeed.owner}{#if canAdmin}{logicalFeed.owner.displayLabel}{#else}{logicalFeed.owner.publicDisplayLabel}{/if}{#else}Unclaimed feed{/if}</p>
                                 <p class="meta">Workflow: {logicalFeed.workflowStatesToken}</p>
                             </div>
                             <div class="management-meta-box">
@@ -955,7 +955,7 @@
                             <div class="management-meta-box">
                                 <strong>Access</strong>
                                 {#if logicalFeed.accessGrants.isEmpty}<p class="meta">No delegated access</p>{#else}
-                                {#for grant in logicalFeed.accessGrants}<p class="meta">{grant.user.displayLabel} ({grant.role})</p>{/for}
+                                {#for grant in logicalFeed.accessGrants}<p class="meta">{#if canAdmin}{grant.user.displayLabel}{#else}{grant.user.publicDisplayLabel}{/if} ({grant.role})</p>{/for}
                                 {/if}
                             </div>
                         </div>
@@ -985,14 +985,19 @@
                                 <button type="submit">Save paper feed</button>
                             </form>
                             <form action="/logical-feeds/{logicalFeed.id}/share" method="post">
-                                <select name="userId" required><option value="">Select user</option>
-                                    {#for user in allUsers}{#if user.id != logicalFeed.owner.id && user.active}<option value="{user.id}">{user.displayLabel} {#if user.email}({user.email}){/if}</option>{/if}{/for}
-                                </select>
+                                <label>Recipient email <input type="email" name="email" autocomplete="off" placeholder="colleague@example.org" maxlength="255" required></label>
                                 <select name="role" required><option value="READ">Read-only</option><option value="ADMIN">Admin</option></select>
-                                <button type="submit">Grant access</button>
+                                <button type="submit">Share or invite</button>
+                                <p class="meta">Existing active accounts receive access immediately. Other recipients can sign up and verify their email under the normal approval rules. Invitations expire after 7 days.</p>
                             </form>
+                            {#for invitation in logicalFeed.invitations}
+                            <form action="/logical-feeds/{logicalFeed.id}/invitations/{invitation.id}/delete" method="post">
+                                <span class="meta">Pending invitation #{invitation.id} ({invitation.role}){#if canAdmin}: {invitation.email}{/if}</span>
+                                <button class="secondary" type="submit">Revoke invitation</button>
+                            </form>
+                            {/for}
                             {#if !logicalFeed.accessGrants.isEmpty}<div class="toolbar">
-                                {#for grant in logicalFeed.accessGrants}<form action="/logical-feeds/{logicalFeed.id}/share/{grant.user.id}/delete" method="post"><button class="secondary" type="submit">Revoke {grant.user.displayLabel}</button></form>{/for}
+                                {#for grant in logicalFeed.accessGrants}<form action="/logical-feeds/{logicalFeed.id}/share/{grant.user.id}/delete" method="post"><button class="secondary" type="submit">Revoke {#if canAdmin}{grant.user.displayLabel}{#else}{grant.user.publicDisplayLabel}{/if}</button></form>{/for}
                             </div>{/if}
                         </div>
                     </div>

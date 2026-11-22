@@ -6,6 +6,7 @@ import io.quarkus.qute.TemplateInstance;
 import io.quarkus.logging.Log;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
@@ -55,6 +56,8 @@ import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.Feed;
 import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.model.LogicalFeedAccessGrant;
+import top.nextnet.paper.monitor.model.LogicalFeedInvitation;
+import top.nextnet.paper.monitor.service.FeedSharingService;
 import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.UserSettings;
 import top.nextnet.paper.monitor.repo.AppUserRepository;
@@ -140,6 +143,8 @@ public class HomeResource {
     private final NotificationService notificationService;
     private final ReviewService reviewService;
     private final ScholarService scholarService;
+    @Inject
+    FeedSharingService feedSharingService;
     private final SetupWizardService setupWizardService;
     private final Instance<CurrentUserContext> currentUserContext;
     private final Instance<AnonymousSetupContext> anonymousSetupContext;
@@ -1053,6 +1058,7 @@ public class HomeResource {
                 .filter((logicalFeed) -> logicalFeed.viewerCanAdmin)
                 .toList();
         for (LogicalFeed logicalFeed : adminLogicalFeeds) {
+            logicalFeed.invitations.size();
             Long queryId = logicalFeed.sourceScholarQueryId();
             logicalFeed.scholarQueryUrl = queryId == null ? null : scholarService.queryPermalink(queryId);
         }
@@ -1095,7 +1101,6 @@ public class HomeResource {
                 .data("canAdmin", globalAdmin)
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel())
-                .data("allUsers", authService.allUsers())
                 .data("userManagementUsers", userManagementUsers)
                 .data("oidcEnabled", oidcService.isEnabled())
                 .data("githubEnabled", githubAuthService.isEnabled())
@@ -1757,23 +1762,26 @@ public class HomeResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response shareLogicalFeed(
             @jakarta.ws.rs.PathParam("id") Long id,
-            @RestForm("userId") Long userId,
+            @RestForm("email") String email,
             @RestForm("role") String role
     ) {
-        AppUser currentUser = requireCurrentUser();
-        LogicalFeed logicalFeed = logicalFeedAccessService.requireAdminLogicalFeed(id, currentUser);
-        if (userId == null) {
-            throw new WebApplicationException("User is required", Response.Status.BAD_REQUEST);
-        }
         try {
-            AppUser target = appUserRepository.findByIdOptional(userId)
-                    .orElseThrow(() -> new WebApplicationException("Unknown user", Response.Status.BAD_REQUEST));
-            LogicalFeedAccessGrant grant = logicalFeedAccessService.grant(logicalFeed, target, role);
-            notificationService.sendFeedAccessNotification(target, logicalFeed, grant.role, currentUser);
-            return seeOther("/admin#feeds/" + id + "/configuration");
+            feedSharingService.share(id, requireCurrentUser(), email, role);
+            return seeOther("/admin?info=" + urlEncode("Sharing request saved. The recipient will receive an email.")
+                    + "#feeds/" + id + "/configuration");
         } catch (IllegalArgumentException e) {
-            throw new WebApplicationException(e.getMessage(), Response.Status.BAD_REQUEST);
+            return seeOther("/admin?error=" + urlEncode(e.getMessage()) + "#feeds/" + id + "/configuration");
         }
+    }
+
+    @POST
+    @Path("/logical-feeds/{id}/invitations/{invitationId}/delete")
+    @Transactional
+    public Response revokeFeedInvitation(@jakarta.ws.rs.PathParam("id") Long id,
+            @jakarta.ws.rs.PathParam("invitationId") Long invitationId) {
+        LogicalFeed feed = logicalFeedAccessService.requireAdminLogicalFeed(id, requireCurrentUser());
+        LogicalFeedInvitation.delete("id = ?1 and logicalFeed = ?2", invitationId, feed);
+        return seeOther("/admin#feeds/" + id + "/configuration");
     }
 
     @POST
@@ -2733,6 +2741,24 @@ public class HomeResource {
         } catch (RuntimeException e) {
             return seeOther(fallback + "&error=" + urlEncode("Could not change state."));
         }
+    }
+
+    @POST
+    @Path("/papers/batch/preview")
+    @Transactional
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Map<String, Object> previewBatchPapers(
+            @RestForm("logicalFeedId") Long logicalFeedId,
+            @RestForm("filterStatus") String filterStatus,
+            @RestForm("filterTag") List<String> filterTags,
+            @RestForm("filterSearch") String filterSearch
+    ) {
+        LogicalFeed feed = logicalFeedAccessService.requireAdminLogicalFeed(logicalFeedId, requireCurrentUser());
+        List<Paper> papers = paperBrowserService.allMatching(feed,
+                new PaperBrowserService.Query(filterStatus, filterTags, filterSearch, false, List.of()));
+        return Map.of("papers", papers.stream().map(paper -> Map.of(
+                "id", paper.id, "title", paper.title == null ? "Untitled paper" : paper.title)).toList());
     }
 
     @POST
