@@ -149,6 +149,16 @@ public class AppUser extends PanacheEntityBase {
         return "User";
     }
 
+    public String publicDisplayLabel() {
+        if (displayName != null && !displayName.isBlank() && !displayName.contains("@")) {
+            return displayName;
+        }
+        if (username != null && !username.isBlank() && !username.contains("@")) {
+            return username;
+        }
+        return "Member";
+    }
+
     public String avatarUrl() {
         String selected = validAvatarFileName(avatarFileName);
         if (selected == null) {

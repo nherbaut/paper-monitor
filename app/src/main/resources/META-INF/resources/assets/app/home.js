@@ -2788,6 +2788,11 @@
         const logicalFeedId = logicalFeedFilter?.value || "";
         const workflowTree = workflowTreeForLogicalFeed(logicalFeedId);
         batchPaperStatus.innerHTML = "";
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Choose a target state";
+        placeholder.selected = true;
+        batchPaperStatus.appendChild(placeholder);
         workflowTree.forEach((group) => {
             const choices = stateLeafChoices(group);
             if (choices.length === 1 && choices[0].value === group?.name) {
@@ -5066,7 +5071,7 @@
                 const batchDisabled = !selectedLogicalFeedId || filtered.length === 0;
                 readerBatchUpdateButton.disabled = batchDisabled;
                 readerBatchUpdateButton.title = batchDisabled
-                    ? "Select a paper feed with at least one matching paper first."
+                    ? (!selectedLogicalFeedId ? "Select a paper feed first." : "The current view contains no papers to update.")
                     : "Apply a batch update to the currently filtered papers.";
             }
             if (readerDiagramButton) {
@@ -8070,9 +8075,36 @@
             } else {
                 params.set("tag", tag);
             }
-            setBatchPaperFeedback("Applying batch update...");
+            setBatchPaperFeedback("Loading the affected papers...");
             batchPaperApply.disabled = true;
             try {
+                const previewResponse = await fetch("/papers/batch/preview", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+                    body: params.toString()
+                });
+                if (!previewResponse.ok) {
+                    throw new Error(await previewResponse.text() || "Could not preview the batch update.");
+                }
+                const preview = await previewResponse.json();
+                const papers = preview.papers || [];
+                if (!papers.length) {
+                    throw new Error("The current view contains no papers to update.");
+                }
+                const change = operation === "change_state"
+                    ? "Change state to “" + statusLabel(status) + "”"
+                    : (operation === "add_tag" ? "Add" : "Remove") + " tag “" + tag + "”";
+                const titles = papers.slice(0, 8).map((paper) => "• " + paper.title).join("\n");
+                const remainder = papers.length > 8 ? "\n…and " + (papers.length - 8) + " more." : "";
+                if (!window.confirm(change + " for " + papers.length + " paper(s) in the current view?\n\n"
+                        + titles + remainder + "\n\nConfirm to apply this batch update.")) {
+                    setBatchPaperFeedback("Batch update cancelled. No papers were changed.");
+                    return;
+                }
+                // Apply exactly the reviewed IDs, including papers beyond the loaded page.
+                params.set("selection", "ids");
+                papers.forEach((paper) => params.append("paperIds", String(paper.id)));
+                setBatchPaperFeedback("Applying batch update...");
                 const response = await fetch("/papers/batch", {
                     method: "POST",
                     headers: {

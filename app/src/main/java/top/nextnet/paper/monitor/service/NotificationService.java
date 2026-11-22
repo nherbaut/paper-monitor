@@ -44,10 +44,18 @@ public class NotificationService {
     }
 
     public void sendFeedAccessNotification(AppUser target, LogicalFeed logicalFeed, String role, AppUser grantedBy) {
-        String grantor = grantedBy == null ? "an administrator" : grantedBy.displayLabel();
+        String grantor = grantedBy == null ? "an administrator" : grantedBy.publicDisplayLabel();
         sendText(target == null ? null : target.email,
                 "MIAGE Review Factory access granted for " + logicalFeed.name,
                 "You were granted " + role.toLowerCase() + " access to logical feed \"" + logicalFeed.name + "\" by " + grantor + ".");
+    }
+
+    public void sendFeedInvitation(String email, LogicalFeed feed, String role) {
+        sendText(email, "Invitation to MIAGE Review Factory",
+                "You have been invited to " + role.toLowerCase() + " access to paper feed \"" + feed.name
+                        + "\".\n\nCreate an account or sign in with this email address:\n" + baseUrl + "/login"
+                        + "\n\nNormal email verification and account approval rules apply. "
+                        + "The invitation expires in 7 days and is applied when you sign in with an active account.");
     }
 
     public void sendSignupVerificationEmail(AppUser target, String verificationUrl) {

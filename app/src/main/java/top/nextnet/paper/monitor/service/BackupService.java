@@ -21,6 +21,7 @@ import top.nextnet.paper.monitor.model.AppUser;
 import top.nextnet.paper.monitor.model.AppUserEmail;
 import top.nextnet.paper.monitor.model.Feed;
 import top.nextnet.paper.monitor.model.LogicalFeed;
+import top.nextnet.paper.monitor.model.LogicalFeedInvitation;
 import top.nextnet.paper.monitor.model.LogicalFeedAccessGrant;
 import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.PaperEvent;
@@ -151,15 +152,24 @@ public class BackupService {
         data.put("paperEvents", exportPaperEvents(paperEvents));
         List<Map<String, Object>> users = exportUsers(logicalFeeds, grants, currentUser);
         data.put("users", users);
-        data.put("secondaryEmails", exportSecondaryEmails(users));
+        data.put("secondaryEmails", exportSecondaryEmails(users, currentUser));
         data.put("userSettings", exportUserSettings(currentUser));
         data.put("logicalFeedAccessGrants", exportLogicalFeedAccessGrants(grants));
+        List<Map<String, Object>> invitations = new ArrayList<>();
+        if ((currentUser == null || currentUser.admin) && !logicalFeedIds.isEmpty()) {
+            for (LogicalFeedInvitation invitation : LogicalFeedInvitation.<LogicalFeedInvitation>list("logicalFeed.id in ?1", logicalFeedIds)) {
+                invitations.add(Map.of("logicalFeedId", invitation.logicalFeed.id, "email", invitation.email,
+                        "role", invitation.role, "expiresAt", invitation.expiresAt.toString()));
+            }
+        }
+        data.put("logicalFeedInvitations", invitations);
         return data;
     }
 
-    private List<Map<String, Object>> exportSecondaryEmails(List<Map<String, Object>> users) {
+    private List<Map<String, Object>> exportSecondaryEmails(List<Map<String, Object>> users, AppUser currentUser) {
         List<Long> userIds = users.stream()
                 .map(item -> longValue(item.get("id")))
+                .filter(id -> currentUser == null || currentUser.admin || java.util.Objects.equals(id, currentUser.id))
                 .filter(java.util.Objects::nonNull)
                 .toList();
         if (userIds.isEmpty()) {
@@ -209,6 +219,17 @@ public class BackupService {
         for (AppUser user : includedUsers.values()) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", user.id);
+            if (currentUser != null && !currentUser.admin && !java.util.Objects.equals(user.id, currentUser.id)) {
+                // Preserve relationship IDs without exporting another participant's identity or credentials.
+                item.put("username", "member-" + user.id);
+                item.put("displayName", user.publicDisplayLabel());
+                item.put("authProvider", "LOCAL");
+                item.put("admin", false);
+                item.put("emailVerified", false);
+                item.put("approved", false);
+                users.add(item);
+                continue;
+            }
             item.put("username", user.username);
             item.put("displayName", user.displayName);
             item.put("email", user.email);
@@ -376,10 +397,11 @@ public class BackupService {
         paperEventRepository.deleteAll();
         paperRepository.deleteAll();
         feedRepository.deleteAll();
+        LogicalFeedInvitation.deleteAll();
+        logicalFeedAccessGrantRepository.deleteAll();
         logicalFeedRepository.deleteAll();
         userSessionRepository.deleteAll();
         userSettingsRepository.deleteAll();
-        logicalFeedAccessGrantRepository.deleteAll();
         appUserEmailRepository.deleteAll();
         appUserRepository.deleteAll();
         paperStorageService.clearAll();
@@ -491,6 +513,18 @@ public class BackupService {
             grant.createdAt = instantValue(item.get("createdAt"));
             if (grant.logicalFeed != null && grant.user != null && grant.role != null) {
                 logicalFeedAccessGrantRepository.persist(grant);
+            }
+        }
+
+        for (Object value : asList(root.get("logicalFeedInvitations"))) {
+            Map<?, ?> item = asMap(value);
+            LogicalFeedInvitation invitation = new LogicalFeedInvitation();
+            invitation.logicalFeed = logicalFeedsByOldId.get(longValue(item.get("logicalFeedId")));
+            invitation.email = stringValue(item.get("email"));
+            invitation.role = stringValue(item.get("role"));
+            invitation.expiresAt = instantValue(item.get("expiresAt"));
+            if (invitation.logicalFeed != null && invitation.email != null && invitation.role != null && invitation.expiresAt != null) {
+                invitation.persist();
             }
         }
 

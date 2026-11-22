@@ -481,6 +481,12 @@
             background: color-mix(in srgb, var(--panel-quiet) 88%, var(--accent) 12%);
         }
 
+        .tool-menu-action:disabled {
+            opacity: 0.45;
+            color: var(--muted);
+            cursor: not-allowed;
+        }
+
         .tool-menu-action svg {
             width: 1.15rem;
             height: 1.15rem;
