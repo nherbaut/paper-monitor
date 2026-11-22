@@ -2134,7 +2134,7 @@
         }
 
         .classification-card.multi-target-drag {
-            touch-action: none;
+            touch-action: pan-y;
         }
 
         .lucide-icon {
@@ -2160,7 +2160,7 @@
         .classification-title {
             margin: 0.25rem 0 0;
             font-family: "Fraunces", Georgia, serif;
-            font-size: var(--classification-title-size, clamp(1.35rem, 3vw, 2rem));
+            font-size: var(--classification-title-size, clamp(1.15rem, 2vw, 1.5rem));
             line-height: 1.18;
             text-wrap: balance;
         }
@@ -2242,10 +2242,7 @@
         }
 
         .classification-abstract.has-summary {
-            display: -webkit-box;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 6;
-            overflow: hidden;
+            overflow-wrap: anywhere;
         }
 
         .classification-notes {
@@ -2714,9 +2711,6 @@
                 font-size: 0.88rem;
             }
 
-            .classification-abstract.has-summary {
-                -webkit-line-clamp: 4;
-            }
 
             .classification-links {
                 flex-wrap: nowrap;
@@ -3551,3 +3545,25 @@
                 display: none;
             }
         }
+
+/* Keep full abstracts readable across the available card width. */
+.browser-paper-card .paper-summary {
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
+}
+
+.search-help-modal {
+    max-width: min(34rem, calc(100vw - 2rem));
+}
+
+.reader-search-help {
+    padding: 0;
+    cursor: pointer;
+}
+
+.search-help-modal .review-modal-header button {
+    width: auto;
+    flex: 0 0 auto;
+}

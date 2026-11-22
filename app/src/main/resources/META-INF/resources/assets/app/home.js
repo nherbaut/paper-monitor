@@ -342,8 +342,6 @@
     let classificationBusy = false;
     let classificationDragState = null;
     let classificationMobileLongPress = null;
-    let classificationQueueWheelDelta = 0;
-    let classificationQueueWheelTimer = null;
     let classificationQueueInitialTotal = null;
     const classificationQueueCompletedPaperIds = new Set();
     let classificationNotesSaveTimer = null;
@@ -4062,8 +4060,8 @@
                 : explicitTargets.length
                 ? "Choose a labeled state, or swipe where one destination is available."
                 : swipeChoices.neutral
-                    ? "Drag the card or use either labeled arrow."
-                    : "Drag the card or use the X and heart controls."
+                    ? "Drag the card background or use either labeled arrow."
+                    : "Drag the card background or use the X and heart controls."
             : "This state has no configured outgoing transitions. Use the normal reader to inspect this paper.";
     };
 
@@ -6333,6 +6331,17 @@
         }
     });
 
+    const searchHelpModal = document.getElementById("search-help-modal");
+    document.getElementById("reader-search-help")?.addEventListener("click", () => {
+        if (searchHelpModal && !searchHelpModal.open) searchHelpModal.showModal();
+    });
+    searchHelpModal?.addEventListener("click", (event) => {
+        if (event.target !== searchHelpModal) return;
+        const bounds = searchHelpModal.getBoundingClientRect();
+        if (event.clientX < bounds.left || event.clientX > bounds.right
+                || event.clientY < bounds.top || event.clientY > bounds.bottom) searchHelpModal.close();
+    });
+
     allPaperCards().forEach(bindPaperCard);
 
     classificationLeftAction?.addEventListener("click", () => handleClassificationDirection("left"));
@@ -6358,6 +6367,19 @@
         }, 1200);
     });
 
+    const selectionInClassificationCard = () => {
+        const selection = window.getSelection();
+        return selection && !selection.isCollapsed
+            && (classificationCard.contains(selection.anchorNode)
+                || classificationCard.contains(selection.focusNode));
+    };
+
+    // Text remains selectable; drag the card background to change its status.
+    const classificationTextTarget = (target) => {
+        const node = target instanceof Element ? target : target?.parentElement;
+        return Boolean(node?.closest(".classification-title, .classification-meta, .classification-abstract, .classification-tags"));
+    };
+
     const beginClassificationPointerDrag = (event, card, mobile) => {
         classificationDragState = {
             pointerId: event.pointerId,
@@ -6377,6 +6399,18 @@
     };
 
     const updateClassificationPointerDrag = (event) => {
+        if (selectionInClassificationCard()) {
+            if (classificationDragState) {
+                classificationDragState = null;
+                resetClassificationDragVisual();
+            }
+            if (classificationMobileLongPress) {
+                window.clearTimeout(classificationMobileLongPress.timer);
+                classificationMobileLongPress = null;
+                hideClassificationMobileStatePicker();
+            }
+            return false;
+        }
         if (updateClassificationMobileLongPress(event)) {
             return true;
         }
@@ -6389,7 +6423,9 @@
             if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 8) {
                 return true;
             }
-            if (!classificationDragState.multiTarget && Math.abs(deltaY) > Math.abs(deltaX)) {
+            if (Math.abs(deltaY) > Math.abs(deltaX)) {
+                classificationDragState = null;
+                resetClassificationDragVisual();
                 return false;
             }
             classificationDragState.captured = true;
@@ -6428,7 +6464,9 @@
                 || event.button !== 0 || classificationBusy || !selectedPaperId) {
             return;
         }
-        if (event.target.closest("a, button, textarea, input, select")) {
+        if (event.target.closest("a, button, textarea, input, select")
+                || selectionInClassificationCard()
+                || (event.pointerType === "mouse" && classificationTextTarget(event.target))) {
             return;
         }
         const card = selectedPaperCard();
@@ -6502,7 +6540,7 @@
             );
             return;
         }
-        if (cancelled || !dragState.captured
+        if (cancelled || selectionInClassificationCard() || !dragState.captured
                 || (dragState.multiTarget
                     ? dragDistance < (dragState.radialDeadZoneRadius || CLASSIFICATION_RADIAL_DEAD_ZONE_RADIUS)
                     : Math.abs(deltaX) < dragState.triggerX)) {
@@ -6553,30 +6591,6 @@
             return;
         }
         await finishClassificationPointerDrag(point, true);
-    }, { passive: false });
-
-    window.addEventListener("wheel", (event) => {
-        if (isMobileViewport() || !classificationModeActive || !classificationQueueMode
-                || classificationBusy || event.deltaY <= 0 || !classificationView.contains(event.target)) {
-            return;
-        }
-        if (event.target instanceof Element && event.target.closest("textarea, input, select")) {
-            return;
-        }
-        event.preventDefault();
-        const delta = event.deltaY * (event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 28
-            : event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? window.innerHeight : 1);
-        classificationQueueWheelDelta += delta;
-        window.clearTimeout(classificationQueueWheelTimer);
-        classificationQueueWheelTimer = window.setTimeout(() => {
-            classificationQueueWheelDelta = 0;
-        }, 180);
-        if (classificationQueueWheelDelta >= 80) {
-            classificationQueueWheelDelta = 0;
-            window.clearTimeout(classificationQueueWheelTimer);
-            classificationQueueWheelTimer = null;
-            void deferClassificationPaper();
-        }
     }, { passive: false });
 
     window.addEventListener("mousemove", (event) => {
