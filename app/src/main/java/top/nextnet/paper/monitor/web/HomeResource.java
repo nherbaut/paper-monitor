@@ -1403,6 +1403,18 @@ public class HomeResource {
     }
 
     @POST
+    @Path("/api/setup/drafts/{id}/discard")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response discardSetupDraft(@jakarta.ws.rs.PathParam("id") String id) {
+        try {
+            setupWizardService.discardDraft(currentUserContext.get().user(), id);
+            return jsonResponse(Map.of("discarded", true));
+        } catch (WebApplicationException e) {
+            return apiError(e);
+        }
+    }
+
+    @POST
     @Path("/api/setup/preview")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.APPLICATION_JSON)

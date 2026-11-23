@@ -194,6 +194,16 @@ public class SetupWizardService {
     }
 
     @Transactional
+    public void discardDraft(AppUser user, String draftId) {
+        PaperFeedSetupDraft draft = draftRepository.findAccessible(draftId, user)
+                .orElseThrow(() -> new WebApplicationException("Setup draft was not found or has expired", Response.Status.NOT_FOUND));
+        if (draft.logicalFeed != null) {
+            throw new WebApplicationException("This setup has already created a paper feed", Response.Status.CONFLICT);
+        }
+        draftRepository.delete(draft);
+    }
+
+    @Transactional
     public Map<String, Object> saveTitle(AppUser user, String draftId, String title) {
         PaperFeedSetupDraft draft = requireDraft(user, draftId);
         if (!draft.freshSetup && !draft.previewConfirmed) {

@@ -65,6 +65,8 @@
         }
         header strong { font-size: 1.05rem; }
         main { width: min(1120px, calc(100% - 2rem)); margin: 1.5rem auto 3rem; }
+        .draft-actions[hidden] { display: none; }
+        .draft-actions { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
         .progress {
             display: grid;
             grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -169,11 +171,15 @@
     <a class="button secondary" href="/">Exit setup</a>
 </header>
 <main>
+    <div class="draft-actions" id="draft-actions" hidden>
+        <button class="secondary" id="discard-draft" type="button">Discard draft and start over</button>
+    </div>
+    <div class="status hidden" id="discard-status" role="status"></div>
     <div class="progress" aria-label="Setup progress">
         <span class="progress-step active"></span><span class="progress-step"></span><span class="progress-step"></span>
         <span class="progress-step"></span><span class="progress-step"></span><span class="progress-step"></span>
     </div>
-    <div class="workspace">
+    <div class="workspace" id="setup-workspace">
         <div class="content">
             <section class="step" data-step="1">
                 <div id="setup-start-choice">
@@ -302,6 +308,8 @@ Wrong intervention</textarea></label>
     const googleEmail = body.dataset.googleEmail || "";
     let draftId = body.dataset.draftId || window.localStorage.getItem("paperMonitorSetupDraftId") || "";
     let draft = null;
+    let pendingRequests = 0;
+    let discarding = false;
     let queryHistory = [];
     let currentStep = 1;
     let currentFolder = { id: "root", name: "My Drive" };
@@ -321,15 +329,51 @@ Wrong intervention</textarea></label>
         button.innerHTML = value ? '<span class="spinner"></span>' + label : button.dataset.label;
     };
     const request = async (url, options) => {
-        const response = await fetch(url, options || {});
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(payload.error || "Request failed");
-        return payload;
+        const changesDraft = options && options.method && options.method !== "GET";
+        if (changesDraft) pendingRequests++;
+        byId("discard-draft").disabled = discarding || pendingRequests > 0;
+        try {
+            const response = await fetch(url, options || {});
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const error = new Error(payload.error || "Request failed");
+                error.status = response.status;
+                throw error;
+            }
+            return payload;
+        } finally {
+            if (changesDraft) pendingRequests--;
+            byId("discard-draft").disabled = discarding || pendingRequests > 0;
+        }
     };
+
+    async function discardDraft() {
+        if (!draftId || pendingRequests || discarding) return;
+        discarding = true;
+        byId("setup-workspace").inert = true;
+        busy(byId("discard-draft"), true, " Discarding...");
+        setStatus("discard-status", "", false);
+        try {
+            try {
+                await request("/api/setup/drafts/" + encodeURIComponent(draftId) + "/discard", { method: "POST" });
+            } catch (error) {
+                // An expired or already discarded draft is safe to forget locally.
+                if (error.status !== 404) throw error;
+            }
+            window.localStorage.removeItem("paperMonitorSetupDraftId");
+            window.location.replace("/setup");
+        } catch (error) {
+            discarding = false;
+            byId("setup-workspace").inert = false;
+            busy(byId("discard-draft"), false, "");
+            setStatus("discard-status", error.message || "Could not discard this draft. Please try again.", true);
+        }
+    }
     const form = (values) => new URLSearchParams(Object.entries(values).filter((entry) => entry[1] !== null && entry[1] !== undefined));
 
     function showStep(step) {
         currentStep = step;
+        byId("draft-actions").hidden = !draftId || !draft || Boolean(draft.url);
         document.querySelectorAll(".step").forEach((element) => { element.hidden = Number(element.dataset.step) !== step; });
         document.querySelectorAll(".progress-step").forEach((element, index) => element.classList.toggle("active", index < step));
         const image = byId("step-image");
@@ -599,6 +643,7 @@ Wrong intervention</textarea></label>
                 window.location.replace(draft.url);
                 return;
             }
+            showStep(1);
             if (draft.papers && draft.papers.length) renderPreview(draft);
             byId("feed-title").value = draft.title || "";
             if (draft.workflowType) {
@@ -623,6 +668,7 @@ Wrong intervention</textarea></label>
         }
     }
 
+    byId("discard-draft").addEventListener("click", discardDraft);
     byId("setup-from-scholar").addEventListener("click", () => {
         byId("setup-start-choice").classList.add("hidden");
         byId("scholar-query-choice").classList.remove("hidden");
