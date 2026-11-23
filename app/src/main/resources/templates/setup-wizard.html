@@ -2,20 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script src="/assets/theme/theme.js?v=1"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIAGE Review Factory – Create a paper feed</title>
     <style>
         :root {
-            --bg: #f4f6f4;
-            --surface: #ffffff;
-            --ink: #202421;
-            --muted: #66706a;
-            --line: #d8ded9;
-            --accent: #176b55;
-            --accent-dark: #10503f;
             --warm: #b85c35;
-            --soft: #edf5f1;
-            --danger: #a33b35;
         }
         * { box-sizing: border-box; }
         body {
@@ -31,7 +23,7 @@
             border: 1px solid var(--accent);
             border-radius: 6px;
             padding: 0.65rem 1rem;
-            background: var(--accent);
+            background: var(--theme-action);
             color: white;
             cursor: pointer;
             text-decoration: none;
@@ -40,15 +32,15 @@
             justify-content: center;
             gap: 0.45rem;
         }
-        button:hover, .button:hover { background: var(--accent-dark); }
-        button.secondary, .button.secondary { background: white; color: var(--ink); border-color: var(--line); }
-        button.secondary:hover, .button.secondary:hover { background: #f6f8f6; }
+        button:hover, .button:hover { background: var(--theme-action-hover); }
+        button.secondary, .button.secondary { background: var(--theme-surface); color: var(--ink); border-color: var(--line); }
+        button.secondary:hover, .button.secondary:hover { background: var(--theme-quiet); }
         button:disabled { opacity: 0.55; cursor: wait; }
         input, textarea {
             width: 100%;
             border: 1px solid var(--line);
             border-radius: 6px;
-            background: white;
+            background: var(--theme-surface);
             color: var(--ink);
             padding: 0.75rem;
         }
@@ -71,8 +63,8 @@
             gap: 0.4rem;
             margin-bottom: 1rem;
         }
-        .progress-step { height: 5px; background: #dce1dd; border-radius: 3px; }
-        .progress-step.active { background: var(--accent); }
+        .progress-step { height: 5px; background: var(--theme-quiet); border-radius: 3px; }
+        .progress-step.active { background: var(--theme-action); }
         .workspace {
             display: grid;
             grid-template-columns: minmax(0, 1.55fr) minmax(260px, 0.75fr);
@@ -86,7 +78,7 @@
         .content { min-width: 0; padding: clamp(1.25rem, 3vw, 2.5rem); }
         .illustration {
             border-left: 1px solid var(--line);
-            background: #eef1ee;
+            background: var(--theme-quiet);
             display: grid;
             place-items: center;
             min-width: 0;
@@ -113,12 +105,12 @@
             background: var(--soft);
             color: var(--accent-dark);
         }
-        .status.error { border-color: var(--danger); background: #fbefee; color: var(--danger); }
+        .status.error { border-color: var(--danger); background: var(--theme-danger-bg); color: var(--danger); }
         .query-list, .paper-list, .folder-list { display: grid; gap: 0.55rem; margin-top: 0.8rem; max-height: 430px; overflow: auto; }
         .query, .paper, .folder {
             border: 1px solid var(--line);
             border-radius: 6px;
-            background: white;
+            background: var(--theme-surface);
             padding: 0.8rem;
         }
         .query { width: 100%; min-width: 0; cursor: pointer; text-align: left; color: var(--ink); display: block; min-height: 0; overflow: hidden; }
@@ -136,7 +128,7 @@
             padding: 1rem;
             border: 1px solid var(--line);
             border-radius: 6px;
-            background: white;
+            background: var(--theme-surface);
             color: var(--ink);
             text-align: left;
         }
@@ -162,6 +154,7 @@
             header { padding: 0 0.75rem; }
         }
     </style>
+    <link rel="stylesheet" href="/assets/theme/theme.css?v=1">
 </head>
 <body data-draft-id="{draftId ?: ''}" data-authenticated="{authenticated}" data-google-enabled="{googleDriveEnabled}" data-google-connected="{googleDriveConnected}" data-google-email="{googleDriveEmail ?: ''}">
 <header>
@@ -169,6 +162,7 @@
     <a class="button secondary" href="/">Exit setup</a>
 </header>
 <main>
+    <div class="theme-toolbar"><button type="button" data-theme-toggle aria-pressed="false">Dark mode</button></div>
     <div class="progress" aria-label="Setup progress">
         <span class="progress-step active"></span><span class="progress-step"></span><span class="progress-step"></span>
         <span class="progress-step"></span><span class="progress-step"></span><span class="progress-step"></span>

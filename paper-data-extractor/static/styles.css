@@ -1,15 +1,9 @@
-:root {
-    --app-bg: #f4f7f8;
-    --app-ink: #1c2733;
-    --app-muted: #61707f;
-    --app-accent: #1f6f78;
-    --app-accent-soft: #e8f3f3;
-}
+
 
 body.app-shell {
     background:
         radial-gradient(circle at top right, rgb(31 111 120 / 0.08), transparent 28%),
-        linear-gradient(180deg, #f8fbfc 0%, var(--app-bg) 100%);
+        linear-gradient(180deg, var(--theme-surface) 0%, var(--app-bg) 100%);
     color: var(--app-ink);
 }
 
@@ -18,7 +12,7 @@ body.app-shell {
 }
 
 .page-header {
-    border-color: rgb(0 0 0 / 0.08) !important;
+    border-color: var(--theme-line) !important;
 }
 
 .eyebrow {
@@ -37,7 +31,7 @@ body.app-shell {
 }
 
 .view-tabs .nav-link.active {
-    background: #fff;
+    background: var(--theme-surface);
     color: var(--app-accent);
     box-shadow: 0 0.25rem 0.75rem rgb(0 0 0 / 0.08);
 }
@@ -74,7 +68,7 @@ body.app-shell {
 }
 
 .model-option {
-    background: rgb(255 255 255 / 0.82);
+    background: var(--theme-surface);
 }
 
 .model-option-select {
@@ -157,9 +151,9 @@ body.app-shell {
 
 .extract-info-card {
     padding: 1rem 1.05rem;
-    border: 1px solid rgb(0 0 0 / 0.08);
+    border: 1px solid var(--theme-line);
     border-radius: 0.95rem;
-    background: rgb(255 255 255 / 0.8);
+    background: var(--theme-surface);
 }
 
 .extract-progress {
@@ -202,7 +196,7 @@ body.app-shell {
 }
 
 .review-strip-card {
-    background: rgb(255 255 255 / 0.9);
+    background: var(--theme-surface);
 }
 
 .saved-review-menu-list {
@@ -224,9 +218,9 @@ body.app-shell {
     gap: 0.5rem;
     align-items: center;
     padding: 0.55rem 0.65rem;
-    border: 1px solid rgb(0 0 0 / 0.08);
+    border: 1px solid var(--theme-line);
     border-radius: 0.8rem;
-    background: rgb(255 255 255 / 0.88);
+    background: var(--theme-surface);
 }
 
 .saved-review-name {
@@ -252,7 +246,7 @@ body.app-shell {
     padding: 1.4rem 1.2rem;
     border: 2px dashed rgb(31 111 120 / 0.28);
     border-radius: 1rem;
-    background: rgb(255 255 255 / 0.78);
+    background: var(--theme-surface);
     cursor: pointer;
     text-align: center;
     transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
@@ -284,9 +278,9 @@ body.app-shell {
     position: relative;
     min-height: 24rem;
     padding: 0;
-    border: 1px solid rgb(0 0 0 / 0.08);
+    border: 1px solid var(--theme-line);
     border-radius: 1rem;
-    background: #f8fbfc;
+    background: var(--theme-surface);
     color: var(--app-ink);
     font-size: 0.84rem;
     line-height: 1.5;
@@ -308,7 +302,7 @@ body.app-shell {
 .yaml-editor-lines {
     padding: 1rem 0.75rem 1rem 0;
     border-right: 1px solid rgb(31 111 120 / 0.14);
-    color: #7e8b97;
+    color: var(--theme-muted);
     text-align: right;
     user-select: none;
     overflow: hidden;
@@ -361,34 +355,34 @@ body.app-shell {
 }
 
 .yaml-token-key {
-    color: #0f5d66;
+    color: var(--theme-info-ink);
     font-weight: 700;
 }
 
 .yaml-token-punctuation {
-    color: #6c7a86;
+    color: var(--theme-muted);
 }
 
 .yaml-token-string {
-    color: #1e6b3f;
+    color: var(--theme-success-ink);
 }
 
 .yaml-token-number {
-    color: #8f4f00;
+    color: var(--theme-warning-ink);
 }
 
 .yaml-token-boolean {
-    color: #7a2bc2;
+    color: var(--theme-purple-ink);
     font-weight: 600;
 }
 
 .yaml-token-scalar {
-    color: #9a5b00;
+    color: var(--theme-warning-ink);
     font-weight: 600;
 }
 
 .yaml-token-comment {
-    color: #7b8792;
+    color: var(--theme-muted);
     font-style: italic;
 }
 
@@ -421,10 +415,10 @@ body.app-shell {
             -45deg,
             rgb(31 111 120 / 0.04),
             rgb(31 111 120 / 0.04) 16px,
-            rgb(255 255 255 / 0.9) 16px,
-            rgb(255 255 255 / 0.9) 32px
+            var(--theme-surface) 16px,
+            var(--theme-surface) 32px
         ),
-        linear-gradient(180deg, rgb(250 252 252 / 0.95), rgb(241 247 247 / 0.95));
+        linear-gradient(180deg, var(--theme-quiet), var(--theme-surface));
 }
 
 .form-preview-surface::before {
@@ -435,7 +429,7 @@ body.app-shell {
     padding: 0.2rem 0.55rem;
     border: 1px solid rgb(31 111 120 / 0.18);
     border-radius: 999px;
-    background: rgb(255 255 255 / 0.78);
+    background: var(--theme-surface);
     color: var(--app-accent);
     font-size: 0.72rem;
     font-weight: 700;
@@ -450,6 +444,8 @@ body.app-shell {
 }
 
 .dem-card {
+    background: hsl(var(--model-hue, 180) 70% 94%);
+    --bs-border-color: hsl(var(--model-hue, 180) 38% 78%);
     position: relative;
     overflow: hidden;
     transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
@@ -504,7 +500,7 @@ body.app-shell {
     gap: 0.35rem;
     padding: 0.2rem 0.5rem;
     border-radius: 999px;
-    background: rgb(255 255 255 / 0.6);
+    background: var(--theme-surface);
     color: var(--app-muted);
     font-size: 0.75rem;
     font-weight: 600;
@@ -587,11 +583,11 @@ details[open] > .optional-section-toggle::after {
 }
 
 .taxon-card {
-    background: #f8fbf9;
+    background: var(--theme-surface);
 }
 
 .criterion-card {
-    background: #fffdf7;
+    background: var(--theme-surface);
 }
 
 .inline-row {
@@ -615,10 +611,10 @@ details[open] > .optional-section-toggle::after {
 
 .empty-state {
     padding: 1rem 1.1rem;
-    border: 1px dashed rgb(0 0 0 / 0.14);
+    border: 1px dashed var(--theme-line);
     border-radius: 0.9rem;
     color: var(--app-muted);
-    background: rgb(255 255 255 / 0.55);
+    background: var(--theme-surface);
 }
 
 .action-menu {
@@ -650,9 +646,9 @@ details[open] > .optional-section-toggle::after {
     display: grid;
     gap: 0.45rem;
     padding: 0.55rem;
-    border: 1px solid rgb(0 0 0 / 0.08);
+    border: 1px solid var(--theme-line);
     border-radius: 0.9rem;
-    background: #fff;
+    background: var(--theme-surface);
     box-shadow: 0 1rem 2rem rgb(0 0 0 / 0.12);
 }
 
@@ -752,4 +748,9 @@ details[open] > .optional-section-toggle::after {
     .selected-model-dropbox {
         grid-template-columns: 1fr;
     }
+}
+
+html[data-theme="dark"] .dem-card {
+    background: hsl(var(--model-hue, 180) 20% 18%);
+    --bs-border-color: hsl(var(--model-hue, 180) 28% 40%);
 }

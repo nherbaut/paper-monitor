@@ -191,8 +191,6 @@
     const stateSearchInput = document.getElementById("state-search-input");
     const searchLoadMoreRow = document.getElementById("search-load-more-row");
     const searchLoadMoreButton = document.getElementById("search-load-more");
-    const themeToggle = document.getElementById("theme-toggle");
-    const themeToggleLabel = document.getElementById("theme-toggle-label");
     const fullscreenToggle = document.getElementById("fullscreen-toggle");
     const fullscreenToggleLabel = document.getElementById("fullscreen-toggle-label");
     const classifyRssLink = document.getElementById("classify-rss-link");
@@ -364,7 +362,6 @@
     let reviewWorkspacePromise = null;
     let draggedFeedDashboardCard = null;
     let feedDashboardOrderSaving = false;
-    const themeStorageKey = "paper-monitor.theme";
     const notesCollapsedStorageKey = "paper-monitor.notes-collapsed";
     const pdfCaptureStorageKey = "paper-monitor.active-pdf-capture";
     const KEYBOARD_STATUS_TOAST_MS = 2200;
@@ -472,12 +469,6 @@
             return;
         }
         paperFeedHeading.textContent = "All paper feeds";
-    };
-
-    const applyTheme = (theme) => {
-        const darkMode = theme === "dark";
-        document.body.classList.toggle("dark-mode", darkMode);
-        themeToggleLabel.textContent = darkMode ? "Light mode" : "Dark mode";
     };
 
     const applyNotesCollapsedState = () => {
@@ -737,7 +728,6 @@
     const storedLogicalFeedName = window.localStorage.getItem(storageKey);
     const storedNotesCollapsed = window.localStorage.getItem(notesCollapsedStorageKey);
     notesCollapsed = storedNotesCollapsed == null ? true : storedNotesCollapsed === "true";
-    applyTheme(window.localStorage.getItem(themeStorageKey) || "light");
     renderLastSeenLogicalFeed(storedLogicalFeedName);
     applyNotesCollapsedState();
 
@@ -7295,12 +7285,6 @@
         applyNotesCollapsedState();
         queuePdfRefit();
         fitClassificationTypography();
-    });
-
-    themeToggle.addEventListener("click", () => {
-        const nextTheme = document.body.classList.contains("dark-mode") ? "light" : "dark";
-        window.localStorage.setItem(themeStorageKey, nextTheme);
-        applyTheme(nextTheme);
     });
 
     Array.from(logicalFeedFilter?.options || []).forEach(refreshLogicalFeedOptionLabel);

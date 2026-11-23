@@ -30,6 +30,20 @@ cd app
 
 For the containerized stack, the repository `docker-compose.yml` uses a regular PostgreSQL service instead.
 
+## Shared site theme
+
+All app and PDE pages use the theme assets in `shared/theme/`. Edit those canonical
+files, then run `python3 scripts/sync-theme-assets.py` to update the copies inside
+the two independent Docker build contexts. Run
+`python3 scripts/sync-theme-assets.py --check` to detect stale copies.
+
+The existing `paper-monitor.theme` browser preference is preserved (light is the
+default). Theme controls work on every page, and changes propagate between tabs
+on the same origin. App links to PDE pass `?theme=light` or `?theme=dark` so PDE can
+remember the selection on its own origin; the parameter is consumed on arrival.
+Each service keeps its local preference when opened directly. Native form controls
+and Bootstrap components follow the selected color scheme too.
+
 ## Firefox PDF capture
 
 For providers that require a browser or institutional login, install the

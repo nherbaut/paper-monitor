@@ -1,0 +1,94 @@
+/* Canonical source: shared/theme. Run scripts/sync-theme-assets.py after editing. */
+:root {
+    color-scheme: light;
+    --theme-bg: #f2eee6;
+    --theme-bg-top: #f8f4ec;
+    --theme-surface: #fcf8f1;
+    --theme-quiet: #f7f1e7;
+    --theme-ink: #26221d;
+    --theme-muted: #6e665d;
+    --theme-accent: #9e5438;
+    --theme-accent-soft: #e4c4b3;
+    --theme-badge-ink: #602714;
+    --theme-line: #ded1c2;
+    --theme-action: #93482e;
+    --theme-action-hover: #7b3b26;
+    --theme-on-action: #ffffff;
+    --theme-success-bg: #ebf7ee;
+    --theme-success-ink: #1d4d2d;
+    --theme-warning-bg: #fbf2df;
+    --theme-warning-ink: #7b4e11;
+    --theme-danger-bg: #f7e2db;
+    --theme-danger-ink: #7b2f18;
+    --theme-info-ink: #245f73;
+    --theme-purple-ink: #6d2f70;
+    --theme-code-bg: #f4f5f7;
+    --theme-graph-edge: #9a8d80;
+}
+html[data-theme="dark"] {
+    color-scheme: dark;
+    --theme-bg: #171411;
+    --theme-bg-top: #171411;
+    --theme-surface: #211c18;
+    --theme-quiet: #2c251f;
+    --theme-ink: #eee6db;
+    --theme-muted: #b6aa9a;
+    --theme-accent: #e3a083;
+    --theme-accent-soft: #5b3a2d;
+    --theme-badge-ink: #f5b99d;
+    --theme-line: #54463b;
+    --theme-action: #93482e;
+    --theme-action-hover: #7b3b26;
+    --theme-success-bg: #20372a;
+    --theme-success-ink: #a7dfb8;
+    --theme-warning-bg: #3b301d;
+    --theme-warning-ink: #f1d294;
+    --theme-danger-bg: #442a25;
+    --theme-danger-ink: #ffb6a3;
+    --theme-info-ink: #9dcfe0;
+    --theme-purple-ink: #ddb6e5;
+    --theme-code-bg: #181512;
+    --theme-graph-edge: #a69583;
+    --database: #3d315d;
+    --database-strong: #d4bfff;
+    --other: #343038;
+    --other-strong: #c7c0ce;
+    --previous: #343038;
+    --total: #2b3a2e;
+}
+/* Fill short pages so their background gradient does not tile below the content. */
+body { min-height: 100vh; }
+
+/* Aliases bridge existing app components and PDE's Bootstrap components. */
+:root {
+    --bg: var(--theme-bg); --panel: var(--theme-surface); --surface: var(--theme-surface);
+    --panel-quiet: var(--theme-quiet); --soft: var(--theme-quiet);
+    --ink: var(--theme-ink); --muted: var(--theme-muted); --line: var(--theme-line);
+    --accent: var(--theme-accent); --accent-dark: var(--theme-accent); --accent-soft: var(--theme-accent-soft);
+    --danger: var(--theme-danger-ink);
+    --app-bg: var(--theme-bg); --app-ink: var(--theme-ink); --app-muted: var(--theme-muted);
+    --app-accent: var(--theme-accent); --app-accent-soft: var(--theme-accent-soft);
+}
+html[data-theme] {
+    --bs-body-bg: var(--theme-surface); --bs-body-color: var(--theme-ink);
+    --bs-secondary-color: var(--theme-muted); --bs-secondary-bg: var(--theme-quiet);
+    --bs-tertiary-bg: var(--theme-quiet); --bs-border-color: var(--theme-line);
+    --bs-emphasis-color: var(--theme-ink); --bs-link-color: var(--theme-accent);
+    --bs-link-hover-color: var(--theme-accent);
+}
+.theme-toolbar { display: flex; justify-content: flex-end; margin: 0 0 1rem; }
+button[data-theme-toggle] { cursor: pointer; }
+.theme-toolbar button {
+    font: inherit; border: 1px solid var(--theme-line); border-radius: 8px;
+    padding: .5rem .8rem; background: var(--theme-surface); color: var(--theme-ink);
+}
+.theme-toolbar button:hover { background: var(--theme-quiet); }
+[data-theme-toggle]:focus-visible { outline: 2px solid var(--theme-accent); outline-offset: 3px; }
+@media print { .theme-toolbar { display: none; } }
+
+html[data-theme="dark"] .bg-light,
+html[data-theme="dark"] .text-bg-light { background-color: var(--theme-quiet) !important; color: var(--theme-ink) !important; }
+html[data-theme="dark"] .btn-outline-secondary {
+    --bs-btn-color: var(--theme-muted); --bs-btn-border-color: var(--theme-line);
+    --bs-btn-hover-bg: var(--theme-quiet); --bs-btn-hover-color: var(--theme-ink);
+}

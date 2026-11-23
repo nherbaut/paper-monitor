@@ -2,18 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script src="/assets/theme/theme.js?v=1"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIAGE Review Factory Logs</title>
     <style>
-        :root {
-            --bg: #f5f0e8;
-            --panel: #fffaf3;
-            --ink: #1f1d1a;
-            --muted: #6c655d;
-            --accent: #b34f2e;
-            --accent-soft: #e8b49f;
-            --line: #d8c6b5;
-        }
+
 
         * {
             box-sizing: border-box;
@@ -24,7 +17,7 @@
             font-family: Georgia, "Times New Roman", serif;
             background:
                 radial-gradient(circle at top left, rgba(179, 79, 46, 0.16), transparent 28%),
-                linear-gradient(180deg, #f9f4ed 0%, var(--bg) 100%);
+                linear-gradient(180deg, var(--theme-surface) 0%, var(--bg) 100%);
             color: var(--ink);
         }
 
@@ -54,7 +47,7 @@
         }
 
         .panel {
-            background: color-mix(in srgb, var(--panel) 88%, white);
+            background: color-mix(in srgb, var(--panel) 88%, var(--theme-surface));
             border: 1px solid var(--line);
             border-radius: 20px;
             padding: 1.25rem;
@@ -71,7 +64,7 @@
             border: 1px solid var(--line);
             border-radius: 16px;
             padding: 1rem;
-            background: rgba(255, 255, 255, 0.7);
+            background: var(--theme-surface);
         }
 
         .pill {
@@ -79,7 +72,7 @@
             padding: 0.18rem 0.55rem;
             border-radius: 999px;
             background: var(--accent-soft);
-            color: #602714;
+            color: var(--theme-badge-ink);
             font-size: 0.85rem;
             margin-bottom: 0.5rem;
         }
@@ -93,9 +86,11 @@
             color: var(--accent);
         }
     </style>
+    <link rel="stylesheet" href="/assets/theme/theme.css?v=1">
 </head>
 <body>
 <main>
+    <div class="theme-toolbar"><button type="button" data-theme-toggle aria-pressed="false">Dark mode</button></div>
     <header>
         <div class="pill">Paper Activity</div>
         <h1 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2.5h12v11H2v-11Zm1 1v9h10v-9H3Zm1.5 1.5H8v1H4.5V5Zm0 2.5h7v1h-7v-1Zm0 2.5h7v1h-7v-1Z"/></svg></span><span>Event log</span></h1>
