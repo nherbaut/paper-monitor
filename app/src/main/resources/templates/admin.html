@@ -2,17 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script src="/assets/theme/theme.js?v=1"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIAGE Review Factory Admin</title>
     <style>
-        :root {
-            --bg: #f5f0e8;
-            --panel: #fffaf3;
-            --ink: #1f1d1a;
-            --muted: #6c655d;
-            --accent: #b34f2e;
-            --line: #d8c6b5;
-        }
+
 
         * { box-sizing: border-box; }
 
@@ -21,7 +15,7 @@
             font-family: Georgia, "Times New Roman", serif;
             background:
                 radial-gradient(circle at top left, rgba(179, 79, 46, 0.16), transparent 28%),
-                linear-gradient(180deg, #f9f4ed 0%, var(--bg) 100%);
+                linear-gradient(180deg, var(--theme-surface) 0%, var(--bg) 100%);
             color: var(--ink);
         }
 
@@ -64,7 +58,7 @@
             display: grid;
             gap: 0.35rem;
             padding: 0.75rem;
-            background: color-mix(in srgb, var(--panel) 92%, white);
+            background: color-mix(in srgb, var(--panel) 92%, var(--theme-surface));
             border: 1px solid var(--line);
             border-radius: 18px;
             box-shadow: 0 18px 40px rgba(77, 56, 38, 0.08);
@@ -82,13 +76,13 @@
 
         .settings-nav-button:hover {
             border-color: var(--line);
-            background: rgba(255, 255, 255, 0.7);
+            background: var(--theme-surface);
         }
 
         .settings-nav-button.active {
             background: rgba(179, 79, 46, 0.12);
             border-color: rgba(179, 79, 46, 0.28);
-            color: #6f2d19;
+            color: var(--theme-danger-ink);
         }
 
         .settings-nav-group {
@@ -158,7 +152,7 @@
         .settings-nav-item:hover,
         .settings-nav-item.active {
             color: var(--ink);
-            background: rgba(255, 255, 255, 0.7);
+            background: var(--theme-surface);
         }
 
         .settings-nav-item.active {
@@ -216,7 +210,7 @@
         .rss-feed-picker button.active {
             border-color: var(--accent);
             background: rgba(179, 79, 46, 0.12);
-            color: #6f2d19;
+            color: var(--theme-danger-ink);
         }
 
         .rss-source-help {
@@ -234,7 +228,7 @@
             padding: 0.85rem;
             border: 1px solid var(--line);
             border-radius: 12px;
-            background: rgba(255, 255, 255, 0.52);
+            background: var(--theme-surface);
         }
 
         .scholar-picker-header {
@@ -259,7 +253,7 @@
         .scholar-tab.active {
             border-color: var(--accent);
             background: rgba(179, 79, 46, 0.12);
-            color: #6f2d19;
+            color: var(--theme-danger-ink);
         }
 
         .scholar-results {
@@ -275,7 +269,7 @@
             padding: 0.7rem;
             border: 1px solid var(--line);
             border-radius: 10px;
-            background: color-mix(in srgb, var(--panel) 85%, white);
+            background: color-mix(in srgb, var(--panel) 85%, var(--theme-surface));
         }
 
         .scholar-result-query {
@@ -300,8 +294,8 @@
             padding: 0.8rem 0.9rem;
             border-radius: 12px;
             border: 1px solid #d7a18e;
-            background: rgba(247, 226, 219, 0.86);
-            color: #7b2f18;
+            background: var(--theme-danger-bg);
+            color: var(--theme-danger-ink);
         }
 
         .masquerade-banner form {
@@ -318,13 +312,13 @@
             padding: 0.8rem 0.9rem;
             border-radius: 12px;
             border: 1px solid var(--line);
-            background: rgba(255, 255, 255, 0.78);
+            background: var(--theme-surface);
         }
 
         .message.error {
             border-color: #d7a18e;
-            color: #7b2f18;
-            background: rgba(247, 226, 219, 0.86);
+            color: var(--theme-danger-ink);
+            background: var(--theme-danger-bg);
         }
 
         h1, h2, h3 {
@@ -338,7 +332,7 @@
         }
 
         section {
-            background: color-mix(in srgb, var(--panel) 92%, white);
+            background: color-mix(in srgb, var(--panel) 92%, var(--theme-surface));
             border: 1px solid var(--line);
             border-radius: 18px;
             padding: 1.25rem;
@@ -370,7 +364,7 @@
             border: 1px solid var(--line);
             padding: 0.7rem 0.8rem;
             font: inherit;
-            background: white;
+            background: var(--theme-surface);
             color: var(--ink);
         }
 
@@ -381,14 +375,14 @@
 
         button {
             width: auto;
-            background: var(--accent);
+            background: var(--theme-action);
             border-color: var(--accent);
             color: white;
             cursor: pointer;
         }
 
         button.secondary {
-            background: white;
+            background: var(--theme-surface);
             color: var(--accent);
         }
 
@@ -415,7 +409,7 @@
         .management-card {
             border: 1px solid var(--line);
             border-radius: 16px;
-            background: rgba(255, 255, 255, 0.64);
+            background: var(--theme-surface);
             padding: 1rem;
         }
 
@@ -465,7 +459,7 @@
         .management-meta-box {
             border: 1px solid var(--line);
             border-radius: 12px;
-            background: rgba(255, 255, 255, 0.72);
+            background: var(--theme-surface);
             padding: 0.85rem;
         }
 
@@ -519,8 +513,8 @@
             display: inline-block;
             padding: 0.18rem 0.55rem;
             border-radius: 999px;
-            background: #e8b49f;
-            color: #602714;
+            background: var(--accent-soft);
+            color: var(--theme-badge-ink);
             font-size: 0.85rem;
             margin-bottom: 0.5rem;
         }
@@ -538,19 +532,19 @@
             border-radius: 999px;
             font-size: 0.82rem;
             border: 1px solid var(--line);
-            background: rgba(255, 255, 255, 0.72);
+            background: var(--theme-surface);
         }
 
         .status-badge.good {
-            color: #1d4d2d;
+            color: var(--theme-success-ink);
             border-color: #b8d5bf;
-            background: #ebf7ee;
+            background: var(--theme-success-bg);
         }
 
         .status-badge.warn {
-            color: #7b4e11;
+            color: var(--theme-warning-ink);
             border-color: #e7c693;
-            background: #fbf2df;
+            background: var(--theme-warning-bg);
         }
 
         .mendeley-progress {
@@ -559,7 +553,7 @@
             padding: 0.75rem;
             border: 1px solid var(--line);
             border-radius: 12px;
-            background: rgba(255, 255, 255, 0.58);
+            background: var(--theme-surface);
         }
 
         .mendeley-progress progress {
@@ -613,7 +607,7 @@
         pre {
             white-space: pre-wrap;
             overflow-wrap: anywhere;
-            background: rgba(255, 255, 255, 0.75);
+            background: var(--theme-surface);
             border: 1px solid var(--line);
             border-radius: 10px;
             padding: 0.9rem;
@@ -628,7 +622,7 @@
             padding: 0.95rem;
             border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
             border-radius: 12px;
-            background: rgba(255, 255, 255, 0.58);
+            background: var(--theme-surface);
         }
 
         .workflow-designer-header,
@@ -656,7 +650,7 @@
         }
 
         .workflow-designer-status.error {
-            color: #8b3219;
+            color: var(--theme-danger-ink);
         }
 
         .workflow-designer-grid {
@@ -670,7 +664,7 @@
             overflow: auto;
             border: 1px solid var(--line);
             border-radius: 10px;
-            background: linear-gradient(90deg, rgba(179, 79, 46, 0.04) 1px, transparent 1px), linear-gradient(rgba(179, 79, 46, 0.04) 1px, transparent 1px), #fffdf9;
+            background: linear-gradient(90deg, rgba(179, 79, 46, 0.04) 1px, transparent 1px), linear-gradient(rgba(179, 79, 46, 0.04) 1px, transparent 1px), var(--theme-surface);
             background-size: 24px 24px;
         }
 
@@ -692,7 +686,7 @@
             padding: 0.75rem;
             border: 1px solid var(--line);
             border-radius: 10px;
-            background: rgba(255, 255, 255, 0.75);
+            background: var(--theme-surface);
         }
 
         .workflow-inspector label {
@@ -744,7 +738,7 @@
             padding: 0.3rem;
             border: 1px solid var(--line);
             border-radius: 9px;
-            background: #fffdf9;
+            background: var(--theme-surface);
             box-shadow: 0 12px 28px rgba(77, 56, 38, 0.2);
         }
 
@@ -759,7 +753,7 @@
         }
 
         .workflow-context-menu button:hover {
-            color: #6f2d19;
+            color: var(--theme-danger-ink);
             background: rgba(179, 79, 46, 0.12);
         }
 
@@ -845,9 +839,11 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="/assets/theme/theme.css?v=1">
 </head>
 <body>
 <main>
+    <div class="theme-toolbar"><button type="button" data-theme-toggle aria-pressed="false">Dark mode</button></div>
     <header>
         <div class="pill">Paper Feed Operations</div>
         <h1 class="title-with-icon"><span class="title-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M9.67 1.5 10 3.1c.3.12.59.28.86.47l1.47-.5 1 1.73-1.15 1.03c.04.31.04.63 0 .94l1.15 1.03-1 1.73-1.47-.5c-.27.2-.56.35-.86.47L9.67 14.5H7.33L7 12.9a4.9 4.9 0 0 1-.86-.47l-1.47.5-1-1.73 1.15-1.03a3.7 3.7 0 0 1 0-.94L3.67 8.2l1-1.73 1.47.5c.27-.19.56-.35.86-.47l.33-1.6h2.34ZM8 10.5A2.5 2.5 0 1 0 8 5.5a2.5 2.5 0 0 0 0 5Z"/></svg></span><span>MIAGE Review Factory Admin</span></h1>
@@ -893,7 +889,7 @@
                 <button class="settings-nav-button settings-nav-group-title" data-settings-group-toggle="pde" type="button" aria-expanded="false">PDE</button>
                 <div class="settings-nav-items" hidden>
                     <button class="settings-nav-item" data-settings-target="pde" data-settings-item="configuration" type="button">Configuration</button>
-                    <a class="settings-nav-item settings-nav-link" href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Open PDE</a>
+                    <a class="settings-nav-item settings-nav-link" data-pde-link href="{paperDataExtractorBaseUrl}" target="_blank" rel="noreferrer">Open PDE</a>
                 </div>
             </div>
             <button class="settings-nav-button" data-settings-target="google-drive" type="button">Google Drive</button>
@@ -2059,7 +2055,7 @@
             canvas.replaceChildren();
             const defs = workflowSvg("defs");
             const marker = workflowSvg("marker", { id: "workflow-arrow", markerWidth: 10, markerHeight: 7, refX: 9, refY: 3.5, orient: "auto" });
-            marker.appendChild(workflowSvg("path", { d: "M0,0 L10,3.5 L0,7 z", fill: "#8b7564" }));
+            marker.appendChild(workflowSvg("path", { d: "M0,0 L10,3.5 L0,7 z", fill: "var(--theme-graph-edge)" }));
             defs.appendChild(marker);
             canvas.appendChild(defs);
             edges().forEach((edge) => {
@@ -2980,6 +2976,6 @@
     setOpenSettingsGroup("");
     restoreSettingsLocation();
 </script>
-    <script src="/assets/vendor/workflow-designer.js"></script>
+    <script src="/assets/vendor/workflow-designer.js?v=theme1"></script>
 </body>
 </html>

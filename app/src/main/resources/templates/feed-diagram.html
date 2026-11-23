@@ -2,16 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <script src="/assets/theme/theme.js?v=1"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{logicalFeed.name} diagram</title>
     <style>
         :root {
-            color-scheme: light;
-            --bg: #f4f1ea;
-            --panel: #ffffff;
-            --ink: #1f2430;
-            --muted: #5e6472;
-            --line: #b9b4c7;
             --database: #d9cff3;
             --database-strong: #5d4aa8;
             --other: #d9d9de;
@@ -219,7 +214,7 @@
         .state-card {
             border-radius: 18px;
             padding: 0.85rem 0.9rem;
-            background: #f4f5f7;
+            background: var(--theme-surface);
         }
 
         .state-card strong {
@@ -239,9 +234,11 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="/assets/theme/theme.css?v=1">
 </head>
 <body>
 <div class="page">
+    <div class="theme-toolbar"><button type="button" data-theme-toggle aria-pressed="false">Dark mode</button></div>
     <header class="header">
         <div>
             <h1>{logicalFeed.name}</h1>

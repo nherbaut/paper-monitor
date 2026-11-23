@@ -195,13 +195,16 @@
             ...workflow.states.map((state, index) => ({ group: "nodes", data: { id: state.id, label: state.label || state.id, initial: state.id === workflow.initialState ? "true" : "false" }, position: workflow.layout.nodes[state.id] || { x: 110 + (index % 4) * 210, y: 80 + Math.floor(index / 4) * 125 } })),
             ...edgeList().map((edge) => ({ group: "edges", data: { id: edgeId(edge.from, edge.to), source: edge.from, target: edge.to } }))
         ];
-        const cy = cytoscape({ container: canvas, elements: elements(), style: [
-            { selector: "node", style: { "background-color": "#fff", "border-color": "#a39182", "border-width": 2, width: 150, height: 60, shape: "round-rectangle", label: "data(label)", color: "#30251d", "font-family": "Georgia, serif", "font-size": 12, "text-wrap": "wrap", "text-max-width": 130, "text-valign": "center", "text-halign": "center" } },
-            { selector: "node:selected", style: { "background-color": "#fff0e9", "border-color": "#b34f2e", "border-width": 4 } },
+        const themeColor = name => getComputedStyle(document.documentElement).getPropertyValue("--theme-" + name).trim();
+        const graphStyle = () => [
+            { selector: "node", style: { "background-color": themeColor("surface"), "border-color": themeColor("line"), "border-width": 2, width: 150, height: 60, shape: "round-rectangle", label: "data(label)", color: themeColor("ink"), "font-family": "Georgia, serif", "font-size": 12, "text-wrap": "wrap", "text-max-width": 130, "text-valign": "center", "text-halign": "center" } },
+            { selector: "node:selected", style: { "background-color": themeColor("quiet"), "border-color": themeColor("accent"), "border-width": 4 } },
             { selector: "node[initial = 'true']", style: { "border-style": "dashed" } },
-            { selector: "edge", style: { width: 2.5, "line-color": "#8b7564", "target-arrow-color": "#8b7564", "target-arrow-shape": "triangle", "curve-style": "bezier" } },
-            { selector: "edge:selected", style: { width: 4, "line-color": "#b34f2e", "target-arrow-color": "#b34f2e" } }
-        ], layout: { name: "preset" }, minZoom: 0.2, maxZoom: 3 });
+            { selector: "edge", style: { width: 2.5, "line-color": themeColor("graph-edge"), "target-arrow-color": themeColor("graph-edge"), "target-arrow-shape": "triangle", "curve-style": "bezier" } },
+            { selector: "edge:selected", style: { width: 4, "line-color": themeColor("accent"), "target-arrow-color": themeColor("accent") } }
+        ];
+        const cy = cytoscape({ container: canvas, elements: elements(), style: graphStyle(), layout: { name: "preset" }, minZoom: 0.2, maxZoom: 3 });
+        window.addEventListener("paper-theme-change", () => cy.style(graphStyle()).update());
         const taxonomyLeafLabels = (values) => (values || []).flatMap((value) => value.children?.length ? taxonomyLeafLabels(value.children) : [value.label || value.id]);
         const renderInspector = () => { const state = stateById(selectedStateId); inspector.hidden = !state; if (!state) return; const requires = state.requires || {}; const exclusion = requires.exclusionCriteria || requires.exclusionCriterion; const criterion = exclusion || requires.inclusionCriteria; designer.querySelector("[data-workflow-inspector-title]").textContent = state.label || state.id; fields.label.value = state.label || ""; fields.group.value = state.group || ""; fields.terminal.checked = !!state.terminal; fields.requirementKind.value = exclusion ? "exclusion" : requires.inclusionCriteria ? "inclusion" : ""; fields.requirementTaxonomy.value = criterion?.taxonomy || ""; fields.requirementCount.value = criterion?.min || criterion?.exactly || 1; if (fields.requirementValues) fields.requirementValues.value = criterion ? taxonomyLeafLabels(workflow.taxonomies[criterion.taxonomy]?.values).join("\n") : ""; fields.requirementNotes.checked = false; fields.reportBucket.value = state.report?.prismaBucket || ""; };
         const render = () => { captureLayout(); cy.elements().remove(); cy.add(elements()); initialSelect.replaceChildren(); workflow.states.forEach((state) => { const option = new Option(state.label + " (" + state.id + ")", state.id, false, state.id === workflow.initialState); initialSelect.add(option); }); if (selectedStateId) cy.$id(selectedStateId).select(); if (selectedEdge) cy.$id(selectedEdge).select(); renderInspector(); syncYaml(); };

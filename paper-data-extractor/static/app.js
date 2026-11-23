@@ -157,8 +157,7 @@ function renderDemCard(model, selected) {
     item.draggable = true;
     item.dataset.modelId = model.id;
     item.dataset.source = model.source;
-    item.style.backgroundColor = tint.background;
-    item.style.borderColor = tint.border;
+    item.style.setProperty("--model-hue", String(tint.hue));
     if (model.preview_text) {
         item.setAttribute("data-bs-toggle", "tooltip");
         item.setAttribute("data-bs-title", model.preview_text);
@@ -781,10 +780,7 @@ function initializeTooltips() {
 function modelTint(value) {
     const hash = stableNumberHash(value);
     const hue = hash % 360;
-    return {
-        background: `hsl(${hue} 70% 94%)`,
-        border: `hsl(${hue} 38% 78%)`
-    };
+    return { hue };
 }
 
 function stableNumberHash(value) {

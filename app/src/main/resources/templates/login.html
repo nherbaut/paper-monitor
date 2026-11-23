@@ -2,17 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script src="/assets/theme/theme.js?v=1"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIAGE Review Factory Login</title>
     <style>
-        :root {
-            --bg: #f5f0e8;
-            --panel: #fffaf3;
-            --ink: #1f1d1a;
-            --muted: #6c655d;
-            --accent: #b34f2e;
-            --line: #d8c6b5;
-        }
+
         * { box-sizing: border-box; }
         body {
             margin: 0;
@@ -22,14 +16,14 @@
             font-family: Georgia, "Times New Roman", serif;
             background:
                 radial-gradient(circle at top left, rgba(179, 79, 46, 0.16), transparent 28%),
-                linear-gradient(180deg, #f9f4ed 0%, var(--bg) 100%);
+                linear-gradient(180deg, var(--theme-surface) 0%, var(--bg) 100%);
             color: var(--ink);
         }
         main {
             width: min(560px, calc(100% - 2rem));
         }
         .panel {
-            background: color-mix(in srgb, var(--panel) 90%, white);
+            background: color-mix(in srgb, var(--panel) 90%, var(--theme-surface));
             border: 1px solid var(--line);
             border-radius: 20px;
             padding: 1.5rem;
@@ -48,13 +42,13 @@
             font: inherit;
         }
         button {
-            background: var(--accent);
+            background: var(--theme-action);
             color: white;
             border-color: var(--accent);
             cursor: pointer;
         }
         .secondary {
-            background: white;
+            background: var(--theme-surface);
             color: var(--accent);
         }
         .meta {
@@ -66,12 +60,12 @@
             padding: 0.8rem 0.9rem;
             border-radius: 12px;
             border: 1px solid var(--line);
-            background: rgba(255, 255, 255, 0.78);
+            background: var(--theme-surface);
         }
         .message.error {
             border-color: #d7a18e;
-            color: #7b2f18;
-            background: rgba(247, 226, 219, 0.86);
+            color: var(--theme-danger-ink);
+            background: var(--theme-danger-bg);
         }
         .divider {
             margin: 1.25rem 0 0.25rem;
@@ -102,7 +96,7 @@
             border: 1px solid var(--accent);
             border-radius: 12px;
             padding: 0.75rem 0.85rem;
-            background: var(--accent);
+            background: var(--theme-action);
             color: white;
             font-weight: 700;
             text-decoration: none;
@@ -113,7 +107,7 @@
             gap: 0.65rem;
         }
         .setup-link.secondary-link {
-            background: white;
+            background: var(--theme-surface);
             color: var(--accent);
         }
         .avatar-fieldset {
@@ -151,7 +145,7 @@
             border: 2px solid transparent;
             border-radius: 50%;
             object-fit: cover;
-            background: white;
+            background: var(--theme-surface);
             transition: border-color 120ms ease, transform 120ms ease, box-shadow 120ms ease;
         }
         .avatar-option:hover img {
@@ -185,9 +179,11 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="/assets/theme/theme.css?v=1">
 </head>
 <body>
 <main>
+    <div class="theme-toolbar"><button type="button" data-theme-toggle aria-pressed="false">Dark mode</button></div>
     <section class="panel">
         <h1>Sign in to MIAGE Review Factory</h1>
         <p class="meta">Use a local account, GitHub, or delegate authentication to your OIDC provider.</p>
