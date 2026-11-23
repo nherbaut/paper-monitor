@@ -340,7 +340,7 @@
                         {#if row.complete}Saved{#else if row.hasSubmission}Draft{#else}Blank{/if}
                     </span>
                     {#if row.updatedAt}
-                    <div class="meta">Updated {row.updatedAt}</div>
+                    <div class="meta">Updated {inject:dateDisplay.format(row.updatedAt)}</div>
                     {/if}
                 </td>
                 <td data-label="Action">

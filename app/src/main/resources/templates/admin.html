@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="application-time-zone" content="{inject:dateDisplay.timeZone}">
+    <script src="/assets/vendor/date-display.js?v=1"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIAGE Review Factory Admin</title>
     <style>
@@ -1138,7 +1140,7 @@
                         <strong>{feed.name}</strong>
                         <span class="meta">{feed.logicalFeed.name}</span>
                         <span class="status-row">
-                            <span class="status-badge">{feed.lastPolledAt ?: 'Never polled'}</span>
+                            <span class="status-badge">{#if feed.lastPolledAt}{inject:dateDisplay.format(feed.lastPolledAt)}{#else}Never polled{/if}</span>
                             <span class="status-badge {#if feed.lastPollSucceeded}good{#else}warn{/if}">
                                 {#if feed.lastPollSucceeded}Success{#else}Error{/if}
                             </span>
@@ -1156,7 +1158,7 @@
                         <div class="management-meta-box">
                             <strong>Polling</strong>
                             <p class="meta">Every {feed.pollIntervalMinutes} min</p>
-                            <p class="meta">Last poll: {feed.lastPolledAt ?: 'never'}</p>
+                            <p class="meta">Last poll: {#if feed.lastPolledAt}{inject:dateDisplay.format(feed.lastPolledAt)}{#else}never{/if}</p>
                         </div>
                         <div class="management-meta-box">
                             <strong>Status</strong>
@@ -1344,7 +1346,7 @@
                     <p class="meta">Last sync error: {ttsSettings.googleDriveLastSyncError}</p>
                     {/if}
                     {#if ttsSettings.googleDriveLastSyncAt}
-                    <p class="meta">Last synced: {ttsSettings.googleDriveLastSyncAt}</p>
+                    <p class="meta">Last synced: {inject:dateDisplay.format(ttsSettings.googleDriveLastSyncAt)}</p>
                     {/if}
                     <form action="/admin/google-drive/backfill" method="post">
                         <button class="secondary" type="submit" {#if !ttsSettings.googleDriveReady}disabled{/if}>Backfill existing PDFs</button>
@@ -1476,7 +1478,7 @@
                 <br>Provider: {user.authProvider}
                 {#if user.githubLogin}<br>GitHub: @{user.githubLogin}{/if}
                 <br>Last login:
-                {#if user.lastLoginAt}{user.lastLoginAt}{#else}Never{/if}
+                {#if user.lastLoginAt}{inject:dateDisplay.format(user.lastLoginAt)}{#else}Never{/if}
             </p>
             <div class="status-row">
                 <span class="status-badge {#if user.emailVerified}good{#else}warn{/if}">
@@ -1704,7 +1706,7 @@
                 const meta = document.createElement("p");
                 meta.className = "scholar-result-meta";
                 meta.textContent = activeTab === "history"
-                    ? "Query " + (item.queryId || item.id || "?") + " · " + (item.count ?? "?") + " result(s) · " + (item.timestamp || "unknown date")
+                    ? "Query " + (item.queryId || item.id || "?") + " · " + (item.count ?? "?") + " result(s) · " + (window.formatApplicationDate(item.timestamp) || "unknown date")
                     : "Feed " + (item.id || "?") + " · " + (item.count ?? "?") + " paper(s) · " + (item.hit ?? "?") + " hit(s)";
                 const choose = document.createElement("button");
                 choose.className = "secondary";
@@ -2732,7 +2734,7 @@
             const mapping = document.createElement("p");
             mapping.className = "meta";
             mapping.textContent = "State subcollections: " + Object.keys(feed.stateFolders || {}).length
-                + (feed.lastSyncedAt ? " · Last synced: " + feed.lastSyncedAt : " · Never synchronized");
+                + (feed.lastSyncedAt ? " · Last synced: " + window.formatApplicationDate(feed.lastSyncedAt) : " · Never synchronized");
             const pdfPending = document.createElement("p");
             pdfPending.className = "meta";
             pdfPending.hidden = !Number(feed.pdfPending || 0);

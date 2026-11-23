@@ -2548,7 +2548,7 @@
                 const meta = document.createElement("p");
                 meta.className = "scholar-result-meta";
                 meta.textContent = activeTab === "history"
-                    ? "Query " + (item.queryId || item.id || "?") + " · " + (item.count ?? "?") + " result(s) · " + (item.timestamp || "unknown date")
+                    ? "Query " + (item.queryId || item.id || "?") + " · " + (item.count ?? "?") + " result(s) · " + (window.formatApplicationDate(item.timestamp) || "unknown date")
                     : "Feed " + (item.id || "?") + " · " + (item.count ?? "?") + " paper(s) · " + (item.hit ?? "?") + " hit(s)";
                 const choose = document.createElement("button");
                 choose.className = "secondary";

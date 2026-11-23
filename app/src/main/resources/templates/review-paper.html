@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="application-time-zone" content="{inject:dateDisplay.timeZone}">
+    <script src="/assets/vendor/date-display.js?v=1"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{paper.title} · Review form</title>
     <style>
@@ -437,7 +439,7 @@
             <a class="link-button secondary" href="/papers/{paper.id}/pdf?disposition=attachment" target="_blank" rel="noreferrer">Download PDF</a>
             {/if}
         </div>
-        <div class="status" id="status-line">{#if savedAt}Saved at {savedAt}{/if}</div>
+        <div class="status" id="status-line">{#if savedAt}Saved at {inject:dateDisplay.format(savedAt)}{/if}</div>
     </section>
 
     <section class="workspace">
@@ -1162,7 +1164,7 @@
         }
         validationErrors = {};
         const payload = await response.json();
-        statusLine.textContent = "Saved at " + (payload.updatedAt || "just now");
+        statusLine.textContent = "Saved at " + (window.formatApplicationDate(payload.updatedAt) || "just now");
         if (goNext && nextPaperUrl) {
             window.location.href = nextPaperUrl;
         }
