@@ -78,6 +78,7 @@ const path = require('node:path');
         await page.screenshot({ path: path.join(output, 'disabled-batch-action.png') });
         await page.locator('#state-search-input').fill('');
         await page.waitForFunction(() => !document.querySelector('#reader-batch-update-button').disabled);
+        await page.locator('#reader-export-button').click();
         await page.locator('#reader-batch-update-button').click();
         assert.equal(await page.locator('#batch-paper-status').inputValue(), '');
         await page.locator('#batch-paper-modal').screenshot({ path: path.join(output, 'batch-neutral-selection.png') });
@@ -121,6 +122,7 @@ const path = require('node:path');
         await mobileCard.evaluate(el => { el.scrollTop = 0; });
         await mobile.screenshot({ path: path.join(output, 'mobile-swipe-readable-card.png') });
         // Deliberate horizontal touch gestures still classify papers.
+        const statusResponse = mobile.waitForResponse(response => response.request().method() === 'POST' && /\/papers\/\d+\/status/.test(response.url()));
         const statusRequest = mobile.waitForRequest(request => request.method() === 'POST' && /\/papers\/\d+\/status/.test(request.url()));
         await touch('touchStart', mobileBox.x + mobileBox.width - 25, mobileBox.y + 50);
         for (let step = 1; step <= 10; step++) {
@@ -128,6 +130,8 @@ const path = require('node:path');
         }
         await touch('touchEnd');
         await statusRequest;
+        assert.ok((await statusResponse).ok());
+        await mobile.waitForLoadState('networkidle');
         assert.deepEqual(errors, []);
         console.log('Browser checks passed: email sharing, scroll, selection, disabled actions, neutral state, preview cancellation and confirmed snapshot.');
     } finally {
