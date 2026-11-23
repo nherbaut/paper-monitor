@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="application-time-zone" content="{inject:dateDisplay.timeZone}">
+    <script src="/assets/vendor/date-display.js?v=1"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIAGE Review Factory – Create a paper feed</title>
     <style>
@@ -352,7 +354,7 @@ Wrong intervention</textarea></label>
             query.textContent = item.query || "Untitled Scholar query";
             const facts = document.createElement("div");
             facts.className = "facts";
-            facts.textContent = String(item.count == null ? "Unknown" : item.count) + " papers · " + (item.timestamp ? new Date(item.timestamp).toLocaleString() : "Unknown date");
+            facts.textContent = String(item.count == null ? "Unknown" : item.count) + " papers · " + (item.timestamp ? window.formatApplicationDate(item.timestamp) : "Unknown date");
             button.append(query, facts);
             button.addEventListener("click", () => createPreview(item, button));
             byId("query-list").append(button);

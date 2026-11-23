@@ -32,9 +32,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -58,6 +55,7 @@ import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.model.LogicalFeedAccessGrant;
 import top.nextnet.paper.monitor.model.LogicalFeedInvitation;
 import top.nextnet.paper.monitor.service.FeedSharingService;
+import top.nextnet.paper.monitor.service.DateDisplayService;
 import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.UserSettings;
 import top.nextnet.paper.monitor.repo.AppUserRepository;
@@ -152,9 +150,8 @@ public class HomeResource {
     private final String paperDataExtractorBaseUrl;
     private final String paperDataExtractorInternalApiToken;
     private static final String DEFAULT_PDE_BASE_URL = "http://localhost:8091";
-    private static final DateTimeFormatter TEMPORARY_FEED_EXPIRY_FORMAT = DateTimeFormatter
-            .ofPattern("d MMMM uuuu 'at' HH:mm z", Locale.ENGLISH)
-            .withZone(ZoneId.systemDefault());
+    @Inject
+    DateDisplayService dateDisplay;
 
     public HomeResource(
             @Location("home") Template home,
@@ -1026,7 +1023,7 @@ public class HomeResource {
                 .data("canEdit", true)
                 .data("anonymousSetup", true)
                 .data("anonymousSetupToken", token)
-                .data("anonymousSetupExpiresAt", TEMPORARY_FEED_EXPIRY_FORMAT.format(temporary.expiresAt()))
+                .data("anonymousSetupExpiresAt", dateDisplay.format(temporary.expiresAt()))
                 .data("paperDataExtractorBaseUrl", paperDataExtractorBaseUrl)
                 .data("buildCommit", BuildInfo.commit())
                 .data("buildCommitShort", BuildInfo.shortCommit())
@@ -3588,7 +3585,7 @@ public class HomeResource {
     private String renderTabExportMarkdown(LogicalFeed logicalFeed, String filterLabel, List<Paper> papers) {
         StringBuilder markdown = new StringBuilder();
         markdown.append("# ").append(escapeMarkdownText(logicalFeed.name)).append("\n\n");
-        markdown.append("* export date: ").append(ZonedDateTime.now()).append("\n");
+        markdown.append("* export date: ").append(dateDisplay.format(Instant.now())).append("\n");
         markdown.append("* number of papers: ").append(papers.size()).append("\n");
         markdown.append("* filter: ").append(escapeMarkdownText(filterLabel)).append("\n\n");
 
@@ -3625,7 +3622,7 @@ public class HomeResource {
     private String renderNotesExportMarkdown(LogicalFeed logicalFeed, String filterLabel, List<Paper> papers) {
         StringBuilder markdown = new StringBuilder();
         markdown.append("# ").append(escapeMarkdownText(logicalFeed.name)).append(" Notes\n\n");
-        markdown.append("* export date: ").append(ZonedDateTime.now()).append("\n");
+        markdown.append("* export date: ").append(dateDisplay.format(Instant.now())).append("\n");
         markdown.append("* number of papers: ").append(papers.size()).append("\n");
         markdown.append("* filter: ").append(escapeMarkdownText(filterLabel)).append("\n\n");
         for (Paper paper : papers) {
@@ -3648,7 +3645,7 @@ public class HomeResource {
                     .append(csvField(paper.publishedOn)).append(',')
                     .append(csvField(paper.publisher)).append(',')
                     .append(csvField(paper.status)).append(',')
-                    .append(csvField(paper.discoveredAt)).append(',')
+                    .append(csvField(dateDisplay.format(paper.discoveredAt))).append(',')
                     .append(csvField(paper.sourceLink)).append(',')
                     .append(csvField(paper.openAccessLink)).append(',')
                     .append(csvField(paper.feed != null ? paper.feed.name : null)).append(',')

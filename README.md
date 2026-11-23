@@ -30,6 +30,16 @@ cd app
 
 For the containerized stack, the repository `docker-compose.yml` uses a regular PostgreSQL service instead.
 
+## Display timezone
+
+Set `PAPER_MONITOR_TIME_ZONE` to an IANA timezone such as `Europe/Paris` (the
+default) or `UTC`. Pages and human-readable export timestamps use
+`YYYY-MM-DD HH-mm` in this timezone, including daylight saving changes.
+Publication dates retain their original precision. Logs, API responses, and
+stored timestamps keep their existing machine-readable formats. Invalid timezone
+IDs prevent application startup. External history timestamps without an offset
+are treated as wall times in the application timezone.
+
 ## Firefox PDF capture
 
 For providers that require a browser or institutional login, install the

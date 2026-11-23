@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="application-time-zone" content="{inject:dateDisplay.timeZone}">
+    <script src="/assets/vendor/date-display.js?v=1"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{#if shareMode && sharedPaper}{sharedPaper.title} · MIAGE Review Factory{#else}MIAGE Review Factory{/if}</title>
     {#if shareMode && sharedPaper}

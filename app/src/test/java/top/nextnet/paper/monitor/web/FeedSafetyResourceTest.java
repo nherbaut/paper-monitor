@@ -104,6 +104,50 @@ class FeedSafetyResourceTest {
     }
 
     @Test
+    void formatsAdminAndExportDatesInTheApplicationTimezone() throws Exception {
+        Instant timestamp = Instant.parse("2026-12-31T23:30:59.123Z");
+        QuarkusTransaction.requiringNew().run(() -> {
+            Feed rss = Feed.findById(rssId);
+            rss.lastPolledAt = timestamp;
+            AppUser admin = AppUser.findById(adminId);
+            admin.lastLoginAt = timestamp;
+            Paper paper = new Paper();
+            paper.title = "Timezone test paper";
+            paper.sourceLink = "https://example.org/timezone-" + suffix;
+            paper.logicalFeed = rss.logicalFeed;
+            paper.feed = rss;
+            paper.status = "NEW";
+            paper.publishedOn = java.time.LocalDate.of(2026, 7, 1);
+            paper.discoveredAt = timestamp;
+            paper.persist();
+        });
+        String html = given().cookie(auth.sessionCookieName(), adminToken)
+                .get("/admin").then().statusCode(200).extract().asString();
+        assertTrue(html.contains("Last poll: 2027-01-01 00-30"));
+        assertTrue(html.contains("content=\"Europe/Paris\""));
+        assertFalse(html.contains(timestamp.toString()));
+        for (String kind : List.of("report", "notes")) {
+            String markdown = given().cookie(auth.sessionCookieName(), ownerToken)
+                    .queryParam("logicalFeedId", feedId).queryParam("kind", kind)
+                    .get("/exports/tab").then().statusCode(200).extract().asString();
+            assertTrue(markdown.lines().anyMatch(line -> line.matches(
+                    "\\* export date: \\d{4}-\\d{2}-\\d{2} \\d{2}-\\d{2}")));
+            assertTrue(markdown.contains("publication date: 2026-07-01"));
+        }
+        String csv = given().cookie(auth.sessionCookieName(), ownerToken)
+                .queryParam("logicalFeedId", feedId).queryParam("format", "csv")
+                .get("/exports/tab").then().statusCode(200).extract().asString();
+        assertTrue(csv.contains("2027-01-01 00-30"));
+        assertFalse(csv.contains(timestamp.toString()));
+        if (Boolean.getBoolean("paper-monitor.date-browser-check")) {
+            ProcessBuilder builder = new ProcessBuilder("node", "src/test/browser/date-display.cjs", Long.toString(feedId));
+            builder.environment().put("PAPER_MONITOR_TEST_COOKIE", adminToken);
+            builder.inheritIO();
+            assertEquals(0, builder.start().waitFor());
+        }
+    }
+
+    @Test
     void ordinaryFeedAdminsCannotBrowseMemberEmailsButGlobalAdminsCan() {
         QuarkusTransaction.requiringNew().run(() -> access.grant(LogicalFeed.findById(feedId), AppUser.findById(recipientId), "READ"));
         String html = given().cookie(auth.sessionCookieName(), ownerToken)
