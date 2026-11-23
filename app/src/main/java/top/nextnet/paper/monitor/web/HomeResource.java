@@ -829,7 +829,7 @@ public class HomeResource {
             List<String> tags,
             String search
     ) {
-        if (!"tags".equalsIgnoreCase(mode)) return paperBrowserService.stateFacets(logicalFeed);
+        if (!"tags".equalsIgnoreCase(mode)) return paperBrowserService.stateFacets(logicalFeed, search);
         List<String> classificationStates = classificationQueue
                 ? normalizedClassificationStates(logicalFeed, states) : List.of();
         return paperBrowserService.facets(logicalFeed, new PaperBrowserService.Query(
@@ -3633,6 +3633,8 @@ public class HomeResource {
             markdown.append("* authors: ").append(escapeMarkdownText(stringOrDefault(paper.authors, "Unknown authors"))).append("\n");
             markdown.append("* publication date: ").append(escapeMarkdownText(stringOrDefault(paper.publishedOn, "unknown"))).append("\n");
             markdown.append("* venue: ").append(escapeMarkdownText(stringOrDefault(paper.publisher, "Unknown venue"))).append("\n\n");
+            markdown.append("### Abstract\n\n");
+            markdown.append(escapeMarkdownText(stringOrDefault(paper.summary, "No abstract available."))).append("\n\n");
             markdown.append("### Notes\n\n");
             markdown.append(indentMarkdownHeadings(stringOrDefault(paper.notes, "No notes yet."))).append("\n\n");
         }
@@ -3641,7 +3643,7 @@ public class HomeResource {
 
     private String renderExportCsv(List<Paper> papers) {
         StringBuilder csv = new StringBuilder();
-        csv.append("title,authors,publication_date,venue,status,discovered_at,source_link,open_access_link,feed,paper_feed,tags,has_pdf\n");
+        csv.append("title,authors,publication_date,venue,status,discovered_at,source_link,open_access_link,feed,paper_feed,tags,has_pdf,abstract\n");
         for (Paper paper : papers) {
             csv.append(csvField(paper.title)).append(',')
                     .append(csvField(paper.authors)).append(',')
@@ -3654,7 +3656,8 @@ public class HomeResource {
                     .append(csvField(paper.feed != null ? paper.feed.name : null)).append(',')
                     .append(csvField(paper.logicalFeed != null ? paper.logicalFeed.name : null)).append(',')
                     .append(csvField(paper.tagsToken())).append(',')
-                    .append(csvField(Boolean.toString(paper.uploadedPdfPath != null && !paper.uploadedPdfPath.isBlank())))
+                    .append(csvField(Boolean.toString(paper.uploadedPdfPath != null && !paper.uploadedPdfPath.isBlank()))).append(',')
+                    .append(csvField(paper.summary))
                     .append('\n');
         }
         return csv.toString();

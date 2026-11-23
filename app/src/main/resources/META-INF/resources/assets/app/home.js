@@ -359,6 +359,52 @@
     let stateSearchQuery = "";
     let stateSearchVisibleLimit = 10;
     let selectedTagFilters = [];
+    let readerLocationReady = false;
+    const readerSearchStatus = document.getElementById("reader-search-status");
+
+    const restoreReaderFilters = () => {
+        if (classificationQueueMode || shareMode) return;
+        const params = new URLSearchParams(window.location.search);
+        activePrimaryTab = params.get("view") === "tags" ? "tags" : "state";
+        const status = params.get("status");
+        if (status) {
+            activeStatusTab = normalizeStatus(status).split("/")[0];
+            activeChildStatus = status.includes("/") ? normalizeStatus(status) : null;
+        }
+        selectedTagFilters = params.getAll("tag");
+        stateSearchQuery = params.get("search") || "";
+        if (stateSearchInput) stateSearchInput.value = stateSearchQuery;
+    };
+
+    const syncReaderLocation = () => {
+        if (!readerLocationReady || shareMode || classificationQueueMode || anonymousSetupToken) return;
+        const url = new URL(window.location.href);
+        if (url.pathname !== "/") return;
+        const params = url.searchParams;
+        ["logicalFeedId", "view", "status", "tag", "search", "paperId"].forEach(key => params.delete(key));
+        if (logicalFeedFilter.value) {
+            params.set("logicalFeedId", logicalFeedFilter.value);
+            params.set("view", activePrimaryTab);
+            if (activePrimaryTab === "state" && (activeChildStatus || activeStatusTab)) {
+                params.set("status", activeChildStatus || activeStatusTab);
+            }
+            if (activePrimaryTab === "tags") selectedTagFilters.forEach(tag => params.append("tag", tag));
+            if (stateSearchQuery.trim()) params.set("search", stateSearchQuery.trim());
+            if (selectedPaperId) params.set("paperId", selectedPaperId);
+        }
+        if (url.href !== window.location.href) window.history.replaceState(window.history.state, "", url);
+    };
+
+    const updateReaderSearchStatus = () => {
+        if (!readerSearchStatus) return;
+        const visible = Boolean(logicalFeedFilter.value) && activePrimaryTab === "state" && !selectedPaperId;
+        readerSearchStatus.classList.toggle("hidden", !visible);
+        if (!visible) return;
+        const ready = papersLoaded && loadedBrowserFilterSignature === currentBrowserFilterSignature(logicalFeedFilter.value);
+        readerSearchStatus.textContent = !ready ? "Loading results…"
+            : browserTotal + (browserTotal === 1 ? " paper matches" : " papers match") + " the current view"
+                + (stateSearchQuery.trim() ? " and search." : ".");
+    };
     let reviewSummaries = [];
     let reviewWorkspaceLoaded = false;
     let reviewWorkspacePromise = null;
@@ -771,6 +817,10 @@
         pdfPanel.classList.toggle("visible", hasReaderContent);
         notesPanel.classList.toggle("visible", hasReaderContent);
         readerSearch.classList.toggle("hidden", activePrimaryTab !== "state" || hasReaderContent);
+        if (readerLocationReady) {
+            updateReaderSearchStatus();
+            syncReaderLocation();
+        }
         applyNotesCollapsedState();
         paperSpeakLabel.textContent = hasPdf ? "Speak selection" : "Speak abstract";
         setActionAvailability(paperSpeakButton, hasSelectedPaper, "Select a paper first.");
@@ -1125,7 +1175,11 @@
         if (anonymousSetupToken) {
             return "/anonymous/feed/" + encodeURIComponent(anonymousSetupToken) + "?mode=list";
         }
-        return logicalFeedId ? "/?logicalFeedId=" + encodeURIComponent(logicalFeedId) : "/";
+        if (!logicalFeedId) return "/";
+        const params = new URLSearchParams({ logicalFeedId, view: "state" });
+        const status = activeChildStatus || activeStatusTab;
+        if (status) params.set("status", status);
+        return "/?" + params.toString();
     };
 
     const navigateToSwipeMode = (logicalFeedId) => {
@@ -1646,6 +1700,14 @@
     };
 
     const selectedWorkflowCounts = () => {
+        if (!serverRenderedShareMode && stateSearchQuery.trim()) {
+            const counts = {};
+            browserFacets.filter(facet => facet.key.startsWith("state:")).forEach(facet => {
+                const group = facet.key.slice("state:".length).split("/")[0];
+                counts[group] = (counts[group] || 0) + (facet.count || 0);
+            });
+            return counts;
+        }
         const selectedOption = logicalFeedFilter.selectedOptions[0];
         if (selectedOption && selectedOption.value) {
             return stateCountsFromToken(selectedOption.dataset.stateCounts || "");
@@ -5057,6 +5119,8 @@
 
             renderTagBrowser();
             readerSearch.classList.toggle("hidden", activePrimaryTab !== "state" || Boolean(selectedPaperId));
+            updateReaderSearchStatus();
+            syncReaderLocation();
             const { hasMore } = renderPaginatedPaperList();
             searchLoadMoreRow.classList.toggle("hidden", !hasMore);
 
@@ -6335,6 +6399,32 @@
             handlePdfCaptureStatus(message.status || {});
         }
     });
+
+    const openReaderMenus = () => Array.from(document.querySelectorAll(
+        "details.inline-menu[open], details.export-menu[open], details.paper-action-submenu[open], #mobile-state-menu[open]"));
+    document.addEventListener("click", event => {
+        const action = event.target.closest("a, button");
+        openReaderMenus().forEach(menu => {
+            if (!menu.contains(event.target) || (action && !event.target.closest("summary"))) menu.open = false;
+        });
+    });
+    document.addEventListener("focusin", event => {
+        openReaderMenus().forEach(menu => {
+            if (!menu.contains(event.target)) menu.open = false;
+        });
+    });
+    window.addEventListener("scroll", () => {
+        openReaderMenus().forEach(menu => { menu.open = false; });
+    }, { passive: true });
+    document.addEventListener("keydown", event => {
+        if (event.key !== "Escape") return;
+        const menus = openReaderMenus();
+        if (!menus.length) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        menus.forEach(menu => { menu.open = false; });
+        menus[0].querySelector("summary")?.focus();
+    }, true);
 
     const searchHelpModal = document.getElementById("search-help-modal");
     document.getElementById("reader-search-help")?.addEventListener("click", () => {
@@ -8333,8 +8423,7 @@
     };
 
     const refreshBrowserFacetControls = () => {
-        renderStateTabs(selectedWorkflowCounts());
-        renderTagBrowser();
+        applyLogicalFeedFilter();
     };
 
     const loadBrowserFacets = async (logicalFeedId, expectedSignature) => {
@@ -8516,6 +8605,7 @@
         if (requestedLogicalFeedId) {
             logicalFeedFilter.value = requestedLogicalFeedId;
             syncSelectedLogicalFeed();
+            restoreReaderFilters();
             try {
                 await loadBrowserPapers(requestedLogicalFeedId);
                 loadedLogicalFeedId = requestedLogicalFeedId;
@@ -8544,10 +8634,13 @@
                 showEmptyClassificationMode();
             }
         } else {
-            openInitialPaper();
+            await openInitialPaper();
         }
         maybeLoadMoreVisiblePapers();
     }
+    readerLocationReady = true;
+    syncReaderLocation();
+    updateReaderSearchStatus();
     restoreActivePdfCapture();
     const initialIdleFeedId = logicalFeedFilter?.value || "";
     const initialIdlePaperId = selectedPaperId;

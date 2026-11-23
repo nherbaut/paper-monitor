@@ -125,11 +125,17 @@ public class PaperBrowserService {
     }
 
     public List<Facet> stateFacets(LogicalFeed feed) {
-        List<Object[]> rows = entityManager.createQuery(
-                        "select p.status, count(p) from Paper p where p.logicalFeed = :feed group by p.status",
-                        Object[].class)
-                .setParameter("feed", feed)
-                .getResultList();
+        return stateFacets(feed, null);
+    }
+
+    public List<Facet> stateFacets(LogicalFeed feed, String search) {
+        // Count across states so switching tabs retains the same text/date search.
+        BuiltQuery built = buildQuery(feed, new Query(null, List.of(), search, false, List.of()), null, false);
+        TypedQuery<Object[]> statement = entityManager.createQuery(
+                "select p.status, count(p) from Paper p join p.feed f " + built.where() + " group by p.status",
+                Object[].class);
+        bind(statement, built.parameters());
+        List<Object[]> rows = statement.getResultList();
         List<Facet> facets = new ArrayList<>();
         for (String state : feed.workflowStateList()) {
             long count = rows.stream()
