@@ -30,6 +30,14 @@ public class PaperEvent extends PanacheEntityBase {
     @Column(nullable = false)
     public Instant happenedAt;
 
+    @Column(columnDefinition = "TEXT")
+    public String statusBeforeJson;
+
+    @Column(columnDefinition = "TEXT")
+    public String statusAfterJson;
+
+    public Instant revertedAt;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(nullable = false)
     public Paper paper;

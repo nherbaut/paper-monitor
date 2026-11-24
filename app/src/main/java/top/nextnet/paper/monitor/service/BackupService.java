@@ -142,7 +142,7 @@ public class BackupService {
         List<Long> paperIds = papers.stream().map((paper) -> paper.id).toList();
         List<PaperEvent> paperEvents = paperIds.isEmpty()
                 ? List.of()
-                : paperEventRepository.find("paper.id in ?1", paperIds).list();
+                : paperEventRepository.find("paper.id in ?1 order by id", paperIds).list();
         List<LogicalFeedAccessGrant> grants = logicalFeedIds.isEmpty()
                 ? List.of()
                 : logicalFeedAccessGrantRepository.find("logicalFeed.id in ?1", logicalFeedIds).list();
@@ -362,6 +362,9 @@ public class BackupService {
             item.put("type", event.type);
             item.put("details", event.details);
             item.put("happenedAt", event.happenedAt == null ? null : event.happenedAt.toString());
+            item.put("statusBeforeJson", event.statusBeforeJson);
+            item.put("statusAfterJson", event.statusAfterJson);
+            item.put("revertedAt", event.revertedAt == null ? null : event.revertedAt.toString());
             item.put("paperId", event.paper.id);
             events.add(item);
         }
@@ -580,6 +583,9 @@ public class BackupService {
             event.type = stringValue(item.get("type"));
             event.details = stringValue(item.get("details"));
             event.happenedAt = instantValue(item.get("happenedAt"));
+            event.statusBeforeJson = stringValue(item.get("statusBeforeJson"));
+            event.statusAfterJson = stringValue(item.get("statusAfterJson"));
+            event.revertedAt = instantValue(item.get("revertedAt"));
             event.paper = papersByOldId.get(oldPaperId);
             if (event.paper != null && event.type != null && event.happenedAt != null) {
                 paperEventRepository.persist(event);

@@ -220,9 +220,9 @@ public class PaperGitSyncService {
         }
 
         if (!targetState.equals(paper.status)) {
-            String previousStatus = paper.status;
+            var statusBefore = StatusChangeUndoService.StatusSnapshot.capture(paper);
             paper.status = targetState;
-            paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + targetState + " (git)");
+            paperEventService.logStatusChange(paper, statusBefore, " (git)");
         }
 
         if (change.newPath != null) {
@@ -252,9 +252,9 @@ public class PaperGitSyncService {
         }
 
         if (!targetState.equals(paper.status)) {
-            String previousStatus = paper.status;
+            var statusBefore = StatusChangeUndoService.StatusSnapshot.capture(paper);
             paper.status = targetState;
-            paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + targetState + " (git)");
+            paperEventService.logStatusChange(paper, statusBefore, " (git)");
         }
 
         if (change.newPath != null) {

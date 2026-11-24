@@ -89,6 +89,21 @@
             line-height: 1.5;
         }
 
+        .undo-action { margin-top: 1rem; }
+        .undo-action button {
+            font: inherit;
+            padding: 0.5rem 0.8rem;
+            border: 1px solid var(--accent);
+            border-radius: 8px;
+            color: var(--ink);
+            background: var(--panel);
+            cursor: pointer;
+        }
+        .undo-action button:hover { background: var(--accent-soft); }
+        .undo-action button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+        .message { padding: 1rem; border: 1px solid var(--line); border-radius: 12px; }
+        .message.error { border-color: var(--accent); }
+
         a {
             color: var(--accent);
         }
@@ -114,10 +129,14 @@
         </p>
     </header>
 
+    {#if infoMessage}<p class="message" role="status">{infoMessage}</p>{/if}
+    {#if errorMessage}<p class="message error" role="alert">{errorMessage}</p>{/if}
+    <p class="meta">Undo restores a paper's previous status and classification reasons. Notes and tags are kept.</p>
     <section class="panel">
         <div class="stack">
-            {#for event in events}
-            <article class="card">
+            {#for entry in events}
+            {#let event=entry.event}
+            <article class="card" id="event-{event.id}">
                 <div class="pill">{event.type}</div>
                 <h3>{event.paper.title}</h3>
                 <p class="meta">
@@ -129,7 +148,17 @@
                 <p>{event.details}</p>
                 {/if}
                 <p><a href="/?paperId={event.paper.id}">Open in reader</a></p>
+                {#if entry.undo}
+                    {#if entry.undo.available}
+                    <form class="undo-action" action="/logs/events/{event.id}/undo" method="post">
+                        <button type="submit">Undo to {entry.undo.targetStatus}</button>
+                    </form>
+                    {#else}
+                    <p class="meta">{entry.undo.reason}</p>
+                    {/if}
+                {/if}
             </article>
+            {/let}
             {/for}
             {#if events.isEmpty}
             <p class="meta">No paper events yet.</p>
