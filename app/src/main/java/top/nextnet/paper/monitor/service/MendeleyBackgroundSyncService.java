@@ -29,7 +29,7 @@ public class MendeleyBackgroundSyncService {
     private static final Logger LOG = Logger.getLogger(MendeleyBackgroundSyncService.class);
     private static final int MAX_STALE_RETRIES = 3;
     private static final Set<String> AUTOMATIC_EVENT_TYPES = Set.of(
-            "FETCH", "PDF_UPLOADED", "STATE_CHANGED", "STATE_MIGRATED", "STATE_REPAIRED",
+            "FETCH", "PDF_UPLOADED", "STATE_CHANGED", "STATE_REVERTED", "STATE_MIGRATED", "STATE_REPAIRED",
             "NOTES_CHANGED", "TAGS_CHANGED");
     private final MendeleyFeedSyncRepository feeds;
     private final MendeleySyncService sync;

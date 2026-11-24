@@ -12,7 +12,7 @@ import top.nextnet.paper.monitor.repo.PaperEventRepository;
 public class PaperEventService {
 
     static final Set<String> LOCAL_CHANGE_TYPES = Set.of(
-            "FETCH", "PDF_UPLOADED", "STATE_CHANGED", "STATE_MIGRATED", "STATE_REPAIRED",
+            "FETCH", "PDF_UPLOADED", "STATE_CHANGED", "STATE_REVERTED", "STATE_MIGRATED", "STATE_REPAIRED",
             "NOTES_CHANGED", "TAGS_CHANGED", "MENDELEY_MERGE");
 
     private final PaperEventRepository paperEventRepository;
@@ -23,7 +23,7 @@ public class PaperEventService {
         this.paperChanges = paperChanges;
     }
 
-    public void log(Paper paper, String type, String details) {
+    public PaperEvent log(Paper paper, String type, String details) {
         PaperEvent event = new PaperEvent();
         event.paper = paper;
         event.type = type;
@@ -36,6 +36,17 @@ public class PaperEventService {
         if (paper.logicalFeed != null && paper.logicalFeed.id != null) {
             paperChanges.fire(new PaperChangedEvent(paper.logicalFeed.id, type));
         }
+        return event;
+    }
+
+    public void logStatusChange(Paper paper, StatusChangeUndoService.StatusSnapshot before) {
+        logStatusChange(paper, before, "");
+    }
+
+    public void logStatusChange(Paper paper, StatusChangeUndoService.StatusSnapshot before, String suffix) {
+        PaperEvent event = log(paper, "STATE_CHANGED", before.status() + " -> " + paper.status + suffix);
+        event.statusBeforeJson = before.toJson();
+        event.statusAfterJson = StatusChangeUndoService.StatusSnapshot.capture(paper).toJson();
     }
 
     static Instant backfilledUpdatedAt(Paper paper, java.util.List<PaperEvent> events) {

@@ -58,6 +58,8 @@ import top.nextnet.paper.monitor.model.LogicalFeed;
 import top.nextnet.paper.monitor.model.LogicalFeedAccessGrant;
 import top.nextnet.paper.monitor.model.LogicalFeedInvitation;
 import top.nextnet.paper.monitor.service.FeedSharingService;
+import top.nextnet.paper.monitor.service.StatusChangeUndoService;
+import top.nextnet.paper.monitor.model.PaperEvent;
 import top.nextnet.paper.monitor.model.Paper;
 import top.nextnet.paper.monitor.model.UserSettings;
 import top.nextnet.paper.monitor.repo.AppUserRepository;
@@ -148,6 +150,8 @@ public class HomeResource {
     private final SetupWizardService setupWizardService;
     private final Instance<CurrentUserContext> currentUserContext;
     private final Instance<AnonymousSetupContext> anonymousSetupContext;
+    @Inject
+    StatusChangeUndoService statusChangeUndoService;
     private final String baseUrl;
     private final String paperDataExtractorBaseUrl;
     private final String paperDataExtractorInternalApiToken;
@@ -1803,19 +1807,41 @@ public class HomeResource {
     @GET
     @Path("/logs")
     @Transactional
-    public TemplateInstance logs() {
+    public TemplateInstance logs(@QueryParam("info") String info, @QueryParam("error") String error) {
         AppUser currentUser = requireCurrentUser();
         List<?> readableFeedIds = logicalFeedAccessService.readableLogicalFeeds(currentUser).stream().map((feed) -> feed.id).toList();
-        List<?> events = paperEventRepository.findRecent(300).stream()
+        List<PaperEvent> events = paperEventRepository.findRecent(300).stream()
                 .filter((event) -> event.paper != null
                         && event.paper.logicalFeed != null
                         && readableFeedIds.contains(event.paper.logicalFeed.id))
                 .toList();
-        return logs.data("events", events)
+        Map<Long, Long> latest = paperEventRepository.latestStatusEventIds(
+                events.stream().map(event -> event.paper.id).distinct().toList());
+        List<LogEventView> rows = events.stream().map(event -> new LogEventView(event,
+                logicalFeedAccessService.canAdmin(event.paper.logicalFeed, currentUser)
+                        ? statusChangeUndoService.availability(event, latest.get(event.paper.id)) : null)).toList();
+        return logs.data("events", rows)
+                .data("infoMessage", normalize(info))
+                .data("errorMessage", normalize(error))
                 .data("currentUser", currentUser)
                 .data("canAdmin", currentUserContext.get().isAdmin())
                 .data("masquerading", currentUserContext.get().isMasquerading())
                 .data("masqueradeAdminDisplay", currentUserContext.get().masqueradeAdminDisplayLabel());
+    }
+
+    public record LogEventView(PaperEvent event,
+            StatusChangeUndoService.Availability undo) {}
+
+    @POST
+    @Path("/logs/events/{id}/undo")
+    public Response undoStatusChange(@jakarta.ws.rs.PathParam("id") Long id) {
+        try {
+            statusChangeUndoService.undo(id, requireCurrentUser());
+            return seeOther("/logs?info=" + urlEncode("Status change undone."));
+        } catch (WebApplicationException e) {
+            if (e.getResponse().getStatus() != 409) throw e;
+            return seeOther("/logs?error=" + urlEncode(safeMessage(e)));
+        }
     }
 
     @POST
@@ -2670,6 +2696,7 @@ public class HomeResource {
             if (normalizedStatus.equals(previousStatus)) {
                 return Response.noContent().build();
             }
+            var statusBefore = StatusChangeUndoService.StatusSnapshot.capture(paper);
             validatePaperStatusTransition(
                     workflow,
                     logicalFeed,
@@ -2683,7 +2710,7 @@ public class HomeResource {
             appendCriteriaNotes(paper, workflow, normalizedStatus, eligibilityExclusionCriterionId,
                     eligibilityExclusionCriterionIds, eligibilityInclusionCriterionIds, eligibilityCriteriaNotes);
             paper.status = normalizedStatus;
-            paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
+            paperEventService.logStatusChange(paper, statusBefore);
             paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
         } catch (WebApplicationException e) {
             String message = safeMessage(e);
@@ -2722,6 +2749,7 @@ public class HomeResource {
             if (normalizedStatus.equals(previousStatus)) {
                 return seeOther(fallback + "&info=" + urlEncode("Paper already in " + stateLabel(workflow, normalizedStatus) + "."));
             }
+            var statusBefore = StatusChangeUndoService.StatusSnapshot.capture(paper);
             validatePaperStatusTransition(
                     workflow,
                     logicalFeed,
@@ -2733,7 +2761,7 @@ public class HomeResource {
                     null,
                     List.of());
             paper.status = normalizedStatus;
-            paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
+            paperEventService.logStatusChange(paper, statusBefore);
             paperGitSyncService.syncLogicalFeed(paper.logicalFeed);
             return seeOther(fallback + "&info=" + urlEncode("Moved paper to " + stateLabel(workflow, normalizedStatus) + "."));
         } catch (WebApplicationException e) {
@@ -2830,11 +2858,12 @@ public class HomeResource {
             if (normalizedStatus.equals(previousStatus)) {
                 continue;
             }
+            var statusBefore = StatusChangeUndoService.StatusSnapshot.capture(paper);
             validatePaperStatusAssignment(workflow, logicalFeed, paper, previousStatus, normalizedStatus,
                     eligibilityExclusionCriterionId, eligibilityExclusionCriterionIds,
                     eligibilityExclusionNotes, eligibilityInclusionCriterionIds);
             paper.status = normalizedStatus;
-            paperEventService.log(paper, "STATE_CHANGED", previousStatus + " -> " + normalizedStatus);
+            paperEventService.logStatusChange(paper, statusBefore);
             changed = true;
         }
         if (changed) {

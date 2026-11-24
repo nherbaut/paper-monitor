@@ -16,9 +16,23 @@ public class PaperEventRepository implements PanacheRepository<PaperEvent> {
         return find("select e from PaperEvent e "
                         + "join fetch e.paper p "
                         + "join fetch p.logicalFeed "
-                        + "order by e.happenedAt desc")
+                        + "order by e.happenedAt desc, e.id desc")
                 .page(0, limit)
                 .list();
+    }
+
+    public Map<Long, Long> latestStatusEventIds(List<Long> paperIds) {
+        if (paperIds.isEmpty()) return Map.of();
+        List<Object[]> rows = getEntityManager().createQuery(
+                "select e.paper.id, max(e.id) from PaperEvent e where e.paper.id in :ids "
+                        + "and e.type in :types group by e.paper.id", Object[].class)
+                .setParameter("ids", paperIds)
+                .setParameter("types", List.of("STATE_CHANGED", "STATE_REVERTED", "STATE_MIGRATED",
+                        "STATE_REPAIRED", "MENDELEY_PULL", "MENDELEY_MERGE"))
+                .getResultList();
+        Map<Long, Long> latest = new LinkedHashMap<>();
+        for (Object[] row : rows) latest.put((Long) row[0], (Long) row[1]);
+        return latest;
     }
 
     public Map<Long, List<PaperEvent>> findByPaperIds(List<Long> paperIds) {
